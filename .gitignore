@@ -1,0 +1,7 @@
+refs/
+artifacts/
+logs/
+out/
+capture-*/
+*.tar.gz
+private/
