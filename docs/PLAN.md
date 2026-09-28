@@ -8,6 +8,7 @@ Changes from v3:
   pmaports has no OnePlus 15 package to derive from, and Fedora 44 already runs GNOME on the tablet in RAM.
 - Phases 2 and 3 are done or nearly done; Phase 4 is rewritten as the Fedora install; the remaining hardware moves to
   Phase 5 in the PC's "B" order.
+- **Sleep/standby and hardware-matched thermal handling** added as Phase 5-PM. Thermal is a gate for the install.
 - **Dual boot (Android + Fedora)** added as Phase 4-DB: U-Boot in the recovery partition, and Fedora in its own
   partition carved from userdata (the user chooses between 4e single-boot and 4-DB).
 
@@ -131,6 +132,7 @@ rootfs → dnf through `tools/relay/usb-proxy.py` → `rootfstar` hand-back → 
 3. **Only then choose where U-Boot lives** (the user's decision): the boot partition of the **current** slot (no slot
    switching), keeping the other slot's Android boot image for rollback. Rollback = flash back the saved boot image
    (the proven 2-minute loop).
+- **Gate before 4e:** Phase 5-PM A items 1–4 (skin, XO, GPU, BCL) pass their load tests in RAM.
 - **Exit:** Fedora 44 GNOME boots from UFS without the PC; our kernel updates through dnf; rollback tested once.
 
 ### Phase 4-DB — Dual boot: Android + Fedora (the user asked for it; replaces 4d/4e when chosen)
@@ -205,8 +207,8 @@ one key press away. Neither OS ever writes the other's partitions.
   tested once (restore recovery; to undo the split, restore the GPT backup and `fastboot -w`).
 
 ### Phase 5 — Remaining hardware (on Fedora; test changes by RAM boot first, then as rpm updates)
-In the PC's "B" order (KNOWLEDGE §13):
-1. suspend/resume (s2idle + RTC wake);
+In the PC's "B" order (KNOWLEDGE §13); sleep and thermal are specified in Phase 5-PM below:
+1. suspend/resume (s2idle + RTC wake) → Phase 5-PM B;
 2. Wi-Fi under NetworkManager, 5/6 GHz and regdomain;
 3. BT address + pairing;
 4. audio: speakers on Primary TDM, the TFA9865 protection, UCM, headset, mics;
@@ -216,6 +218,108 @@ In the PC's "B" order (KNOWLEDGE §13):
 8. video (Iris), cameras (SC1320CS/SC820CS + CAMERA_ICP), sensors (SSC via hexagonrpcd), keyboard accessory;
 9. `super` mapped for the extractor;
 10. kernel loose ends (SoundWire port counts, pstore across PS_HOLD).
+
+### Phase 5-PM — Sleep, standby and thermal handling matched to the Pad 4 (the user asked for it)
+
+This runs before and alongside the install: **the thermal part is a gate for Phase 4e/4-DB** (no installed system
+without skin and battery protection). Sleep is the gate for "daily use". Everything is tested by RAM boot first,
+unattended with its own logging, as usual.
+
+#### A. Thermal: rebuild stock's policy in the kernel, sensor by sensor
+
+The Pad 4's own sensors and the stock policy, read from the live stock DT (capture 2) and the stock thermal zones
+(capture 3):
+
+| Stock zone | Sensor (ADC channel / label) | Stock trips | Our state |
+|---|---|---|---|
+| `cpu-*`, `cpullc-*` (20) | TSENS | 105 (HAL) / 112 / 114 passive, 125 hot | ✅ mirrored (0023), held at 105 °C under load |
+| `cpu-hw-trip-0/1` | LMh hardware | 95 °C | check that the kaanapali firmware limits on its own (SCMI perf) and that Linux sees the throttling |
+| `gpuss-0..10` | TSENS | infiniti's GPU trips (value to confirm against stock) | check the GPU cooling map with glmark2 held for 10 min |
+| **`sys-therm-2` = `pmh0101_skin_therm`** (0x144) | the **skin** thermistor | **48 / 49 / 50 / 60 / 61 °C** steps (userspace "gears"), 90 °C | **missing: the key one for a tablet held in the hands** |
+| `sys-therm-0` = `pmk8850_xo_therm` (0x44) | XO / board | 78 / 80 °C → CPU pause + cluster frequency caps (state 5+), 90 °C hot | missing |
+| `sys-therm-9` / `-12` = `pmih010x_batt_therm(_2)` | battery | passive (120 = no action) | battmgr reports battery temperature; charging policy is below |
+| `sys-therm-11` = `pmih010x_usb_therm`, `usb_therm`, `chg_cp_therm` | USB connector, charge pumps | 120 (userspace) | missing: connector overheat protection |
+| `sys-therm-3/4/5/6/7` = cam_flash, wlan, pa_1, qtm, pa_2 | | 120 | informative; `flash_therm` + `board_therm` done (0032) |
+| `shell_front/frame/back` | Oplus virtual "shell" (skin estimates) | computed by the vendor framework | replace with the skin thermistor + a small virtual-sensor formula if needed |
+| `pmh0101-bcl-lvl0..2`, `pmih010x-ibat-lvl0/1`, `pmih010x-bcl-lvl0..2`, `vbat`, `socd` | battery current limit (BCL) / low-voltage | stock throttles CPU/GPU on high current or low battery | **missing: protects against brown-out resets at low battery under load** |
+| `ddr`, `video`, `camera-*`, `nsphvx/hmx` (CDSP), `mdmss` | TSENS | stock cooling: `ddr-cdev`, `cdsp*`, `display-fps`, `panel0-backlight`, `ufs` | later, when those drivers are in use |
+
+The plan, in order:
+1. **Skin control (new DT zones, kernel-only so it works in every distro).** Add `pmh0101_skin_therm` (ADC5 Gen4
+   AMUX 0x144, 100k pull-up) as a `skin-thermal` zone with step-wise trips that follow stock's steps:
+   - 48 °C → cap the big cluster (cpu6-7) one step at a time;
+   - 50 °C → cap both clusters and the GPU (devfreq cooling);
+   - 60 °C → strong caps (big ≤ ~1.9 GHz, GPU ≤ mid OPP);
+   - 90 °C → `critical` (orderly shutdown).
+   The exact frequency caps are tuned to stock's gear table (OnePlus `sys_thermal_control_config.xml`: 20 gears →
+   14 CPU levels, e.g. level 3 = 2.36/1.86 GHz) once the PC extracts it, with polling at 1 s.
+   - Alternative if step-wise oscillates: `power_allocator` on the skin zone with a measured `sustainable-power`.
+2. **XO/board zone** (`pmk8850_xo_therm` 0x44): 78/80 °C passive with CPU cluster caps, as in stock; 90 °C critical.
+3. **GPU:** confirm infiniti's GPU trips and cooling on `gpuss-*`; add the stock values if they differ. The GPU is
+   the main heat source under GNOME (the Adreno 840 at 1.2 GHz).
+4. **BCL / low-battery protection:**
+   - look for a mainline or infiniti/XEC driver for the PMH0101/PMIH010x BCL blocks (vbat/ibat alarms as thermal
+     zones);
+   - otherwise a userspace guard (a systemd unit on the battmgr capacity/voltage) that caps CPU/GPU below ~10 %
+     battery or under 3.4 V.
+   - Test with a controlled load at low battery; the tablet must not brown-out reset.
+5. **Charging thermal:**
+   - confirm the charger firmware (SoCCP/ADSP) enforces battery and connector temperature limits itself: log battmgr
+     current vs battery temperature while charging under load;
+   - add `charge_control_end_threshold` (e.g. 80/85 %) for long plugged-in use;
+   - add a `usb_therm`/`chg_cp_therm` zone that stops charging (battmgr) above stock's limit.
+6. **GNOME integration:** `power-profiles-daemon` profiles map to cpufreq caps. Power-saver caps the big cluster;
+   balanced and performance don't cap, but the skin trips never go above stock's steps. Thermal zones get sensible
+   names so `sensors` and GNOME extensions show "skin", "battery" and "board".
+7. **Verification (each a kit, judged from logs):**
+   - CPU (8 threads), GPU (glmark2 10 min), combined and while charging, each for 15 min;
+   - record skin, xo, battery and CPU/GPU frequencies every second;
+   - pass = skin ≤ 50 °C sustained (≤ 60 °C peak), no critical trip, no reset, frequencies recover afterwards;
+   - compare with stock Android under the same load, read from a LineageOS/stock capture on the PC.
+
+#### B. Sleep and standby states
+
+Qualcomm mainline platforms support **s2idle** (suspend-to-idle; PSCI OS-initiated idle takes the SoC to its deepest
+state through RPMh/AOSS). There is no separate "deep" S3. The targets:
+
+| State | What it is on the Pad 4 | Wake sources | Target |
+|---|---|---|---|
+| **Screen off / idle** | DPMS off (MSM DRM + KTZ8869 backlight off), runtime PM on everything, CPU idle states, GPU collapsed, Wi-Fi power save | touch (optional), keys | fast (< 0.5 s) screen on; idle drain measured |
+| **Standby = s2idle** (`mem_sleep_default=s2idle`) | all devices suspended; CPUs in the cluster/system power-down state; RPMh votes released so **CX, DDR and AOSS reach sleep** (the "CXPC/AOSD" counters increase) | power key (PMK8850 PON), **lid open** (TLMM98), pogo keyboard (wake TLMM151), RTC alarm, USB plug/charger events (pmic-glink), optionally Wi-Fi WoWLAN / BT HID | resume ≤ 1.5 s with display, touch, USB, Wi-Fi and BT working; **drain ≤ ~1 %/h** (compare with stock Android's standby drain measured on LineageOS) |
+| **Suspend-then-hibernate** (optional, later) | systemd suspends, then hibernates to a swap partition/file after N hours | power key | only after s2idle is solid; needs swap ≥ RAM (12 GB), not in the first install |
+| **Power off / reboot** | PS_HOLD, known to work (hard reset) | power key | ✅ |
+
+Work items, in order:
+1. **Kit pc-025** (built): s2idle with an RTC alarm (`SUSPEND_AT`, PMK8850 RTC). Check "PM: suspend entry/exit",
+   the RTC wake, and that the kit's network, display and touch come back. Logs come from the live stream; nothing is
+   watched.
+2. **Low-power proof:**
+   - enable `qcom_stats` (rpmh-stats, in the infiniti queue) and read the AOSS/CXSD/DDR sleep counters before and
+     after each suspend, plus `/sys/power/suspend_stats` and wakeup sources;
+   - find blockers with `pm_debug_messages` and `/sys/kernel/debug/wakeup_sources`.
+   - Typical blockers: a remoteproc keeping a vote (ADSP/CDSP/SoCCP), USB (dwc3 in peripheral mode with a host
+     attached keeps the link up, so also test on battery with the cable out), and the Wi-Fi PCIe link (ath12k
+     suspend / PCIe L1ss).
+3. **Resume correctness, per device:**
+   - display (dual-DSI + DSC panel re-init, KTZ8869 re-programmed with ABL's values: 0024 must also run on resume);
+   - touch (TDDI: the firmware is re-downloaded after the panel powers up again, or kept powered for tap-to-wake);
+   - pen, pogo keyboard;
+   - USB (the dwc3 `power_lost` pattern from aaronsb), Wi-Fi (ath12k suspend/resume or unload/reload as a fallback),
+     BT, audio (later), GPU (GMU resume), battmgr.
+   - DPU vblank timeouts on resume are a known trap.
+4. **Wake sources:** power key, lid open, pogo keyboard, RTC and charger all mark as `wakeup-source` in the DT and are
+   tested one by one. The lid close → suspend and open → resume path goes through logind.
+5. **Fedora/GNOME integration:**
+   - `mem_sleep_default=s2idle`; make sure `sleep.target`/`suspend.target` aren't masked (the Tab S6 found Fedora
+     masks them in some images);
+   - logind `HandleLidSwitch=suspend`, `HandlePowerKey=suspend`;
+   - GNOME idle suspend on battery;
+   - sleep hooks in `/usr/lib/systemd/system-sleep/` (for example a Wi-Fi reload or a touch re-init if needed),
+     shipped in `iceland-device`.
+6. **Measurement:** 8 h overnight standby on battery with Wi-Fi on; drain from the battmgr capacity/energy. Compare
+   with stock/LineageOS overnight on the PC side (read-only). Repeat 20 suspend/resume cycles without a failure.
+- **Exit:** s2idle reaches the SoC's sleep state, drain ≤ ~1 %/h, 20/20 clean resumes with every device working,
+  and lid, power key and keyboard wake work.
 
 ### Phase 6 — Upstreaming (runs alongside)
 Pad 4 DTS, KTZ8869, the NT36536 panel desc (already in the upstream driver), touch driver cleanup, TFA9865, the

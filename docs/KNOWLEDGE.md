@@ -374,6 +374,22 @@ https://github.com/mzakamin-hub/iceland-u-boot
   105/112/114 °C passive trips with cpufreq cooling maps (the LLC zones get 112/114).
 - Under 8 pinned busy loops: 67–78 °C at the start, 105 °C within about 4–6 s, then **held at 105–106 °C** at about
   1.9–2.5 GHz (little) and 2.9–3.1 GHz (big). Keep the trips in every kit.
+- **Stock thermistor map** (live DT capture 2, ADC5 Gen4 `vadc@9000`) and stock policy:
+  - `sys-therm-0` = `pmk8850_xo_therm` (0x44): trips 78/80 °C → CPU pause + cluster caps; 90 °C hot.
+  - `sys-therm-1` = `pmk8850_xoagg_therm` (0x4b).
+  - **`sys-therm-2` = `pmh0101_skin_therm` (0x144): the skin sensor**, userspace steps at 48/49/50/60/61 °C, 90 °C.
+    It read 54 °C under DSU load.
+  - `sys-therm-3..7` = `cam_flash` (0x145), `wlan` (0x146), `pa_therm_1` (0x147), `qtm` (0x14b), `pa_therm_2` (0x149).
+  - `sys-therm-8` = `pmih010x_wls_therm`/`subboard_temp_adc` (0x274d).
+  - `sys-therm-9` = `pmih010x_batt_therm` (0x2744).
+  - `sys-therm-11` = `pmih010x_usb_therm` (0x2747).
+  - `sys-therm-12` = `pmih010x_batt_therm_2` (0x274c; reads 95.7 °C, probably not fitted).
+  - Other stock zones: `cpu-hw-trip-0/1` (LMh, 95 °C); BCL `pmh0101-bcl-lvl0..2`, `pmih010x-ibat-lvl0/1`,
+    `pmih010x-bcl-lvl0..2`, `vbat`, `socd`; the Oplus virtual `shell_front/frame/back`; `chg_cp_therm`, `usb_therm`,
+    `battery`.
+  - Stock cooling devices: cpufreq-cpu0 (27) / cpu6 (28), cpu-cluster0/1, cpu-hotplug*/pause-cpu*, `gpu`/`kgsl` (17),
+    `display-fps` (16), `panel0-backlight` (255), `ddr-cdev`, `ufs` (2), `cdsp*`.
+  - The Pad 4 plan for all of this is PLAN Phase 5-PM A.
 - ADC5 Gen4 works (config fixed), but the Pad 4 DTS has **no ADC channels or ADC-TM zones** for the board
   thermistors (skin, XO, PA…). The stock DT has them, and skin-based throttling needs them (Phase 5). Stock also
   has OnePlus skin "gears" (`odm/etc/temperature_profile/sys_thermal_control_config.xml`).
@@ -438,6 +454,7 @@ ABL (stock, untouched)
 | 2 | First Linux shell from RAM ✅ |
 | 3 | Core hardware over RAM boot (**mostly done**: thermal ✅, native display ✅, touch firmware ✅, Wi-Fi ✅, BT ✅, battery ✅; open: UFS read-only mount, a real touch, lid, BD address, the firmware extractor) |
 | 4 | **Fedora 44 GNOME install** (4a RAM rehearsal in progress; 4b packages; 4c image; 4d/4e writes need the user's OK) |
+| 5-PM | **Sleep/standby (s2idle to AOSS sleep, ≤ ~1 %/h, lid/key/keyboard wake) + thermal matched to the Pad 4 (skin 48/50/60 °C steps, XO 78/80 °C, GPU, BCL, charging)**; thermal gates the install |
 | 4-DB | **Dual boot Android + Fedora** (option): U-Boot in `recovery_<slot>` (Power+VolUp / `adb reboot recovery` → Fedora; normal boot → Android); Fedora in a `fedora` partition carved from userdata (repartition + one Android wipe, user's OK) |
 | 5 | Remaining hardware on Fedora (the PC's "B" order) |
 | 6 | Upstreaming, alongside phases 3–5 |
