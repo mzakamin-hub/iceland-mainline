@@ -74,6 +74,9 @@ Order by value: CPU/thermal **with cooling maps before any load** (Y700: 100 °C
 native display (NT36536, dual DSI; test item: DSI1 vs DSI0 sync) + KTZ8869 backlight → touch → Wi-Fi (firmware
 from manifest) → battery/charging (check `charger_pd` / Oplus charger firmware) → lid (TLMM 98) → Bluetooth
 (real BD address from persist). Firmware extractor (`firmware/`) written and run once by the user here.
+From the Nura OnePlus 15 page (`research/nura-oneplus-15.md`): rear flash LED (pmh0101 flash-led, stock channel map),
+USB OTG tested on battery **and** with external PD power (on the OnePlus 15 OTG works only with PD), and no haptics
+(disabled in the Pad 4 stock DT).
 - Exit: usable touch desktop over RAM boot, Wi-Fi, battery %, safe thermals.
 
 ### Phase 4 — pmOS install (first write to the tablet; needs the user's explicit OK)
