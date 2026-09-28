@@ -199,6 +199,7 @@ https://github.com/mzakamin-hub/iceland-u-boot
 - ABL `/memory`: **20 segments, 11.50 GiB** (table in `device-facts/README.md`; `memory-map.txt` is ready for fdtput).
   - Segment 8 has size 0.
   - The largest low segment usable for loading is **0xa6400000–0xc3dd0000**.
+- Partitions for dual boot: `recovery_a` (LUN 4 entry 27) and `recovery_b` (entry 70) are 100 MiB each; `boot_a` entry 12; `init_boot_a` 8 MiB; LUN 0: `super` entry 14, `userdata` entry 15 (235.9 GB).
 - 68 stock reserved-memory nodes. Key ones:
   - `splash_region` **0xfc800000, size 0x2b00000**;
   - `llcc_lpi` 0xff800000;
@@ -437,6 +438,7 @@ ABL (stock, untouched)
 | 2 | First Linux shell from RAM ✅ |
 | 3 | Core hardware over RAM boot (**mostly done**: thermal ✅, native display ✅, touch firmware ✅, Wi-Fi ✅, BT ✅, battery ✅; open: UFS read-only mount, a real touch, lid, BD address, the firmware extractor) |
 | 4 | **Fedora 44 GNOME install** (4a RAM rehearsal in progress; 4b packages; 4c image; 4d/4e writes need the user's OK) |
+| 4-DB | **Dual boot Android + Fedora** (option): U-Boot in `recovery_<slot>` (Power+VolUp / `adb reboot recovery` → Fedora; normal boot → Android); Fedora in a `fedora` partition carved from userdata (repartition + one Android wipe, user's OK) |
 | 5 | Remaining hardware on Fedora (the PC's "B" order) |
 | 6 | Upstreaming, alongside phases 3–5 |
 | 7 | Other distros, optional |

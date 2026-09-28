@@ -8,6 +8,8 @@ Changes from v3:
   pmaports has no OnePlus 15 package to derive from, and Fedora 44 already runs GNOME on the tablet in RAM.
 - Phases 2 and 3 are done or nearly done; Phase 4 is rewritten as the Fedora install; the remaining hardware moves to
   Phase 5 in the PC's "B" order.
+- **Dual boot (Android + Fedora)** added as Phase 4-DB: U-Boot in the recovery partition, and Fedora in its own
+  partition carved from userdata (the user chooses between 4e single-boot and 4-DB).
 
 ## Goal
 
@@ -131,6 +133,77 @@ rootfs → dnf through `tools/relay/usb-proxy.py` → `rootfstar` hand-back → 
    (the proven 2-minute loop).
 - **Exit:** Fedora 44 GNOME boots from UFS without the PC; our kernel updates through dnf; rollback tested once.
 
+### Phase 4-DB — Dual boot: Android + Fedora (the user asked for it; replaces 4d/4e when chosen)
+
+Goal: Android (the current slot's OS: LineageOS on slot b today, or stock OxygenOS) stays the default. Fedora is
+one key press away. Neither OS ever writes the other's partitions.
+
+**Boot selection: U-Boot in the recovery partition (recommended).**
+- The Pad 4 has dedicated `recovery_a`/`recovery_b` partitions (100 MiB each; GPT entries 27 and 70 on LUN 4, seen
+  in U-Boot run 4). ABL boots `recovery_<slot>` for **Power + Volume Up**, `adb reboot recovery`, or "Restart to
+  recovery" in Android's power menu.
+- So `recovery_<current slot>` ← the same U-Boot image we RAM-boot today (header v4, kernel = gzip(u-boot.bin)).
+- Normal power-on → ABL → `boot_<slot>` → **Android**, untouched: ABL still sets up the root of trust, the cmdline,
+  vendor_boot and dtbo, so keystore/FBE keep working.
+- Power + Volume Up (or `adb reboot recovery`) → ABL → U-Boot → EFI → GRUB → **Fedora**.
+- From Fedora, a normal `reboot` returns to Android.
+- **Cost:** Android's own recovery is replaced. To sideload or reset Android, flash the saved stock/LineageOS
+  recovery image back temporarily; the images are in the 151-partition backup. A/B OTAs don't need recovery
+  (update_engine).
+- **One write, easy to undo:** `fastboot flash recovery_<slot> u-boot-iceland.img` from stock ABL. Rollback = flash the
+  saved recovery image. There's no slot switching and `boot` isn't touched.
+- **Check first (no write):** that ABL boots a header v4 image from recovery the way it does with `fastboot boot`.
+  Evidence can come from the LineageOS install history and ABL behaviour. The flash itself is the test.
+
+**Alternatives (not recommended):**
+- **Key-selector in the Android boot kernel** (Project Aloha DualBootKernelPatcher style, see research/gts6l-tab-s6.md):
+  a shellcode in `boot_<slot>` reads a volume key and jumps to an embedded U-Boot, otherwise it continues into Android.
+  It keeps recovery, but it patches Android's kernel (redo after every update), and reading the PMIC key over SPMI
+  from shellcode is hard. Only a fallback if ABL won't boot U-Boot from recovery.
+- **Slot-based** (Android on one slot, U-Boot as the other slot's boot): switching needs `fastboot set_active` (a hard
+  stop), OTAs overwrite the other slot, and ABL's retry counter falls back unpredictably. Rejected.
+- **U-Boot boots Android:** Android needs ABL's root-of-trust handover (keymint/FBE, AVB state, bootconfig). Not
+  possible from U-Boot. Rejected.
+
+**Storage: a separate Fedora partition (needs the user's explicit OK: repartitioning is a hard stop).**
+- Android's userdata is metadata-encrypted and FBE, so Fedora can't live in a file inside it. `super` and the other
+  partitions are full. Space has to come from **shrinking userdata** on LUN 0 (235.9 GB today).
+- Proposed layout on LUN 0; the user picks the sizes:
+  - `userdata`: same name, type GUID and attributes, e.g. ~96 GB;
+  - `fedora`: e.g. ~128 GB, the Fedora disk;
+  - optional `shared`: a few GB of exFAT for swapping files between the two OSes.
+- **Procedure (each step approved separately; the user runs the commands):**
+  1. Back up the LUN 0 GPT (`sgdisk --backup` from a RAM-booted Linux, read-only) plus the existing 151-partition
+     backup. Also do the file-level `/data/vendor` + persist copy (4d).
+  2. **Android data is wiped once.** userdata gets reformatted at its new size, and all apps and data are lost.
+     Then Android re-encrypts on first boot.
+  3. From a RAM-booted Linux kit with a guarded partitioner: only LUN 0, only entry `userdata` shrunk and the new
+     entries appended, with a dry run printed and a typed confirmation.
+  4. `fastboot -w` (ABL) formats the new userdata. Boot Android once and check it.
+  5. Write the Fedora image into `fedora`, with a guarded `dd` from RAM Linux (GPT name `fedora` only). Alternatively
+     use ABL `fastboot flash fedora` if ABL accepts a non-Android partition name; check that first.
+  6. Flash U-Boot into `recovery_<slot>` (see above).
+- **U-Boot env for dual boot:** `fedora_blkmap` maps the partition named `fedora` instead of `userdata`
+  (`part start/size scsi 0 fedora`). `bootcmd` = `run fedora_blkmap; bootefi bootmgr; fastboot usb 0`. It's still
+  read-only: U-Boot never writes the UFS.
+- **Zero-repartition alternative:** Fedora on a USB-C SSD, with Android untouched. It needs U-Boot USB host (untested)
+  and working OTG power (on the OnePlus 15, OTG works only with external PD), so it's research, not the plan.
+
+**Keeping the two OSes compatible:**
+- **Firmware follows Android updates.** Fedora loads the remoteproc/Wi-Fi/BT firmware straight from the **current
+  slot's** read-only partitions (modem, bluetooth) at boot: `fw-extract.sh` as a boot unit, or read-only mounts
+  plus `firmware_class.path`. So an Android OTA that changes firmware doesn't break Fedora. `super` contents
+  (GPU zap, odm) are refreshed by the same unit once `super` mapping works; until then they come from a copy.
+- **Android OTAs flip slots:** after an OTA the new slot's `recovery` is the stock one again. Re-flash U-Boot there
+  (a one-line helper, like re-patching Magisk). Kits and helpers never switch slots themselves.
+- **Clock:** the PMIC RTC reads 1970 and Android keeps its offset in `/data`. Fedora uses NTP and systemd's timestamp
+  file, and never writes the RTC unless that's proven harmless to Android.
+- **Isolation:** Fedora mounts no Android partition read-write (persist and modem stay read-only, and there's no
+  `userdata` access). Android ignores the unknown `fedora`/`shared` partitions.
+- **Exit:** power-on boots Android with its data intact; Power + Volume Up boots Fedora GNOME from `fedora`; each OS
+  survives the other's reboot; an Android OTA plus re-flashing U-Boot to recovery keeps both working; rollback is
+  tested once (restore recovery; to undo the split, restore the GPT backup and `fastboot -w`).
+
 ### Phase 5 — Remaining hardware (on Fedora; test changes by RAM boot first, then as rpm updates)
 In the PC's "B" order (KNOWLEDGE §13):
 1. suspend/resume (s2idle + RTC wake);
@@ -162,7 +235,7 @@ a loader entry with `devicetree` and `lsm=`.
 - Not supported: Debian stable and Ubuntu LTS (their Mesa is too old for the a840).
 
 ## Hard stops (ask the user)
-Any write to the tablet (first: Phase 4e) · slot switching · repartitioning · firmware not from this tablet's 11.A.38
+Any write to the tablet (first: Phase 4e, or 4-DB) · slot switching · repartitioning (needed by 4-DB) · firmware not from this tablet's 11.A.38
 (exception: upstream linux-firmware files for the GPU) · publishing or contacting maintainers.
 
 ## Where things live
