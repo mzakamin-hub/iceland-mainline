@@ -398,6 +398,24 @@ https://github.com/mzakamin-hub/iceland-u-boot
   - The CPU zones read 66–80 °C under DSU load.
   - No kaanapali mainline tree (infiniti, XEC) has passive CPU trips, so the stock table is the only reference.
 
+### Charging and USB-C power (stock live DT)
+- **The stock OnePlus kernel stack does the fast charging; the SoCCP firmware does the basics.**
+  - SuperVOOC: `oplus,vooc`, `vooc_power_max_w = 80`, `voocphy_support = 3`.
+  - PPS: `oplus,pps_charge`, target 11 V, 5 A.
+  - UFCS: `oplus,ufcs_charge`, 11 V, 6.1 A.
+  - The OnePlus layers use **2× `oplus,sc8547d` charge pumps** on APPS I2C (12-006a and 24-006a; IRQ TLMM3 on one of them)
+    plus `virtual_*` ICs over pmic-glink. None of this exists on mainline.
+- `oplus,wired` normal PD/QC settings:
+  - ICL 2 A; 5→9 V switch at vbatt 4.5 V;
+  - input-power table 2.5 / 2.5 / 7.5 / 10 / 30 / 13.5 / 13.5 W;
+  - cool-down tables at 5–9 V, 1.2–2 A; VBUS OV 11 V / UV 4.3 V.
+- `oplus,dual_cells_protection`: min FCC 3400 mA, current limit 2.5 A, SOC-jump threshold 35. It's a **dual-cell
+  pack**. The OnePlus kernel supervises it, so cell safety without that stack has to be confirmed (PLAN 5-PM C).
+- Pen charging: `oplus,wls-tx-mt5806` at 25-002b (IRQ TLMM169, control GPIOs on PMIH010x), powered by the PMIH010x
+  **hboost at 7 V** (`qcom,pen_is_supply_by_hboost`), plus `oplus,wireless_pen_glink` messages.
+- The charger firmware log channel is `PMIC_LOGS_SOCCP_APPS` (`qcom,charger-ulog-glink`), useful for charging kits.
+- The plan is PLAN Phase 5-PM C.
+
 ### Other facts from the PC's older notes
 - **No modemst/fsg/fsc** partitions.
 - **No L3K rail** (stock `drop-l3k`), so the WCN7860 PDC mode must not be voted.
@@ -454,7 +472,7 @@ ABL (stock, untouched)
 | 2 | First Linux shell from RAM ✅ |
 | 3 | Core hardware over RAM boot (**mostly done**: thermal ✅, native display ✅, touch firmware ✅, Wi-Fi ✅, BT ✅, battery ✅; open: UFS read-only mount, a real touch, lid, BD address, the firmware extractor) |
 | 4 | **Fedora 44 GNOME install** (4a RAM rehearsal in progress; 4b packages; 4c image; 4d/4e writes need the user's OK) |
-| 5-PM | **Sleep/standby (s2idle to AOSS sleep, ≤ ~1 %/h, lid/key/keyboard wake) + thermal matched to the Pad 4 (skin 48/50/60 °C steps, XO 78/80 °C, GPU, BCL, charging)**; thermal gates the install |
+| 5-PM | **Sleep/standby (s2idle to AOSS sleep, ≤ ~1 %/h, lid/key/keyboard wake) + thermal matched to the Pad 4 (skin 48/50/60 °C steps, XO 78/80 °C, GPU, BCL, charging) + power management (PD charging safety, charge limit, OTG/host/DP alt mode, EAS, 60 Hz on battery, CDSP off, measured vs stock)**; thermal and charging safety gate the install |
 | 4-DB | **Dual boot Android + Fedora** (option): U-Boot in `recovery_<slot>` (Power+VolUp / `adb reboot recovery` → Fedora; normal boot → Android); Fedora in a `fedora` partition carved from userdata (repartition + one Android wipe, user's OK) |
 | 5 | Remaining hardware on Fedora (the PC's "B" order) |
 | 6 | Upstreaming, alongside phases 3–5 |

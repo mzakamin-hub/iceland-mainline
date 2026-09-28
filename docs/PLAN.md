@@ -8,7 +8,8 @@ Changes from v3:
   pmaports has no OnePlus 15 package to derive from, and Fedora 44 already runs GNOME on the tablet in RAM.
 - Phases 2 and 3 are done or nearly done; Phase 4 is rewritten as the Fedora install; the remaining hardware moves to
   Phase 5 in the PC's "B" order.
-- **Sleep/standby and hardware-matched thermal handling** added as Phase 5-PM. Thermal is a gate for the install.
+- **Sleep/standby, hardware-matched thermal handling, and power management (charging, USB-C PD/OTG, whole
+  system)** added as Phase 5-PM. Thermal and charging safety are gates for the install.
 - **Dual boot (Android + Fedora)** added as Phase 4-DB: U-Boot in the recovery partition, and Fedora in its own
   partition carved from userdata (the user chooses between 4e single-boot and 4-DB).
 
@@ -132,7 +133,9 @@ rootfs → dnf through `tools/relay/usb-proxy.py` → `rootfstar` hand-back → 
 3. **Only then choose where U-Boot lives** (the user's decision): the boot partition of the **current** slot (no slot
    switching), keeping the other slot's Android boot image for rollback. Rollback = flash back the saved boot image
    (the proven 2-minute loop).
-- **Gate before 4e:** Phase 5-PM A items 1–4 (skin, XO, GPU, BCL) pass their load tests in RAM.
+- **Gate before 4e:** Phase 5-PM A items 1–4 (skin, XO, GPU, BCL) pass their load tests in RAM, and 5-PM C charging
+  step 2 (thermal derating, termination, cell safety) is confirmed, or charging stays attended-only with an 80 %
+  limit.
 - **Exit:** Fedora 44 GNOME boots from UFS without the PC; our kernel updates through dnf; rollback tested once.
 
 ### Phase 4-DB — Dual boot: Android + Fedora (the user asked for it; replaces 4d/4e when chosen)
@@ -320,6 +323,91 @@ Work items, in order:
    with stock/LineageOS overnight on the PC side (read-only). Repeat 20 suspend/resume cycles without a failure.
 - **Exit:** s2idle reaches the SoC's sleep state, drain ≤ ~1 %/h, 20/20 clean resumes with every device working,
   and lid, power key and keyboard wake work.
+
+#### C. Power management: charging, USB-C PD / OTG, and the whole system (the user asked for it)
+
+**What stock does (live stock DT) and what mainline has:**
+
+| Stock piece | Where it runs on stock | On mainline today |
+|---|---|---|
+| Basic charging, gauge, USB-C PD/Type-C detection | charger firmware on **SoCCP**, reached over pmic-glink (`qcom,ucsi-glink`, battmgr) | ✅ battery and USB data, UCSI `port0` + partner (pc-011/013). An SDP port gave 5 V / 1.24 A |
+| **SuperVOOC 80 W** (`oplus,vooc`, `vooc_power_max_w = 80`), **PPS 11 V / 5 A**, **UFCS 11 V / 6.1 A** | the **OnePlus kernel stack** (`oplus,vooc/pps_charge/ufcs_charge`, `virtual_*` ICs over glink), driving **2× SC8547D charge pumps** on APPS I2C (12-006a, 24-006a) | ❌ none of it. Expect standard USB PD / QC from the firmware only |
+| PD/QC normal charging limits: ICL 2 A, 5 V↔9 V switch at vbatt 4.5 V, input power table 2.5–30 W, cool-down tables, VBUS OV 11 V / UV 4.3 V | OnePlus `oplus,wired` (kernel) | the firmware's defaults; to measure |
+| **Dual-cell protection** (`oplus,dual_cells_protection`: min FCC, current limit 2.5 A, SOC-jump checks) | OnePlus kernel | ❌. **Safety item:** confirm the pack/gauge/firmware protects the cells on its own before long unattended charging |
+| Battery authentication (IN: Maxim DS28E30) | OnePlus kernel + firmware | unknown effect: check whether charging is slowed when nobody authenticates |
+| Smart/limit charging (`oplus,smart_charge`, `plc_charge`) | OnePlus kernel | use battmgr `charge_control_*` if the firmware supports it, or a userspace limiter |
+| **Pen charging:** MT5806 wireless TX (I2C 25-002b), powered by the PMIH010x **hboost** at 7 V, plus `oplus,wireless_pen_glink` | OnePlus kernel + firmware | ❌. Needs an MT5806 driver + hboost control + the glink pen messages |
+| OTG / VBUS out | firmware on request from the OnePlus stack | untested. The OnePlus 15 gets OTG only with external PD power, so the OTG enable is probably a OnePlus glink message |
+
+**Charging plan, in order:**
+1. **Measure what the firmware does alone** (kits, logged from battmgr/UCSI, one charger at a time; the user plugs
+   them in):
+   - SDP (PC port), a DCP 5 V brick, a USB PD charger (9 V/15 V), a PPS charger and the OnePlus SuperVOOC brick;
+   - record the negotiated PDO (UCSI), input voltage and current, battery current, and battery/connector temperatures;
+   - expected: PD at 9 V up to the firmware's limit (roughly 18–27 W). No PPS/UFCS/VOOC.
+2. **Safety before daily charging:**
+   - confirm the firmware stops or derates on battery temperature (charge under load, watch current vs
+     `batt_therm`) and on connector temperature (`usb_therm`);
+   - confirm full-charge termination (current tapers, `status` goes Full);
+   - confirm the dual cells stay balanced (gauge per-cell data, if exposed; otherwise the pack protection the stock
+     firmware relies on).
+   - Until all three pass, charge only while attended, with an 80 % end threshold.
+3. **Charge limit for long plugged-in use:** `charge_control_end_threshold` / `_start_threshold` through battmgr, if the
+   SoCCP firmware accepts it (upstream battmgr has it for newer platforms). Otherwise a small daemon that asks the
+   firmware to suspend charging (the OnePlus glink message, found in the OnePlusOSS `oplus_chg` source).
+   Expose it to GNOME (GNOME 48+ has a battery-health charge-limit toggle through UPower).
+4. **Fast charging (optional, big job):** PPS through the SC8547D charge pumps is possible in principle: mainline has
+   PD PPS support in tcpm, but here PD runs in firmware, so we'd need the OnePlus glink PPS messages plus a
+   charge-pump driver. UFCS and SuperVOOC are proprietary. Decision: **not in scope** for the first install; revisit
+   once everything else works.
+5. **Pen charging:** after the pen input fix. Needs an MT5806 driver (from the OnePlusOSS source, GPL), hboost control
+   (PMIH010x) and the pen glink messages. A medium-hard item on its own.
+
+**USB-C roles, PD and OTG:**
+1. **Restore the real Type-C wiring in the DT** (removed for bring-up):
+   - dwc3 `usb-role-switch` driven by UCSI;
+   - the connector graph: UCSI port → dwc3 (HS) + QMP combo PHY (SS/DP) + WCD939x USB-SS mux (orientation and audio
+     accessory).
+2. Cases, each a kit with the user plugging things in:
+   - **device mode** (charging from a PC, gadget): works;
+   - **host with self-power** (keyboard, mouse, SSD, hub): VBUS out;
+   - **host + charging through a PD hub** (power pass-through, i.e. a data-role swap while sinking);
+   - **reverse charging** of a phone (source role, current limit);
+   - **DisplayPort alt mode** (pmic-glink altmode + the infiniti DP controller).
+3. **OTG enable:** find the OnePlus glink message for OTG/VBUS boost in the `oplus_chg` source (the OnePlus 15's
+   "OTG only with PD" symptom says it's missing). Add it to our battmgr/pmic-glink OnePlus variant; compare with XEC's
+   OnePlus pmic-glink power-supply driver (df4c73f22d08).
+4. **Safety:** VBUS out is never enabled by our code while a source is attached; the firmware's OCP/OVP stays in
+   charge. OTG current is limited to stock's value.
+
+**General system power (screen-on battery life):**
+
+| Area | Plan |
+|---|---|
+| CPU | schedutil governor; **Energy-Aware Scheduling**: make sure an energy model is registered (SCMI perf EM or DT `dynamic-power-coefficient`), so light work stays on the little cores; PSCI OS-initiated cluster idle states (check `cpuidle` usage counters) |
+| GPU | msm devfreq DCVS works (160 MHz–1.2 GHz); the GMU idles and collapses; check that it idles under GNOME with a static screen |
+| Display (the biggest consumer) | brightness via KTZ8869 (the range and a sensible minimum); **60 Hz on battery, 120/144 Hz on AC** (a udev/`power-profiles-daemon` hook, or a GNOME setting); DPMS off quickly when idle |
+| Memory / interconnect | icc votes scale with load; LLCC active; check that DDR frequency drops at idle (`qcom_stats` DDR counters) |
+| Storage | UFS runtime PM + auto-hibern8; WriteBooster left as stock |
+| Radios | Wi-Fi power save (`wifi.powersave=3` in NetworkManager), BT autosuspend; ath12k PCIe ASPM/L1ss |
+| DSPs | **CDSP off** unless used (nothing uses it yet); the ADSP only for audio and sensors; SoCCP is always on (charging) |
+| USB | dwc3 runtime suspend with no cable |
+| Userspace | `power-profiles-daemon` (power-saver = big cluster capped + 60 Hz + Wi-Fi power save), udev runtime-PM defaults (`power/control=auto` where safe), GNOME dim/blank/suspend defaults; all shipped in `iceland-device` |
+
+**Measurement (fuel gauge `power_now`/`current_now`, logged every second by a kit or a Fedora unit):**
+- idle screen-on at minimum and typical brightness;
+- 1080p video playback (Iris later; software first);
+- web browsing loop;
+- Wi-Fi idle, Bluetooth idle.
+
+Compare each against stock/LineageOS doing the same scenario (read-only measurement on the PC side). Target: within
+~20 % of stock for screen-on idle and video once the display refresh and DSP policies are in.
+
+**Exit for 5-PM C:**
+- PD charging works with thermal derating and termination proven, a charge limit is available in GNOME, and
+  battery safety is confirmed;
+- host mode, a PD hub and DP alt mode each work or are documented as blocked;
+- screen-on power is within ~20 % of stock in the measured scenarios.
 
 ### Phase 6 — Upstreaming (runs alongside)
 Pad 4 DTS, KTZ8869, the NT36536 panel desc (already in the upstream driver), touch driver cleanup, TFA9865, the
