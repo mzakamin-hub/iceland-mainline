@@ -127,3 +127,30 @@ Segment 8 has size 0 (as reported by ABL).
 - Stock cmdline disables the geni console (`qcom_geni_serial.con_enabled=0`, `console=ttynull`).
 - Bluetooth address present in stock props (`persist.vendor.service.bdroid.bdaddr`) — redacted here; source for the
   real BD address in Phase 6.
+
+## Capture 3 (complete run)
+
+Folder `capture-20260927-3/`. Stock `dtbo_a`/`vendor_boot_a` images are not committed (vendor_boot carries a
+proprietary ramdisk); their sha256 is in `stock-images.sha256`, decompiled DTs of this unit are in `dtbs/`.
+
+- **Device trees:** dtbo = 10 overlays (iceland 0x6546, iceland-O 0x6547, iceland-O O EU 0x6579,
+  iceland-O EU/IN 0x657a). This unit = `dtbo_a-06`/`-08` "iceland-O IN" (project-id 0x657a, board-id 8).
+  vendor_boot = 14 base SoC DTBs (Alor/Canoe/CanoeP); this unit = `vendor_boot_a-12` "CanoeP v2 SoC".
+  `iceland-O-IN-fixups.txt` = the 202 base symbols the stock overlay binds (cross-check list for map220v's DTS).
+- **I2C map (stock):** TFA98xx-v6 amps 0-0034/36/37 and 22-0034/36/37; KTZ8869 master 14-0011 / slave 15-0011;
+  **SC8547D charge pumps 12-006a and 24-006a**; **MT5806 pen charger 25-002b**; WCD939x USB-SS 3-000e;
+  **cameras on i2c9 (qup2 @884000): sensors 0x20 and 0x6c, EEPROMs 0x50/0x58, actuator 0x18**;
+  ADSP-side (pmic-glink i2c): cps4061 @0x30, 2× smb1501 @0x68/0x69.
+- **SPI:** spi19.0 `nf_nt36536` (touch) on qup4 @1a80000.
+- **Remoteprocs:** spss (offline), **soccp attached at boot** (firmware in its own `soccp_a` partition, loaded by the
+  boot chain), adsp + cdsp running (`adsp.mdt`/`cdsp.mdt`, split .bNN files in `modem_a:/image`).
+- **Firmware locations:** GPU `gen80200_{sqe,gmu,aqe,zap}` + `vpu40_2v.mbn` in `/vendor/firmware`; ADSP/CDSP + jsn +
+  Wi-Fi `peach/amss20.bin`, `regdb.bin`, `bdwlan.eXX` (per-board BDF) in `/vendor/firmware_mnt/image` (modem_a);
+  **Bluetooth `brhbtfw20.{mbn,tlv}` / `brhbtnv20*.bin` in `/vendor/bt_firmware/image`** (bluetooth_a) — not `gngbt*`
+  as map220v lists; touch `FW_NT36536_HUAXING.img` in `/odm/firmware/tp/25926/`; pen `mt5806_firmware.bin`;
+  speaker `tfa98xx.cnt` and `POGOPIN_KB.bin` in `/odm/firmware`.
+- **CPU:** policy0 = CPUs 0-5 up to 3.6288 GHz, policy6 = CPUs 6-7 up to 4.3968 GHz. 93 thermal zones
+  (gpuss-0..10, usb_therm, …); stock cooling devices incl. cpufreq per cluster, kgsl/gpu, display-fps, panel backlight.
+- **Partitions (bytes):** boot/vendor_boot 100663296, init_boot 8388608, dtbo 25165824, vbmeta 65536, recovery 104857600,
+  modem 367001600, bluetooth 12582912, dsp 77594624, soccp 8388608, xbl 3670016, uefi 5242880, abl 1048576,
+  persist 134217728, super 14612955136, userdata 237159641088 — full list in `partitions.txt`.
