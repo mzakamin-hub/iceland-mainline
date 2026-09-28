@@ -7,7 +7,8 @@
 # workstation = Fedora-Workstation-Disk raw image (GNOME; the Phase 4 install image, needs the user's OK to write)
 set -euo pipefail
 what=${1:-base}; OUT=${2:-$HOME/mainline/build/fedora}; mkdir -p "$OUT"
-REL=43; VER=43-1.6; M=https://dl.fedoraproject.org/pub/fedora/linux/releases/$REL
+# Fedora 44: Mesa 26.0.3 with the first freedreno support for the Adreno gen8 (a840, Kaanapali); 43 has 25.2.4
+REL=${REL:-44}; VER=${VER:-44-1.7}; M=https://dl.fedoraproject.org/pub/fedora/linux/releases/$REL
 fetch() { # fetch SUBDIR FILE CHECKSUMFILE
 	local sub=$1 f=$2 c=$3
 	cd "$OUT"

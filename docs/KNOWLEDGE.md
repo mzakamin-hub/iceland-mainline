@@ -651,6 +651,7 @@ ABL (stock, untouched)
 | pc-020 | pc-019 + 150 ms-paced breadcrumbs through the takeover + MDSS IRQ log: F ×8 | **2 of 8 reset (F3, F7), both caught:** the last line is `firmware framebuffer removed`, the "150 ms after" line never comes. The SoC dies in the pause right after the framebuffer releases its rails (MMCX TURBO → LOW_SVS under the 650 MHz MDP) and clocks (LUT, VSYNC, ESC0/1 gated), before the DPU votes its own. `relay/results/pc-020-021-handover-hang.md` |
 | pc-021 | pc-020 kernel + DTB candidates: R = MDSS holds MMCX TURBO (×6 run), K = MDSS holds LUT/VSYNC/ESC (not run); q-next2 DT items; persist read-only | **R4 reset at the MDSS reset step** (1 of 6), so rails/clocks are not it. Lining up the init's `/dev/mem` scanout sampler (0.5 s ticks) with the breadcrumbs: every caught crash has a tick in the fatal window. **Thermistors read 29-31 °C, persist mounts ro (no bt_nv file).** Stopped early |
 | pc-022 | pc-020's kernel and setup, only the `/dev/mem` sampler off (`SCAN=0`): S ×6 | **0 of 6** (vs 3 of 14 with the sampler on the same kernel). **The early reset is closed: it was the kit's own sampler.** No kernel change; `SCAN=0` is automatic for native-display kits |
+| pc-023 | lean kernel try-144b (queue 0001-0034 + dpu `clk_inefficiency_factor` 100): H ×4; `UFSRO_AT=25` on persist/modem_a/bluetooth_a + `FWEXTRACT=1` | **144 Hz: the CRTC runs the stock 144 Hz timing, no underrun (4 of 4) → 0035.** **Firmware extractor: 11 files from modem_a/bluetooth_a (vfat, read-only) with matching sha256**, 11 skipped (super/raw). `relay/results/pc-023-024-144hz-extractor-fedora.md` |
 
 ## 11. Problems hit and how they were solved
 
@@ -850,7 +851,10 @@ ABL (stock, untouched)
     report pages, live kmsg), `switch_root` into it, nothing written; extra packages added on the tablet at RAM-boot
     time through a proxy on the PC (the WSL host has no dnf). The install = the official Fedora Workstation aarch64
     raw image into userdata as a whole-disk image (U-Boot blkmap + EFI boot manager + GRUB) with our kernel/DTB,
-    only with the user's OK. GNOME acceleration depends on Mesa freedreno support for the gen80200 GPU (to check);
+    only with the user's OK. GNOME acceleration: **Mesa 26.0 has initial freedreno (OpenGL) support for Adreno
+    gen8 incl. a840/Kaanapali** (Phoronix, "Mesa 26.0 lands initial support for Adreno Gen 8"; the kernel side is
+    the "drm/msm/adreno: Introduce Adreno 8xx family support" series, in our 7.3 tree); turnip (Vulkan) is
+    still landing. **Fedora 44 ships Mesa 26.0.3 (43 has 25.2.4), so Fedora 44 is the release to use**;
     llvmpipe is the fallback:
     - file-level copy of `/data/vendor` + persist;
     - ath12k loaded late until the resets are understood.
