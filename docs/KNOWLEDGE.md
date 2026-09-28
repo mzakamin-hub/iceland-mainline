@@ -297,7 +297,22 @@ https://github.com/mzakamin-hub/iceland-u-boot
     - WCD Capture (TX_CODEC_DMA_TX_3, 120).
   - It fails with "tplg firmware loading `qcom/kaanapali/OnePlus-Pad4-tplg.bin` failed -2". An **AudioReach topology**
     is needed. Stock uses ACDB/AGM, so none exists.
+  - **pc-017:** with upstream's Kaanapali topology (`linux-msm/audioreach-topology` 993a17d `SM8550-HDK.m4`, built as
+    `OnePlus-Pad4-tplg.bin`, sha256 66e01a76…b81b) the card **registers**: `0 [OnePlusPad4]: kaanapali - OnePlus-Pad4`,
+    PCMs MultiMedia1/2/6 playback (C0D0/C0D1/C0D5), MultiMedia3/4 capture (C0D2/C0D3), compress MultiMedia5 (C0D4),
+    input "OnePlus-Pad4 Headset Jack". Nothing played yet.
   - One `qcom-apm CMD timeout [1001021]` is seen right after the ADSP comes up.
+  - **Stock back ends** (odm `resourcemanager.xml` / `backend_conf.xml`, 11.A.38):
+    - speaker → **TDM-LPAIF-RX-PRIMARY**, 48 kHz, 8 ch, 32 bit (6× TFA9865; the "TFA Stop" control takes 6 values);
+    - V/I feedback → TDM-LPAIF-TX-PRIMARY, 8 ch;
+    - handset ("receiver" profile) → MI2S-LPAIF-RX-PRIMARY, 2 ch; CPS feedback → MI2S-LPAIF-TX-PRIMARY;
+    - headphones → CODEC_DMA-LPAIF_RXTX-RX-0; handset/speaker/headset mics → CODEC_DMA-LPAIF_RXTX-TX-3;
+    - VA mics → CODEC_DMA-LPAIF_VA-TX-0.
+
+    So the DT's speaker link (Primary MI2S RX) differs from stock. Mainline 7.3 has the TDM pieces: `q6tdm_ops`
+    (2/4/8/16 slots, 16/32 bit), `sc8280xp.c` PRIMARY_TDM_RX_0 with DT slots, and AudioReach
+    `MODULE_ID_AUDIO_IF_SINK` 0x0700117C (`PARAM_ID_AUDIO_IF_INTF_CFG`, TDM mode 0, tokens 262-276). The topology repo
+    has no m4 macro for it yet.
 - Rear flash LED (relay 002): `led-controller@ee00`, `qcom,pmh0101-flash-led`, with **two dies**:
   - warm/yellow on sources 1+4;
   - white on sources 2+3;
@@ -530,6 +545,7 @@ ABL (stock, untouched)
   | `KITCONF` | the `/etc/kit.conf` to embed |
   | `DT_DEL_NODES` / `DT_DEL_PROPS` | experiments: remove debug-DTB nodes / `node:prop` properties |
   | `LATE_MODS` / `LATE_AT` | modules held back and loaded at that uptime (in dependency order) |
+  | `ALSADIR` | pinned Ubuntu `amixer` + libasound + ALSA config, via `fetch-alsa.sh` (read-only mixer listing) |
 
   `kit.conf` keys:
   - `WATCHDOG`: the busybox daemon on `/dev/watchdog0`, 60 s;
@@ -540,7 +556,12 @@ ABL (stock, untouched)
   - `REBOOT_MODE`: `/sys/kernel/reboot/mode`; `warm` has no effect here;
   - `BATTSTATE`, `AUDIOSTATE_AT`;
   - `DYNDBG`: `;`-separated dynamic-debug queries, re-applied after the late modules;
-  - `PGLINK_UNBIND_AT` / `PGLINK_BIND_AT`: the pmic-glink hold/attach harness (pc-013).
+  - `PGLINK_UNBIND_AT` / `PGLINK_BIND_AT`: the pmic-glink hold/attach harness (pc-013);
+  - `HEARTBEAT=N`: a kernel-log line every N s (10 s after 90 s), so a stream shows when the system stopped (pc-016);
+  - `NET_FIRST=1` (+ `NET_WAIT`, `EARLY_MODS`): USB network before the module list; the modules load only once the PC
+    reads `kmsgall` (or after `NET_WAIT` s). `EARLY_MODS` (e.g. `qcom-wdt`) load before the network (pc-016).
+- **Page `kmsgall`:** `cat /dev/kmsg` (the whole log from its first line, then live, up to 900 s; kmsg record format
+  `prio,seq,usec,flags;msg`). Opening it creates `/tmp/pc-stream` (what `NET_FIRST` waits for).
 - **Runner hook:** `run-linux.ps1` calls an optional `After-Android` function once Android is back.
   `tools/relay/run-kit-long.ps1` uses it to:
   - save the reset lines of Lineage's `/proc/bootloader_log` (`reset-after.txt`); the full log stays private in
@@ -549,6 +570,14 @@ ABL (stock, untouched)
   - set adbd back to non-root.
 
   The same wrapper streams the `kmsg` page into `late-kmsg.txt` during its wait (`-Wait 90..120`).
+
+  Since pc-016 `tools/relay/run-kit-early.ps1` is used instead. It keeps two recorders running for the whole session
+  (moved into the run folder as `relay-side/` at the end):
+  - `usb-timeline.txt`: every change of the tablet's USB devices with the PC time (ABL/U-Boot fastboot, NCM, Android);
+  - `stream-NN-HHmmss.txt`: `kmsgall`, opened as soon as 172.16.42.1 answers (~1.4 s after the NCM device appears),
+    ending with the time of the last data and the reason. A reconnect gets the whole log again.
+
+  Its late pages are fetched only if the tablet still answers (no 4-minute timeouts after a reset).
 - Kits are built in WSL by `make-kitNN.sh` scripts (kept in the PC build dir), with per-variant firmware trees, module
   lists and `kit.conf`, then packaged with `package.sh`.
 - **`init` monitors:**
@@ -592,6 +621,8 @@ ABL (stock, untouched)
 | pc-013 | kernel + DEBUG prints; A = pmic-glink hold/attach harness, B = pc-012 A again, C = integration again | **Fix v2 proven:** the channel is held (27 s) and attached on bind (107 s) with battery data 2 s later; C hit the race naturally and it was held and attached 1 s later. **B reset early again** |
 | pc-014 | bisect: A = audio modules late (95 s), B = no WCD9395 codec | **A reset early** (so it isn't the audio modules loading); B fine |
 | pc-015 | bisect: A = SoCCP stack at boot only (control), B = no USB-C connector graph + orientation GPIO, C = no orientation GPIO, D = SoCCP at 20 s | A, C, D fine; **B reset early**. The resets span 4 different setups, so it's a timing race around the early pmic-glink clients. Results in `relay/results/pc-013-015-early-reset.md` |
+| pc-016 | rate + live log (`kmsgall` from ~1.4 s after NCM, USB timeline): A = control ×4, N = network first ×4 | **A3 and N4 reset** (2/8). **N4 streamed:** the kernel hung 1.3 s after the pmic-glink attach, where the MSM DRM takeover from the firmware framebuffer starts; reset ~10 s later. Every N run: USB link drop at the attach (harmless) |
+| pc-017 | sound card with a topology: A = integration, B = audio only; both SoCCP at 20 s | **B: sound card registered** (`kaanapali - OnePlus-Pad4`, 5 PCMs + compress + headset jack) with upstream's Kaanapali topology. **A reset early**, so SoCCP at 20 s is no workaround. Results in `relay/results/pc-016-017-live-log-audio.md` |
 
 ## 11. Problems hit and how they were solved
 
@@ -627,7 +658,11 @@ ABL (stock, untouched)
 | Battery | pmic-glink channel lost in a probe race (SoCCP comes up instantly) | 0028: attach the early channel in `pmic_glink_probe()` |
 | Battery | the first fix (-EPROBE_DEFER) lost the channel for good | a failed rpmsg probe destroys the endpoint, which closes the glink channel; hold it instead (v2 = 0028) |
 | Audio | SoundWire waited for `pinctrl@7760000` | load `pinctrl-sm8650-lpass-lpi` (+ `snd-soc-wcd939x`, `-sdw`) |
-| Audio | card fails at `snd_soc_component_probe` -2 | no `qcom/kaanapali/OnePlus-Pad4-tplg.bin` (AudioReach topology) yet: open |
+| Audio | card fails at `snd_soc_component_probe` -2 | `qcom/kaanapali/OnePlus-Pad4-tplg.bin` built from `linux-msm/audioreach-topology` `SM8550-HDK.m4` (upstream's Kaanapali topology) with a pinned alsatplg: the card registers (pc-017) |
+| Early reset | no log: the tablet died before the USB network was up | the `kmsgall` live stream opened at once by `run-kit-early.ps1` + `NET_FIRST=1` (modules load only once the PC is streaming) + `HEARTBEAT` |
+| Early reset | "SoCCP stack at 20 s" looked like a workaround (pc-015 D) | it isn't (pc-017 A reset): the display takeover follows the pmic-glink **platform device** probe, not the SoCCP channel |
+| PC tooling | Windows `Get-ChildItem` shows 0 bytes for a stream file that is still open | open the file (`[IO.File]::Open(..., 'ReadWrite')`) to see its real length |
+| PC tooling | the relay log is UTF-8 when the runner is started from PowerShell 7 (UTF-16 from Windows PowerShell) | `save-run.sh` checks the BOM |
 | GPU | debugfs `gpu` answered ENODEV | not a failure: the a8xx code has no `gpu_state_get`; use `msmparam` (MSM_GET_PARAM) instead |
 | PC tooling | a Git Bash `tail -F` on `run.log` made the runner's `Add-Content` fail | read logs with PowerShell `Get-Content` only |
 | PC tooling | files edited from Windows (`\\wsl.localhost`) lose the exec bit (`env: Permission denied`) | `chmod 755` before building |
@@ -674,9 +709,20 @@ ABL (stock, untouched)
   survive (PS_HOLD hard reset).
 - **Unattended kits need a way back:** a watchdog daemon plus an auto reboot at 240 s. The runner waits 150 s for the
   network and 180 s for adb.
-- If a crash happens before the USB network is up (~35 s uptime), defer the suspect part with `LATE_MODS`/`LATE_AT`
-  past the start of the live `kmsg` stream (~60 s) to capture it.
+- If a crash happens before the USB network is up, use `NET_FIRST=1` (the modules wait for the PC's `kmsgall`
+  stream) rather than `LATE_MODS`, which changes what races with what.
 - `debugfs dri/*/gpu` ENODEV doesn't mean the GPU failed; ask the driver (`msmparam`).
+- **Stream first, then load.** With `NET_FIRST=1` the PC reads the live log before any module loads, so an early hang
+  is recorded up to its last ~0.1 s. The kmsg lines printed in the very last moments may not get out: bracket
+  suspects with breadcrumbs.
+- **The display takeover comes 1.3 s after the pmic-glink platform device probes** (that probe kicks the deferred
+  probes: KTZ8869 master → panel → DSI → msm_dpu). Moving the SoCCP stack later does not move it.
+- **UCSI init resets the USB bus:** 8 ms after "Registered UCSI interface" the host issues a bus reset and the gadget
+  re-enumerates (full speed, then high speed); Windows may drop the NCM TCP connections. Harmless, but a live stream
+  must reconnect. The QMP orientation does not change (the PHY is not power-cycled).
+- The SoCCP altmode notifications repeat every ~3.3 s (orientation 1, mux 1, svid 0xff00) and each one calls
+  `typec_switch_set` (a no-op when nothing changes).
+- Stock speakers are **Primary TDM** (8 × 32 bit), not Primary MI2S; see §4 audio.
 
 ## 13. Current state, open issues, next steps
 
@@ -688,48 +734,42 @@ ABL (stock, untouched)
 - ✅ Wi-Fi (`wlan0`, scan), ✅ Bluetooth (`hci0`), ✅ battery/USB data over pmic-glink (SoCCP).
 - ✅ ADSP boots, SoCCP attaches, the GPU powers up.
 - ✅ **Integration boot (pc-012 B, pc-013 C):** all of the above works together in one boot.
-- ⚠️ Audio: SoundWire, WCD9395 and 6× TFA9865 bind; the card stops at the missing AudioReach topology.
+- ✅ **Sound card registers** (pc-017) with upstream's Kaanapali AudioReach topology: 5 PCMs + compress + headset
+  jack. ⚠️ Nothing played yet; the speakers need Primary TDM (stock) and volume caps first.
 
 **Open issues:**
-1. **Early reset with pmic-glink at boot** (pc-012 A, pc-013 B, pc-014 A, pc-015 B).
-   - The tablet resets before the USB network is up (< ~35 s), so there is no log.
-   - It spans four different setups, while close variants run clean (pc-014 B, pc-015 A/C/D, the integration runs),
-     so it's most likely a **timing race** around the pmic-glink clients (UCSI, altmode, battmgr) starting at early
-     boot.
-   - Not the cause:
-     - the audio modules loading;
-     - fix v2's hold/attach path (the harness and the natural race worked);
-     - the orientation GPIO alone.
-   - **Workaround:** the SoCCP stack at 20 s (pc-015 D fine).
-   - Next: measure a rate (repeat one setup 3-4 times) and capture a log with an earlier kmsg stream.
+1. **Early reset** (pc-012 A, pc-013 B, pc-014 A, pc-015 B, pc-016 A3 + N4, pc-017 A): about **1 run in 4**, in
+   every setup with the native display.
+   - **pc-016 N4 streamed it:** the kernel hung 1.3 s after the pmic-glink attach, exactly where the MSM DRM takeover
+     from the firmware framebuffer starts in clean runs; the tablet reset ~10 s later (a PS_HOLD hard reset).
+   - Suspect: a race in the takeover (splash stop + MDSS reset, firmware framebuffer removal dropping its clock /
+     GDSC / rail votes, DPU/DSI access), e.g. against a `sync_state` or a rail vote.
+   - Not the cause: the audio modules, fix v2's hold/attach path, the orientation GPIO, the USB-C connector graph,
+     the QMP PHY (no power-cycle), the USB link drop at the attach (UCSI bus reset, harmless).
+   - **No workaround yet:** SoCCP at 20 s does not help (pc-017 A).
+   - Next: pc-018 (MSM takeover breadcrumbs + `sync_state` lines, network first; control without the native display).
 2. **Early Wi-Fi load reset** (pc-009, 2 resets, 13+ clean runs since): not reproducible; maybe the same family as #1.
 3. **battmgr units:** the battery looks like mV/mA while USB is µV/µA. Check the scaling for the SoCCP firmware.
 4. **144 Hz** is pruned (pixel clock 1261 MHz). It needs stock per-rate porches / DFPS.
 5. **qnoc sync_state** drops boot bandwidth once `qce-core` binds. It matters only for the simpledrm fallback.
 6. GPU `vdd`/`vddcx` supplies are missing in the DT.
 7. No board-thermistor ADC channels / ADC-TM zones (skin temperature) yet.
-8. pmsg/ramoops don't survive (PS_HOLD hard reset). Crash logs come only from the live `kmsg` stream, so defer
-   suspects past ~60 s.
+8. pmsg/ramoops don't survive (PS_HOLD hard reset). Crash logs come only from the live stream: use `kmsgall` with
+   `run-kit-early.ps1`, and `NET_FIRST=1` for anything that happens during module loading.
 9. SoundWire TX port-count mismatch warnings (DT vs controller).
 
 **Pending list (shared; worked top-down, RAM boot only, nothing written to the tablet):**
 1. **Finish the early-reset investigation** (#1):
-   1. measure a rate (pc-015 A and B, 3-4 runs each);
-   2. add an early kmsg stream: the runner opens a streaming page the moment the tablet answers, or the init pushes
-      logs to the PC;
-   3. find the colliding action (UCSI/altmode vs the USB PHY/eUSB2 repeater, or the failed ADSP auto-boot);
-   4. fix it in the kernel or DT.
-
-   Until then, the debug kits load the SoCCP stack at 20 s.
-2. **Audio topology:** write `KAANAPALI-OnePlus-Pad4.m4` from `linux-msm/audioreach-topology` (SM8550-HDK + an I2S
-   board as templates):
-   - Primary MI2S RX (port 16) → TFA9865;
-   - RX_CODEC_DMA_RX_0 (113) → WCD9395 headphones;
-   - TX_CODEC_DMA_TX_3 (120) ← mic.
-
-   Build it with a pinned `alsatplg` (no sudo in WSL), ship it as `qcom/kaanapali/OnePlus-Pad4-tplg.bin`, and check
-   that the card registers (no playback until volume caps exist). Then UCM, capped until TFA9865 protection
-   (`tfa98xx.cnt`) works.
+   1. ✅ rate: ~1 in 4 (pc-016: 2 of 8; pc-017 A);
+   2. ✅ early live log (`kmsgall` + `run-kit-early.ps1` + `NET_FIRST`); N4 caught the hang at the display takeover;
+   3. pc-018: which takeover step hangs (breadcrumbs, `sync_state` lines); does it happen without the native display;
+   4. fix it in the kernel or DT, then prove it over ≥ 8 runs.
+2. **Audio:**
+   1. ✅ topology + card registration (pc-017; upstream's Kaanapali topology as `OnePlus-Pad4-tplg.bin`);
+   2. mixer listing (`amixer contents`, read only) in the next audio kit (`AUDIOSTATE_AT` before the late pages);
+   3. speakers: Mainline moves the DT speaker link to PRIMARY_TDM_RX_0 (8 × 32 bit, TFA9865 slots); the PC writes an
+      Audio IF (TDM) device subgraph m4 for the topology;
+   4. volume caps, then UCM; no playback before that (TFA9865 protection needs `tfa98xx.cnt`).
 3. **battmgr units** (#3): read the scaling in `qcom_battmgr.c` for the SoCCP/OPLUS path and compare with stock.
 4. **Small DT items (kit-DTB first, then queue patches):**
    - lid `gpio-keys` `SW_LID` on TLMM98;
