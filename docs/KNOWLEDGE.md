@@ -782,7 +782,9 @@ ABL (stock, untouched)
   now clean back to back.
 - ✅ Battery units (0029), lid switch + debounce (0030/0034), flash LEDs (0031), board/flash thermistors (0032),
   eUSB2 tuning (0033); persist read-only mount; queue = 0001-0034 (iceland-linux 9d29f72).
-- Target OS: **Fedora with GNOME** (user); a Fedora 43 rootfs-in-RAM kit (pc-024) is being prepared (§13 item 12).
+- Target OS: **Fedora 44 with GNOME** (user). ✅ Fedora 44 boots to systemd `running` in RAM (pc-024 Y7) and
+  ✅ **the Adreno 840 renders through Mesa's freedreno** (pc-024 Y8: `Adreno (TM) 840`, GLES 3.2, Mesa 26.2.3,
+  DCVS 160 MHz-1.2 GHz) - see §13 item 12.
 
 **Open issues:**
 1. ✅ **Early reset - closed (pc-022): it was the kit's own `/dev/mem` display sampler, not the kernel.** History:
@@ -864,13 +866,51 @@ ABL (stock, untouched)
     (exec chroot systemd as PID 1, the initramfs stays the real root, `/rootfs` bind-mounted on itself) is the
     way: **pc-024 Y7 (21:29): systemd 259.9 boots Fedora 44 to `running` on the tablet in RAM** (journald, udev,
     NetworkManager, sshd; `an/fedora-ssh.sh` logs in from WSL), `iceland-dnf.service` installs packages through
-    the PC (71 in 18 s), `kmscube` renders on the MSM KMS - on llvmpipe, because the kit's DTB kept `gpu@3d00000`
-    disabled (fixed in `make-kit24.sh` for the next run). `ROOTFS_URL` lets the shim fetch a big rootfs from the
-    PC at boot (port 8000), the way to a GNOME session in RAM. See `phase4/README.md`, `phase4/INSTALL-PLAN.md`,
+    the PC (71 in 18 s), `kmscube` renders on the MSM KMS - on llvmpipe in Y7 (the kit's DTB kept `gpu@3d00000`
+    disabled). **Y8 (21:48): with the GPU node enabled and the gen8 firmware in the kit (`qcom/gen80200_{sqe,gmu,
+    aqe}` from linux-firmware + the tablet's own signed `qcom/kaanapali/iceland/gen80200_zap.mbn`, kit tree
+    `fw24`, never committed) the a840 binds, `Loaded GMU firmware v5.3.23`, and Mesa reports `freedreno` /
+    `Adreno (TM) 840` (GLES 3.2, Mesa 26.2.3), GMU DCVS 160 MHz-1.2 GHz, no GPU error** - GPU acceleration for
+    GNOME is available. Probe traps: kmscube over ssh needs a silent stdin (`sleep 60 | kmscube …`), and the
+    runner's `-Wait` ends the session (not `AUTOREBOOT_AT`). `ROOTFS_URL` lets the shim fetch a big rootfs from the
+    PC at boot (port 8000), the way to a GNOME session in RAM. Next: Y9 Wayland (`seatd` + `cage` +
+    `glmark2-es2-wayland` from a kit post-install hook) and the GNOME packages installed in the same long boot,
+    handed back with `rootfstar`; Y10 boots that rootfs (gdm autologin). See `phase4/README.md`, `phase4/INSTALL-PLAN.md`,
     `relay/results/pc-023-024-144hz-extractor-fedora.md`:
     - file-level copy of `/data/vendor` + persist;
     - ath12k loaded late until the resets are understood.
 13. Later: DP, cameras (SC1320CS/SC820CS need new drivers; CAMERA_ICP firmware), sensors (SSC via hexagonrpcd), video.
+
+**Plan (2026-09-28 22:05; the user asked for all pending hardware bring-up in it; RAM boot only, one kit per
+item, judged from logs, results saved after each; anything that writes to the tablet waits for the user's OK):**
+- **A. Phase 4 - Fedora 44 GNOME:** Y9 = Wayland on the a840 (`seatd` + `cage` + `glmark2-es2-wayland` from the
+  kit's post-install hook) and, in the same long boot (`AUTOREBOOT_AT=1800`, runner `-Wait 1700`), `dnf5 group
+  install gnome-desktop` through the proxy, a gdm autologin user, `systemctl start gdm` judged from the journal
+  (gnome-shell/mutter renderer lines), the rootfs handed back (`rootfstar` → `rootfs-gnome.tar.gz`) → Y10 boots it
+  via `ROOTFS_URL` (GNOME session in RAM; touch/pen judged from libinput/mutter logs, with a 30 s window from the
+  user) → the install (`phase4/INSTALL-PLAN.md`: Workstation 44 image into userdata, our kernel/DTB, the firmware
+  set from the extractor manifest; **needs the user's OK**).
+- **B. Hardware bring-up still pending, in order** (items above by number):
+  1. **Suspend/resume** (#10): pc-025 is built (s2idle + PMK8850 RTC alarm, `SUSPEND_AT=70`, run with `-Wait
+     120`); judge `iceland-suspend:` + "PM: suspend entry/exit", then display/touch/USB after resume.
+  2. **Wi-Fi:** load ath12k with the rest again (the reset was the sampler, open issue #2), 5/6 GHz when an AP is in
+     range (#8, user), regulatory domain; NetworkManager Wi-Fi under Fedora (Y10+).
+  3. **Bluetooth address** (pending #6): BD address from wlan0's MAC at boot (confirm stock's rule under LineageOS
+     with read-only adb `getprop`); `btmgmt public-addr` / `local-bd-address`; pairing under GNOME.
+  4. **Audio** (pending #2): speakers on Primary TDM (Mainline's DT + the Audio IF m4), volume caps, UCM, headset;
+     the TFA9865 `tfa98xx.cnt` protection before any playback; mics.
+  5. **Touch, pen, lid events** (#7): an input-event logger kit, or GNOME's libinput logs in Y10; the lid switch
+     closing (0030/0034) and the pen.
+  6. **USB:** host/OTG role (#11: DTB role switch, needs the user + PD), DisplayPort alt mode over USB-C
+     (pmic-glink altmode + DP in the DPU, #13), charging limits/thermal.
+  7. **GPU extras:** turnip (Vulkan) once Mesa lands a840, GPU cooling (`#cooling-cells`), the cosmetic
+     `vdd`/`vddcx` supplies (open issue #6).
+  8. **Video (Iris), cameras (SC1320CS/SC820CS + CAMERA_ICP), sensors (SSC through fastrpc/hexagonrpcd),
+     haptics, the keyboard accessory** (#13).
+  9. **Storage/firmware:** `super` mapped for the vendor/odm firmware in the extractor (pending #5), the file-level
+     `/data/vendor` + persist copies at the install; UFS is written only at the install, with the user's OK.
+  10. **Kernel loose ends:** 144 Hz per-rate porches/DFPS (#9), SoundWire port-count warnings (open #9), qnoc
+      sync_state for simpledrm (open #5), pstore across PS_HOLD (open #8); queue 0001-0035 kept ready for review.
 
 **Other notes:**
 - The kernel CI workflow exists but is only run by hand. Kernels are built in the cloud container and on the PC (WSL).

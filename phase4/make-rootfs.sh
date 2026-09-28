@@ -128,11 +128,21 @@ k "proxy $p: http $(timeout 20 curl -s -m 15 -o /dev/null -w '%{http_code}' -x "
 k "dnf5 install $(tr '\n' ' ' < /iceland/dnf-packages)"
 https_proxy=$p http_proxy=$p timeout 1200 dnf5 -y --setopt=install_weak_deps=False install $(cat /iceland/dnf-packages) > /tmp/dnf.log 2>&1
 k "dnf5 exit $? : $(tail -n 3 /tmp/dnf.log | tr '\n' '|')"
-# GPU check when kmscube was installed: a GBM/EGL spinning cube straight on the MSM DRM device (300 frames)
+# GPU check when kmscube was installed: a GBM/EGL spinning cube straight on the MSM DRM device (300 frames).
+# kmscube exits after one frame ("user interrupted!") when its stdin is closed or at EOF, as under a unit or ssh
+# (pc-024 Y8): feed it from a silent pipe so the "Rendered N frames" line appears. Lines kept short for /dev/kmsg.
 if command -v kmscube >/dev/null; then
 	card=$(ls /dev/dri/card* 2>/dev/null | tail -n1)
-	k "kmscube on $card: $(timeout 60 kmscube -D "$card" -c 300 2>&1 | tail -n 4 | tr '\n' '|')"
-	k "gpu: $(dmesg | grep -iE 'adreno|gmu|zap|freedreno' | tail -n 4 | tr '\n' '|')"
+	sleep 90 | timeout 60 kmscube -D "$card" -c 300 > /tmp/kmscube.log 2>&1
+	k "kmscube on $card exit $?: $(grep -iE 'renderer|rendered|interrupt|fail|error' /tmp/kmscube.log | cut -c1-120 | tail -n 3 | tr '\n' '|')"
+	k "gpu: $(dmesg | grep -iE 'adreno|gmu|zap|freedreno' | grep -vE 'sync_state' | tail -n 3 | cut -c1-150 | tr '\n' '|')"
+fi
+# an optional test script carried by the kit (build.sh EXTRA_ETC rootfs-post.sh -> /iceland/post.sh, copied in by
+# the shim at the hand-over): pc-024 Y9 runs the Wayland compositor test from it. Its log stays in /tmp/post.log.
+if [ -x /iceland/post.sh ]; then
+	k "post.sh: start at $(cut -d' ' -f1 /proc/uptime) s"
+	/iceland/post.sh > /tmp/post.log 2>&1
+	k "post.sh: exit $? at $(cut -d' ' -f1 /proc/uptime) s"
 fi
 EOF
 fr install -m 0755 "$W/dnf.sh" "$R/iceland/dnf.sh"
