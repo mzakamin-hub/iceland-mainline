@@ -1,6 +1,7 @@
 # OnePlus Pad 4 mainline Linux — knowledge base
 
-This file holds everything learned and decided on this project up to **2026-09-28**. It is written so that a person or an
+This file holds everything learned and decided on this project up to **2026-09-28 evening** (it includes the PC relay
+results pc-001..pc-011). It is written so that a person or an
 agent with no other context can pick up the work. Related files:
 - [../PROJECT.md](../PROJECT.md): short index and links
 - [../CHANGELOG.md](../CHANGELOG.md): history by commit
@@ -68,7 +69,7 @@ Contents:
    - HTTP: read-only survey pages and `/cgi-bin/reboot` on 172.16.42.1.
    - U-Boot is built with `CONFIG_FASTBOOT_FLASH` disabled.
 7. Nothing is published, and no maintainer (map220v, infiniti-mainline, pmOS…) is contacted, without asking the user.
-8. **Hard stops (ask the user first):** any write to the tablet (first planned in Phase 4), slot switching, slot b, firmware that isn't from this tablet's 11.A.38, and publishing.
+8. **Hard stops (ask the user first):** any write to the tablet (first planned in Phase 4), slot switching, firmware that isn't from this tablet's 11.A.38, and publishing. (Slot b now runs LineageOS with firmware hash-identical to slot a, so it is no longer a hazard in itself, but kits never switch slots.)
 9. **Commits:**
    - author `mzak <mzak.amin@gmail.com>`;
    - `Signed-off-by: mzak <mzak.amin@gmail.com>`;
@@ -76,6 +77,13 @@ Contents:
    - no model identifiers in repo files;
    - no PRs unless asked.
 10. The user runs Windows (PowerShell 5.1 by default) with platform-tools. The tablet is plugged into that PC, not into the cloud container.
+11. **Since 2026-09-28 the PC session runs tablet kits itself, unattended**, at the user's request. It runs
+    `tools/relay/run-kit-auto.ps1`, which answers `RUN` and `-` to the screen questions. Before running, it checks that
+    the sha256 values match, the allowlists are unchanged and the kit boots from RAM only. A kit that would write to the
+    tablet is never run; the user is asked instead. **So every kit must log the screen and hardware state itself**
+    (scanout sampler, `iceland-*` kernel lines, survey pages). Nobody is looking at the screen.
+12. The PC also builds kernels and kits itself (WSL). Both sessions push to the same repos. Always `git pull --rebase`
+    before pushing, and never rewrite shared history.
 
 ## 3. Repositories and layout
 
@@ -90,11 +98,24 @@ https://github.com/mzakamin-hub/iceland-mainline
   - stock DTs of this unit; `iceland-O-IN-fixups.txt` (202 symbols the stock overlay binds).
 - `docs/tests/`:
   - `README.md` (run log);
-  - `uboot-run4/`, `linux-run5/`, `linux-run6/` (survey text), `uboot-diag-run3-summary.json`.
-- `firmware/manifest.tsv` + `README.md`: 21 files, stock paths, sizes, sha256.
-- `tools/capture/`: `device-capture.sh` (runs on the tablet under root), `capture.ps1` (Windows), `capture.sh`, `README.md`. Read-only; redacts serials and MACs.
+  - survey folders: `uboot-run4/`, `linux-run5/`, `linux-run6/`, `linux-run7/`, `linux-run7b/`, and the PC kits
+    `linux-runpc1*` … `linux-runpc11/` (subfolders per image, `session.log`);
+  - `uboot-diag-run3-summary.json`.
+- `docs/research/`: `gts6l-tab-s6.md` (Galaxy Tab S6 evaluation), `nura-oneplus-15.md` (the Nura OnePlus 15 page
+  mapped to the Pad 4).
+- `docs/device-facts/stock-display-power.md` (stock rails, bandwidth, thermal) and `lineage-20260928/` (read-only
+  probe of the running LineageOS).
+- `relay/`: `README.md` (protocol), `PC.md` (what the PC has), `requests/`, `results/` (000, 001, pc-001…pc-011 with
+  their build scripts).
+- `tools/relay/`: `pc-watch.sh` (PC poller), `run-kit-auto.ps1` (unattended run), `run-kit-long.ps1` (late page fetch).
+- `firmware/manifest.tsv` + `README.md`: stock paths, sizes, sha256, corrected by the PC runs:
+  - BT uses the stock names `qca/brhbtfw20.mbn` and `qca/brhbtnv20.bin`;
+  - Wi-Fi `board.bin`/`regdb.bin` come from **odm** `etc/wifi/peach/`;
+  - `qdss.cfg` = modem `image/peach/qdss_trace_config_v2.cfg` (**required**).
+  - `firmware/convert-nt36536.py` unwraps the OnePlus touch firmware container.
+- `tools/capture/`: `device-capture.sh` (runs on the tablet under root), `capture.ps1` (Windows), `capture.sh`, `README.md`. Read-only; redacts serials and MACs. Also `probe.sh` + `probe-device.sh` (PC): a read-only root probe of a running Android, streamed over `adb shell -T` and redacted.
 - `tools/linux-ram/`:
-  - `build.sh`, `init`, `cgi-page`, `cgi-reboot`;
+  - `build.sh`, `init`, `cgi-page`, `cgi-reboot`, `modules-debug.list`, `fetch-iw.sh`, `msmparam.c` + `build-msmparam.sh` (see section 9 for the options);
   - `run-linux.ps1`: a template. `package.sh` fills in the image hashes and the list of runs (label, image, note); one session boots each image in turn.
 - `artifacts/` (gitignored, cloud only): test kits `uboot-test-1`, `uboot-diag-2..4`, `linux-test-1..7` (+ .zip) and the run results the user sent back.
 
@@ -103,13 +124,19 @@ https://github.com/mzakamin-hub/iceland-linux
 - `kernel.pin`:
   - upstream `v7.3-rc4` 93f51579e7df (tree 1dc395d6);
   - infiniti master 10650ae7bef4;
-  - `TREE_AFTER_0001_infiniti=6e2c9712…`, `TREE_AFTER_0002_iceland=b2d05ae0…` (as of 2728bb9).
-- `patches/0001-infiniti/` (138), `patches/0002-iceland/` (21). `debug-patches/` holds test-only patches that are never applied by prepare.sh; 0001 is the sync_state hack.
+  - `TREE_AFTER_0001_infiniti=6e2c9712…`, `TREE_AFTER_0002_iceland=6a7b5768…` (as of e0b025a).
+- `patches/0001-infiniti/` (138), `patches/0002-iceland/` (28).
+- `debug-patches/` holds test-only patches that prepare.sh never applies:
+  - 0001: the sync_state hack;
+  - 0002: `iceland-dbg:` GDSC/genpd/sync_state prints;
+  - 0003: panel DCS power-mode print.
 - `scripts/prepare.sh`: clone, `git am` each series, check the tree hash after each one. It needs a real clone (`.git` directory), not a worktree.
 - `scripts/build.sh`:
   - defconfig + `sm8850.config` + `configs/distro-neutral.config`;
   - strict check against `configs/required.config`;
-  - output to `dist/`: Image, dtb, BUILD_INFO. LLVM/clang 18.
+  - output to `dist/`: Image, dtb, BUILD_INFO. LLVM/clang 18 in the cloud; the PC builds with the LineageOS
+    prebuilt Android clang 22 (`clang-r596125`) in WSL (no sudo, no Ubuntu clang, no zstd, so modules are installed
+    with `CONFIG_MODULE_COMPRESS_ALL=`).
 - `docs/PORT-LOG.md`: what happened to each of map220v's 40 commits.
 - `.github/workflows/build.yml`: `workflow_dispatch` only.
 - Commits:
@@ -123,6 +150,11 @@ https://github.com/mzakamin-hub/iceland-linux
   | 27326fe | MMCX TURBO |
   | 2728bb9 | MXC TURBO |
   | fe964f7 | MX TURBO too; `debug-patches/` (sync_state hack for test 7b) |
+  | 05031dc | **framebuffer holds the MDSS INT2 GDSC: white screen fixed** (0022) — PC |
+  | f0162e1, d7c9f52 | CPU thermal trips 105/112/114 °C + cpufreq cooling maps, mirroring stock (0023) — PC |
+  | cc85322 | config: ADC5 Gen4 driver + thermal monitor — PC |
+  | f9bc5e2 | **native display works** (0024–0027 + `CONFIG_GPIO_SHARED_PROXY=y`) — PC |
+  | e0b025a | pmic_glink attaches a SoCCP channel that comes up first: battery data (0028) — PC |
 
 ### iceland-u-boot
 https://github.com/mzakamin-hub/iceland-u-boot
@@ -147,7 +179,7 @@ https://github.com/mzakamin-hub/iceland-u-boot
 
 ### Cloud working directories (lost when the container is reclaimed; everything that matters is pushed)
 - Kernel:
-  - `/home/user/iceland-src`: git kernel tree, branch `iceland-7.3` = infiniti/master + 21. Head 1fdbb95988ca.
+  - `/home/user/iceland-src`: git kernel tree, branch `iceland-7.3` = infiniti/master + the Pad 4 series (the cloud copy may lag behind the queue; rebuild it from `prepare.sh`).
   - `/home/user/build-src`: detached build worktree.
   - `/home/user/iceland-out`: kernel build output, `dist/`.
 - U-Boot: `/home/user/uboot-src` (source); `/tmp/ub-test` (prepared tree); `/tmp/ub-out` and `/tmp/ub-diag` (outputs, including the mkbootimg checkout).
@@ -185,14 +217,38 @@ https://github.com/mzakamin-hub/iceland-u-boot
   - stock dispcc `9ba2000` has `vdd_mm` = MMCX and **`vdd_mx` = MX**; it has **no MXC supply**;
   - with the screen on, stock APPS votes MMCX (mdss_mdp, dispcc) and MX (dispcc); **MXC has 0 votes**;
   - at boot, MMCX, MXC and MX are all proxy-held at 0x180 (TURBO), and ABL's splash runs in that state;
-  - so the second rail the framebuffer needs is **MX**. Test 7 votes MXC, which may not be enough.
+  - so the second rail the framebuffer needs is **MX**. (Test 7b later showed that the rails were not the cause of the white screen.)
+- **The white screen cause (pc-001):**
+  - ABL leaves **both** dispcc GDSCs on: `MDSS_CORE` and **`MDSS_CORE_INT2`** (id 1, gdscr 0xb000, 0x9bad000).
+  - Stock canoe-sde also uses both: `core_gdsc` and `core_int2_gdsc`.
+  - When the framebuffer, dispcc's last consumer, probes (~10.7–15 s), dispcc's genpd `sync_state` runs
+    `of_genpd_sync_state()`, which powers off every domain nobody holds. **`pd_ignore_unused` doesn't cover this path.**
+  - INT2 went off and the scanout died ("white right after the text stops"). Holding INT2 from the framebuffer
+    (0022) and from MDSS (0026/0027) fixes it.
+- **Native display (pc-007):**
+  - MSM DRM drives 3392x2400 @ 120 Hz over dual DSI + DSC, INTF_1 and INTF_2 in lockstep, no underruns.
+  - Panel DCS power mode 0x9e; KTZ8869 backlight 2047/4095; `fb0 = msmdrmfb`.
+  - Modes 120/90/60/30 Hz. **144 Hz is pruned** as `CLOCK_HIGH` (pixel clock 1261 MHz); stock uses per-rate porches.
+  - DSI reads on link 0 return -ENODATA, which is normal for the non-master link.
+- **KTZ8869:**
+  - ABL leaves BL_DIMMING 0x44 on both ICs, and on the slave BL_CFG2 0x8d / BL_OPTION2 0x77. The driver now
+    programs ABL's values per IC and writes only what differs (0024).
+  - Both ICs share TLMM 1 as HWEN. Since 7.3, gpiolib shares it through `gpio-shared-proxy`, which must be built in
+    (`CONFIG_GPIO_SHARED_PROXY=y`) or `enable-gpios` defers forever.
+- **DPU splash:** mainline `dpu_boot_splash()` only knew command-mode autorefresh, so it reset the video-mode splash.
+  0025 also counts a DSI INTF whose timing engine is on.
 - Stock MDP interconnect: data bus ib minimum 2 500 000 kBps (`sde-min-core-ib-kbps`), reg bus 800 000. Scanout needs about 1.95 GB/s at 60 Hz and 3.9 GB/s at 120 Hz.
 - Stock panel supplies: vddio `pmh0101_l12` 1.9 V; DSI `vdda-1p2` `pmh0110_d_l1`; DSI PHY `vdda-0p9` `pmh0110_d_l3`.
 - Panel per-rate porches: refresh `<120 144 90 60 50 48 30>`, hfp `<50 34 210 50 210 210 50>`, vfp `<26 26 26 2726 2010 2196 8126>`.
 
 ### Storage / USB
 - UFS: **HS-G5 x2**, Samsung KLUEG4RHKF-F0H1, 6 LUNs (LUN0 = 235.9 GB with userdata). The GPT reads fine in U-Boot.
-- USB: dwc3 at `usb@a600000`, eUSB2 PHY (M31) via PMIH0108. Role switch via pmic-glink/UCSI, removed for bring-up.
+- USB: dwc3 at `usb@a600000`, eUSB2 PHY (M31) via PMIH0108. Role switch via pmic-glink/UCSI, removed for bring-up. The NCM gadget binds at ~8.8 s.
+- Watchdog `17600000.watchdog` binds without a reset (`CONFIG_WATCHDOG_SYSFS` is off). RNG `10c3000.rng` and
+  reboot-mode work.
+- **Reset type:** our reboot is a PS_HOLD **hard** reset (DDR cold init, `PonReason=0x11`). `reboot mode=warm`
+  doesn't change it (the boot chain sets PS_HOLD to hard; stock uses a vendor driver). So ramoops/pmsg don't survive
+  our reboots. The reset reason comes from Lineage's `/proc/bootloader_log` instead.
 
 ### Peripherals (stock I2C/SPI map)
 - Amplifiers: TFA98xx (TFA9865) at 0-0034/36/37 and 22-0034/36/37. In mainline these show up as i2c 0 and 4 (bus numbers differ).
@@ -200,7 +256,34 @@ https://github.com/mzakamin-hub/iceland-u-boot
 - Cameras on i2c9 (qup2 @884000): sensors 0x20 and 0x6c, EEPROMs 0x50/0x58, actuator 0x18.
 - ADSP-side (over pmic-glink): cps4061 @0x30, smb1501 @0x68/0x69.
 - Touch: spi19.0 `nf_nt36536` on qup4 @1a80000. IRQ on TLMM158.
-- Lid switch: TLMM98 (not yet in the DTS).
+  - The driver waits for the panel.
+  - Firmware is downloaded into the IC's SRAM at every boot (no flash): `Update firmware success`, `fw_ver=0x15`,
+    PID 0x5F9A, abs 33920x24000, a 60x40 grid, and a pen.
+  - It registers `NVTCapacitiveTouchScreen` and `NVTCapacitivePen`. A real touch hasn't been confirmed yet.
+  - Stock `FW_NT36536_HUAXING.img` = an 80-byte `FwUp!` header (LE u32 length at 0x0c, name
+    `tp/25926/FW_NT36536_HUAXING.img`) + the 258048-byte Novatek image + a 128-byte trailer. The `_FAE.img` is a
+    different, factory build.
+- Wi-Fi: WCN7860 hw2.0 "peach" on PCIe0 (Gen3 x2), 17cb:110e, chip_id 0x2, board_id 0xff, firmware
+  WLAN.GNG.2.0-01536.
+  - `wlan0` works and scans (self-managed, country US; 2.4, 5 and 6 GHz enabled). 5/6 GHz reception isn't confirmed yet.
+  - The firmware waits for a **QDSS config** before init (infiniti 0065/0066), so `qdss.cfg` is required.
+- Bluetooth: WCN7860 on GENI UART `1994000.serial` at 3.2 Mbaud through the WCN PMU. `hci_uart` + `btqca` work with no
+  kernel changes, firmware `BTFW.BRAHMA.2.0.1-00204`.
+- Battery over pmic-glink **via SoCCP** (`PMIC_RTR_SOCCP_APPS`), works with 0028:
+  - `qcom-battmgr-bat` reports %, voltage, current, temperature and health; `-usb` reports SDP 4.757 V; UCSI `port0`.
+  - The battery values look like mV/mA while the USB ones are µV/µA: **check the battmgr scaling**.
+  - Stock design capacity is 13380 mAh.
+- ADSP boots from stock split `adsp.mdt` + `.bNN` (firmware-name override): GPR, glink, q6apm and LPASS macros up.
+- SoCCP: `qcom_q6v5_pas` attaches to the running SoCCP; no firmware is loaded.
+- GPU: Adreno 840 `qcom,adreno-44050a01` (gen80200) binds and loads sqe/gmu/aqe ("GMU firmware v5.3.39").
+  - `MSM_GET_PARAM`: chip_id 0xfc44050a31, gmem 18 MiB, max_freq 1.2 GHz, the timestamp advances. So the GPU powers up.
+  - The `vdd`/`vddcx` supplies are missing in the DT (dummy regulators).
+- Audio: the RX/TX SoundWire controllers wait for the **LPASS LPI pinctrl** `pinctrl@7760000`
+  (`qcom,sm8750-lpass-lpi-pinctrl`; module `pinctrl-sm8650-lpass-lpi` not loaded). The sound card
+  (`qcom,kaanapali-sndcard`) says "WCD Playback: codec dai not found". One `qcom-apm CMD timeout` was seen.
+- Stock (from the LineageOS probe): a pogo keyboard (`tinno,pogo_keyboard`, `POGOPIN_KB.bin` from odm, a
+  `pogo_wakeup` input); `canoe-mtp-snd-card` CODEC_DMA LPAIF_RXTX RX 0-3/5 playback; rfkill `bt_power`.
+- Lid switch: TLMM98 (not yet in the DTS). It reads `in high` with the cover open.
 - Remoteprocs:
   - adsp and cdsp run on stock (split `.mdt`/`.bNN` files in `modem_a:/image`);
   - **soccp is started by the boot chain** (it has its own `soccp_a` partition);
@@ -219,8 +302,13 @@ https://github.com/mzakamin-hub/iceland-u-boot
 - The Bluetooth address is in the stock prop `persist.vendor.service.bdroid.bdaddr`. It is redacted in the repo, and will be used for the real BD address in Phase 6.
 
 ### Thermal (found by the Linux survey)
-- CPU thermal zones have only **120/125 °C critical trips** and **no passive cooling maps**. The Y700 on the same SoC hit 100 °C in about 2 s.
-- **Passive trips and cooling maps must be added before any load.**
+- Upstream kaanapali CPU zones had only 120/125 °C trips. **Fixed (0023):** every CPU zone now has the stock
+  105/112/114 °C passive trips with cpufreq cooling maps (the LLC zones get 112/114).
+- Under 8 pinned busy loops: 67–78 °C at the start, 105 °C within about 4–6 s, then **held at 105–106 °C** at about
+  1.9–2.5 GHz (little) and 2.9–3.1 GHz (big). Keep the trips in every kit.
+- ADC5 Gen4 works (config fixed), but the Pad 4 DTS has **no ADC channels or ADC-TM zones** for the board
+  thermistors (skin, XO, PA…). The stock DT has them, and skin-based throttling needs them (Phase 5). Stock also
+  has OnePlus skin "gears" (`odm/etc/temperature_profile/sys_thermal_control_config.xml`).
 - Stock CPU zones use 105 °C (HAL, passive), 112 and 114 °C (kernel passive, mapped to CPU pause), 125 °C (hot) and 135 °C.
   - Cooling devices: cpufreq-cpu0 (27 states), cpufreq-cpu6 (28), pause-cpuN, display-fps, gpu, ddr, ufs.
   - The CPU zones read 66–80 °C under DSU load.
@@ -244,7 +332,7 @@ https://github.com/mzakamin-hub/iceland-u-boot
 | **infiniti-mainline/linux** (OnePlus 15, same SoC, what pmOS/Nura uses) | 138 SoC commits on 7.3-rc4: carve-outs, remoteproc/GPR fixes, GPU, gpucc/gcc/dispcc fixes, crypto/TRNG, Iris, CAMSS, qmp-combo + DP, ADC5 Gen4, SMMU, UFS lanes, qcomtee, DSC 1.2, TFA9866, OPLUS battmgr. **Primary base, as the user asked.** |
 | **infiniti-mainline/u-boot** `main` | Kaanapali U-Boot. Its key feature is the of_fixup that passes ABL's memory map to the OS. The OnePlus 15 boots with `bootcmd=run userdata_blkmap; bootefi bootmgr; fastboot usb 0` and a disk image in userdata. |
 | infiniti-mainline/firmware-oneplus-infiniti, audioreach-topology, minkipc | Firmware packaging layout; the `.m4` topology template; the QTEE supplicant (needs the `/data/vendor` TA files, which are lost when userdata is wiped). |
-| pmaports `device-oneplus-infiniti` and wiki.nura.eco | Blocked from the cloud; to be read on the PC. The pmOS device package will be derived from it. |
+| pmaports / wiki.nura.eco | pmaports has **no** `device-oneplus-infiniti` (checked by the PC through the GitLab API), so we write `device-oneplus-iceland` from scratch. The wiki page was saved by the user (see the Nura row below). |
 | **troikoss/gts9wifi-fedora** + wiki (Tab S9, SM8550, Fedora) | The method: find the **missing layer** first (kernel driver / firmware / userspace bridge / app). Also: `BT_HCIUART=m` and `ATH1xK=m` so they probe after the rootfs firmware; exact firmware names; sleep hooks in `/usr/lib/systemd/system-sleep`; UCM volume cap until speaker protection works; installer safety; BD address via fdtput. |
 | aaronsb/sm-x800-linux (Tab S8+, pmOS) | The `device-facts/` idea, firmware manifest TSV, distro-neutral split (ADR-004), `consoleblank=0`, `serialN` aliases, the dwc3 `power_lost` patch, root by partlabel, and the lesson that simplefb needs clocks and power-domains. |
 | Project-Silicium/Mu-Silicium | Kaanapali UEFI for the OnePlus 15. Reference memory/config maps. It was the fallback if U-Boot failed; **dropped in plan v3** because U-Boot works. |
@@ -278,8 +366,8 @@ ABL (stock, untouched)
 | Phase | Work |
 |---|---|
 | 1 | U-Boot (done) |
-| 2 | First Linux shell from RAM (in progress) |
-| 3 | Core hardware over RAM boot: thermal first, UFS read-only, display, touch, Wi-Fi, battery, lid, BT; the firmware extractor |
+| 2 | First Linux shell from RAM (done) |
+| 3 | Core hardware over RAM boot (**mostly done**: thermal ✅, native display ✅, touch firmware ✅, Wi-Fi ✅, BT ✅, battery ✅; open: UFS read-only mount, a real touch, lid, BD address, the firmware extractor) |
 | 4 | pmOS install (first write to the tablet; needs the user's OK) |
 | 5 | GPU, audio, suspend, sensors, video, DP, cameras, pen |
 | 6 | Upstreaming, alongside phases 3–5 |
@@ -288,7 +376,7 @@ ABL (stock, untouched)
 **Decisions made along the way:**
 - Rebased from Linux 7.2 + map220v to **7.3-rc4 + infiniti + the ported Pad 4 series**. infiniti already has most SoC work; porting forward is smaller than backporting about 100 commits.
 - The Pad 4 panel was added to the **upstream** `panel-novatek-nt36536` driver (by Pengyu Luo) as `csot,xn251` with `init_sends_pps`, instead of map220v's own driver.
-- map220v's "DSI sync on DSI0" commit was dropped. It is a test item; if the panel stays dark, restore it.
+- map220v's "DSI sync on DSI0" commit was dropped, and the native display works without it (upstream sync on DSI1).
 - battmgr uses infiniti's OPLUS support with `oneplus,iceland-pmic-glink`.
 - The modem remoteproc and smp2p-modem nodes are deleted.
 - U-Boot packaging is header v4 with kernel = gzip(u-boot.bin), so the DT stays inside the gzip stream.
@@ -324,7 +412,19 @@ ABL (stock, untouched)
   ```
   The DSI byte and pixel clocks were removed: they were enabled as orphans at rate 0.
 - The framebuffer power-domains are now MMCX, **MX**, MXC and the GDSC, with TURBO required-opps on the three rails.
-- Current builds: A `7.3.0-rc4-iceland-00159-g66113519fa7f`; B `…-00160-g1a9d60630ec7` (A + hack). 0 warnings, clang 18.1.3.
+- Test 7b builds were A `7.3.0-rc4-iceland-00159-g66113519fa7f` and B `…-00160-g1a9d60630ec7` (A + hack). Later kernels are built by the PC from the queue (0022–0028); see `relay/results/pc-*` for exact versions.
+
+### 0022–0028 (PC session, 2026-09-28)
+- 0022: the framebuffer also holds `DISP_CC_MDSS_CORE_INT2_GDSC` (no required-opp).
+- 0023: CPU thermal trips mirroring stock.
+- 0024: `ktz8869_iceland` programs ABL's values per IC.
+- 0025: `drm/msm/dpu` also keeps a video-mode boot splash.
+- 0026: `drm/msm/mdss` attaches all power domains of the MDSS.
+- 0027: the Pad 4 MDSS lists both GDSCs.
+- 0028: `soc: qcom: pmic_glink` attaches a channel that comes up before the platform device.
+  - The first fix (return -EPROBE_DEFER) was wrong: a failed rpmsg probe destroys the endpoint, and SoCCP never
+    reopens the glink channel.
+- Config additions: `CONFIG_GPIO_SHARED_PROXY=y`, `CONFIG_QCOM_SPMI_ADC5_GEN3=m`, `CONFIG_QCOM_SPMI_ADC_TM5_GEN3=m`.
 
 ### Config
 - `distro-neutral.config`, 74 lines:
@@ -384,6 +484,34 @@ ABL (stock, untouched)
   4. Waits for the USB network, then downloads every page with a raw TCP HTTP client.
   5. Asks what the screen shows: text / black / **white** / …
   6. Reboots over HTTP, records the boot reason after the reboot, and zips everything as `linux-<date>.zip`.
+- **Options added by the PC** (`build.sh` env vars; `/etc/kit.conf` read by `init`):
+
+  | Option | What it does |
+  |---|---|
+  | `MODDIR` / `MODLIST` | modules in dependency order in `/lib/modules/NNN-*.ko` (`modules-debug.list` = default set) |
+  | `FWDIR` | local firmware tree into the initramfs; never shared, noted in BUILD_INFO |
+  | `WIFI=1` | keeps PCIe0 on in the debug DTB |
+  | `ENABLE=` | nodes kept enabled |
+  | `ADSP_MDT=1` | ADSP firmware-name override |
+  | `CPULOAD=1` | the guarded CPU load test (refuses without passive trips, aborts at 110 °C) |
+  | `DRMDEBUG=1` | drm.debug for 40 s |
+  | `PMSG_ANDROID=1` | pmsg-only ramoops at stock Android's zone 0xa_ffe00000 |
+  | `IWDIR` | pinned Ubuntu `iw`, via `fetch-iw.sh` |
+  | `EXTRA_BINS` | extra binaries (e.g. `msmparam`) |
+  | `KITCONF` | the `/etc/kit.conf` to embed |
+
+  `kit.conf` keys: `WATCHDOG`, `AUTOREBOOT_AT`, `LATE_MODS`/`LATE_AT`, `BTSTATE`, `IWSCAN_AT` (no names),
+  `ADSP_START_AT`, `GPU_OPEN_AT`, `REBOOT_MODE`, `BATTSTATE`, `AUDIOSTATE_AT`.
+- **`init` monitors:**
+  - the **scanout sampler**: dispcc GDSCRs, DPU INTF_1/INTF_2 frame and line counters, MDP `INTR_STATUS`
+    vsync/underrun, and `iceland-scan: verdict …` lines;
+  - touch IRQ counts, the lid level, regulator snapshots at 20/50 s, and `ignore_loglevel=N` + console loglevel 4.
+    The console loglevel matters: diag L's fixed cmdline has `ignore_loglevel keep_bootcon`, so a debug flood draws
+    on two big consoles until the watchdog resets.
+- **Pages added:** `drm`, `extra`, `more` (socinfo without the serial, remoteproc, BT, iw summary, power supplies,
+  Type-C, IIO, GPU, audio), and `kmsg` (a live stream for up to 150 s).
+- **Note:** U-Boot diag L uses its **own fixed cmdline**; the boot image cmdline is ignored. Kit variants therefore
+  use initramfs files or `kit.conf`, not cmdline flags.
 - **Packaging a kit:** `tools/linux-ram/package.sh KIT_DIR diag-L-efi.img README.txt A=<build.sh out>=<note> [B=…]`. It writes `linux-<label>.img`, `BUILD_INFO-<label>` and `run-linux.ps1` with the hashes and runs filled in, then zips everything.
 - Linux test 7 debug image: sha256 `a82db7f8…0b3f`; DTB `2f3620e0…5a04`.
 
@@ -402,7 +530,15 @@ ABL (stock, untouched)
 | L5 | Full survey (16 pages) | No oops. simpledrm voted MMCX **SVS** under the 650 MHz MDP, and DSI clocks were orphans. Also found the TFA9865s, unbound modules and the thermal trips |
 | L6 | MMCX TURBO, no DSI clocks | White at 20–30 s. **MXC off** after rpmhpd sync_state (~22 s); `qnm_mdp` interconnect vote 0 |
 | L7 | + MXC TURBO (iceland-linux 2728bb9) | Kit sent, then superseded before it was run: the stock data showed dispcc needs **MX** |
-| L7b | A = MMCX+MX+MXC TURBO (fe964f7); B = A + sync_state disabled (`debug-patches/0001`) | **Sent through relay request 001. Waiting for the run** |
+| L7b | A = MMCX+MX+MXC TURBO (fe964f7); B = A + sync_state disabled (`debug-patches/0001`) | **Both white.** Rails all at 384 and bandwidth kept, but `disp_cc_mdss_core_int2_gdsc` off-0. Rails and bandwidth ruled out |
+| pc-001 | + framebuffer holds INT2 (debug prints + scanout sampler) | **Fixed**: INT2 held, scanout alive at 120 Hz through ≥75 s; the control run lost INT2 at 15.45 s via dispcc sync_state |
+| pc-002/003 | CPU passive trips + cooling maps, then the stock 105/112/114 values; load test | Held at 105–106 °C under full load; display alive |
+| pc-004 | modules in the initramfs | All load. Touch waits for the panel. ADC5 Gen4 needed a config fix. `qce-core` ends the qnoc sync_state wait (1 underrun window, then clean) |
+| pc-005..007 | native display (MDSS + dual DSI + NT36536 + KTZ8869) | **Works at 120 Hz** after 0024–0027 + the GPIO shared proxy |
+| pc-008 | touch firmware (converted stock image) | SRAM download ok, `fw_ver=0x15`, touch + pen input devices; no touch event tested |
+| pc-009 | Wi-Fi (ath12k WCN7860) | `wlan0` up after `qdss.cfg`; loading early reset the tablet in 2 runs (open) |
+| pc-010 | 5-run session | **BT works, Wi-Fi scan works**, SoCCP attaches, ADSP boots, pmic-glink race found, GPU binds; the early Wi-Fi reset not reproduced |
+| pc-011 | 5-run session | **Battery data**, GPU powers up (`msmparam`), audio up to the LPI pinctrl; warm reboot isn't possible |
 
 ## 11. Problems hit and how they were solved
 
@@ -428,7 +564,16 @@ ABL (stock, untouched)
 | Display | black: unused regulators and the backlight switched off | `regulator_ignore_unused`; KTZ8869 disabled |
 | Display | white: pipeline released | framebuffer node with clocks, GDSC and rail votes |
 | Display | white: MMCX at SVS under the 650 MHz MDP | TURBO |
-| Display | white at ~22 s: MXC dropped by sync_state | MXC TURBO vote (L7) |
+| Display | white at ~22 s: MXC dropped by sync_state | MXC TURBO vote (L7), not the real cause |
+| Display | white right after the text stops: dispcc genpd sync_state powers off INT2 (ignores `pd_ignore_unused`) | hold INT2 (0022; MDSS 0026/0027) |
+| Display | MSM DRM reset the video-mode splash | 0025 |
+| Display | KTZ8869 master deferred forever with no reason printed | `CONFIG_GPIO_SHARED_PROXY=y` (shared HWEN) |
+| Display | ABL's KTZ8869 values differ from the driver's | 0024: program ABL's values |
+| Wi-Fi | stuck after `qdss.cfg: -2` | ship stock `qdss_trace_config_v2.cfg` as `qdss.cfg` |
+| Wi-Fi | console flood, then watchdog reset | `ignore_loglevel=N` + console loglevel 4 in init |
+| Battery | pmic-glink channel lost in a probe race (SoCCP comes up instantly) | 0028: attach the early channel in `pmic_glink_probe()` |
+| Thermal | load-test guard checked only trip 0 | check every passive trip |
+| Config | ADC5 Gen4 driver never enabled | cc85322 |
 | Script | no "white" choice in the screen question | added `w` |
 
 ## 12. Lessons and traps
@@ -438,49 +583,71 @@ ABL (stock, untouched)
 - On arm64, start Linux from U-Boot with **bootefi**: the EFI stub relocates the kernel. `earlycon=efifb` gives output from the first line.
 - **simple-framebuffer on kaanapali** needs all of these, or the display is released or underpowered:
   - the display clocks;
-  - the MDSS core GDSC;
-  - MMCX **and** MXC at TURBO (650 MHz MDP; no MXC parent).
-- rpmhpd's sync_state runs at the deferred-probe timeout (~22 s) and switches off rails nobody votes for. Symptoms that appear 20–30 s after boot point at sync_state.
-- Next candidate if the display still fails: the interconnect vote for `qnm_mdp` (0 now).
+  - **both** MDSS GDSCs (`MDSS_CORE` and `MDSS_CORE_INT2`);
+  - MMCX + MX + MXC at TURBO (650 MHz MDP).
+- **genpd provider sync_state (`of_genpd_sync_state`) ignores `pd_ignore_unused`.** It powers off every domain
+  nobody holds as soon as the provider's last consumer probes. Anything ABL leaves on without a DT consumer will be
+  cut. Look for this first when something dies right after a probe.
+- rpmhpd's sync_state runs early (~11.5 s); qnoc's runs once `qce-core` binds, or never. simpledrm has no
+  interconnect support, so the MDP bandwidth depends on other voters until MSM DRM takes over.
+- **Log, don't look:** kits run unattended. Put the state in dmesg and `timeline` (scanout counters, `iceland-*`
+  lines), and fetch late pages.
+- Stock names win: BT `brhbt*`, Wi-Fi BDF from **odm**, `qdss.cfg` required.
 - Windows PowerShell 5.1: use CRLF HTTP headers or a raw socket client. Some Windows PCs have no `adb` on PATH.
 - Never boot ABL-direct without the real `/memory`: a size-0 memory node leads to EDL (PrestarLin).
 - Thermal: add passive cooling before load (Y700: 100 °C in 2 s).
 - Starting the ADSP may kill simplefb (SM8750 report). Enable remoteprocs one at a time.
-- Bluetooth firmware is `brhbt*`, not `gngbt*`. Wi-Fi uses a per-board BDF (`bdwlan.eXX`); check whether ath12k board-2 has a match.
+- Bluetooth firmware is `brhbt*` and btqca loads it under those names. Wi-Fi uses the ELF BDF `bdwlan.elf` from odm (board_id 0xff).
+- A distro loads ath12k early (udev). Until the early-load reset is understood, load it late (a service after USB).
 - The userdata raw backup is FBE-encrypted, so the `/data/vendor` TEE files must be copied at file level before Android is erased.
 - UFS LUN order can change between boots: always mount by partlabel.
 - troikoss rule: find the missing layer first (driver / firmware / userspace bridge / app).
 
 ## 13. Current state, open issues, next steps
 
-**State:**
-- U-Boot works.
-- Linux 7.3-rc4 runs from RAM with USB networking and the survey pages.
-- The display console dies at 20–30 s. The L7 fix is sent.
+**State (2026-09-28 evening, all over RAM boot, nothing written to the tablet):**
+- ✅ U-Boot; Linux 7.3-rc4 from RAM through EFI; USB NCM + survey pages.
+- ✅ Display: ABL splash kept, then **native MSM DRM at 120 Hz**; KTZ8869 backlight.
+- ✅ CPU thermal (stock trips, tested under load).
+- ✅ Touch firmware runs (touch and pen devices registered; a real touch isn't confirmed yet).
+- ✅ Wi-Fi (`wlan0`, scan), ✅ Bluetooth (`hci0`), ✅ battery/USB data over pmic-glink (SoCCP).
+- ✅ ADSP boots, SoCCP attaches, the GPU powers up.
+- ⚠️ Audio: stops at the LPASS LPI pinctrl / SoundWire; no card yet.
+
+**Open issues:**
+1. **Early Wi-Fi load resets the tablet**, intermittently (2 resets, 11 clean runs; cause unknown). The reset reason is
+   captured from the bootloader log.
+2. **battmgr units:** the battery looks like mV/mA while USB is µV/µA. Check the scaling for the SoCCP firmware.
+3. **144 Hz** is pruned (pixel clock 1261 MHz). It needs stock per-rate porches / DFPS.
+4. **qnoc sync_state** drops boot bandwidth once `qce-core` binds (one underrun window under simpledrm). Native MSM DRM
+   votes its own bandwidth, so this matters only for the simpledrm fallback.
+5. GPU `vdd`/`vddcx` supplies are missing in the DT.
+6. No board-thermistor ADC channels / ADC-TM zones (skin temperature) yet.
+7. pmsg/ramoops don't survive (PS_HOLD hard reset).
 
 **Next steps:**
-1. **Test 7b** (sent, relay request 001, kit `linux-test-7b.zip` on branch `relay-bundles`). One tablet session answers both questions:
-   - **A:** DT votes MMCX + MX + MXC at TURBO.
-   - **B:** A plus the OnePlus 15 hack: `.sync_state` disabled in `rpmhpd`, `qnoc-kaanapali` and `osm-l3` (infiniti `eykc/oneplus-15` commit 7ad55daf6d06 "hack: qcom: Disable sync_state to preserve EFI framebuffer").
-   - If B stays up and A goes white, a vote is still missing. The likeliest is MDP bandwidth: an interconnect vote of about 2.5 GB/s on `qnm_mdp` (it was 0/0 in test 6).
-2. **Modules in the debug initramfs:** touch SPI, ADC5 Gen4, TFA9865, watchdog, crypto. Then survey again.
-3. **CPU thermal:** passive trips + cpufreq cooling maps in the Pad 4 DTS (GPU trips come from infiniti).
-4. **Firmware extractor:** reads `firmware/manifest.tsv`, runs once on the user's PC/tablet, checks sha256, never uploads.
-5. **Phase 3, in order:**
-   - UFS read-only mount;
-   - native display (MDSS + NT36536; test DSI1 vs DSI0 sync) and KTZ8869 (fix its remove() NULL bug);
-   - touch;
-   - Wi-Fi;
-   - battery (check the charger PD);
-   - lid (TLMM98 gpio-key);
-   - BT with the real BD address.
-6. **Before Phase 4** (it needs the user's OK):
-   - read pmaports `device-oneplus-infiniti` and the Nura wiki on the PC;
-   - file-level copy of `/data/vendor` and persist;
-   - build the pmOS device package `device-oneplus-iceland`.
+1. **Audio:** load `pinctrl-sm8650-lpass-lpi` (LPASS LPI pinctrl) → SoundWire → WCD9395 → sound card. Then an
+   AudioReach topology (the infiniti `.m4` as the template) and UCM, with **volume capped** until TFA9865 speaker
+   protection (`tfa98xx.cnt`) works. Nobody has kaanapali audio yet.
+2. **Touch:** confirm real touch and pen events (needs a human touch, or an input-event log during a user session).
+3. **GPU:** Mesa (freedreno/turnip) test; add the vdd supplies; XEC speedbin/opp-peak commits if needed.
+4. **Small DT items:**
+   - rear **flash LED** (pmh0101 flash-led, stock channel map);
+   - **lid** gpio-keys `SW_LID` on TLMM98;
+   - board thermistor ADC channels + ADC-TM zones from the stock DT;
+   - no haptics (disabled in stock).
+5. **BT address** from persist (stock prop `persist.vendor.service.bdroid.bdaddr`).
+6. **UFS read-only mount** test, then the **firmware extractor** (from `firmware/manifest.tsv`; it can be tested on
+   the PC's unpacked OTA).
+7. **USB OTG** on battery and with external PD (on the OnePlus 15, OTG works only with PD).
+8. **Phase 4 preparation** (needs the user's OK):
+   - write `device-oneplus-iceland` from scratch (there's no OnePlus 15 package in pmaports);
+   - file-level copy of `/data/vendor` + persist;
+   - ath12k loaded late until the reset is understood.
+9. Later: DP, cameras (sensors at i2c9 0x20/0x6c, CAMERA_ICP firmware), sensors (SSC via hexagonrpcd), suspend.
 
 **Other notes:**
-- The kernel CI workflow exists but is only run by hand; building happens in the cloud container.
+- The kernel CI workflow exists but is only run by hand. Kernels are built in the cloud container and on the PC (WSL).
 - **Cross-session:** the user's local Windows Claude session can message this cloud session, but this cloud session **cannot reply**. The send is refused with "this cloud session cannot message other sessions yet". Hand-offs to the PC go through the **relay in this repo** (section 17).
 
 ## 14. How to reproduce the work (cloud)
@@ -502,6 +669,8 @@ tools/linux-ram/build.sh ../out/dist ../out ../ub-diag/mkbootimg ../linux-ram
 # kit: diag-L-efi.img + linux-iceland-debug.img + run-linux.ps1 (hashes filled in) + README.txt
 ```
 Tools needed: clang/LLVM 18, aarch64-linux-gnu gcc (for U-Boot), dtc/fdtput, python3, dpkg-deb, gzip, zip.
+On the PC (WSL) the kits are built with the scripts in `relay/results/pc-*/` (for example `build-pc.sh`,
+`make-kit*.sh`), Android clang 22, and `MODDIR`/`FWDIR` etc. (section 9).
 
 **User side (Windows):**
 1. Unzip the kit into platform-tools.
@@ -525,6 +694,14 @@ Tools needed: clang/LLVM 18, aarch64-linux-gnu gcc (for U-Boot), dtc/fdtput, pyt
 11. A connection test came from the user's local Windows Claude session. The reply failed (see section 13). The PC session then pushed the relay protocol, the PC inventory and the stock display-power facts (commit 6bafce1).
 12. Linux test 7 kit sent.
 13. The user asked for this full knowledge file.
+14. Stock data showed dispcc needs MX, so test 7b (A = MX vote, B = sync_state hack) was sent through relay 001. The
+    PC ran it: both white.
+15. The PC, asked by the user to iterate unattended, found the INT2 GDSC cause (pc-001). It then did CPU thermal
+    (pc-002/003), modules (pc-004), the native display (pc-005..007), touch firmware (pc-008), Wi-Fi (pc-009),
+    BT/scan/ADSP/SoCCP (pc-010), and battery/GPU/audio groundwork (pc-011).
+16. The user asked to evaluate the Galaxy Tab S6 (bentlybro) method: keep U-Boot (`research/gts6l-tab-s6.md`).
+17. The user uploaded the Nura OnePlus 15 page, mapped in `research/nura-oneplus-15.md`. Relay 002 sync sent.
+18. The user asked to update this file with everything the PC did, and to make sure the PC session uses all of this knowledge (relay 003).
 
 ## 16. Environment notes (cloud session)
 
@@ -540,7 +717,9 @@ Tools needed: clang/LLVM 18, aarch64-linux-gnu gcc (for U-Boot), dtc/fdtput, pyt
   - Bundles go on the orphan branch `relay-bundles`, or under `relay/bundles/` on `main` if a branch can't be pushed.
 - **PC side:** `tools/relay/pc-watch.sh` polls `origin/main` every 90 s.
   - For `pc-lookup` it answers read-only and writes `relay/results/NNN-slug.md`.
-  - For `tablet-run` it stages the bundle in `C:\platform-tools` and notifies the user. **The user still starts `run-linux.ps1` and answers the screen questions.**
+  - For `tablet-run` it stages the bundle in `C:\platform-tools`. Since 2026-09-28 it also **runs the kit itself,
+    unattended** (`run-kit-auto.ps1`), after checking the hashes and allowlists; see rule 11.
+  - The PC also originates its own kits (`pc-NNN`), built in WSL, and records them in `relay/results/pc-NNN-*.md`.
   - It commits the survey pages into `results_dir` together with the result file, then messages Mainline.
   - Result `status`: `done`, `failed`, `declined` or `waiting-user`.
 - The same rules apply: no flashing, allowlisted RAM boot only, no firmware or private data committed.
