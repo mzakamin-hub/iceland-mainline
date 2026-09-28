@@ -7,7 +7,7 @@
 - Tier 1: pmOS, Fedora, Arch Linux ARM
 - Tier 2: Debian testing, Kali, latest Ubuntu
 
-The plan is in [docs/PLAN.md](docs/PLAN.md). History is in [CHANGELOG.md](CHANGELOG.md).
+The plan is in [docs/PLAN.md](docs/PLAN.md). History is in [CHANGELOG.md](CHANGELOG.md). Everything learned so far is in [docs/KNOWLEDGE.md](docs/KNOWLEDGE.md).
 
 ## Current state (2026-09-28)
 
