@@ -861,8 +861,13 @@ ABL (stock, untouched)
     kit sets the clock from `KIT_TIME`, the PMIC RTC reads 1970); the page `rootfstar` hands the installed rootfs
     back to the PC (110 MB) and `phase4/make-rootfs.sh` rebuilds the next boot from it. Pitfall: `switch_root`
     into the rootfs resets the tablet ~45 s later (the shim's safety jobs lose their tools); `ROOTFS_MODE=pid1`
-    (exec chroot systemd as PID 1, the initramfs stays the real root) is the way. See `phase4/README.md`,
-    `phase4/INSTALL-PLAN.md`, `relay/results/pc-023-024-144hz-extractor-fedora.md`:
+    (exec chroot systemd as PID 1, the initramfs stays the real root, `/rootfs` bind-mounted on itself) is the
+    way: **pc-024 Y7 (21:29): systemd 259.9 boots Fedora 44 to `running` on the tablet in RAM** (journald, udev,
+    NetworkManager, sshd; `an/fedora-ssh.sh` logs in from WSL), `iceland-dnf.service` installs packages through
+    the PC (71 in 18 s), `kmscube` renders on the MSM KMS - on llvmpipe, because the kit's DTB kept `gpu@3d00000`
+    disabled (fixed in `make-kit24.sh` for the next run). `ROOTFS_URL` lets the shim fetch a big rootfs from the
+    PC at boot (port 8000), the way to a GNOME session in RAM. See `phase4/README.md`, `phase4/INSTALL-PLAN.md`,
+    `relay/results/pc-023-024-144hz-extractor-fedora.md`:
     - file-level copy of `/data/vendor` + persist;
     - ath12k loaded late until the resets are understood.
 13. Later: DP, cameras (SC1320CS/SC820CS need new drivers; CAMERA_ICP firmware), sensors (SSC via hexagonrpcd), video.
