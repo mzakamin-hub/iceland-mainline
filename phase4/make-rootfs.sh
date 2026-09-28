@@ -133,7 +133,8 @@ k "dnf5 exit $? : $(tail -n 3 /tmp/dnf.log | tr '\n' '|')"
 # (pc-024 Y8): feed it from a silent pipe so the "Rendered N frames" line appears. Lines kept short for /dev/kmsg.
 if command -v kmscube >/dev/null; then
 	card=$(ls /dev/dri/card* 2>/dev/null | tail -n1)
-	sleep 90 | timeout 60 kmscube -D "$card" -c 300 > /tmp/kmscube.log 2>&1
+	# (stdin from a process substitution, not a pipeline: a pipeline would wait for the whole sleep)
+	timeout 60 kmscube -D "$card" -c 300 < <(sleep 90) > /tmp/kmscube.log 2>&1
 	k "kmscube on $card exit $?: $(grep -iE 'renderer|rendered|interrupt|fail|error' /tmp/kmscube.log | cut -c1-120 | tail -n 3 | tr '\n' '|')"
 	k "gpu: $(dmesg | grep -iE 'adreno|gmu|zap|freedreno' | grep -vE 'sync_state' | tail -n 3 | cut -c1-150 | tr '\n' '|')"
 fi

@@ -782,9 +782,10 @@ ABL (stock, untouched)
   now clean back to back.
 - ✅ Battery units (0029), lid switch + debounce (0030/0034), flash LEDs (0031), board/flash thermistors (0032),
   eUSB2 tuning (0033); persist read-only mount; queue = 0001-0034 (iceland-linux 9d29f72).
-- Target OS: **Fedora 44 with GNOME** (user). ✅ Fedora 44 boots to systemd `running` in RAM (pc-024 Y7) and
+- Target OS: **Fedora 44 with GNOME** (user). ✅ Fedora 44 boots to systemd `running` in RAM (pc-024 Y7),
   ✅ **the Adreno 840 renders through Mesa's freedreno** (pc-024 Y8: `Adreno (TM) 840`, GLES 3.2, Mesa 26.2.3,
-  DCVS 160 MHz-1.2 GHz) - see §13 item 12.
+  DCVS 160 MHz-1.2 GHz), ✅ **Wayland: cage/wlroots at 120 Hz, glmark2 1836** and ✅ **GNOME Shell 50.5
+  (mutter) runs as the Wayland display server with gdm autologin** (pc-024 Y9) - see §13 item 12.
 
 **Open issues:**
 1. ✅ **Early reset - closed (pc-022): it was the kit's own `/dev/mem` display sampler, not the kernel.** History:
@@ -871,11 +872,17 @@ ABL (stock, untouched)
     aqe}` from linux-firmware + the tablet's own signed `qcom/kaanapali/iceland/gen80200_zap.mbn`, kit tree
     `fw24`, never committed) the a840 binds, `Loaded GMU firmware v5.3.23`, and Mesa reports `freedreno` /
     `Adreno (TM) 840` (GLES 3.2, Mesa 26.2.3), GMU DCVS 160 MHz-1.2 GHz, no GPU error** - GPU acceleration for
-    GNOME is available. Probe traps: kmscube over ssh needs a silent stdin (`sleep 60 | kmscube …`), and the
-    runner's `-Wait` ends the session (not `AUTOREBOOT_AT`). `ROOTFS_URL` lets the shim fetch a big rootfs from the
-    PC at boot (port 8000), the way to a GNOME session in RAM. Next: Y9 Wayland (`seatd` + `cage` +
-    `glmark2-es2-wayland` from a kit post-install hook) and the GNOME packages installed in the same long boot,
-    handed back with `rootfstar`; Y10 boots that rootfs (gdm autologin). See `phase4/README.md`, `phase4/INSTALL-PLAN.md`,
+    GNOME is available. Probe traps: kmscube over ssh needs a silent stdin (`kmscube … < <(sleep 60)`, not a
+    pipeline), and the runner's `-Wait` ends the session (not `AUTOREBOOT_AT`). **Y9 (22:08): Wayland works -
+    `seatd` + `cage` (wlroots) on the MSM KMS with the GLES2 renderer "Adreno (TM) 840", 3392x2400 @ 120 Hz,
+    `glmark2-es2-wayland` full screen score 1836; kmscube 119.99 fps (vsync). Then, in the same boot, a lean
+    GNOME set (458 pkgs, 357 MiB, ~6 min through the proxy) + gdm autologin: GNOME Shell 50.5 (mutter) runs as
+    the Wayland display server on `/dev/dri/card1` with a GBM renderer and a high-priority EGL context, logind
+    session on seat0, gsd daemons up** - after adding `systemd-pam` (pam_systemd, missing from the Container
+    Base lineage → no logind session / user manager / session bus → "Unable to run session message bus",
+    "Session never registered") and `dbus-daemon`. The rootfs came back as `rootfs-gnome.tar.gz` (653 MB, on
+    the PC). `ROOTFS_URL` lets the shim fetch it at boot (port 8000): **Y10 = that boot** (kit `linux-Y10.img`).
+    Input: libinput ignores the pen (see plan B.5); the touch screen is a libinput device. See `phase4/README.md`, `phase4/INSTALL-PLAN.md`,
     `relay/results/pc-023-024-144hz-extractor-fedora.md`:
     - file-level copy of `/data/vendor` + persist;
     - ath12k loaded late until the resets are understood.
@@ -900,7 +907,10 @@ item, judged from logs, results saved after each; anything that writes to the ta
   4. **Audio** (pending #2): speakers on Primary TDM (Mainline's DT + the Audio IF m4), volume caps, UCM, headset;
      the TFA9865 `tfa98xx.cnt` protection before any playback; mics.
   5. **Touch, pen, lid events** (#7): an input-event logger kit, or GNOME's libinput logs in Y10; the lid switch
-     closing (0030/0034) and the pen.
+     closing (0030/0034) and the pen. **Found in Y9 (cage's log):** libinput accepts the touch screen
+     (`NVTCapacitiveTouchScreen`) but **ignores the pen** - "NVTCapacitivePen: libinput bug: missing tablet
+     capabilities: btn-stylus resolution" → the nt36536 driver must report ABS_X/ABS_Y resolution (and the
+     stylus buttons) for the pen device (`input_abs_set_res`); a kernel change, test through a kit.
   6. **USB:** host/OTG role (#11: DTB role switch, needs the user + PD), DisplayPort alt mode over USB-C
      (pmic-glink altmode + DP in the DPU, #13), charging limits/thermal.
   7. **GPU extras:** turnip (Vulkan) once Mesa lands a840, GPU cooling (`#cooling-cells`), the cosmetic

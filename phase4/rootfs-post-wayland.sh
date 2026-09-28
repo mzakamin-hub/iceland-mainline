@@ -10,9 +10,10 @@ seatd -u root -g root > /tmp/seatd.log 2>&1 &
 sleep 1
 export LIBSEAT_BACKEND=seatd WLR_RENDERER=gles2 WLR_LIBINPUT_NO_DEVICES=1
 k "cage + glmark2-es2-wayland start at $(cut -d' ' -f1 /proc/uptime) s"
-# stdin from a silent pipe: cage/glmark2 must not see a closed stdin
-sleep 900 | timeout 240 cage -d -- glmark2-es2-wayland --fullscreen -b build:duration=8 -b texture:duration=8 \
-	-b shading:duration=8 -b bump:duration=8 > /tmp/cage.log 2>&1
+# stdin from a silent process substitution (not a pipeline, which would wait for the whole sleep): cage/glmark2
+# must not see a closed stdin
+timeout 240 cage -d -- glmark2-es2-wayland --fullscreen -b build:duration=8 -b texture:duration=8 \
+	-b shading:duration=8 -b bump:duration=8 < <(sleep 900) > /tmp/cage.log 2>&1
 k "cage exit $? at $(cut -d' ' -f1 /proc/uptime) s"
 grep -iE 'renderer|GL_RENDERER|GL_VENDOR|Using .* renderer|DRM|backend|output|modeset|libinput|error|fail|FPS|Score|Frame' /tmp/cage.log |
 	grep -viE 'GL_EXTENSIONS|extensions:' | cut -c1-220 | head -n 40 | while read -r l; do k "$l"; done
