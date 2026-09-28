@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# dest (under /lib/firmware)	partition	stock_path	stock_size	stock_sha256 (11.A.38)	tier	class	action	status	note
+qcom/gen80200_sqe.fw	vendor	/vendor/firmware/gen80200_sqe.fw	121172	1f1c7bae8050a9910902ec42b3d741ff3a68bc21114dea966a502ade2a9b606d	initramfs	gpu	copy	ok	msm built in: must be in initramfs
+qcom/gen80200_gmu.bin	vendor	/vendor/firmware/gen80200_gmu.bin	112570	7e2f9381dbae6ba3eda632e51e07377a90a9549e2e164a033255ab4ecd431ba8	initramfs	gpu	copy	ok	
+qcom/gen80200_aqe.fw	vendor	/vendor/firmware/gen80200_aqe.fw	25880	ed7916ca84e663d63fa94b0d40cc8c222e362e6cff860c539a8cca30d3721b68	initramfs	gpu	copy	ok	identical to map220v copy
+qcom/kaanapali/OnePlus/iceland/gen80200_zap.mbn	vendor	/vendor/firmware/gen80200_zap.mbn	12088	d185bfc9a819394537775a9facd49a6136f1fc66b848ea3de4e4e04ce9053db0	initramfs	pil	copy	ok	zap; DTS firmware-name to be moved to OnePlus/iceland path
+qcom/kaanapali/OnePlus/iceland/vpu40_2v.mbn	vendor	/vendor/firmware/vpu40_2v.mbn	2486984	69d4e2154ca1704a751922d2b6e4680539c995d1e85dcf07ab349a009a411abc	rootfs	pil	copy	ok	iris; loaded on first open
+qcom/kaanapali/OnePlus/iceland/adsp.mbn	modem_a	/vendor/firmware_mnt/image/adsp.mdt	8124	0c517cdd10aa550e147cc51cabeeae5a1b65d607dc5d12d99000c082c773389f	rootfs	pil	pil-squasher adsp.mdt+adsp.bNN	ok	split stock image -> single mbn
+qcom/kaanapali/OnePlus/iceland/adsp_dtb.mbn	modem_a	/vendor/firmware_mnt/image/adsp_dtb.mdt	4044	23f15803c04dd024dc0a4ac691b90bccae9930d9bc7a8c39d7353ba2576d7c84	rootfs	pil	pil-squasher	ok	
+qcom/kaanapali/OnePlus/iceland/cdsp.mbn	modem_a	/vendor/firmware_mnt/image/cdsp.mdt	5164	9f04485c32fc82e612756cf3805164c534909fa1caf5ca3262c57e2714fe0261	rootfs	pil	pil-squasher cdsp.mdt+cdsp.bNN	ok	
+qcom/kaanapali/OnePlus/iceland/cdsp_dtb.mbn	modem_a	/vendor/firmware_mnt/image/cdsp_dtb.mdt	4044	d13628fb490fef98d184c499a1bd9ed88048934549506ca44747531443e2f1bd	rootfs	pil	pil-squasher	ok	
+qcom/kaanapali/OnePlus/iceland/soccp.mbn	soccp_a	(raw partition)	-	-	rootfs	pil	dd partition	optional	SOCCP is started by the boot chain (state=attached); only needed if Linux ever reloads it
+qcom/kaanapali/OnePlus/iceland/adspr.jsn	modem_a	/vendor/firmware_mnt/image/adspr.jsn	513	66ce8531efb7979d234e0f0eabbe18d038ac97da771a8a194f613df8f0724e81	rootfs	pdmapper	copy	ok	all *.jsn from image/ for pd-mapper
+ath12k/WCN7860/hw2.0/amss.bin	modem_a	/vendor/firmware_mnt/image/peach/amss20.bin	7475264	23811bd6abe91a89ef00057e0a4d2e85ea3d0defcad377334cdef987ec4df820	rootfs	wifi	copy+rename	verify	firmware family must match (troikoss); stock = 11.A.38
+ath12k/WCN7860/hw2.0/m3.bin	modem_a	/vendor/firmware_mnt/image/peach/phy_ucode20.elf	290816	c1a1295b1808ba204676c03967aea91effc5d85b55a9d269ba858c5e80c92b9c	rootfs	wifi	copy+rename	verify	same size as map220v m3.bin
+ath12k/WCN7860/hw2.0/aux_ucode.bin	modem_a	/vendor/firmware_mnt/image/peach/aux_ucode20.elf	61440	4db9df6fdac982752f71c513f174da7e22307a769a9d49fd336b054919c9451e	rootfs	wifi	copy+rename	verify	
+ath12k/WCN7860/hw2.0/regdb.bin	modem_a	/vendor/firmware_mnt/image/peach/regdb.bin	24278	5d115d782d89689bd79f9992aafd60ef8f7b079c5f6d59dc24131962debcfe14	rootfs	wifi	copy	ok	
+ath12k/WCN7860/hw2.0/board.bin	modem_a	/vendor/firmware_mnt/image/peach/bdwlan.elf	125420	b51db68389a12012d87d00b7173346683a089981c2cd436d46bb005e7ed37b74	rootfs	wifi	copy+rename	verify	which bdwlan.eXX matches this board: read board id from ath12k dmesg, then pick (or build board-2.bin)
+qca/gngbtfw20.mbn	bluetooth_a	/vendor/bt_firmware/image/brhbtfw20.mbn	302108	74ee832cd724fb6a4391bc06f4b0d9697d36b460e7f4b14fb6bc14b69e7cc287	rootfs	bt	copy+rename	verify	btqca WCN7860 requests gngbt*; stock names it brhbt*
+qca/gngbtnv20.bin	bluetooth_a	/vendor/bt_firmware/image/brhbtnv20_in.bin	13857	58fb96751f49c68754f285168aa686485533e42eeab5f4e11b6c3b765a4318bd	rootfs	bt	copy+rename	verify	IN variant NVM (13857 B = map220v size); board-specific .bXX may be requested instead
+novatek/novatek_nt36536_fw.bin	odm	/odm/firmware/tp/25926/FW_NT36536_HUAXING.img	258256	768ffdf8731a3185b4bcca786422f748c235c97d762ca3f92be1d12e3876b20c	rootfs	touch	convert	todo	stock .img is 4304 B larger than map220v .bin: header to be identified
+tfa98xx.cnt	odm	/odm/firmware/tfa98xx.cnt	3702	9ef2463d519688f3fbc85050cceb8c0e04d1e4fd100a455abb329c6223d8da2d	rootfs	audio	copy	reference	speaker container; map220v driver uses static tables, needed for protection work
+mt5806_firmware.bin	odm	/odm/firmware/wireless_pen/25978/mt5806_firmware.bin	31160	0f2651a31fc0a8f105c80338d832bf13eeea36202dd6da4a4853e58c1af1ed38	rootfs	pen	copy	later	pen charger
