@@ -7,6 +7,26 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) ·
 [iceland-u-boot](https://github.com/mzakamin-hub/iceland-u-boot) (all private).
 
+## 2026-09-28 (afternoon/evening) — Phase 3 hardware, PC relay kits pc-001..011
+
+All built and run unattended by the PC session through the relay (`relay/results/pc-*`). Details are in
+[docs/KNOWLEDGE.md](docs/KNOWLEDGE.md) §4, §7, §10 and §13.
+
+| Kit | Result | iceland-linux |
+|---|---|---|
+| Test 7b | both images white: rails and bandwidth ruled out; INT2 GDSC off | fe964f7 |
+| pc-001 | **white screen fixed**: the framebuffer holds the MDSS INT2 GDSC (dispcc genpd sync_state ignores `pd_ignore_unused`) | 05031dc (0022) |
+| pc-002/003 | CPU passive trips + cooling maps, stock 105/112/114 °C, held at 105 °C under load | f0162e1, d7c9f52 (0023) |
+| pc-004 | modules in the debug initramfs; ADC5 Gen4 config fix | cc85322 |
+| pc-005..007 | **native display at 120 Hz** (KTZ8869 stock values, video-mode splash kept, both MDSS GDSCs, GPIO shared proxy) | f9bc5e2 (0024–0027) |
+| pc-008 | touch firmware runs (stock container converted, SRAM download) | – |
+| pc-009 | Wi-Fi up (`qdss.cfg` required; BDF/regdb from odm) | – |
+| pc-010 | Bluetooth, Wi-Fi scan, SoCCP attach, ADSP boot | – |
+| pc-011 | battery data (pmic-glink channel race fixed), GPU powers up, audio groundwork | e0b025a (0028) |
+
+Mainline: Tab S6 evaluation (keep U-Boot), the Nura OnePlus 15 page mapped to the Pad 4, KNOWLEDGE.md updated with
+all PC results, and relays 002/003 (sync; one shared knowledge file).
+
 ## 2026-09-28 — Linux on the tablet (Phase 2, in progress)
 
 ### Display: keeping the ABL framebuffer alive

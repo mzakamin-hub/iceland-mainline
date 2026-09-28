@@ -9,7 +9,7 @@
 
 The plan is in [docs/PLAN.md](docs/PLAN.md). History is in [CHANGELOG.md](CHANGELOG.md). Everything learned so far is in [docs/KNOWLEDGE.md](docs/KNOWLEDGE.md).
 
-## Current state (2026-09-28)
+## Current state (2026-09-28 evening, RAM boot only)
 
 | Stage | State |
 |---|---|
@@ -17,8 +17,13 @@ The plan is in [docs/PLAN.md](docs/PLAN.md). History is in [CHANGELOG.md](CHANGE
 | U-Boot on the tablet (display, USB fastboot, UFS, log over USB) | ✅ Phase 1 done |
 | Linux 7.3-rc4 starts through U-Boot EFI; earlycon on the panel | ✅ |
 | USB network (NCM), HTTP survey pages, HTTP reboot | ✅ |
-| Framebuffer console stays on | ❌ the panel turns white after 20–30 s; a fix is in progress (MXC rail vote) |
-| Native display, touch, Wi-Fi, battery, audio, GPU… | not started (Phase 3 onwards) |
+| Console stays on (ABL splash kept, INT2 GDSC held) | ✅ fixed by the PC session (pc-001) |
+| Native display, MSM DRM, dual DSI + DSC, 120 Hz, backlight | ✅ (pc-007) |
+| CPU thermal trips (stock 105/112/114 °C), tested under load | ✅ |
+| Touch firmware (SRAM download), touch + pen devices | ✅ (a real touch not yet confirmed) |
+| Wi-Fi (WCN7860, ath12k) scan; Bluetooth | ✅ (an intermittent reset when loaded early is open) |
+| Battery / USB-C data over pmic-glink (SoCCP); ADSP boots; GPU powers up | ✅ |
+| Audio, cameras, sensors, DP, suspend | not yet (audio stops at the LPASS LPI pinctrl) |
 
 ## Our repositories (private, GitHub user `mzakamin-hub`)
 
