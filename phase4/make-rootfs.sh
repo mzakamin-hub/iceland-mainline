@@ -49,24 +49,33 @@ echo iceland | fr tee "$R/etc/hostname" > /dev/null
 # (/iceland/proxy holds its URL; /iceland/dnf-packages the package list), then idle. Everything stays in RAM.
 cat > "$W/init.sh" <<'EOF'
 #!/bin/bash
-# iceland: PID 1 of the Fedora rootfs in RAM when the image has no systemd
-k() { echo "iceland-rootfs: $*" > /dev/kmsg; }
+# iceland: the Fedora rootfs's own init when the image has no systemd. Either PID 1 after switch_root, or
+# (ROOTFS_MODE=chroot, the default of the kit's shim) a chroot beside the shim, which keeps the report pages and
+# the live kmsg stream; then the pages are on 8080 and telnet on 2323. Every step is logged to the kernel log.
 export PATH=/iceland/bbin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/root
-/iceland/busybox --install -s /iceland/bbin
-mountpoint -q /proc || mount -t proc proc /proc; mountpoint -q /sys || mount -t sysfs sys /sys
-mountpoint -q /dev || mount -t devtmpfs dev /dev; mkdir -p /dev/pts /run /tmp; mount -t devpts devpts /dev/pts 2>/dev/null
-k "$(sed -n 's/^PRETTY_NAME=//p' /etc/os-release | tr -d '"') userland up as PID 1: bash $BASH_VERSION, $(ldd --version 2>/dev/null | head -n1), dnf5 $(dnf5 --version 2>/dev/null | head -n1)"
-/iceland/busybox httpd -p 80 -h /iceland/www && k "report pages up"
-/iceland/busybox telnetd -l /bin/bash && k "telnet shell up"
+HP=${ICELAND_HTTP_PORT:-80}; TP=${ICELAND_TELNET_PORT:-23}
+[ -c /dev/kmsg ] || { mkdir -p /dev; mount -t devtmpfs dev /dev 2>/dev/null; }
+exec > /dev/kmsg 2>&1
+k() { echo "iceland-rootfs: $*"; }
+k "init.sh started (pid $$, bash $BASH_VERSION, http $HP telnet $TP)"
+/iceland/busybox --install -s /iceland/bbin && k "busybox applets in /iceland/bbin"
+[ -d /proc/self ] || mount -t proc proc /proc; [ -d /sys/kernel ] || mount -t sysfs sys /sys
+mkdir -p /dev/pts /run /tmp; mount -t devpts devpts /dev/pts 2>/dev/null
+/iceland/busybox httpd -p "$HP" -h /iceland/www && k "report pages up on port $HP"
+/iceland/busybox telnetd -p "$TP" -l /bin/bash && k "telnet root shell on port $TP"
+k "$(sed -n 's/^PRETTY_NAME=//p' /etc/os-release | tr -d '"'): $(timeout 10 ldd --version 2>&1 | head -n1)"
+k "dnf5: $(timeout 60 dnf5 --version 2>&1 | head -n1) (exit $?)"
+k "rootfs: $(df -h / | tail -n1 | tr -s ' ') mem: $(free -m | awk '/^Mem:/{print $2" MiB, "$7" MiB available"}')"
 if [ -s /iceland/proxy ]; then
-	p=$(cat /iceland/proxy); k "proxy $p: $(curl -s -m 10 -o /dev/null -w '%{http_code}' -x "$p" https://dl.fedoraproject.org/pub/fedora/linux/releases/ 2>&1 || echo unreachable)"
+	p=$(cat /iceland/proxy)
+	k "proxy $p: http $(timeout 20 curl -s -m 15 -o /dev/null -w '%{http_code}' -x "$p" http://dl.fedoraproject.org/pub/fedora/linux/releases/ 2>&1), https $(timeout 20 curl -s -m 15 -o /dev/null -w '%{http_code}' -x "$p" https://dl.fedoraproject.org/pub/fedora/linux/releases/ 2>&1)"
 	if [ -s /iceland/dnf-packages ]; then
 		k "dnf5 install $(tr '\n' ' ' < /iceland/dnf-packages)"
-		https_proxy=$p http_proxy=$p dnf5 -y --setopt=install_weak_deps=False install $(cat /iceland/dnf-packages) > /tmp/dnf.log 2>&1
+		https_proxy=$p http_proxy=$p timeout 900 dnf5 -y --setopt=install_weak_deps=False install $(cat /iceland/dnf-packages) > /tmp/dnf.log 2>&1
 		k "dnf5 exit $? : $(tail -n 3 /tmp/dnf.log | tr '\n' '|')"
 	fi
 fi
-k "idle (telnet 172.16.42.1 for a root shell)"
+k "idle (telnet 172.16.42.1 $TP for a root shell)"
 while :; do sleep 3600; done
 EOF
 fr install -m 0755 "$W/init.sh" "$R/iceland/init.sh"
