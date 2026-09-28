@@ -325,7 +325,30 @@ https://github.com/mzakamin-hub/iceland-u-boot
   - Firmware: `/vendor/firmware/CAMERA_ICP.mdt`/`CAMERA_ICP_1.mdt` + `.bNN`.
 - Stock (from the LineageOS probe): a pogo keyboard (`tinno,pogo_keyboard`, `POGOPIN_KB.bin` from odm, a
   `pogo_wakeup` input); `canoe-mtp-snd-card` CODEC_DMA LPAIF_RXTX RX 0-3/5 playback; rfkill `bt_power`.
-- Lid switch: TLMM98 (not yet in the DTS). It reads `in high` with the cover open.
+- Lid switch: TLMM98, BU52053NVX hall output, active low (stock requests an edge IRQ "lid" on it; LineageOS DT uses
+  `gpio-keys` SW_LID with debounce 15 ms). It reads `in high` with the cover open. **In the queue as 0030**
+  (pc-019: SW_LID = 0 with the cover open; closing still to be tested; a `debounce-interval = <15>` is worth adding).
+- Rear flash LED: **in the queue as 0031** (pc-019: `yellow:flash-0` / `white:flash-1` registered).
+- Battery units: **0029** reports the Oplus gauge in µV/µA (pc-019: `VOLTAGE_NOW=3857000`, `CURRENT_NOW=435000`).
+- **LineageOS session reference** (2026-09-28, `docs/reference/pad4-hardware-boot-partitions.md`, from the user's
+  `C:\OnePlusPad4\knowledge\05-Hardware-Boot-Partitions-Reference.md`): identity/variants, boot chain, all 151
+  partitions with never-write/back-up marks, firmware sources, every hardware block. New for mainline:
+  - **144 Hz** stock per-rate porches per DSI link (120/144/90/60/50/48/30 Hz): hfp 50/32/210/50/210/210/50,
+    hbp 52/20/160/52/160/160/52, hpw 32/16/80/32/80/80/32, vfp 26/26/26/2726/2010/2196/8126, vbp 272/52/52/272/52/52/272,
+    vpw 2. 144 Hz hfp is **32** on 11.A.38 (OnePlusOSS 16.0.6.103 has 34). DFPS `dfps_immediate_porch_mode_both_hv_porch`;
+    reference commit "qcom: display: Support per refresh rate H/V porch DFPS" in
+    `mzakamin-hub/android_kernel_oneplus_sm8850-modules`.
+  - `qcom,qup_uart@1990000` (QUP3 SE4, SPI 586, ttyHS5, wake byte 0xFD) is the **pogo keyboard** UART
+    (`tinno,pogo_keyboard`), not Bluetooth (BT = 1994000). Pogo GPIOs: TX TLMM22, RX TLMM23, wake TLMM151, TX enable
+    PMH0110_D gpio6, power PMH0110_F gpio12; `POGOPIN_KB.bin`.
+  - KTZ8869 bias ENP TLMM14 / ENN TLMM15 only before EVT (PcbVersion < 24); this unit (PCB 0x28) sets the bias over I2C.
+  - Battery variants: IN (this unit) = QBG gauge + Maxim DS28E30 on TLMM88 with `oplus,debug_bypass_ic`; EU = TI
+    bq27541 @0x55. 80 W SUPERVOOC via 2× SC8547D (i2c12/i2c24 @0x6a), `vooc_project` 7.
+  - WLAN stock DT: `drop-l3k`, `msix-match-addr = <0x3000>`. eUSB2 repeater stock device-mode override reg 0x57 = 0x03.
+  - Panel vddio L12B needs **1.9 V** (the shared canoe dtsi caps it at 1.8 V).
+  - Volume up may be `gpio-keys` on TLMM 101 in the canoe MTP base DT (verify).
+  - ARB trap: before copy-partitions the inactive slot b held 11.A.32 firmware; now 40/40 identical on a/b. Never
+    `set_active` to an unsynced slot. Tablet state: slot b = LineageOS test build, slot a = LineageOS build 3.
 - Remoteprocs:
   - adsp and cdsp run on stock (split `.mdt`/`.bNN` files in `modem_a:/image`);
   - **soccp is started by the boot chain** (it has its own `soccp_a` partition);
@@ -623,6 +646,8 @@ ABL (stock, untouched)
 | pc-015 | bisect: A = SoCCP stack at boot only (control), B = no USB-C connector graph + orientation GPIO, C = no orientation GPIO, D = SoCCP at 20 s | A, C, D fine; **B reset early**. The resets span 4 different setups, so it's a timing race around the early pmic-glink clients. Results in `relay/results/pc-013-015-early-reset.md` |
 | pc-016 | rate + live log (`kmsgall` from ~1.4 s after NCM, USB timeline): A = control ×4, N = network first ×4 | **A3 and N4 reset** (2/8). **N4 streamed:** the kernel hung 1.3 s after the pmic-glink attach, where the MSM DRM takeover from the firmware framebuffer starts; reset ~10 s later. Every N run: USB link drop at the attach (harmless) |
 | pc-017 | sound card with a topology: A = integration, B = audio only; both SoCCP at 20 s | **B: sound card registered** (`kaanapali - OnePlus-Pad4`, 5 PCMs + compress + headset jack) with upstream's Kaanapali topology. **A reset early**, so SoCCP at 20 s is no workaround. Results in `relay/results/pc-016-017-live-log-audio.md` |
+| pc-018 | DEBUG kernel (USB-C, MSM takeover breadcrumbs, sync_state lines): N ×5, ND ×3 | 0 of 8 reset. USB link drop at the attach = UCSI bus reset (QMP not power-cycled). The takeover follows the NVT touch deferral by 25 ms; pc-016 N4 died within ms of it, so the hang is at the start of `msm_mdss_take_over_splash` |
+| pc-019 | q-next (battmgr µV/µA, lid switch, flash LED) + DEBUG: F ×6, FD ×2 | **battmgr units, lid (open = 0), flash LEDs work → queued 0029-0031** (iceland-linux fda405c); mixer lists 223 controls. 0 of 8 reset (0 of 16 with the pc-018/019 debug kernels: the prints likely hide the race). `relay/results/pc-018-019-takeover-features.md` |
 
 ## 11. Problems hit and how they were solved
 
@@ -663,6 +688,8 @@ ABL (stock, untouched)
 | Early reset | "SoCCP stack at 20 s" looked like a workaround (pc-015 D) | it isn't (pc-017 A reset): the display takeover follows the pmic-glink **platform device** probe, not the SoCCP channel |
 | PC tooling | Windows `Get-ChildItem` shows 0 bytes for a stream file that is still open | open the file (`[IO.File]::Open(..., 'ReadWrite')`) to see its real length |
 | PC tooling | the relay log is UTF-8 when the runner is started from PowerShell 7 (UTF-16 from Windows PowerShell) | `save-run.sh` checks the BOM |
+| PC tooling | the masking scripts carried the device serial as a regex; one was pushed in 5077790 | scripts read it from `~/mainline/build/.serial` (local, never committed) since pc-019's save; history not rewritten |
+| Early reset | the debug prints hide the race (0 of 16 resets with the pc-018/019 kernels) | keep debug kernels lean; compare fix candidates against the pc-013 baseline |
 | GPU | debugfs `gpu` answered ENODEV | not a failure: the a8xx code has no `gpu_state_get`; use `msmparam` (MSM_GET_PARAM) instead |
 | PC tooling | a Git Bash `tail -F` on `run.log` made the runner's `Add-Content` fail | read logs with PowerShell `Get-Content` only |
 | PC tooling | files edited from Windows (`\\wsl.localhost`) lose the exec bit (`env: Permission denied`) | `chmod 755` before building |
@@ -744,6 +771,15 @@ ABL (stock, untouched)
      from the firmware framebuffer starts in clean runs; the tablet reset ~10 s later (a PS_HOLD hard reset).
    - Suspect: a race in the takeover (splash stop + MDSS reset, firmware framebuffer removal dropping its clock /
      GDSC / rail votes, DPU/DSI access), e.g. against a `sync_state` or a rail vote.
+   - pc-018 narrowed it: N4's last line was the NVT touch deferral; the MSM bind follows it by 25 ms and "bound dsi"
+     never arrived, so the freeze is within ms of the start of `msm_mdss_take_over_splash()` (runtime get → splash
+     stop `INTF_TIMING_ENGINE_EN=0` → 20 ms → MDSS reset 20 ms → UBWC → runtime put), before the framebuffer removal.
+     Candidates: `msm_mdss_irq()` reading `HW_INTR_STATUS` while the MDSS is suspended; the reset hitting a busy block.
+   - **pc-020 is built** (`kit/linux-test-pc20`, kernel pc-020 = pc-019 + 150 ms-paced breadcrumbs at each takeover
+     step + the first 20 MDSS interrupts with the runtime-PM state), not run yet.
+   - **Heisenbug:** the pc-018/019 debug kernels had 0 resets in 16 runs (pc-013 kernel: ~3 in 10). Their prints
+     likely shift the timing. If pc-020 is also clean, go back to the pc-013 kernel with only a cheap MDSS-IRQ log, or
+     test a fix candidate against the pc-013 baseline over ≥ 12 runs.
    - Not the cause: the audio modules, fix v2's hold/attach path, the orientation GPIO, the USB-C connector graph,
      the QMP PHY (no power-cycle), the USB link drop at the attach (UCSI bus reset, harmless).
    - **No workaround yet:** SoCCP at 20 s does not help (pc-017 A).
@@ -762,20 +798,24 @@ ABL (stock, untouched)
 1. **Finish the early-reset investigation** (#1):
    1. ✅ rate: ~1 in 4 (pc-016: 2 of 8; pc-017 A);
    2. ✅ early live log (`kmsgall` + `run-kit-early.ps1` + `NET_FIRST`); N4 caught the hang at the display takeover;
-   3. pc-018: which takeover step hangs (breadcrumbs, `sync_state` lines); does it happen without the native display;
-   4. fix it in the kernel or DT, then prove it over ≥ 8 runs.
+   3. ✅ pc-018/019: the hang is at the start of the MSM splash takeover (see open issue #1);
+   4. **next: run pc-020** (paced breadcrumbs) to find the exact step, then fix it (queue patch) and prove it over ≥ 8
+      runs without the debug pauses.
 2. **Audio:**
    1. ✅ topology + card registration (pc-017; upstream's Kaanapali topology as `OnePlus-Pad4-tplg.bin`);
-   2. mixer listing (`amixer contents`, read only) in the next audio kit (`AUDIOSTATE_AT` before the late pages);
+   2. ✅ mixer listing: 223 controls (pc-019, `amixer -c 0 contents`, read only);
    3. speakers: Mainline moves the DT speaker link to PRIMARY_TDM_RX_0 (8 × 32 bit, TFA9865 slots); the PC writes an
       Audio IF (TDM) device subgraph m4 for the topology;
    4. volume caps, then UCM; no playback before that (TFA9865 protection needs `tfa98xx.cnt`).
-3. **battmgr units** (#3): read the scaling in `qcom_battmgr.c` for the SoCCP/OPLUS path and compare with stock.
-4. **Small DT items (kit-DTB first, then queue patches):**
-   - lid `gpio-keys` `SW_LID` on TLMM98;
-   - rear flash LED (two `led@` children, sources <1 4> and <2 3>);
+3. ✅ **battmgr units**: 0029 (the Oplus gauge gives mV/mA; now ×1000), tested in pc-019.
+4. **Small DT items:**
+   - ✅ lid `gpio-keys` `SW_LID` on TLMM98 (0030; add `debounce-interval = <15>` like LineageOS; closing untested);
+   - ✅ rear flash LED (0031);
    - GPU `vdd`/`vddcx` supplies;
-   - board thermistor ADC channels + ADC-TM zones from the stock DT.
+   - board thermistor ADC channels + ADC-TM zones (`pmh0101_board_therm` AMUX THM5, `pmh0101_flash_therm` AMUX1
+     GPIO1, 100k pull-up, 125 °C passive trips per the LineageOS reference);
+   - panel vddio L12B up to 1.9 V; WLAN `drop-l3k` / `msix-match-addr` equivalents; eUSB2 repeater override
+     0x57 = 0x03 (LineageOS reference).
 5. **UFS read-only mount** test in a kit (by partlabel, ro, no journal replay), then the **firmware extractor**
    (from `firmware/manifest.tsv`, tested on the PC's unpacked OTA).
 6. **BT address** from persist (`persist.vendor.service.bdroid.bdaddr`).
