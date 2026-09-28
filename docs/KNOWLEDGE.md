@@ -1,7 +1,7 @@
 # OnePlus Pad 4 mainline Linux — knowledge base
 
 This file holds everything learned and decided on this project up to **2026-09-28 evening** (it includes the PC relay
-results pc-001..pc-011). It is written so that a person or an
+results pc-001..pc-015; both sessions keep it current, see relay 003). It is written so that a person or an
 agent with no other context can pick up the work. Related files:
 - [../PROJECT.md](../PROJECT.md): short index and links
 - [../CHANGELOG.md](../CHANGELOG.md): history by commit
@@ -206,7 +206,12 @@ https://github.com/mzakamin-hub/iceland-u-boot
   - `hypervisor_extended_heap` 0xc3dd0000;
   - `mpss` (modem, unused on SM8850P).
 - ramoops is placed at **0xff300000** (0x400000) in our debug DT. That space is inside the 0xe25a0000–0xff800000 segment, below llcc_lpi.
-- U-Boot relocates itself to 0xaffdc8000. Its fastboot download buffer is at **0xc6000000**.
+- U-Boot relocates itself to the top of RAM. Its **EFI runtime** region is 0xa_ffdc0000–0xa_ffdcffff (the EFI system
+  table is at 0xa_ffdc8fc0), and its image and page tables are above that (boot-services memory, free after
+  ExitBootServices). Its fastboot download buffer is at **0xc6000000**, 256 MiB.
+- Stock Android (Lineage) puts a dynamic ramoops at 0xa_ffdc0000: 0x40000 console, then a 0x200000 pmsg zone at
+  0xa_ffe00000, no ECC. The debug DTB can use only the pmsg zone (`PMSG_ANDROID=1`), because U-Boot's runtime region
+  overlaps the console zone. Our reboots are PS_HOLD hard resets with a DDR cold init, so it has never survived.
 
 ### Display
 - Panel `XN251` (CSOT), NT36536 TDDI, dual DSI, **3392x2400 landscape-native**, video mode, 30–144 Hz. DSC is used.
@@ -278,9 +283,31 @@ https://github.com/mzakamin-hub/iceland-u-boot
 - GPU: Adreno 840 `qcom,adreno-44050a01` (gen80200) binds and loads sqe/gmu/aqe ("GMU firmware v5.3.39").
   - `MSM_GET_PARAM`: chip_id 0xfc44050a31, gmem 18 MiB, max_freq 1.2 GHz, the timestamp advances. So the GPU powers up.
   - The `vdd`/`vddcx` supplies are missing in the DT (dummy regulators).
-- Audio: the RX/TX SoundWire controllers wait for the **LPASS LPI pinctrl** `pinctrl@7760000`
-  (`qcom,sm8750-lpass-lpi-pinctrl`; module `pinctrl-sm8650-lpass-lpi` not loaded). The sound card
-  (`qcom,kaanapali-sndcard`) says "WCD Playback: codec dai not found". One `qcom-apm CMD timeout` was seen.
+- Audio (pc-012):
+  - The LPASS LPI pinctrl (`pinctrl@7760000`, `qcom,sm8750-lpass-lpi-pinctrl`, module `pinctrl-sm8650-lpass-lpi`) lets
+    the RX/TX SoundWire controllers probe once the ADSP runs.
+  - The **WCD9395** codec (`qcom,wcd9395-codec`, `audio-codec` node) binds both SoundWire devices
+    (`sdw:2:0:0217:010e:00:4`, `sdw:3:0:0217:010e:00:3`).
+  - All six TFA9865 amps probe (mainline i2c 0 and 4, at 0x34/0x36/0x37).
+  - The TX SoundWire logs "din-ports (4) mismatch with controller (6)" and "dout-ports (0) mismatch with controller (1)";
+    the DT port counts are worth a check.
+  - The card `qcom,kaanapali-sndcard` (model `OnePlus-Pad4`) has three links:
+    - Primary MI2S Playback (cpu port 16): the six TFA9865s;
+    - WCD Playback (RX_CODEC_DMA_RX_0, 113);
+    - WCD Capture (TX_CODEC_DMA_TX_3, 120).
+  - It fails with "tplg firmware loading `qcom/kaanapali/OnePlus-Pad4-tplg.bin` failed -2". An **AudioReach topology**
+    is needed. Stock uses ACDB/AGM, so none exists.
+  - One `qcom-apm CMD timeout [1001021]` is seen right after the ADSP comes up.
+- Rear flash LED (relay 002): `led-controller@ee00`, `qcom,pmh0101-flash-led`, with **two dies**:
+  - warm/yellow on sources 1+4;
+  - white on sources 2+3;
+  - led-2 drives all four;
+  - 500 mA torch, 2 A flash, 1.28 s.
+- Cameras (relay 002), on CCI (stock `cci0..2` @941b000/941c000/941d000):
+  - rear **SmartSens SC1320CS** (13 MP) at 0x6c, with actuator, EEPROM and PDAF;
+  - front **SmartSens SC820CS** (8 MP) at 0x20, with EEPROM;
+  - MCLK 19.2 MHz. Neither has a mainline driver.
+  - Firmware: `/vendor/firmware/CAMERA_ICP.mdt`/`CAMERA_ICP_1.mdt` + `.bNN`.
 - Stock (from the LineageOS probe): a pogo keyboard (`tinno,pogo_keyboard`, `POGOPIN_KB.bin` from odm, a
   `pogo_wakeup` input); `canoe-mtp-snd-card` CODEC_DMA LPAIF_RXTX RX 0-3/5 playback; rfkill `bt_power`.
 - Lid switch: TLMM98 (not yet in the DTS). It reads `in high` with the cover open.
@@ -295,7 +322,8 @@ https://github.com/mzakamin-hub/iceland-u-boot
 - ADSP/CDSP, jsn and Wi-Fi: `/vendor/firmware_mnt/image` (the modem_a FAT partition).
   - Wi-Fi is under `peach/`: `amss20.bin`, `phy_ucode20.elf`, `aux_ucode20.elf`, `regdb.bin`, `bdwlan.*`.
 - **Bluetooth: `brhbtfw20.mbn` and `brhbtnv20*.bin`** in `/vendor/bt_firmware/image` (bluetooth_a).
-  - btqca asks for `gngbt*`, so the manifest renames them (`qca/gngbtfw20.mbn`, `qca/gngbtnv20.bin` from `brhbtnv20_in.bin`).
+  - btqca (7.3) requests them **under the stock names**, `qca/brhbtfw20.mbn` and `qca/brhbtnv20.bin` (this unit uses the
+    generic `.bin` NVM). The old `gngbt*` rename (from map220v's list) was wrong; the manifest was fixed in e3f0af0.
 - Touch: `/odm/firmware/tp/25926/FW_NT36536_HUAXING.img`, which becomes `novatek/novatek_nt36536_fw.bin`.
 - `tfa98xx.cnt` (speaker protection) and the pen firmware `mt5806_firmware.bin`: `/odm/firmware`.
 - The destination path convention is `qcom/kaanapali/OnePlus/iceland/` (pmOS style).
@@ -499,9 +527,29 @@ ABL (stock, untouched)
   | `IWDIR` | pinned Ubuntu `iw`, via `fetch-iw.sh` |
   | `EXTRA_BINS` | extra binaries (e.g. `msmparam`) |
   | `KITCONF` | the `/etc/kit.conf` to embed |
+  | `DT_DEL_NODES` / `DT_DEL_PROPS` | experiments: remove debug-DTB nodes / `node:prop` properties |
+  | `LATE_MODS` / `LATE_AT` | modules held back and loaded at that uptime (in dependency order) |
 
-  `kit.conf` keys: `WATCHDOG`, `AUTOREBOOT_AT`, `LATE_MODS`/`LATE_AT`, `BTSTATE`, `IWSCAN_AT` (no names),
-  `ADSP_START_AT`, `GPU_OPEN_AT`, `REBOOT_MODE`, `BATTSTATE`, `AUDIOSTATE_AT`.
+  `kit.conf` keys:
+  - `WATCHDOG`: the busybox daemon on `/dev/watchdog0`, 60 s;
+  - `AUTOREBOOT_AT`: sysrq reboot at that uptime, so every run returns to Android;
+  - `BTSTATE`, `IWSCAN_AT` (scan summary: counts, frequency, signal; no names or BSSIDs);
+  - `ADSP_START_AT`: ADSP firmware held under `/lib/firmware/late` until then, then `echo start`;
+  - `GPU_OPEN_AT`: runs `msmparam`;
+  - `REBOOT_MODE`: `/sys/kernel/reboot/mode`; `warm` has no effect here;
+  - `BATTSTATE`, `AUDIOSTATE_AT`;
+  - `DYNDBG`: `;`-separated dynamic-debug queries, re-applied after the late modules;
+  - `PGLINK_UNBIND_AT` / `PGLINK_BIND_AT`: the pmic-glink hold/attach harness (pc-013).
+- **Runner hook:** `run-linux.ps1` calls an optional `After-Android` function once Android is back.
+  `tools/relay/run-kit-long.ps1` uses it to:
+  - save the reset lines of Lineage's `/proc/bootloader_log` (`reset-after.txt`); the full log stays private in
+    `C:\OnePlusPad4\captures\bootloader-logs`;
+  - save `/sys/fs/pstore`;
+  - set adbd back to non-root.
+
+  The same wrapper streams the `kmsg` page into `late-kmsg.txt` during its wait (`-Wait 90..120`).
+- Kits are built in WSL by `make-kitNN.sh` scripts (kept in the PC build dir), with per-variant firmware trees, module
+  lists and `kit.conf`, then packaged with `package.sh`.
 - **`init` monitors:**
   - the **scanout sampler**: dispcc GDSCRs, DPU INTF_1/INTF_2 frame and line counters, MDP `INTR_STATUS`
     vsync/underrun, and `iceland-scan: verdict …` lines;
@@ -539,6 +587,10 @@ ABL (stock, untouched)
 | pc-009 | Wi-Fi (ath12k WCN7860) | `wlan0` up after `qdss.cfg`; loading early reset the tablet in 2 runs (open) |
 | pc-010 | 5-run session | **BT works, Wi-Fi scan works**, SoCCP attaches, ADSP boots, pmic-glink race found, GPU binds; the early Wi-Fi reset not reproduced |
 | pc-011 | 5-run session | **Battery data**, GPU powers up (`msmparam`), audio up to the LPI pinctrl; warm reboot isn't possible |
+| pc-012 | fix v2 (0028); A = SoCCP race order + ADSP + full audio, B = **integration** | **B: everything works in one boot** (display, touch fw, Wi-Fi at boot + scan, BT, battery, ADSP, GPU); audio reaches the card and stops at the missing topology. **A reset early** (no USB network) |
+| pc-013 | kernel + DEBUG prints; A = pmic-glink hold/attach harness, B = pc-012 A again, C = integration again | **Fix v2 proven:** the channel is held (27 s) and attached on bind (107 s) with battery data 2 s later; C hit the race naturally and it was held and attached 1 s later. **B reset early again** |
+| pc-014 | bisect: A = audio modules late (95 s), B = no WCD9395 codec | **A reset early** (so it isn't the audio modules loading); B fine |
+| pc-015 | bisect: A = SoCCP stack at boot only (control), B/C = no USB-C connector graph / orientation GPIO, D = SoCCP late | **A fine**: the minimal setup does not reset. Results in `relay/results/pc-013-015-early-reset.md` |
 
 ## 11. Problems hit and how they were solved
 
@@ -572,6 +624,15 @@ ABL (stock, untouched)
 | Wi-Fi | stuck after `qdss.cfg: -2` | ship stock `qdss_trace_config_v2.cfg` as `qdss.cfg` |
 | Wi-Fi | console flood, then watchdog reset | `ignore_loglevel=N` + console loglevel 4 in init |
 | Battery | pmic-glink channel lost in a probe race (SoCCP comes up instantly) | 0028: attach the early channel in `pmic_glink_probe()` |
+| Battery | the first fix (-EPROBE_DEFER) lost the channel for good | a failed rpmsg probe destroys the endpoint, which closes the glink channel; hold it instead (v2 = 0028) |
+| Audio | SoundWire waited for `pinctrl@7760000` | load `pinctrl-sm8650-lpass-lpi` (+ `snd-soc-wcd939x`, `-sdw`) |
+| Audio | card fails at `snd_soc_component_probe` -2 | no `qcom/kaanapali/OnePlus-Pad4-tplg.bin` (AudioReach topology) yet: open |
+| GPU | debugfs `gpu` answered ENODEV | not a failure: the a8xx code has no `gpu_state_get`; use `msmparam` (MSM_GET_PARAM) instead |
+| PC tooling | a Git Bash `tail -F` on `run.log` made the runner's `Add-Content` fail | read logs with PowerShell `Get-Content` only |
+| PC tooling | files edited from Windows (`\\wsl.localhost`) lose the exec bit (`env: Permission denied`) | `chmod 755` before building |
+| PC tooling | PowerShell mangles inline `bash -lc` quoting (`$`, quotes, `|`, heredocs) | put commands in script files |
+| PC tooling | WSL 9p read of `/mnt/c` gave "Cannot allocate memory" once | retry the copy |
+| PC tooling | busybox `watchdog` keeps stdout open, so `$(watchdog …)` would block PID 1 | redirect to files, never command substitution |
 | Thermal | load-test guard checked only trip 0 | check every passive trip |
 | Config | ADC5 Gen4 driver never enabled | cc85322 |
 | Script | no "white" choice in the screen question | added `w` |
@@ -602,6 +663,19 @@ ABL (stock, untouched)
 - The userdata raw backup is FBE-encrypted, so the `/data/vendor` TEE files must be copied at file level before Android is erased.
 - UFS LUN order can change between boots: always mount by partlabel.
 - troikoss rule: find the missing layer first (driver / firmware / userspace bridge / app).
+- **A failed rpmsg probe closes a glink channel** (the endpoint is destroyed), and the remote may never reopen it. So
+  never return -EPROBE_DEFER from an rpmsg probe on glink.
+- **SoCCP is attached, not booted** (`early_boot`): its channels appear the moment `qcom_q6v5_pas` probes, so races
+  that ADSP firmware loading used to hide become real. `qcom_sysmon` needs a QRTR socket, so SoCCP attach and the
+  pmic-glink platform device both wait for `qrtr` and then race.
+- Every run can end in an unexplained reset. Lineage's `/proc/bootloader_log` gives the reset source
+  (`PM: Reset by …`, `Reset Type`, `PonReason`); `sys.boot.reason` is always a stale "bootloader". pstore does not
+  survive (PS_HOLD hard reset).
+- **Unattended kits need a way back:** a watchdog daemon plus an auto reboot at 240 s. The runner waits 150 s for the
+  network and 180 s for adb.
+- If a crash happens before the USB network is up (~35 s uptime), defer the suspect part with `LATE_MODS`/`LATE_AT`
+  past the start of the live `kmsg` stream (~60 s) to capture it.
+- `debugfs dri/*/gpu` ENODEV doesn't mean the GPU failed; ask the driver (`msmparam`).
 
 ## 13. Current state, open issues, next steps
 
@@ -612,39 +686,61 @@ ABL (stock, untouched)
 - ✅ Touch firmware runs (touch and pen devices registered; a real touch isn't confirmed yet).
 - ✅ Wi-Fi (`wlan0`, scan), ✅ Bluetooth (`hci0`), ✅ battery/USB data over pmic-glink (SoCCP).
 - ✅ ADSP boots, SoCCP attaches, the GPU powers up.
-- ⚠️ Audio: stops at the LPASS LPI pinctrl / SoundWire; no card yet.
+- ✅ **Integration boot (pc-012 B, pc-013 C):** all of the above works together in one boot.
+- ⚠️ Audio: SoundWire, WCD9395 and 6× TFA9865 bind; the card stops at the missing AudioReach topology.
 
 **Open issues:**
-1. **Early Wi-Fi load resets the tablet**, intermittently (2 resets, 11 clean runs; cause unknown). The reset reason is
-   captured from the bootloader log.
-2. **battmgr units:** the battery looks like mV/mA while USB is µV/µA. Check the scaling for the SoCCP firmware.
-3. **144 Hz** is pruned (pixel clock 1261 MHz). It needs stock per-rate porches / DFPS.
-4. **qnoc sync_state** drops boot bandwidth once `qce-core` binds (one underrun window under simpledrm). Native MSM DRM
-   votes its own bandwidth, so this matters only for the simpledrm fallback.
-5. GPU `vdd`/`vddcx` supplies are missing in the DT.
-6. No board-thermistor ADC channels / ADC-TM zones (skin temperature) yet.
-7. pmsg/ramoops don't survive (PS_HOLD hard reset).
+1. **Early reset with pmic-glink** (pc-012 A, pc-013 B, pc-014 A, 3/3).
+   - The setup: SoCCP stack at boot, the **ADSP node enabled** with its firmware held back, the audio module list, and
+     no Wi-Fi/BT.
+   - The tablet resets before the USB network is up (< ~35 s), so there is no log.
+   - Not the cause:
+     - the audio modules loading: pc-014 A deferred them to 95 s and still reset;
+     - fix v2's hold/attach path: the harness and the natural race both worked.
+   - The minimal SoCCP-only setup doesn't reset (pc-015 A). Next bisect: toggle the ADSP node.
+2. **Early Wi-Fi load reset** (pc-009, 2 resets, 13+ clean runs since): not reproducible; maybe the same family as #1.
+3. **battmgr units:** the battery looks like mV/mA while USB is µV/µA. Check the scaling for the SoCCP firmware.
+4. **144 Hz** is pruned (pixel clock 1261 MHz). It needs stock per-rate porches / DFPS.
+5. **qnoc sync_state** drops boot bandwidth once `qce-core` binds. It matters only for the simpledrm fallback.
+6. GPU `vdd`/`vddcx` supplies are missing in the DT.
+7. No board-thermistor ADC channels / ADC-TM zones (skin temperature) yet.
+8. pmsg/ramoops don't survive (PS_HOLD hard reset). Crash logs come only from the live `kmsg` stream, so defer
+   suspects past ~60 s.
+9. SoundWire TX port-count mismatch warnings (DT vs controller).
 
-**Next steps:**
-1. **Audio:** load `pinctrl-sm8650-lpass-lpi` (LPASS LPI pinctrl) → SoundWire → WCD9395 → sound card. Then an
-   AudioReach topology (the infiniti `.m4` as the template) and UCM, with **volume capped** until TFA9865 speaker
-   protection (`tfa98xx.cnt`) works. Nobody has kaanapali audio yet.
-2. **Touch:** confirm real touch and pen events (needs a human touch, or an input-event log during a user session).
-3. **GPU:** Mesa (freedreno/turnip) test; add the vdd supplies; XEC speedbin/opp-peak commits if needed.
-4. **Small DT items:**
-   - rear **flash LED** (pmh0101 flash-led, stock channel map);
-   - **lid** gpio-keys `SW_LID` on TLMM98;
-   - board thermistor ADC channels + ADC-TM zones from the stock DT;
-   - no haptics (disabled in stock).
-5. **BT address** from persist (stock prop `persist.vendor.service.bdroid.bdaddr`).
-6. **UFS read-only mount** test, then the **firmware extractor** (from `firmware/manifest.tsv`; it can be tested on
-   the PC's unpacked OTA).
-7. **USB OTG** on battery and with external PD (on the OnePlus 15, OTG works only with PD).
-8. **Phase 4 preparation** (needs the user's OK):
-   - write `device-oneplus-iceland` from scratch (there's no OnePlus 15 package in pmaports);
-   - file-level copy of `/data/vendor` + persist;
-   - ath12k loaded late until the reset is understood.
-9. Later: DP, cameras (sensors at i2c9 0x20/0x6c, CAMERA_ICP firmware), sensors (SSC via hexagonrpcd), suspend.
+**Pending list (shared; worked top-down, RAM boot only, nothing written to the tablet):**
+1. **Finish the early-reset bisect** (#1): the ADSP node on/off from a setup known to reset. Capture a log by deferring
+   the trigger past 60 s. Fix in the kernel or DT, and keep that order in the debug kits until then.
+2. **Audio topology:** write `KAANAPALI-OnePlus-Pad4.m4` from `linux-msm/audioreach-topology` (SM8550-HDK + an I2S
+   board as templates):
+   - Primary MI2S RX (port 16) → TFA9865;
+   - RX_CODEC_DMA_RX_0 (113) → WCD9395 headphones;
+   - TX_CODEC_DMA_TX_3 (120) ← mic.
+
+   Build it with a pinned `alsatplg` (no sudo in WSL), ship it as `qcom/kaanapali/OnePlus-Pad4-tplg.bin`, and check
+   that the card registers (no playback until volume caps exist). Then UCM, capped until TFA9865 protection
+   (`tfa98xx.cnt`) works.
+3. **battmgr units** (#3): read the scaling in `qcom_battmgr.c` for the SoCCP/OPLUS path and compare with stock.
+4. **Small DT items (kit-DTB first, then queue patches):**
+   - lid `gpio-keys` `SW_LID` on TLMM98;
+   - rear flash LED (two `led@` children, sources <1 4> and <2 3>);
+   - GPU `vdd`/`vddcx` supplies;
+   - board thermistor ADC channels + ADC-TM zones from the stock DT.
+5. **UFS read-only mount** test in a kit (by partlabel, ro, no journal replay), then the **firmware extractor**
+   (from `firmware/manifest.tsv`, tested on the PC's unpacked OTA).
+6. **BT address** from persist (`persist.vendor.service.bdroid.bdaddr`).
+7. **Touch/pen events and lid events:** need a person at the tablet. Add an input-event logger to a kit and ask the
+   user for a 30 s touch/lid window.
+8. **5/6 GHz Wi-Fi reception:** needs a 5 GHz AP in range (ask the user), or check the reported frequencies once one
+   is.
+9. **144 Hz** (#4): per-rate porches/DFPS in the panel driver (a kernel change, test through a kit).
+10. **Suspend (s2idle)** with an RTC wake, as a late step in a kit: needs the watchdog + auto-reboot safety.
+11. **USB OTG** on battery and with external PD (needs the user and the debug DTB's USB role changed).
+12. **Phase 4 preparation** (needs the user's OK):
+    - write `device-oneplus-iceland` from scratch (there's no OnePlus 15 package in pmaports);
+    - file-level copy of `/data/vendor` + persist;
+    - ath12k loaded late until the resets are understood.
+13. Later: DP, cameras (SC1320CS/SC820CS need new drivers; CAMERA_ICP firmware), sensors (SSC via hexagonrpcd), video.
 
 **Other notes:**
 - The kernel CI workflow exists but is only run by hand. Kernels are built in the cloud container and on the PC (WSL).
@@ -702,6 +798,16 @@ On the PC (WSL) the kits are built with the scripts in `relay/results/pc-*/` (fo
 16. The user asked to evaluate the Galaxy Tab S6 (bentlybro) method: keep U-Boot (`research/gts6l-tab-s6.md`).
 17. The user uploaded the Nura OnePlus 15 page, mapped in `research/nura-oneplus-15.md`. Relay 002 sync sent.
 18. The user asked to update this file with everything the PC did, and to make sure the PC session uses all of this knowledge (relay 003).
+19. The user told the PC session to "keep autonomous as long as it's only a RAM boot". The PC then built and ran
+    pc-010..pc-015 by itself:
+    - pc-010: BT, Wi-Fi scan, ADSP, SoCCP;
+    - pc-011: battery, GPU;
+    - pc-012/013: integration, pmic-glink fix v2 (0028, iceland-linux e0b025a);
+    - pc-012..015: the early-reset bisect.
+20. The PC answered relays 002 (qdss.cfg, flash LED, cameras) and 003 (shared knowledge), and folded pc-012..015 into
+    this file.
+21. The user asked both sessions to save all knowledge and progress, keep a pending list and work through it until
+    done: **RAM boot only, never flash anything that could brick**. The pending list is §13 above.
 
 ## 16. Environment notes (cloud session)
 
