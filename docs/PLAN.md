@@ -19,7 +19,7 @@ distributions' own kernels boot it and our packaging disappears.
 | U-Boot runs when packed as header v4, kernel = gzip(u-boot.bin) | ✅ | diag run 3 test A |
 | ABL framebuffer 0xfc800000, 3392x2400 | ✅ | diag run 3 test B (white) |
 | U-Boot console on panel, U-Boot USB fastboot enumerates | ✅ (Windows driver to bind) | diag run 3 test C |
-| U-Boot reads UFS / partitions, U-Boot log over USB | ⏳ | diag run 4 |
+| U-Boot reads UFS / partitions (HS-G5 x2), U-Boot log over USB, Windows fastboot driver bound | ✅ | diag run 4 |
 | Kernel: Linux 7.3-rc4 + infiniti (138) + Pad 4 series (20) builds, 0 warnings, Pad 4 drivers present | ✅ build | `iceland-linux`, `7.3.0-rc4-iceland-00158` |
 | Device facts: ABL memory map (20 segments, 11.5 GiB), 68 reserved regions, I2C/SPI map, live + stock DTs, firmware inventory | ✅ | `docs/device-facts/` |
 | Firmware manifest: 21 files, stock sources + sha256 | ✅ | `firmware/manifest.tsv` |
@@ -57,7 +57,7 @@ non-writing commands until a phase explicitly says otherwise and the user agrees
 
 ### Phase 1 — U-Boot bring-up (in progress)
 - [x] RAM boot accepted, U-Boot runs, framebuffer, USB fastboot enumerates
-- [ ] Run 4: bind Windows driver, UFS partition tables, `getvar all`, U-Boot log (`oem console`)
+- [x] Run 4: Windows driver bound, UFS partition tables, `getvar all`, U-Boot log (`oem console`)
 - [ ] Enable U-Boot `fastboot boot` of an Android boot image (Linux kernel + DTB + initramfs) → Phase 2
 - Exit: U-Boot's fastboot usable from Windows; UFS partitions listed.
 
