@@ -112,6 +112,14 @@ Segment 8 has size 0 (as reported by ABL).
 - Splash framebuffer (ABL): `splash_region` **0xfc800000, size 0x2b00000 (43 MiB)** — same base as OnePlus 15 → U-Boot simplefb base.
   3392x2400x4 = 31 MiB; exact stride to be confirmed on first U-Boot boot.
 
+## Live device tree (capture 2)
+
+`capture-20260927-2/live-fdt-redacted.dtb` (+ decompiled `.dts`, 44,174 lines) = stock base DTB with the
+"iceland-O IN" overlay applied by ABL; serial number overwritten with X.
+- `model = "Qualcomm Technologies, Inc. Canoe MTP,iceland-O IN"`, compatible `qcom,canoe-mtp / qcom,canoep`.
+- `qcom,msm-id = <0x295 0x20000 0x294 0x10000 …>` (this unit: 0x295 = SM8850P, rev 2.0), `qcom,board-id = <0x08 0x00>`
+  → values a direct-ABL boot DTB must carry.
+
 ## Boot / identity
 
 - Slot `_a`, ABL `oplusboot.verifiedbootstate=orange`, `oplusboot.prjname=25978`, `oplusboot.sku=23`, `oplus_region=167`.
