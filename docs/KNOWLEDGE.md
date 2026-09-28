@@ -763,6 +763,20 @@ ABL (stock, untouched)
 - Windows PowerShell 5.1: use CRLF HTTP headers or a raw socket client. Some Windows PCs have no `adb` on PATH.
 - Never boot ABL-direct without the real `/memory`: a size-0 memory node leads to EDL (PrestarLin).
 - Thermal: add passive cooling before load (Y700: 100 °C in 2 s).
+- **Rootfs-in-RAM (pid1 mode): the kernel firmware loader's root moves with PID 1.** The userspace init shares
+  its `fs_struct` with the kernel's init task (`kernel_init` is forked with `CLONE_FS`), so a `chroot` by PID 1
+  changes the root that `request_firmware()` resolves paths against. After the shim exec-chroots systemd, every
+  later firmware request looks inside the rootfs (pc-026 S1: the ADSP "not found" although the shim had moved
+  the files into place). The shim binds the kit's `/lib/firmware` over `/rootfs/lib/firmware` before the chroot.
+- **A suspend that returns at once with no message: read `pm_wakeup_irq` (needs `PM_SLEEP_DEBUG`).** On the Pad 4
+  it was the PCIe0 WAKE# GPIO declared with the wrong polarity (`GPIO_ACTIVE_HIGH` on an active-low, pulled-up
+  line): a level IRQ "active" the whole time PCIe is on (pc-026 S1). A bare kit without PCIe slept fine, which
+  pointed away from the kernel for a while.
+- Probes: `cmd < <(sleep N)` for programs that watch stdin (kmscube, cage); a pipeline `sleep N | cmd` waits for
+  the whole sleep. A relay `-Wait` ends the session, not the kit's `AUTOREBOOT_AT`. Never suspend the tablet
+  while `rootfstar` streams (the hand-back breaks; the probes keep the previous tarball on a failed gzip check).
+- PC side: `wsl.exe ... bash -lc '...'` goes through Windows argv parsing - a `\"` in the command loses its
+  backslash and silently changes an inline sed/python; put such text in files (Write tool) and run them.
 - Starting the ADSP may kill simplefb (SM8750 report). Enable remoteprocs one at a time.
 - Bluetooth firmware is `brhbt*` and btqca loads it under those names. Wi-Fi uses the ELF BDF `bdwlan.elf` from odm (board_id 0xff).
 - A distro loads ath12k early (udev). Until the early-load reset is understood, load it late (a service after USB).
@@ -831,8 +845,10 @@ ABL (stock, untouched)
   ✅ Wi-Fi (ath12k up at boot, NetworkManager scan, 2.4 GHz seen; a connection needs the user's credentials);
   ✅ Bluetooth (hci0 with the tablet's own address, scan; pairing needs the user);
   ✅ the pen accepted by libinput (0036/0037); ✅ GNOME at 144 Hz;
-  ⚠️ **suspend**: s2idle works in a bare kit (pc-025) but ends within 1-2 s on the GNOME rootfs (not Wi-Fi, not
-  the power-supply wakeups - bisect running with `PM_SLEEP_DEBUG`);
+  ✅ **suspend** (root cause found in pc-026 S1): the PCIe0 WAKE# GPIO (TLMM 104) was declared
+  `GPIO_ACTIVE_HIGH` while the line is active low (pulled up, pinctrl `wake-n`), so the root port's dedicated
+  wake IRQ fired at once whenever PCIe was on; with that wake disabled s2idle held for the RTC alarm (26 s) and
+  everything came back - DT fix on the queue candidate (0038), verified in S2;
   ⚠️ **sound**: no card until the ADSP runs - the DT link moves to stock's `PRIMARY_TDM_RX_0` with an Audio
   Interface (TDM) topology (S1/S2); the ADSP firmware must be reachable after the hand-over (kit firmware bound
   over the rootfs's `/lib/firmware`, since PID 1's chroot moves the kernel firmware loader's root).
