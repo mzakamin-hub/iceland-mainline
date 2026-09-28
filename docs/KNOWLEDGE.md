@@ -855,7 +855,14 @@ ABL (stock, untouched)
     gen8 incl. a840/Kaanapali** (Phoronix, "Mesa 26.0 lands initial support for Adreno Gen 8"; the kernel side is
     the "drm/msm/adreno: Introduce Adreno 8xx family support" series, in our 7.3 tree); turnip (Vulkan) is
     still landing. **Fedora 44 ships Mesa 26.0.3 (43 has 25.2.4), so Fedora 44 is the release to use**;
-    llvmpipe is the fallback:
+    llvmpipe is the fallback. **Done in RAM (pc-024, 2026-09-28 evening):** the Fedora 44 Container Base userland
+    runs on our kernel (bash 5.3.9, glibc 2.43, dnf5 5.4.1) in a chroot beside the kit's shim; dnf5 installs
+    packages through `tools/relay/usb-proxy.py` on the PC (systemd + NetworkManager + openssh-server in 15 s; the
+    kit sets the clock from `KIT_TIME`, the PMIC RTC reads 1970); the page `rootfstar` hands the installed rootfs
+    back to the PC (110 MB) and `phase4/make-rootfs.sh` rebuilds the next boot from it. Pitfall: `switch_root`
+    into the rootfs resets the tablet ~45 s later (the shim's safety jobs lose their tools); `ROOTFS_MODE=pid1`
+    (exec chroot systemd as PID 1, the initramfs stays the real root) is the way. See `phase4/README.md`,
+    `phase4/INSTALL-PLAN.md`, `relay/results/pc-023-024-144hz-extractor-fedora.md`:
     - file-level copy of `/data/vendor` + persist;
     - ath12k loaded late until the resets are understood.
 13. Later: DP, cameras (SC1320CS/SC820CS need new drivers; CAMERA_ICP firmware), sensors (SSC via hexagonrpcd), video.

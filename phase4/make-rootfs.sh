@@ -97,7 +97,7 @@ After=local-fs.target
 Type=simple
 Environment=PATH=/iceland/bbin:/usr/sbin:/usr/bin:/sbin:/bin
 ExecStartPre=/iceland/busybox --install -s /iceland/bbin
-ExecStart=/iceland/busybox httpd -f -p 80 -h /iceland/www
+ExecStart=/iceland/busybox httpd -f -p 8080 -h /iceland/www
 Restart=always
 
 [Install]
@@ -110,13 +110,46 @@ After=local-fs.target
 
 [Service]
 Type=simple
-ExecStart=/iceland/busybox telnetd -F -l /bin/bash
+ExecStart=/iceland/busybox telnetd -F -p 2323 -l /bin/bash
 Restart=always
 
 [Install]
 WantedBy=multi-user.target
 EOF
-for u in iceland-report iceland-telnet; do
+# with systemd as PID 1 the dnf step runs as a oneshot unit (the same proxy/package files as init.sh)
+cat > "$W/dnf.sh" <<'EOF'
+#!/bin/bash
+# iceland: dnf5 through the PC's proxy (/iceland/proxy, /iceland/dnf-packages), logged to the kernel log
+k() { echo "iceland-rootfs: $*" > /dev/kmsg; }
+[ -s /iceland/proxy ] || { k "dnf: no proxy configured"; exit 0; }
+p=$(cat /iceland/proxy)
+k "proxy $p: http $(timeout 20 curl -s -m 15 -o /dev/null -w '%{http_code}' -x "$p" http://dl.fedoraproject.org/pub/fedora/linux/releases/ 2>&1), https $(timeout 20 curl -s -m 15 -o /dev/null -w '%{http_code}' -x "$p" https://dl.fedoraproject.org/pub/fedora/linux/releases/ 2>&1)"
+[ -s /iceland/dnf-packages ] || { k "dnf: nothing to install"; exit 0; }
+k "dnf5 install $(tr '\n' ' ' < /iceland/dnf-packages)"
+https_proxy=$p http_proxy=$p timeout 1200 dnf5 -y --setopt=install_weak_deps=False install $(cat /iceland/dnf-packages) > /tmp/dnf.log 2>&1
+k "dnf5 exit $? : $(tail -n 3 /tmp/dnf.log | tr '\n' '|')"
+# GPU check when kmscube was installed: a GBM/EGL spinning cube straight on the MSM DRM device (300 frames)
+if command -v kmscube >/dev/null; then
+	card=$(ls /dev/dri/card* 2>/dev/null | tail -n1)
+	k "kmscube on $card: $(timeout 60 kmscube -D "$card" -c 300 2>&1 | tail -n 4 | tr '\n' '|')"
+	k "gpu: $(dmesg | grep -iE 'adreno|gmu|zap|freedreno' | tail -n 4 | tr '\n' '|')"
+fi
+EOF
+fr install -m 0755 "$W/dnf.sh" "$R/iceland/dnf.sh"
+cat > "$W/iceland-dnf.service" <<'EOF'
+[Unit]
+Description=iceland: dnf5 through the PC's proxy on the USB link
+After=NetworkManager.service iceland-report.service
+
+[Service]
+Type=oneshot
+ExecStart=/iceland/dnf.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+for u in iceland-report iceland-telnet iceland-dnf; do
 	fr install -m 0644 "$W/$u.service" "$R/etc/systemd/system/$u.service"
 	fr ln -sf "../$u.service" "$R/etc/systemd/system/multi-user.target.wants/$u.service"
 done
