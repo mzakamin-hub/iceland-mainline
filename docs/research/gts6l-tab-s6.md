@@ -58,13 +58,15 @@ it). Plan v3 already dropped Mu-Silicium as a fallback because U-Boot works. Not
    - **`dispcc` disabled**, and no DPU/DSI nodes;
    - `clk_ignore_unused pd_ignore_unused`, and every panel regulator `regulator-always-on`.
 
-   On the Pad 4 we already disable MDSS and use `*_ignore_unused`. The difference is that kaanapali's rpmhpd
-   sync_state drops rails nobody votes for (test 6), which SM8150 apparently didn't do. So our node has to *vote* (or
-   sync_state has to be held off): test 7b A/B.
-   - **Fallback C** if 7b fails both ways: their bare style, meaning dispcc disabled, no clocks or votes on the node,
-     and sync_state off.
-   - The native pipe (MDSS + NT36536) is only needed for brightness, DPMS and refresh rates. Pixels can stay on
-     simpledrm until then.
+   **Update (PC relay results, same day):** on the Pad 4 this lesson is largely overtaken.
+   - Test 7b ruled out rails and bandwidth: both images went white with MMCX/MX/MXC at 384.
+   - The cause was the **MDSS core INT2 GDSC**. The simple-framebuffer has to hold it too (pc-001, iceland-linux
+     05031dc).
+   - The **native display then worked** (pc-007: MSM DRM, dual DSI + DSC, 120 Hz, KTZ8869 backlight; iceland-linux
+     f9bc5e2).
+   - So the Pad 4 doesn't need the "simpledrm forever" architecture. What still carries over: if a future change
+     breaks the native pipe, the fallback is simpledrm with the pipe left alone (dispcc/MDSS off, votes held,
+     `*_ignore_unused`).
 2. **Carve-outs must be HLOS-owned or declared as in stock** (see above). Audit before Wi-Fi and remoteprocs.
 3. **Power-off and reboot:** PSCI `SYSTEM_OFF`/`SYSTEM_RESET` hung on their firmware, and they fell back to PMIC
    PS_HOLD. Check both on the Pad 4 early; the HTTP reboot works already. Also check `PS_HOLD_RST_CTL`, because
