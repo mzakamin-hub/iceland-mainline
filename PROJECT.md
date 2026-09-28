@@ -3,9 +3,8 @@
 **Device:** OnePlus Pad 4, codename `iceland`, model OPD2514, SoC Qualcomm SM8850P
 (`kaanapali`/`canoe`), stock firmware 11.A.38, bootloader unlocked, A/B.
 
-**Goal:** a mainline kernel and U-Boot that boot current arm64 distros through EFI:
-- Tier 1: pmOS, Fedora, Arch Linux ARM
-- Tier 2: Debian testing, Kali, latest Ubuntu
+**Goal:** Fedora 44 Workstation (GNOME) installed on the Pad 4, booted ABL → U-Boot → EFI → GRUB → our kernel
+(plan v4). Other distros (Arch ARM, pmOS, Debian testing, Kali, latest Ubuntu) are optional later targets.
 
 The plan is in [docs/PLAN.md](docs/PLAN.md). History is in [CHANGELOG.md](CHANGELOG.md). Everything learned so far is in [docs/KNOWLEDGE.md](docs/KNOWLEDGE.md).
 

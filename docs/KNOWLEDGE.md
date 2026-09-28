@@ -42,10 +42,11 @@ Contents:
   - Stock boot images are header v4 (boot + vendor_boot).
 - **The user has:** a full backup of all 151 partitions, the stock 11.A.38 package, and a proven rollback loop. A DSU GSI with root was used for the captures.
 - **Goal:** mainline Linux through **ABL → U-Boot → EFI → systemd-boot or GRUB → our kernel + DTB → distro**.
-- **Distro scope (plan v3):**
-  - Tier 1: pmOS (renamed **Nura** on 2026-09-27), Fedora, Arch Linux ARM.
-  - Tier 2: Debian testing, Kali, latest non-LTS Ubuntu.
-  - Not supported: Debian stable and Ubuntu LTS. Their Mesa and hexagonrpcd are too old for Adreno 840.
+- **Target OS (plan v4, user's decision 2026-09-28): Fedora 44 Workstation (GNOME), aarch64**, installed into
+  userdata, booted through U-Boot → EFI → GRUB with our `kernel-iceland` rpm. See [PLAN.md](PLAN.md) Phase 4.
+- Other distros are later and optional (Phase 7): Arch Linux ARM and pmOS (renamed **Nura** on 2026-09-27; it needs
+  our own device package), then Debian testing, Kali, latest non-LTS Ubuntu. Not supported: Debian stable and
+  Ubuntu LTS (Mesa too old for the Adreno 840).
 - **"One kernel for all distros":** the user asked for it; we judged it not realistic as one binary. It became **one kernel source + one config**, packaged per distro (rpm / PKGBUILD / deb / apk).
   - Both SELinux and AppArmor are built in; `lsm=` is set in each distro's boot entry.
   - The long-term real answer is **upstream**: once Pad 4 support is in mainline, distro kernels boot it.
@@ -433,12 +434,12 @@ ABL (stock, untouched)
 | Phase | Work |
 |---|---|
 | 1 | U-Boot (done) |
-| 2 | First Linux shell from RAM (done) |
+| 2 | First Linux shell from RAM ✅ |
 | 3 | Core hardware over RAM boot (**mostly done**: thermal ✅, native display ✅, touch firmware ✅, Wi-Fi ✅, BT ✅, battery ✅; open: UFS read-only mount, a real touch, lid, BD address, the firmware extractor) |
-| 4 | pmOS install (first write to the tablet; needs the user's OK) |
-| 5 | GPU, audio, suspend, sensors, video, DP, cameras, pen |
+| 4 | **Fedora 44 GNOME install** (4a RAM rehearsal in progress; 4b packages; 4c image; 4d/4e writes need the user's OK) |
+| 5 | Remaining hardware on Fedora (the PC's "B" order) |
 | 6 | Upstreaming, alongside phases 3–5 |
-| 7 | More distros |
+| 7 | Other distros, optional |
 
 **Decisions made along the way:**
 - Rebased from Linux 7.2 + map220v to **7.3-rc4 + infiniti + the ported Pad 4 series**. infiniti already has most SoC work; porting forward is smaller than backporting about 100 commits.
