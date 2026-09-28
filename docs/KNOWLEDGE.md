@@ -690,6 +690,7 @@ ABL (stock, untouched)
 | PC tooling | the relay log is UTF-8 when the runner is started from PowerShell 7 (UTF-16 from Windows PowerShell) | `save-run.sh` checks the BOM |
 | PC tooling | the masking scripts carried the device serial as a regex; one was pushed in 5077790 | scripts read it from `~/mainline/build/.serial` (local, never committed) since pc-019's save; history not rewritten |
 | Early reset | the debug prints hide the race (0 of 16 resets with the pc-018/019 kernels) | keep debug kernels lean; compare fix candidates against the pc-013 baseline |
+| PC tooling | new `wsl.exe` commands time out (`Wsl/Service 0x8007274c`) while the user's LineageOS build fills WSL memory (~19 GB) | the `\\wsl.localhost` share still works; wait and retry; never `wsl --shutdown` (it would kill that build) |
 | GPU | debugfs `gpu` answered ENODEV | not a failure: the a8xx code has no `gpu_state_get`; use `msmparam` (MSM_GET_PARAM) instead |
 | PC tooling | a Git Bash `tail -F` on `run.log` made the runner's `Add-Content` fail | read logs with PowerShell `Get-Content` only |
 | PC tooling | files edited from Windows (`\\wsl.localhost`) lose the exec bit (`env: Permission denied`) | `chmod 755` before building |
