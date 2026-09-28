@@ -824,6 +824,18 @@ ABL (stock, untouched)
   ✅ **the Adreno 840 renders through Mesa's freedreno** (pc-024 Y8: `Adreno (TM) 840`, GLES 3.2, Mesa 26.2.3,
   DCVS 160 MHz-1.2 GHz), ✅ **Wayland: cage/wlroots at 120 Hz, glmark2 1836** and ✅ **GNOME Shell 50.5
   (mutter) runs as the Wayland display server with gdm autologin** (pc-024 Y9) - see §13 item 12.
+- **Critical items on the GNOME rootfs (pc-026, 2026-09-29, `relay/results/pc-026-critical-items.md`):**
+  ✅ cpufreq (SCMI, schedutil, stock's tables) + cpuidle (PSCI WFI/cpu-sleep) + GPU/UFS devfreq;
+  ✅ 63 thermal zones with stock trips and cooling devices (CPU, GPU devfreq, ath12k);
+  ✅ battery/USB data over battmgr (design capacity + a garbage remaining word fixed in the queue candidate);
+  ✅ Wi-Fi (ath12k up at boot, NetworkManager scan, 2.4 GHz seen; a connection needs the user's credentials);
+  ✅ Bluetooth (hci0 with the tablet's own address, scan; pairing needs the user);
+  ✅ the pen accepted by libinput (0036/0037); ✅ GNOME at 144 Hz;
+  ⚠️ **suspend**: s2idle works in a bare kit (pc-025) but ends within 1-2 s on the GNOME rootfs (not Wi-Fi, not
+  the power-supply wakeups - bisect running with `PM_SLEEP_DEBUG`);
+  ⚠️ **sound**: no card until the ADSP runs - the DT link moves to stock's `PRIMARY_TDM_RX_0` with an Audio
+  Interface (TDM) topology (S1/S2); the ADSP firmware must be reachable after the hand-over (kit firmware bound
+  over the rootfs's `/lib/firmware`, since PID 1's chroot moves the kernel firmware loader's root).
 
 **Open issues:**
 1. ✅ **Early reset - closed (pc-022): it was the kit's own `/dev/mem` display sampler, not the kernel.** History:
@@ -935,9 +947,16 @@ item, judged from logs, results saved after each; anything that writes to the ta
   via `ROOTFS_URL` (GNOME session in RAM; touch/pen judged from libinput/mutter logs, with a 30 s window from the
   user) → the install (`phase4/INSTALL-PLAN.md`: Workstation 44 image into userdata, our kernel/DTB, the firmware
   set from the extractor manifest; **needs the user's OK**).
+- **User's order 2026-09-29 01:0x: the critical items first - battery, power management, thermals, sleep
+  states, standby, sound, speakers, mic, Wi-Fi, Bluetooth - "debug and fix till finalized", device-referenced
+  values only, RAM only; the install last.** Status in the State list above and in
+  `relay/results/pc-026-critical-items.md`.
 - **B. Hardware bring-up still pending, in order** (items above by number):
-  1. **Suspend/resume** (#10): pc-025 is built (s2idle + PMK8850 RTC alarm, `SUSPEND_AT=70`, run with `-Wait
-     120`); judge `iceland-suspend:` + "PM: suspend entry/exit", then display/touch/USB after resume.
+  1. **Suspend/resume** (#10): ✅ kernel level (pc-025: s2idle + RTC alarm, 2 of 2, display/touch/USB back);
+     ⚠️ on the GNOME rootfs every attempt ends within 1-2 s (pc-026 F0/S1; "Wakeup pending" only while ath12k
+     tears down; with Wi-Fi unbound and the power-supply wakeups disabled it still returns at once without a
+     message). Next: `PM_SLEEP_DEBUG` kernel + the bisect (BT off, gdm off, Wi-Fi off, ftrace of
+     `wakeup_source_activate`), then the device that wakes it.
   2. **Wi-Fi:** load ath12k with the rest again (the reset was the sampler, open issue #2), 5/6 GHz when an AP is in
      range (#8, user), regulatory domain; NetworkManager Wi-Fi under Fedora (Y10+).
   3. **Bluetooth address** (pending #6): BD address from wlan0's MAC at boot (confirm stock's rule under LineageOS
