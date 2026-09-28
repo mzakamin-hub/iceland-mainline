@@ -648,6 +648,7 @@ ABL (stock, untouched)
 | pc-017 | sound card with a topology: A = integration, B = audio only; both SoCCP at 20 s | **B: sound card registered** (`kaanapali - OnePlus-Pad4`, 5 PCMs + compress + headset jack) with upstream's Kaanapali topology. **A reset early**, so SoCCP at 20 s is no workaround. Results in `relay/results/pc-016-017-live-log-audio.md` |
 | pc-018 | DEBUG kernel (USB-C, MSM takeover breadcrumbs, sync_state lines): N ×5, ND ×3 | 0 of 8 reset. USB link drop at the attach = UCSI bus reset (QMP not power-cycled). The takeover follows the NVT touch deferral by 25 ms; pc-016 N4 died within ms of it, so the hang is at the start of `msm_mdss_take_over_splash` |
 | pc-019 | q-next (battmgr µV/µA, lid switch, flash LED) + DEBUG: F ×6, FD ×2 | **battmgr units, lid (open = 0), flash LEDs work → queued 0029-0031** (iceland-linux fda405c); mixer lists 223 controls. 0 of 8 reset (0 of 16 with the pc-018/019 debug kernels: the prints likely hide the race). `relay/results/pc-018-019-takeover-features.md` |
+| pc-020 | pc-019 + 150 ms-paced breadcrumbs through the takeover + MDSS IRQ log: F ×8 | **2 of 8 reset (F3, F7), both caught:** the last line is `firmware framebuffer removed`, the "150 ms after" line never comes. The SoC dies in the pause right after the framebuffer releases its rails (MMCX TURBO → LOW_SVS under the 650 MHz MDP) and clocks (LUT, VSYNC, ESC0/1 gated), before the DPU votes its own. `relay/results/pc-020-021-handover-hang.md` |
 
 ## 11. Problems hit and how they were solved
 
@@ -772,19 +773,24 @@ ABL (stock, untouched)
      from the firmware framebuffer starts in clean runs; the tablet reset ~10 s later (a PS_HOLD hard reset).
    - Suspect: a race in the takeover (splash stop + MDSS reset, firmware framebuffer removal dropping its clock /
      GDSC / rail votes, DPU/DSI access), e.g. against a `sync_state` or a rail vote.
-   - pc-018 narrowed it: N4's last line was the NVT touch deferral; the MSM bind follows it by 25 ms and "bound dsi"
-     never arrived, so the freeze is within ms of the start of `msm_mdss_take_over_splash()` (runtime get → splash
-     stop `INTF_TIMING_ENGINE_EN=0` → 20 ms → MDSS reset 20 ms → UBWC → runtime put), before the framebuffer removal.
-     Candidates: `msm_mdss_irq()` reading `HW_INTR_STATUS` while the MDSS is suspended; the reset hitting a busy block.
-   - **pc-020 is built** (`kit/linux-test-pc20`, kernel pc-020 = pc-019 + 150 ms-paced breadcrumbs at each takeover
-     step + the first 20 MDSS interrupts with the runtime-PM state), not run yet.
-   - **Heisenbug:** the pc-018/019 debug kernels had 0 resets in 16 runs (pc-013 kernel: ~3 in 10). Their prints
-     likely shift the timing. If pc-020 is also clean, go back to the pc-013 kernel with only a cheap MDSS-IRQ log, or
-     test a fix candidate against the pc-013 baseline over ≥ 12 runs.
-   - Not the cause: the audio modules, fix v2's hold/attach path, the orientation GPIO, the USB-C connector graph,
-     the QMP PHY (no power-cycle), the USB link drop at the attach (UCSI bus reset, harmless).
-   - **No workaround yet:** SoCCP at 20 s does not help (pc-017 A).
-   - Next: pc-018 (MSM takeover breadcrumbs + `sync_state` lines, network first; control without the native display).
+   - **pc-020 located it (2 of 8, both caught by the 150 ms-paced breadcrumbs):** the whole
+     `msm_mdss_take_over_splash()` completes; the last line is `firmware framebuffer removed (0)` and the SoC dies
+     in the 150 ms pause after `aperture_remove_all_conflicting_devices()` returns, while the display thread sleeps.
+     The framebuffer's teardown drops MMCX from TURBO to the dispcc's LOW_SVS under ABL's 650 MHz MDP (and the
+     running DSI PLLs), and gates MDP_LUT, VSYNC, ESC0 and ESC1 (the MDSS holds only AHB, HF_AXI, MDP, AHB_SWI; the
+     DPU is not active yet). In clean runs the DPU re-votes TURBO and re-enables LUT/VSYNC right after (µs in the
+     pc-013 kernel). MX/MXC going off is normal (off in the working steady state). The reset follows ~1.5 s later
+     (PS_HOLD): not our watchdog; most likely a NoC/AHB error handled by the secure world.
+   - pc-018's reading ("at the start of the takeover") was wrong: the live stream dies at the UCSI bus reset
+     (0.3 s before the MSM bind) and reconnects ~1 s later; pc-016 N4 hung in between, so its last line was the NVT
+     deferral by coincidence.
+   - Not the cause: the MDSS chained IRQ (all logged interrupts come with the MDSS active, after the KMS is up), the
+     audio modules, fix v2's hold/attach path, the orientation GPIO, the USB-C connector graph, the QMP PHY, the USB
+     link drop at the attach (UCSI bus reset, harmless).
+   - **pc-021 (running):** two DT-only candidates on the pc-020 reproducer kernel, 8 runs each: R = the MDSS also
+     holds MMCX at TURBO; K = the MDSS also holds LUT/VSYNC/ESC0/ESC1. Then the proper fix (the DPU votes its rail
+     and clocks before the framebuffer goes, or the MDSS carries what ABL's state needs) as a queue patch, proven on
+     the lean queue-tip kernel over ≥ 8 runs.
 2. **Early Wi-Fi load reset** (pc-009, 2 resets, 13+ clean runs since): not reproducible; maybe the same family as #1.
 3. **battmgr units:** the battery looks like mV/mA while USB is µV/µA. Check the scaling for the SoCCP firmware.
 4. **144 Hz** is pruned (pixel clock 1261 MHz). It needs stock per-rate porches / DFPS.
@@ -800,8 +806,9 @@ ABL (stock, untouched)
    1. ✅ rate: ~1 in 4 (pc-016: 2 of 8; pc-017 A);
    2. ✅ early live log (`kmsgall` + `run-kit-early.ps1` + `NET_FIRST`); N4 caught the hang at the display takeover;
    3. ✅ pc-018/019: the hang is at the start of the MSM splash takeover (see open issue #1);
-   4. **next: run pc-020** (paced breadcrumbs) to find the exact step, then fix it (queue patch) and prove it over ≥ 8
-      runs without the debug pauses.
+   4. ✅ pc-020: located (the pause right after the firmware framebuffer releases its rails and clocks);
+   5. **next: pc-021** (R = MMCX held by the MDSS, K = LUT/VSYNC/ESC clocks held by the MDSS; 8 runs each on the
+      reproducer kernel), then the queue patch and ≥ 8 clean runs on the lean queue-tip kernel.
 2. **Audio:**
    1. ✅ topology + card registration (pc-017; upstream's Kaanapali topology as `OnePlus-Pad4-tplg.bin`);
    2. ✅ mixer listing: 223 controls (pc-019, `amixer -c 0 contents`, read only);
