@@ -34,7 +34,9 @@ Contents:
 - **Device:** OnePlus Pad 4.
   - Codename `iceland`, model OPD2514, project 25978 (0x657a "iceland-O IN", Indian variant).
   - SoC: Qualcomm SM8850P (`kaanapali`; `canoe`/`canoep` in Qualcomm DTs). Adreno 840. 12 GB RAM.
-  - Stock firmware OxygenOS 11.A.38 on slot a. Slot b has 11.A.32 firmware: **do not use slot b**.
+  - Stock firmware OxygenOS 11.A.38 on slot a. Slot b had 11.A.32 firmware; since 2026-09-28 the user runs a private
+    LineageOS 24.0 build from slot b, and slot b's firmware partitions are hash-identical to slot a and to the
+    11.A.38 backup (checked by the PC relay). Kits RAM-boot through the active slot and never switch slots.
   - Bootloader unlocked (orange state). A/B slots.
   - Stock boot images are header v4 (boot + vendor_boot).
 - **The user has:** a full backup of all 151 partitions, the stock 11.A.38 package, and a proven rollback loop. A DSU GSI with root was used for the captures.
