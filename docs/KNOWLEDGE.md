@@ -649,6 +649,8 @@ ABL (stock, untouched)
 | pc-018 | DEBUG kernel (USB-C, MSM takeover breadcrumbs, sync_state lines): N ×5, ND ×3 | 0 of 8 reset. USB link drop at the attach = UCSI bus reset (QMP not power-cycled). The takeover follows the NVT touch deferral by 25 ms; pc-016 N4 died within ms of it, so the hang is at the start of `msm_mdss_take_over_splash` |
 | pc-019 | q-next (battmgr µV/µA, lid switch, flash LED) + DEBUG: F ×6, FD ×2 | **battmgr units, lid (open = 0), flash LEDs work → queued 0029-0031** (iceland-linux fda405c); mixer lists 223 controls. 0 of 8 reset (0 of 16 with the pc-018/019 debug kernels: the prints likely hide the race). `relay/results/pc-018-019-takeover-features.md` |
 | pc-020 | pc-019 + 150 ms-paced breadcrumbs through the takeover + MDSS IRQ log: F ×8 | **2 of 8 reset (F3, F7), both caught:** the last line is `firmware framebuffer removed`, the "150 ms after" line never comes. The SoC dies in the pause right after the framebuffer releases its rails (MMCX TURBO → LOW_SVS under the 650 MHz MDP) and clocks (LUT, VSYNC, ESC0/1 gated), before the DPU votes its own. `relay/results/pc-020-021-handover-hang.md` |
+| pc-021 | pc-020 kernel + DTB candidates: R = MDSS holds MMCX TURBO (×6 run), K = MDSS holds LUT/VSYNC/ESC (not run); q-next2 DT items; persist read-only | **R4 reset at the MDSS reset step** (1 of 6), so rails/clocks are not it. Lining up the init's `/dev/mem` scanout sampler (0.5 s ticks) with the breadcrumbs: every caught crash has a tick in the fatal window. **Thermistors read 29-31 °C, persist mounts ro (no bt_nv file).** Stopped early |
+| pc-022 | pc-020's kernel and setup, only the `/dev/mem` sampler off (`SCAN=0`): S ×6 | **0 of 6** (vs 3 of 14 with the sampler on the same kernel). **The early reset is closed: it was the kit's own sampler.** No kernel change; `SCAN=0` is automatic for native-display kits |
 
 ## 11. Problems hit and how they were solved
 
@@ -752,6 +754,16 @@ ABL (stock, untouched)
 - The SoCCP altmode notifications repeat every ~3.3 s (orientation 1, mux 1, svid 0xff00) and each one calls
   `typec_switch_set` (a no-op when nothing changes).
 - Stock speakers are **Primary TDM** (8 × 32 bit), not Primary MI2S; see §4 audio.
+- **Never poke display (or any driver-owned) registers from userspace once the driver owns them.** The kit's
+  `/dev/mem` scanout sampler (pc-001) read the DPU INTF registers every 0.5 s; a tick while the MSM driver held the
+  MDSS in reset, or right after the framebuffer's clocks were gated, hung the AHB and the SoC hard-reset ~1 s later.
+  That was the whole "early reset" (pc-009..021, ~1 in 4). Debug prints only shifted the phase between the ticks
+  and the takeover, hence the "heisenbug". `build.sh` now sets `SCAN=0` for native-display kits. When a crash
+  correlates with a boot phase, list every asynchronous actor (userspace samplers, timers, workers) before blaming
+  the kernel.
+- **Two samples are not a location.** pc-020's two caught crashes both sat after the framebuffer removal, so the
+  rail/clock story looked complete; the third sample (pc-021 R4) fell elsewhere and broke it. Test a mechanism with
+  a variant that should move or remove the crash before writing the fix.
 
 ## 13. Current state, open issues, next steps
 
@@ -765,38 +777,33 @@ ABL (stock, untouched)
 - ✅ **Integration boot (pc-012 B, pc-013 C):** all of the above works together in one boot.
 - ✅ **Sound card registers** (pc-017) with upstream's Kaanapali AudioReach topology: 5 PCMs + compress + headset
   jack. ⚠️ Nothing played yet; the speakers need Primary TDM (stock) and volume caps first.
+- ✅ **The "early reset" is gone (pc-022):** it was the kit's `/dev/mem` display sampler; integration boots are
+  now clean back to back.
+- ✅ Battery units (0029), lid switch + debounce (0030/0034), flash LEDs (0031), board/flash thermistors (0032),
+  eUSB2 tuning (0033); persist read-only mount; queue = 0001-0034 (iceland-linux 9d29f72).
+- Target OS: **Fedora with GNOME** (user); a Fedora 43 rootfs-in-RAM kit (pc-024) is being prepared (§13 item 12).
 
 **Open issues:**
-1. **Early reset** (pc-012 A, pc-013 B, pc-014 A, pc-015 B, pc-016 A3 + N4, pc-017 A): about **1 run in 4**, in
-   every setup with the native display.
-   - **pc-016 N4 streamed it:** the kernel hung 1.3 s after the pmic-glink attach, exactly where the MSM DRM takeover
-     from the firmware framebuffer starts in clean runs; the tablet reset ~10 s later (a PS_HOLD hard reset).
-   - Suspect: a race in the takeover (splash stop + MDSS reset, firmware framebuffer removal dropping its clock /
-     GDSC / rail votes, DPU/DSI access), e.g. against a `sync_state` or a rail vote.
-   - **pc-020 located it (2 of 8, both caught by the 150 ms-paced breadcrumbs):** the whole
-     `msm_mdss_take_over_splash()` completes; the last line is `firmware framebuffer removed (0)` and the SoC dies
-     in the 150 ms pause after `aperture_remove_all_conflicting_devices()` returns, while the display thread sleeps.
-     The framebuffer's teardown drops MMCX from TURBO to the dispcc's LOW_SVS under ABL's 650 MHz MDP (and the
-     running DSI PLLs), and gates MDP_LUT, VSYNC, ESC0 and ESC1 (the MDSS holds only AHB, HF_AXI, MDP, AHB_SWI; the
-     DPU is not active yet). In clean runs the DPU re-votes TURBO and re-enables LUT/VSYNC right after (µs in the
-     pc-013 kernel). MX/MXC going off is normal (off in the working steady state). The reset follows ~1.5 s later
-     (PS_HOLD): not our watchdog; most likely a NoC/AHB error handled by the secure world.
-   - pc-018's reading ("at the start of the takeover") was wrong: the live stream dies at the UCSI bus reset
-     (0.3 s before the MSM bind) and reconnects ~1 s later; pc-016 N4 hung in between, so its last line was the NVT
-     deferral by coincidence.
-   - Not the cause: the MDSS chained IRQ (all logged interrupts come with the MDSS active, after the KMS is up), the
-     audio modules, fix v2's hold/attach path, the orientation GPIO, the USB-C connector graph, the QMP PHY, the USB
-     link drop at the attach (UCSI bus reset, harmless).
-   - **pc-021 (running):** two DT-only candidates on the pc-020 reproducer kernel, 8 runs each: R = the MDSS also
-     holds MMCX at TURBO; K = the MDSS also holds LUT/VSYNC/ESC0/ESC1. Then the proper fix (the DPU votes its rail
-     and clocks before the framebuffer goes, or the MDSS carries what ABL's state needs) as a queue patch, proven on
-     the lean queue-tip kernel over ≥ 8 runs.
-2. **Early Wi-Fi load reset** (pc-009, 2 resets, 13+ clean runs since): not reproducible; maybe the same family as #1.
-3. **battmgr units:** the battery looks like mV/mA while USB is µV/µA. Check the scaling for the SoCCP firmware.
-4. **144 Hz** is pruned (pixel clock 1261 MHz). It needs stock per-rate porches / DFPS.
+1. ✅ **Early reset - closed (pc-022): it was the kit's own `/dev/mem` display sampler, not the kernel.** History:
+   ~1 in 4 in every native-display setup (pc-012 A .. pc-017 A). pc-016 N4's "last line" was an artefact (the live
+   stream dies at the UCSI bus reset and reconnects). pc-020's paced breadcrumbs caught two crashes after the
+   firmware framebuffer removal; pc-021 R4 (MMCX held by the MDSS) crashed at the MDSS reset step instead, which
+   ruled out the rail/clock story. Lining up the init's scanout sampler (a `/dev/mem` read of the DPU INTF
+   registers every 0.5 s, since pc-001) with the breadcrumbs shows a tick inside the fatal window in all three: the
+   MDSS in reset, or the framebuffer's LUT/VSYNC/ESC clocks just gated → AHB hang → PS_HOLD reset ~1 s later.
+   pc-022 = pc-020's kernel and setup with `SCAN=0`: **0 of 6** (3 of 14 with the sampler). `build.sh` sets
+   `SCAN=0` for `NATIVE_DISPLAY=1` kits. The `fix-handover` msm_kms.c patch (DPU holds its clocks/rail across the
+   removal) is not needed and stays out of the queue. Details: `relay/results/pc-020-021-handover-hang.md`.
+2. ✅ **Early Wi-Fi load reset** (pc-009): the same sampler, most likely (2 resets while it was ticking); no
+   reset in 30+ runs since Wi-Fi loads with the SoCCP stack.
+3. ✅ **battmgr units:** fixed in 0029 (the Oplus gauge gives mV/mA).
+4. ✅ **144 Hz works (pc-023 H1):** `dpu_crtc_mode_valid` pruned it (1261 MHz × 1.05 / 2 = 662 MHz > the 650 MHz
+   core clock; the stock timing needs 630.5 MHz per mixer). With `clk_inefficiency_factor = 100` in the kaanapali
+   catalog (branch `try-144b`, to queue as 0035 after the 4 runs) the CRTC runs `3392x2400 144 1261347 3392 3460
+   3492 3532 2400 2426 2428 2480` with no underrun in dmesg.
 5. **qnoc sync_state** drops boot bandwidth once `qce-core` binds. It matters only for the simpledrm fallback.
-6. GPU `vdd`/`vddcx` supplies are missing in the DT.
-7. No board-thermistor ADC channels / ADC-TM zones (skin temperature) yet.
+6. GPU `vdd`/`vddcx` supplies: cosmetic (the GMU powers the GPU; upstream kaanapali boards list none).
+7. ✅ Board and flash thermistors + zones: 0032 (pc-021: 29-31 °C).
 8. pmsg/ramoops don't survive (PS_HOLD hard reset). Crash logs come only from the live stream: use `kmsgall` with
    `run-kit-early.ps1`, and `NET_FIRST=1` for anything that happens during module loading.
 9. SoundWire TX port-count mismatch warnings (DT vs controller).
@@ -806,9 +813,8 @@ ABL (stock, untouched)
    1. ✅ rate: ~1 in 4 (pc-016: 2 of 8; pc-017 A);
    2. ✅ early live log (`kmsgall` + `run-kit-early.ps1` + `NET_FIRST`); N4 caught the hang at the display takeover;
    3. ✅ pc-018/019: the hang is at the start of the MSM splash takeover (see open issue #1);
-   4. ✅ pc-020: located (the pause right after the firmware framebuffer releases its rails and clocks);
-   5. **next: pc-021** (R = MMCX held by the MDSS, K = LUT/VSYNC/ESC clocks held by the MDSS; 8 runs each on the
-      reproducer kernel), then the queue patch and ≥ 8 clean runs on the lean queue-tip kernel.
+   4. ✅ pc-020: two crashes caught after the framebuffer removal; pc-021 R4: one at the MDSS reset;
+   5. ✅ pc-022: **closed - the kit's `/dev/mem` sampler; 0 of 6 with it off.** No kernel patch.
 2. **Audio:**
    1. ✅ topology + card registration (pc-017; upstream's Kaanapali topology as `OnePlus-Pad4-tplg.bin`);
    2. ✅ mixer listing: 223 controls (pc-019, `amixer -c 0 contents`, read only);
@@ -817,16 +823,20 @@ ABL (stock, untouched)
    4. volume caps, then UCM; no playback before that (TFA9865 protection needs `tfa98xx.cnt`).
 3. ✅ **battmgr units**: 0029 (the Oplus gauge gives mV/mA; now ×1000), tested in pc-019.
 4. **Small DT items:**
-   - ✅ lid `gpio-keys` `SW_LID` on TLMM98 (0030; add `debounce-interval = <15>` like LineageOS; closing untested);
+   - ✅ lid `gpio-keys` `SW_LID` on TLMM98 (0030) + 15 ms debounce (0034; closing untested);
    - ✅ rear flash LED (0031);
-   - GPU `vdd`/`vddcx` supplies;
-   - board thermistor ADC channels + ADC-TM zones (`pmh0101_board_therm` AMUX THM5, `pmh0101_flash_therm` AMUX1
-     GPIO1, 100k pull-up, 125 °C passive trips per the LineageOS reference);
-   - panel vddio L12B up to 1.9 V; WLAN `drop-l3k` / `msix-match-addr` equivalents; eUSB2 repeater override
-     0x57 = 0x03 (LineageOS reference).
-5. **UFS read-only mount** test in a kit (by partlabel, ro, no journal replay), then the **firmware extractor**
-   (from `firmware/manifest.tsv`, tested on the PC's unpacked OTA).
-6. **BT address** from persist (`persist.vendor.service.bdroid.bdaddr`).
+   - ✅ board + flash thermistors and zones (0032, pc-021);
+   - ✅ eUSB2 repeater `qcom,tune-usb2-preem = 3` (stock's 0x57 = 0x03; 0033);
+   - GPU `vdd`/`vddcx`: cosmetic, dropped; panel vddio L12B: already 1.8-1.896 V (the nearest 8 mV step to
+     stock's 1.9 V); WLAN `drop-l3k` / `msix-match-addr`: downstream cnss2 properties with no mainline equivalent.
+5. ✅ **UFS read-only mount** (pc-021/022: `UFSRO_AT`, by GPT name, `BLKROSET` + `ro,noload`; persist listed) →
+   **firmware extractor** `tools/linux-ram/fw-extract.sh` (manifest-driven, modem_a/bluetooth_a vfat) tested in
+   pc-023 (running); vendor/odm need the `super` partition mapped (later).
+6. **BT address.** pc-022 looked at persist read-only: `bluetooth/` is empty (no `bt_nv.bin`), `wlan/` has only
+   config files (no MAC file). So stock derives the addresses from the WCN7860's own OTP (ath12k reports wlan0's
+   MAC) and the vendor property. Next: set the BD address at boot from wlan0's MAC (stock's rule, to be confirmed
+   under LineageOS: `getprop persist.vendor.service.bdroid.bdaddr` vs `ip link show wlan0`) with `btmgmt
+   public-addr` or the DT `local-bd-address` filled by a boot script.
 7. **Touch/pen events and lid events:** need a person at the tablet. Add an input-event logger to a kit and ask the
    user for a 30 s touch/lid window.
 8. **5/6 GHz Wi-Fi reception:** needs a 5 GHz AP in range (ask the user), or check the reported frequencies once one
@@ -834,8 +844,14 @@ ABL (stock, untouched)
 9. **144 Hz** (#4): per-rate porches/DFPS in the panel driver (a kernel change, test through a kit).
 10. **Suspend (s2idle)** with an RTC wake, as a late step in a kit: needs the watchdog + auto-reboot safety.
 11. **USB OTG** on battery and with external PD (needs the user and the debug DTB's USB role changed).
-12. **Phase 4 preparation** (needs the user's OK):
-    - write `device-oneplus-iceland` from scratch (there's no OnePlus 15 package in pmaports);
+12. **Phase 4 preparation.** Target OS (user, 2026-09-28 20:38): **Fedora with GNOME** (aarch64) - not
+    postmarketOS (no pmaports device package), not Debian/Ubuntu. RAM first: a small official Fedora aarch64 rootfs
+    (the Container Base tarball, which has systemd) as the initramfs behind the kit's busybox shim (USB NCM network,
+    report pages, live kmsg), `switch_root` into it, nothing written; extra packages added on the tablet at RAM-boot
+    time through a proxy on the PC (the WSL host has no dnf). The install = the official Fedora Workstation aarch64
+    raw image into userdata as a whole-disk image (U-Boot blkmap + EFI boot manager + GRUB) with our kernel/DTB,
+    only with the user's OK. GNOME acceleration depends on Mesa freedreno support for the gen80200 GPU (to check);
+    llvmpipe is the fallback:
     - file-level copy of `/data/vendor` + persist;
     - ath12k loaded late until the resets are understood.
 13. Later: DP, cameras (SC1320CS/SC820CS need new drivers; CAMERA_ICP firmware), sensors (SSC via hexagonrpcd), video.
