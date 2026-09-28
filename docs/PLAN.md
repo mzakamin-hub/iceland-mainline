@@ -115,6 +115,39 @@ rootfs → dnf through `tools/relay/usb-proxy.py` → `rootfstar` hand-back → 
 - `touch /.autorelabel` (SELinux labels after offline changes);
 - convert it with `img2simg` into a **sparse** image.
 
+**4c+. Apps in the final build (the user asked for a full GNOME desktop, not the lean test set).**
+- **Base = the full Fedora 44 Workstation default set**, i.e. everything in the official Workstation image and the
+  `workstation-product-environment` group. Among others: **Files (Nautilus)**, **Software (GNOME Software, the
+  Fedora app store)**, Settings, Firefox, Ptyxis terminal, Text Editor, Calculator, Calendar, Contacts, Clocks,
+  Weather, Maps, the image viewer, the video player, the document viewer, Disks, Disk Usage, System Monitor,
+  Characters, Fonts, Logs, Connections and LibreOffice.
+  - The exact Fedora 44 list comes from `dnf group info workstation-product-environment` (relay 008). Nothing is
+    removed from it.
+- **Added for the tablet:**
+  - `gnome-extensions-app`, `gnome-tweaks`;
+  - Flatpak with **Flathub enabled** through Fedora's third-party repositories switch, so GNOME Software shows the
+    full catalogue (aarch64 builds);
+  - GNOME's built-in on-screen keyboard (on when no keyboard is attached);
+  - `powertop` and `lm_sensors` for the power and thermal checks;
+  - `bluez` tools; `iio-sensor-proxy` for auto-rotate once sensors work;
+  - Extension Manager from Flathub is optional.
+  - Snapshot (camera) stays, but it won't find a camera until Phase 5.
+- **GNOME Software must not break the boot:**
+  - Fedora's `kernel*` packages are excluded (`excludepkgs`), so Software's updates never install them;
+  - `kernel-iceland` updates come from our own dnf repo (a local or `file://` repo first; a private repo later, only if
+    the user wants one);
+  - **Fedora version upgrades (44 → 45) are hidden or blocked** until they've been tested with our kernel. The
+    `gnome-software` "upgrade" banner is turned off in the image's defaults;
+  - offline updates (PackageKit + systemd offline-update reboot) are tested once, so the reboot goes through U-Boot
+    and comes back.
+  - fwupd's UEFI capsule plugin is disabled: U-Boot is not a firmware target, and flashing through it must never
+    happen.
+- **aarch64 caveat:** almost every GNOME and Flathub app exists for aarch64. A few proprietary apps (for example
+  Chrome, some games or Steam) are x86-only; Firefox is the browser, and Chromium is available.
+- **Checked in 4a:** the RAM rehearsal (Y10 and the Workstation-image rehearsal) opens Files, Software (browse,
+  install and remove a Flatpak and an rpm), Settings (display, power, Wi-Fi, Bluetooth, battery) and Firefox, all
+  judged from the journal and app logs, plus the user's touch window.
+
 **4d. Before any write (the user's explicit OK; in this order).**
 1. Accept that flashing userdata **erases Android's data on both slots** (LineageOS on slot b uses the same userdata).
    Repartitioning is not an option (hard stop), so this is the only way to get disk space.
