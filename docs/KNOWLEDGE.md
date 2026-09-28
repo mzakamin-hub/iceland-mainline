@@ -359,6 +359,7 @@ https://github.com/mzakamin-hub/iceland-u-boot
 | map220v/iceland-firmware | File name list (no licence). Its `gngbt*` names differ from the real `brhbt*`. |
 | **infiniti-mainline/linux** (OnePlus 15, same SoC, what pmOS/Nura uses) | 138 SoC commits on 7.3-rc4: carve-outs, remoteproc/GPR fixes, GPU, gpucc/gcc/dispcc fixes, crypto/TRNG, Iris, CAMSS, qmp-combo + DP, ADC5 Gen4, SMMU, UFS lanes, qcomtee, DSC 1.2, TFA9866, OPLUS battmgr. **Primary base, as the user asked.** |
 | **infiniti-mainline/u-boot** `main` | Kaanapali U-Boot. Its key feature is the of_fixup that passes ABL's memory map to the OS. The OnePlus 15 boots with `bootcmd=run userdata_blkmap; bootefi bootmgr; fastboot usb 0` and a disk image in userdata. |
+| [Xlie-Electronic-Customs/linux-firmware-oplus-infiniti](https://github.com/Xlie-Electronic-Customs/linux-firmware-oplus-infiniti) (OnePlus 15 firmware, the repo the Nura page links; `main` 7197ab48bccc, 2026-09-19; **no licence, no README**, so names and layout only, never redistribute) | 18 files plus linux-firmware-style `Makefile`, `copy-firmware.sh`, `dedup-firmware.sh`: `ath12k/WCN7860/hw2.0/{amss,aux_ucode,board,m3,regdb}.bin` + **`qdss.cfg`**, `qcom/gen80200_{sqe,gmu,aqe}`, and `qcom/kaanapali/OnePlus/Infiniti/{gen80200_zap,CAMERA_ICP,CAMERA_ICP_1,evass,vpu40_2v}.mbn` + `tfa98xx.cnt`. No audio topology, no ADSP/CDSP/SoCCP. Compared with the Pad 4 11.A.38 files by git blob hash (PC, 2026-09-28): only `qdss.cfg` (6245 B) and `gen80200_aqe.fw` are **identical**. Everything else differs (other versions, OnePlus 15-signed zap/ICP/EVA/VPU, a tfa98xx.cnt for other speakers: 6118 B vs the Pad 4's 3702 B). The Pad 4 uses its own stock files; this repo confirms the file set, the `qcom/kaanapali/OnePlus/<Device>/` layout, and that `qdss.cfg` is needed. |
 | infiniti-mainline/firmware-oneplus-infiniti, audioreach-topology, minkipc | Firmware packaging layout; the `.m4` topology template; the QTEE supplicant (needs the `/data/vendor` TA files, which are lost when userdata is wiped). |
 | pmaports / wiki.nura.eco | pmaports has **no** `device-oneplus-infiniti` (checked by the PC through the GitLab API), so we write `device-oneplus-iceland` from scratch. The wiki page was saved by the user (see the Nura row below). |
 | **troikoss/gts9wifi-fedora** + wiki (Tab S9, SM8550, Fedora) | The method: find the **missing layer** first (kernel driver / firmware / userspace bridge / app). Also: `BT_HCIUART=m` and `ATH1xK=m` so they probe after the rootfs firmware; exact firmware names; sleep hooks in `/usr/lib/systemd/system-sleep`; UCM volume cap until speaker protection works; installer safety; BD address via fdtput. |
@@ -590,7 +591,7 @@ ABL (stock, untouched)
 | pc-012 | fix v2 (0028); A = SoCCP race order + ADSP + full audio, B = **integration** | **B: everything works in one boot** (display, touch fw, Wi-Fi at boot + scan, BT, battery, ADSP, GPU); audio reaches the card and stops at the missing topology. **A reset early** (no USB network) |
 | pc-013 | kernel + DEBUG prints; A = pmic-glink hold/attach harness, B = pc-012 A again, C = integration again | **Fix v2 proven:** the channel is held (27 s) and attached on bind (107 s) with battery data 2 s later; C hit the race naturally and it was held and attached 1 s later. **B reset early again** |
 | pc-014 | bisect: A = audio modules late (95 s), B = no WCD9395 codec | **A reset early** (so it isn't the audio modules loading); B fine |
-| pc-015 | bisect: A = SoCCP stack at boot only (control), B/C = no USB-C connector graph / orientation GPIO, D = SoCCP late | **A fine**: the minimal setup does not reset. Results in `relay/results/pc-013-015-early-reset.md` |
+| pc-015 | bisect: A = SoCCP stack at boot only (control), B = no USB-C connector graph + orientation GPIO, C = no orientation GPIO, D = SoCCP at 20 s | A, C, D fine; **B reset early**. The resets span 4 different setups, so it's a timing race around the early pmic-glink clients. Results in `relay/results/pc-013-015-early-reset.md` |
 
 ## 11. Problems hit and how they were solved
 
@@ -690,14 +691,17 @@ ABL (stock, untouched)
 - ⚠️ Audio: SoundWire, WCD9395 and 6× TFA9865 bind; the card stops at the missing AudioReach topology.
 
 **Open issues:**
-1. **Early reset with pmic-glink** (pc-012 A, pc-013 B, pc-014 A, 3/3).
-   - The setup: SoCCP stack at boot, the **ADSP node enabled** with its firmware held back, the audio module list, and
-     no Wi-Fi/BT.
+1. **Early reset with pmic-glink at boot** (pc-012 A, pc-013 B, pc-014 A, pc-015 B).
    - The tablet resets before the USB network is up (< ~35 s), so there is no log.
+   - It spans four different setups, while close variants run clean (pc-014 B, pc-015 A/C/D, the integration runs),
+     so it's most likely a **timing race** around the pmic-glink clients (UCSI, altmode, battmgr) starting at early
+     boot.
    - Not the cause:
-     - the audio modules loading: pc-014 A deferred them to 95 s and still reset;
-     - fix v2's hold/attach path: the harness and the natural race both worked.
-   - The minimal SoCCP-only setup doesn't reset (pc-015 A). Next bisect: toggle the ADSP node.
+     - the audio modules loading;
+     - fix v2's hold/attach path (the harness and the natural race worked);
+     - the orientation GPIO alone.
+   - **Workaround:** the SoCCP stack at 20 s (pc-015 D fine).
+   - Next: measure a rate (repeat one setup 3-4 times) and capture a log with an earlier kmsg stream.
 2. **Early Wi-Fi load reset** (pc-009, 2 resets, 13+ clean runs since): not reproducible; maybe the same family as #1.
 3. **battmgr units:** the battery looks like mV/mA while USB is µV/µA. Check the scaling for the SoCCP firmware.
 4. **144 Hz** is pruned (pixel clock 1261 MHz). It needs stock per-rate porches / DFPS.
@@ -709,8 +713,14 @@ ABL (stock, untouched)
 9. SoundWire TX port-count mismatch warnings (DT vs controller).
 
 **Pending list (shared; worked top-down, RAM boot only, nothing written to the tablet):**
-1. **Finish the early-reset bisect** (#1): the ADSP node on/off from a setup known to reset. Capture a log by deferring
-   the trigger past 60 s. Fix in the kernel or DT, and keep that order in the debug kits until then.
+1. **Finish the early-reset investigation** (#1):
+   1. measure a rate (pc-015 A and B, 3-4 runs each);
+   2. add an early kmsg stream: the runner opens a streaming page the moment the tablet answers, or the init pushes
+      logs to the PC;
+   3. find the colliding action (UCSI/altmode vs the USB PHY/eUSB2 repeater, or the failed ADSP auto-boot);
+   4. fix it in the kernel or DT.
+
+   Until then, the debug kits load the SoCCP stack at 20 s.
 2. **Audio topology:** write `KAANAPALI-OnePlus-Pad4.m4` from `linux-msm/audioreach-topology` (SM8550-HDK + an I2S
    board as templates):
    - Primary MI2S RX (port 16) → TFA9865;
