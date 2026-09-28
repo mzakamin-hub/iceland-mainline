@@ -15,9 +15,12 @@ W=$OUT/work; rm -rf "$W"; mkdir -p "$W/oci" "$W/rootfs"
 S=$W/fakeroot.state; fakeroot -s "$S" true
 fr() { fakeroot -i "$S" -s "$S" -- "$@"; }
 
-# 1. the OCI image: index.json -> manifest -> layers, applied in order
-tar -xJf "$IMG" -C "$W/oci"
-python3 - "$W/oci" > "$W/layers" <<'EOF'
+# 1. the base: either Fedora's OCI image (index.json -> manifest -> layers, applied in order) or a rootfs tarball
+#    captured from a previous RAM boot (the kit's 'rootfstar' page, e.g. after a dnf install)
+case "$IMG" in
+*.oci.tar.xz|*.oci.tar)
+	tar -xf "$IMG" -C "$W/oci"
+	python3 - "$W/oci" > "$W/layers" <<'EOF'
 import json, sys
 o = sys.argv[1]
 idx = json.load(open(o + "/index.json"))
@@ -26,10 +29,16 @@ man = json.load(open(o + "/blobs/sha256/" + m))
 for l in man["layers"]:
     print(l["digest"].split(":")[1], l["mediaType"])
 EOF
-while read -r digest mtype; do
-	echo "layer $digest ($mtype)"
-	fr tar -xf "$W/oci/blobs/sha256/$digest" -C "$W/rootfs"
-done < "$W/layers"
+	while read -r digest mtype; do
+		echo "layer $digest ($mtype)"
+		fr tar -xf "$W/oci/blobs/sha256/$digest" -C "$W/rootfs"
+	done < "$W/layers" ;;
+*.tar.gz|*.tgz|*.tar)
+	echo "rootfs tarball $(basename "$IMG") ($(du -h "$IMG" | cut -f1))"
+	fr tar -xf "$IMG" -C "$W/rootfs"
+	fr mkdir -p "$W/rootfs/proc" "$W/rootfs/sys" "$W/rootfs/dev" "$W/rootfs/tmp" "$W/rootfs/run" ;;
+*)	echo "unknown image type: $IMG"; exit 1 ;;
+esac
 R=$W/rootfs
 sed -n 's/^PRETTY_NAME=//p' "$R/etc/os-release"
 if [ -x "$R/usr/lib/systemd/systemd" ]; then echo "systemd: yes"
@@ -113,6 +122,36 @@ for u in iceland-report iceland-telnet; do
 done
 # a serial console getty is useless here; keep the boot quiet on the panel: the report pages are the console
 fr ln -sf /dev/null "$R/etc/systemd/system/getty@tty1.service"
+# with systemd as PID 1 (an image where dnf installed it): NetworkManager keeps usb0 at the shim's address
+# (the PC holds its DHCP lease for the session), sshd is enabled, and the PC's key logs in as root
+if [ -d "$R/etc/NetworkManager" ]; then
+	cat > "$W/usb0.nmconnection" <<'EOF'
+[connection]
+id=usb0
+type=ethernet
+interface-name=usb0
+autoconnect=true
+
+[ipv4]
+method=manual
+address1=172.16.42.1/24
+
+[ipv6]
+method=ignore
+EOF
+	fr install -m 0600 "$W/usb0.nmconnection" "$R/etc/NetworkManager/system-connections/usb0.nmconnection"
+	fr ln -sf /usr/lib/systemd/system/NetworkManager.service "$R/etc/systemd/system/multi-user.target.wants/NetworkManager.service"
+fi
+if [ -e "$R/usr/lib/systemd/system/sshd.service" ]; then
+	fr ln -sf /usr/lib/systemd/system/sshd.service "$R/etc/systemd/system/multi-user.target.wants/sshd.service"
+	printf 'PermitRootLogin prohibit-password\n' > "$W/iceland-sshd.conf"
+	fr install -m 0600 "$W/iceland-sshd.conf" "$R/etc/ssh/sshd_config.d/10-iceland.conf"
+fi
+if [ -s "$HOME/.ssh/iceland.pub" ]; then
+	fr mkdir -p -m 0700 "$R/root/.ssh"
+	fr install -m 0600 "$HOME/.ssh/iceland.pub" "$R/root/.ssh/authorized_keys"
+	echo "root ssh key: $(cut -d' ' -f3 "$HOME/.ssh/iceland.pub")"
+fi
 
 # 3. firmware (proprietary, from the user's tablet: the image stays on the PC) and a stripped module subset
 fr mkdir -p "$R/lib/firmware"
