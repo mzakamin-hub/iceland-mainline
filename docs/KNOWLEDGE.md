@@ -93,7 +93,7 @@ https://github.com/mzakamin-hub/iceland-mainline
 - `tools/capture/`: `device-capture.sh` (runs on the tablet under root), `capture.ps1` (Windows), `capture.sh`, `README.md`. Read-only; redacts serials and MACs.
 - `tools/linux-ram/`:
   - `build.sh`, `init`, `cgi-page`, `cgi-reboot`;
-  - `run-linux.ps1`: a template whose `UBOOT_SHA` / `LINUX_SHA` placeholders are filled when packaging.
+  - `run-linux.ps1`: a template. `package.sh` fills in the image hashes and the list of runs (label, image, note); one session boots each image in turn.
 - `artifacts/` (gitignored, cloud only): test kits `uboot-test-1`, `uboot-diag-2..4`, `linux-test-1..7` (+ .zip) and the run results the user sent back.
 
 ### iceland-linux (kernel)
@@ -102,7 +102,7 @@ https://github.com/mzakamin-hub/iceland-linux
   - upstream `v7.3-rc4` 93f51579e7df (tree 1dc395d6);
   - infiniti master 10650ae7bef4;
   - `TREE_AFTER_0001_infiniti=6e2c9712…`, `TREE_AFTER_0002_iceland=b2d05ae0…` (as of 2728bb9).
-- `patches/0001-infiniti/` (138), `patches/0002-iceland/` (21).
+- `patches/0001-infiniti/` (138), `patches/0002-iceland/` (21). `debug-patches/` holds test-only patches that are never applied by prepare.sh; 0001 is the sync_state hack.
 - `scripts/prepare.sh`: clone, `git am` each series, check the tree hash after each one. It needs a real clone (`.git` directory), not a worktree.
 - `scripts/build.sh`:
   - defconfig + `sm8850.config` + `configs/distro-neutral.config`;
@@ -120,6 +120,7 @@ https://github.com/mzakamin-hub/iceland-linux
   | c17f732 | framebuffer described |
   | 27326fe | MMCX TURBO |
   | 2728bb9 | MXC TURBO |
+  | fe964f7 | MX TURBO too; `debug-patches/` (sync_state hack for test 7b) |
 
 ### iceland-u-boot
 https://github.com/mzakamin-hub/iceland-u-boot
@@ -318,7 +319,8 @@ ABL (stock, untouched)
   reserved-memory { cont_splash_mem: splash-region@fc800000 { reg=<0 0xfc800000 0 0x2b00000>; no-map; }; };
   ```
   The DSI byte and pixel clocks were removed: they were enabled as orphans at rate 0.
-- Current build: `7.3.0-rc4-iceland-00159-g1fdbb95988ca`, 0 warnings, clang 18.1.3.
+- The framebuffer power-domains are now MMCX, **MX**, MXC and the GDSC, with TURBO required-opps on the three rails.
+- Current builds: A `7.3.0-rc4-iceland-00159-g66113519fa7f`; B `…-00160-g1a9d60630ec7` (A + hack). 0 warnings, clang 18.1.3.
 
 ### Config
 - `distro-neutral.config`, 74 lines:
@@ -378,10 +380,7 @@ ABL (stock, untouched)
   4. Waits for the USB network, then downloads every page with a raw TCP HTTP client.
   5. Asks what the screen shows: text / black / **white** / …
   6. Reboots over HTTP, records the boot reason after the reboot, and zips everything as `linux-<date>.zip`.
-- **Packaging a kit:**
-  1. Copy `diag-L-efi.img`, `linux-iceland-debug.img` and BUILD_INFO.
-  2. Fill `run-linux.ps1` from the template with `sed s/UBOOT_SHA/<sha>/; s/LINUX_SHA/<sha>/`.
-  3. Add a README.txt with the instructions and zip it.
+- **Packaging a kit:** `tools/linux-ram/package.sh KIT_DIR diag-L-efi.img README.txt A=<build.sh out>=<note> [B=…]`. It writes `linux-<label>.img`, `BUILD_INFO-<label>` and `run-linux.ps1` with the hashes and runs filled in, then zips everything.
 - Linux test 7 debug image: sha256 `a82db7f8…0b3f`; DTB `2f3620e0…5a04`.
 
 ## 10. Tablet test history
@@ -398,7 +397,8 @@ ABL (stock, untouched)
 | L4 | + DT framebuffer votes, ramoops | White or black. USB at ~37 s. **Every page failed** because of bare-LF CGI headers on PS 5.1 |
 | L5 | Full survey (16 pages) | No oops. simpledrm voted MMCX **SVS** under the 650 MHz MDP, and DSI clocks were orphans. Also found the TFA9865s, unbound modules and the thermal trips |
 | L6 | MMCX TURBO, no DSI clocks | White at 20–30 s. **MXC off** after rpmhpd sync_state (~22 s); `qnm_mdp` interconnect vote 0 |
-| L7 | + MXC TURBO (iceland-linux 2728bb9) | **Kit sent. Waiting for the user's result.** The stock data later showed dispcc needs **MX**, not MXC, so this may still go white; see section 13 |
+| L7 | + MXC TURBO (iceland-linux 2728bb9) | Kit sent, then superseded before it was run: the stock data showed dispcc needs **MX** |
+| L7b | A = MMCX+MX+MXC TURBO (fe964f7); B = A + sync_state disabled (`debug-patches/0001`) | **Sent through relay request 001. Waiting for the run** |
 
 ## 11. Problems hit and how they were solved
 
@@ -455,7 +455,7 @@ ABL (stock, untouched)
 - The display console dies at 20–30 s. The L7 fix is sent.
 
 **Next steps:**
-1. **Test 7 / 7b.** Test 7 (MXC only) may miss the real rail. The PC session suggests a two-image kit, so one tablet session answers both questions:
+1. **Test 7b** (sent, relay request 001, kit `linux-test-7b.zip` on branch `relay-bundles`). One tablet session answers both questions:
    - **A:** DT votes MMCX + MX + MXC at TURBO.
    - **B:** A plus the OnePlus 15 hack: `.sync_state` disabled in `rpmhpd`, `qnoc-kaanapali` and `osm-l3` (infiniti `eykc/oneplus-15` commit 7ad55daf6d06 "hack: qcom: Disable sync_state to preserve EFI framebuffer").
    - If B stays up and A goes white, a vote is still missing. The likeliest is MDP bandwidth: an interconnect vote of about 2.5 GB/s on `qnm_mdp` (it was 0/0 in test 6).

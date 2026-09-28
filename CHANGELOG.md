@@ -17,9 +17,11 @@ The framebuffer console shows kernel text, then the panel goes black or white. E
 | 2 | black after the text | unused regulators and the backlight turned off | `regulator_ignore_unused`; both KTZ8869 backlight nodes disabled in the debug DT (iceland-u-boot 35cb950, iceland-mainline 7a39818) |
 | 3 | white, no USB | display pipeline released (the DT had no framebuffer with votes) | Pad 4 DT describes ABL's splash framebuffer: clocks, MDSS GDSC, MMCX vote, `cont_splash_mem` no-map (iceland-linux c17f732) |
 | 5 | white | simpledrm voted MMCX **SVS**, but ABL runs the MDP at 650 MHz = **TURBO**; orphan DSI byte/pixel clocks | MMCX TURBO, DSI clocks dropped (iceland-linux 27326fe) |
-| 6 | white at 20–30 s | at the deferred-probe timeout (~22 s) rpmhpd sync_state switches off rails nobody votes for: **MXC went off** (on kaanapali, MMCX has no MXC parent). The `qnm_mdp` interconnect vote is also 0. | MXC TURBO vote added to the framebuffer node (iceland-linux 2728bb9, **Linux test 7 sent**). The MDP bandwidth vote comes next if needed. |
+| 6 | white at 20–30 s | at the deferred-probe timeout (~22 s) rpmhpd sync_state switches off rails nobody votes for: **MXC went off** (on kaanapali, MMCX has no MXC parent). The `qnm_mdp` interconnect vote is also 0. | MXC TURBO vote (iceland-linux 2728bb9, test 7). Stock data from the PC then showed dispcc needs **MX**, so test 7 was replaced by **test 7b**: A = MMCX+MX+MXC votes (fe964f7), B = A + sync_state disabled (debug patch). The MDP bandwidth vote comes next if needed. |
 
 ### Linux debug image and tablet script (iceland-mainline `tools/linux-ram/`)
+- `run-linux.ps1` can now boot several Linux images in one session, going back to Android in between, with results in one folder per image. `package.sh` builds a kit from U-Boot diag L plus labelled images. Dry-run against the mock tablet: A and B both completed using only allowlisted commands.
+- The PC relay is in use: `relay/requests/001-linux-test-7b.md`, with the bundle on branch `relay-bundles`.
 - 359c8f7: first Linux RAM boot through U-Boot fastboot:
   - header v2 image with the kernel, a debug DTB and a busybox initramfs;
   - USB NCM network (tablet 172.16.42.1; the PC gets 172.16.42.2 by DHCP);
@@ -94,7 +96,7 @@ The framebuffer console shows kernel text, then the panel goes black or white. E
 - b94d38b (iceland-linux): first patch queue, v7.2 + map220v `iceland-7.2` (40 commits). It was superseded by the 7.3-rc4 rebase.
 
 ## Next
-1. Run Linux test 7 (kit sent: kernel 00159-g1fdbb95988ca, iceland-linux 2728bb9, debug image sha256 a82db7f8…). If the panel still turns white, add the MDP interconnect vote.
+1. Run Linux test 7b (relay request 001): A = MX vote, B = A + sync_state disabled. If the panel still turns white, add the MDP interconnect vote.
 2. Load modules in the debug initramfs (touch SPI, ADC, TFA9865…).
 3. Add CPU passive thermal trips and cooling maps before any load.
 4. Firmware extractor, run once by the user.
