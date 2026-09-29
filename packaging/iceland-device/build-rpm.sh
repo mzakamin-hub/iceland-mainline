@@ -5,6 +5,6 @@ set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd); dest=$(realpath -m "$1")
 work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/SOURCES"
-cp "$here"/files/* "$work/SOURCES/"
+for f in "$here"/files/*; do [ -f "$f" ] && cp "$f" "$work/SOURCES/"; done
 rpmbuild --define "_topdir $work" --define "dist .fc44" --nodeps -ba "$here/iceland-device.spec"
 mkdir -p "$dest"; cp "$work"/RPMS/*/*.rpm "$work"/SRPMS/*.rpm "$dest/"; ls -la "$dest"

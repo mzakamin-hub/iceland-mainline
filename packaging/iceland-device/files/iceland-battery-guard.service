@@ -1,0 +1,12 @@
+[Unit]
+Description=OnePlus Pad 4 battery and charging safety guard (stock limits)
+After=sysinit.target
+
+[Service]
+ExecStart=/usr/libexec/iceland/iceland-battery-guard
+Restart=always
+RestartSec=5
+Nice=-5
+
+[Install]
+WantedBy=multi-user.target

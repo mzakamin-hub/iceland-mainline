@@ -1,0 +1,134 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# iceland-battery-guard: a second safety layer for charging on the OnePlus Pad 4 under mainline Linux.
+# On stock, the OnePlus kernel charging stack (oplus_chg) enforces these limits; mainline only has the SoCCP
+# charger firmware + qcom_battmgr. Until it is proven that the firmware enforces them by itself (PLAN 5-PM C step 2),
+# this service watches the battery and stops charging / shuts down at the stock limits.
+#
+# Every limit is the stock 11.A.38 value (live stock DT, node oplus,comm / oplus,usbtemp; KNOWLEDGE rule 13):
+#   batt-them-thr (decidegC)  = -100 0 50 120 160 350 450 530  -> regions; no charging below -10 C or at/above 53 C
+#   fv-mv (per region)        = ... 4480 (35-45 C), 4130 (45-53 C) -> in 45-53 C charging is limited (float 4.13 V)
+#   vbatt-ov-thr-mv           = 4600                     -> over-voltage: stop charging
+#   poweroff_high_batt_temp   = 720 (72.0 C)             -> orderly power-off
+#   poweroff_emergency_batt_temp = 770 (77.0 C)          -> immediate power-off
+#   vbat_uv_thr_mv            = 3300                     -> orderly power-off when discharging below 3.3 V
+#   usbtemp_cool_down_ntc_high = 65 (C)                  -> connector too hot: stop charging (only if a usb_therm zone exists)
+import glob, os, subprocess, sys, syslog, time
+
+BAT = os.environ.get("ICELAND_BAT", "/sys/class/power_supply/qcom-battmgr-bat")
+DRYRUN = os.environ.get("ICELAND_GUARD_DRYRUN") == "1"   # tests: print actions instead of running them
+ONESHOT = os.environ.get("ICELAND_GUARD_ONESHOT") == "1"
+T_MIN_CHG = -10.0      # C, below: no charging (stock region 0 fcc = 0)
+T_MAX_CHG = 53.0       # C, at/above: no charging (stock hot region fcc = 0)
+T_WARM = 45.0          # C, 45-53: stock float 4.13 V -> we stop charging above 4.13 V in that band
+V_WARM_FLOAT = 4.130   # V
+V_OV = 4.600           # V, over-voltage
+T_POWEROFF = 72.0      # C
+T_EMERGENCY = 77.0     # C
+V_UV = 3.300           # V, discharging
+T_USB_STOP = 65.0      # C
+HYST_T = 2.0           # C, resume charging only after this much margin
+
+def rd(path, default=None):
+    try:
+        with open(path) as f:
+            return f.read().strip()
+    except OSError:
+        return default
+
+def wr(path, value):
+    try:
+        with open(path, "w") as f:
+            f.write(value)
+        return True
+    except OSError:
+        return False
+
+def log(msg, prio=syslog.LOG_WARNING):
+    syslog.syslog(prio, msg)
+    print(msg, flush=True)
+
+def usb_therm():
+    for z in glob.glob("/sys/class/thermal/thermal_zone*"):
+        if rd(z + "/type", "") in ("usb-therm-thermal", "usb-thermal", "usb_therm"):
+            t = rd(z + "/temp")
+            if t:
+                return int(t) / 1000.0
+    return None
+
+# the charge-inhibit knob: charge_behaviour (upstream power-supply ABI) if the driver has it,
+# else charge_control_end_threshold set below the current capacity
+def inhibit(on):
+    cb = BAT + "/charge_behaviour"
+    if os.path.exists(cb):
+        return wr(cb, "inhibit-charge" if on else "auto")
+    et = BAT + "/charge_control_end_threshold"
+    if os.path.exists(et):
+        if on:
+            cap = int(rd(BAT + "/capacity", "50"))
+            return wr(et, str(max(cap - 1, 1)))
+        return wr(et, rd("/etc/iceland/charge-limit", "100") or "100")
+    return False
+
+def run(cmd):
+    if DRYRUN:
+        print("DRYRUN: " + " ".join(cmd), flush=True)
+        return 0
+    return subprocess.call(cmd)
+
+def poweroff(emergency):
+    log("iceland-battery-guard: battery too hot, powering off%s" % (" NOW" if emergency else ""), syslog.LOG_CRIT)
+    run(["systemctl", "poweroff"] + (["-ff"] if emergency else []))
+
+def main():
+    syslog.openlog("iceland-battery-guard")
+    if not os.path.isdir(BAT):
+        log("no %s, nothing to guard" % BAT)
+        return 0
+    inhibited, reason = False, ""
+    can_inhibit = True
+    while True:
+        t = rd(BAT + "/temp"); v = rd(BAT + "/voltage_now"); st = rd(BAT + "/status", "")
+        temp = int(t) / 10.0 if t else None            # power-supply ABI: tenths of a degree C
+        volt = int(v) / 1e6 if v else None              # uV (0029 scales the Oplus gauge)
+        charging = st in ("Charging", "Full")
+        ut = usb_therm()
+        if temp is not None and temp >= T_EMERGENCY:
+            poweroff(True)
+        elif temp is not None and temp >= T_POWEROFF:
+            poweroff(False)
+        elif volt is not None and not charging and st == "Discharging" and volt < V_UV:
+            log("iceland-battery-guard: battery below %.2f V (%.3f V), powering off" % (V_UV, volt), syslog.LOG_CRIT)
+            run(["systemctl", "poweroff"])
+        want, why = False, ""
+        if temp is not None and (temp < T_MIN_CHG or temp >= T_MAX_CHG):
+            want, why = True, "battery %.1f C outside %.0f..%.0f C" % (temp, T_MIN_CHG, T_MAX_CHG)
+        elif temp is not None and temp >= T_WARM and volt is not None and volt >= V_WARM_FLOAT:
+            want, why = True, "warm %.1f C and %.3f V >= %.2f V" % (temp, volt, V_WARM_FLOAT)
+        elif volt is not None and volt >= V_OV:
+            want, why = True, "over-voltage %.3f V" % volt
+        elif ut is not None and ut >= T_USB_STOP:
+            want, why = True, "USB connector %.1f C" % ut
+        if inhibited and not want:
+            # resume only with margin
+            ok = temp is None or (T_MIN_CHG + HYST_T <= temp <= T_MAX_CHG - HYST_T)
+            if ok and (ut is None or ut < T_USB_STOP - HYST_T):
+                if inhibit(False):
+                    log("iceland-battery-guard: charging allowed again", syslog.LOG_NOTICE)
+                inhibited = False
+        elif want and not inhibited:
+            if inhibit(True):
+                log("iceland-battery-guard: charging stopped: " + why)
+            else:
+                if can_inhibit:
+                    log("iceland-battery-guard: must stop charging (%s) but no charge-inhibit control exists; unplug the charger" % why, syslog.LOG_CRIT)
+                    run(["wall", "OnePlus Pad 4: unplug the charger (%s)" % why])
+                can_inhibit = False
+            inhibited = True
+        if ONESHOT:
+            return 0
+        time.sleep(5 if charging else 15)
+
+if __name__ == "__main__":
+    sys.exit(main())
