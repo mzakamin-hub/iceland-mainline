@@ -99,9 +99,10 @@ Contents:
     - Every such value in a patch or config names its source (file/node/property) in a comment or the commit message.
     - Mainline and the PC both follow this; the PC's automated loop (relay 012) too.
 
-14. **The owner's country is Egypt (EG)** (user, 2026-09-29): the Wi-Fi regulatory domain is `EG`, written to
-    `/etc/iceland/wifi-country` by the installer and the kits, and applied by iceland-device's
-    `iceland-wifi-country.service`. The stock `persist.sys.timezone` (America/New_York) isn't the owner's location.
+14. **Wi-Fi regulatory domain = US** (user, 2026-09-29): the owner is in Egypt, but the self-managed ath12k firmware
+    refuses EG ("Failed to set the requested Country regulatory setting") and runs US/DFS-FCC, which enables
+    2.4/5/6 GHz (6 GHz: 59 of 60 channels). The user decided: **don't investigate EG; use US**, so 6 GHz works with
+    the same bands. `/etc/iceland/wifi-country` = `US` (installer and kits), applied by `iceland-wifi-country.service`.
 
 ## 3. Repositories and layout
 
