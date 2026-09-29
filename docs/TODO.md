@@ -19,11 +19,11 @@ Difficulty scale:
 - [ ] [P0] PC: relay 005 (recovery_a/b facts, recovery image header, LUN 0 layout)
 - [ ] [P0] PC: relay 008 part 1 (the Workstation 44 app list)
 - [ ] [P1] M: local dnf repo for `kernel-iceland` updates
-- [ ] [P1] M: U-Boot env for dual boot (`fedora_blkmap` by partition name)
-- [ ] [P1] M: dracut config (GPU and touch firmware in the initramfs), BLS options, `lsm=` with selinux
+- [x] [P1] M: U-Boot env for dual boot (`fedora_blkmap` by partition name): iceland-u-boot a3c7ca5 (one bootcmd for both layouts)
+- [x] [P1] M: dracut config (GPU and touch firmware in the initramfs), kernel options (`iceland-cmdline`) in iceland-device; `lsm=` to be checked on the image
 - [ ] [P1] U+PC: before writes: file-level `/data/vendor` + persist copy; GPT backup; confirm the 151-partition backup
-- [ ] [P2] M: 60 Hz on battery / 120–144 Hz on AC hook; CDSP off; Wi-Fi power save; BT autosuspend; power-profiles-daemon config
-- [ ] [P2] M: after an Android OTA (dual boot), a helper to re-flash U-Boot into the new slot's recovery
+- [ ] [P2] M: 60 Hz on battery / 120–144 Hz on AC hook; CDSP off; power-profiles-daemon config (Wi-Fi power save done in iceland-device)
+- [x] [P2] M: after an Android OTA (dual boot), a helper to re-flash U-Boot into the new slot's recovery: `tools/dualboot/reflash-recovery.ps1` (only after 4-DB is approved)
 - [ ] [P3] Housekeeping: KNOWLEDGE §13 in sync with PLAN v4 (PC); refresh the cloud kernel tree (M)
 
 ## 2 — Moderate
@@ -34,9 +34,9 @@ Difficulty scale:
 - [ ] [P0] PC: relay 006 (stock skin gear table, thermal-engine rules, GPU trips, BCL, standby numbers)
 - [ ] [P0] PC: relay 007 (reading `oplus_chg`: OTG glink message, charge stop/limit, what the firmware does alone)
 - [ ] [P1] PC+U: Y10: GNOME from `rootfs-gnome.tar.gz` in RAM + the touch/pen window
-- [ ] [P1] M: `kernel-iceland` rpm spec + kernel-install plugin (DTB to ESP `dtb/qcom/…`, BLS `devicetree`)
-- [ ] [P1] M: `iceland-device` rpm (UCM caps, late ath12k, BT address unit, libinput quirks, logind lid, sleep hooks,
-      journald cap, `excludepkgs=kernel*`, `DEFAULTKERNEL`, upgrade banner off, fwupd UEFI off)
+- [x] [P1] M: `kernel-iceland` rpm spec + kernel-install plugin (DTB to the ESP `dtb/qcom/…`; no GRUB `devicetree` line, to keep U-Boot's memory fixups): iceland-linux bcdab5e; a full rpm test build is running
+- [x] [P1] M: `iceland-device` rpm v0.1 (kernel exclusion, DEFAULTKERNEL, s2idle, journald cap, upgrade block, fwupd guard, BT address unit, kernel options, dracut, Wi-Fi power save): iceland-mainline 59d170c, built with rpmbuild
+- [ ] [P2] M: iceland-device additions as the hardware lands: UCM volume caps, 60 Hz on battery, charge limit, libinput quirks
 - [ ] [P1] M+PC: firmware into `/usr/lib/firmware/updates/` (extractor + OTA for the `super` files), never uploaded
 - [ ] [P1] PC: full app set in RAM (relay 008 part 2): Files, Software + Flathub, Settings, Firefox, Extensions, Tweaks, OSK
 - [ ] [P1] PC: RAM rehearsal of the real Workstation 44 image with our packages
