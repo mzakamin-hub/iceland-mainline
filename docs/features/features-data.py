@@ -6,14 +6,14 @@
 DATE = "29 Sep 2026"
 
 # One sentence after the date in FEATURES.md.
-STATUS_MD = ("area-display-1 done (GPU + Vulkan accelerated, lid works; a panel power cycle blanks the screen and 120/60 Hz is broken); "
+STATUS_MD = ("area-display-1 done (GPU + Vulkan accelerated, lid works; any refresh-rate change blanks the screen until a display off/on at 144 Hz); "
              "the project is now run by the PC session alone (relay 020); each open item has a where-to-look pointer; "
              "next: the charging-safety patch, then area-display-2 (touch/panel power-on order, 144 Hz only), then GPU and NPU")
 
 # The subtitle of the published page.
 STATUS_HTML = ("Everything is tested by booting from RAM; nothing is installed on the tablet yet. Status as of "
-               f"{DATE}: audio closed (mic hiss a known issue); GPU and Vulkan accelerated; the screen goes black after a "
-               "panel power cycle (touch-chip reset, cause found) and 120/60 Hz is broken. Next: the charging-safety "
+               f"{DATE}: audio closed (mic hiss a known issue); GPU and Vulkan accelerated; any refresh-rate change "
+               "turns the screen black until a display off/on at 144 Hz (cause being narrowed down). Next: the charging-safety "
                "patch, then the display fixes, then GPU and NPU. Work runs area by area (relay 019); Boot & platform "
                "waits for your go-ahead on the install.")
 
@@ -30,10 +30,10 @@ G = [
 ]),
 ("Display & input", [
  ("Native display 3392×2400, dual DSI + DSC", "ok", "Boot splash handed over to MSM DRM"),
- ("Refresh 30 / 60 / 90 / 120 / 144 Hz", "part", "144 Hz works; switching to 120 or 60 Hz turns the screen black (area-display-1)", "panel-novatek-nt36536: stock per-mode rate commands (panel dtsi / LineageOS panel driver); until then offer only 144 Hz in iceland-device"),
+ ("Refresh 30 / 60 / 90 / 120 / 144 Hz", "part", "144 Hz works; any rate change (even back to 144 Hz) turns the screen black until a display off/on at 144 Hz (area-display-1)", "panel-novatek-nt36536: stock per-mode rate commands (panel dtsi / LineageOS panel driver); until then offer only 144 Hz in iceland-device"),
  ("Backlight", "ok", "Brightness curve still being checked against stock"),
  ("GNOME pink / blocky glitches", "part", "Not reproduced in area-display-1 (clean at 144 Hz, 0 underruns, UBWC scanout); watch for a return", "If it returns: photo + drm state, XR30 vs XR24 compositor, FD_MESA_DEBUG=noubwc/notile, SSPP UBWC error registers; DSC 1.2 + stock 0x91/0x92 (offline-prep/display.md)"),
- ("Touchscreen", "ok", "Confirmed by you; 20 700 events in area-display-1. Stops after a panel power cycle", "nt36536 touch resume: bootloader reset + firmware download runs after the panel init; move it before the display init (stock notifier order) or skip the reset on resume"),
+ ("Touchscreen", "ok", "Confirmed by you; 20 700 events in area-display-1. Stopped after a driver rebind + display off/on (while the screen was already broken)", "area-display-2: DPMS off/on with the touch driver bound, from a good screen; nt36536 resume does a bootloader reset + firmware download after each panel power-on"),
  ("Pen", "part", "0 events in area-display-1 (pen maybe not charged); recheck", "Driver 0036 (tablet caps); libinput debug-events with a charged pen; palm rejection"),
  ("Lid switch", "ok", "SW_LID events on GPIO 98 (area-display-1)"),
  ("Power and volume keys", "ok", "Power key also wakes from sleep"),

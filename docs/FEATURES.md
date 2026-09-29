@@ -1,6 +1,6 @@
 # OnePlus Pad 4 mainline: feature matrix
 
-Status 29 Sep 2026 (area-display-1 done (GPU + Vulkan accelerated, lid works; a panel power cycle blanks the screen and 120/60 Hz is broken); the project is now run by the PC session alone (relay 020); each open item has a where-to-look pointer; next: the charging-safety patch, then area-display-2 (touch/panel power-on order, 144 Hz only), then GPU and NPU). Everything is tested by RAM boot; nothing is installed on the tablet yet.
+Status 29 Sep 2026 (area-display-1 done (GPU + Vulkan accelerated, lid works; any refresh-rate change blanks the screen until a display off/on at 144 Hz); the project is now run by the PC session alone (relay 020); each open item has a where-to-look pointer; next: the charging-safety patch, then area-display-2 (touch/panel power-on order, 144 Hz only), then GPU and NPU). Everything is tested by RAM boot; nothing is installed on the tablet yet.
 Legend: ✅ working · 🟡 in progress · ⬜ not started · ❌ not planned. Sorted by functionality.
 Totals: 31 working, 16 in progress, 21 not started, 2 not planned (70).
 
@@ -22,10 +22,10 @@ Totals: 31 working, 16 in progress, 21 not started, 2 not planned (70).
 | Feature | Status | Notes | Where to look for the fix |
 |---|---|---|---|
 | Native display 3392×2400, dual DSI + DSC | ✅ Working | Boot splash handed over to MSM DRM |  |
-| Refresh 30 / 60 / 90 / 120 / 144 Hz | 🟡 In progress | 144 Hz works; switching to 120 or 60 Hz turns the screen black (area-display-1) | panel-novatek-nt36536: stock per-mode rate commands (panel dtsi / LineageOS panel driver); until then offer only 144 Hz in iceland-device |
+| Refresh 30 / 60 / 90 / 120 / 144 Hz | 🟡 In progress | 144 Hz works; any rate change (even back to 144 Hz) turns the screen black until a display off/on at 144 Hz (area-display-1) | panel-novatek-nt36536: stock per-mode rate commands (panel dtsi / LineageOS panel driver); until then offer only 144 Hz in iceland-device |
 | Backlight | ✅ Working | Brightness curve still being checked against stock |  |
 | GNOME pink / blocky glitches | 🟡 In progress | Not reproduced in area-display-1 (clean at 144 Hz, 0 underruns, UBWC scanout); watch for a return | If it returns: photo + drm state, XR30 vs XR24 compositor, FD_MESA_DEBUG=noubwc/notile, SSPP UBWC error registers; DSC 1.2 + stock 0x91/0x92 (offline-prep/display.md) |
-| Touchscreen | ✅ Working | Confirmed by you; 20 700 events in area-display-1. Stops after a panel power cycle | nt36536 touch resume: bootloader reset + firmware download runs after the panel init; move it before the display init (stock notifier order) or skip the reset on resume |
+| Touchscreen | ✅ Working | Confirmed by you; 20 700 events in area-display-1. Stopped after a driver rebind + display off/on (while the screen was already broken) | area-display-2: DPMS off/on with the touch driver bound, from a good screen; nt36536 resume does a bootloader reset + firmware download after each panel power-on |
 | Pen | 🟡 In progress | 0 events in area-display-1 (pen maybe not charged); recheck | Driver 0036 (tablet caps); libinput debug-events with a charged pen; palm rejection |
 | Lid switch | ✅ Working | SW_LID events on GPIO 98 (area-display-1) |  |
 | Power and volume keys | ✅ Working | Power key also wakes from sleep |  |

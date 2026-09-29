@@ -57,7 +57,7 @@ The PC port was asked for 1.2–1.9 A (stock SDP: 500 mA), and 12 V is above the
 
 | Item | Next action | Needs the user |
 |---|---|---|
-| Black screen after a panel power cycle | Kernel candidate in the NT36536 touch driver: on resume, skip the bootloader reset + firmware download, re-arm the IRQ only. If the chip loses its firmware anyway, load it from the panel's prepare hook *before* the display init (stock order). Test: DPMS off/on ×3 and a suspend with touch bound | Watch the screen; touch after each cycle |
+| Black screen after a refresh-rate change (cause not proven; see area-display.md §3) | Diagnostic run first: DPMS off/on at 144 Hz with the touch driver bound and unbound, 144 → 120 → 144 Hz with DPMS in between, one suspend/resume, each with DSI/DPU state + timestamps. The touch driver's role is unproven (boot shows display init → touch reset working). Then the fix: the mode-switch path and/or per-rate panel commands, or the touch/panel order if the bound DPMS run blanks | Watch the screen after each step; touch after each cycle |
 | 120/60 Hz black | Short term: advertise 144 Hz only (panel driver mode list), so GNOME can't pick a broken mode. Then port stock's per-rate commands (`qcom,mdss-dsi-timing-switch-command`, per-DFPS on-commands; display.md R6-3) | Watch the screen per rate |
 | Pink glitches | Not reproduced. Keep the checks ready: photo + drm state, XR24 vs XR30, `FD_MESA_DEBUG=noubwc`/`notile`, SSPP UBWC error registers. Evaluate DSC 1.2 + stock 0x91/0x92 init bytes (display.md R6-1/R6-2) against the panel | A photo if it returns |
 | Screenshot path | `gnome-screenshot` fails on GNOME 50 Wayland: use the Shell's D-Bus Screenshot through an allowed caller, or `xdg-desktop-portal` + `grim`-like capture | none |
