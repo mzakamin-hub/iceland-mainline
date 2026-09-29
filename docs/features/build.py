@@ -16,7 +16,7 @@ ICON = {"ok": "✅", "part": "🟡", "todo": "⬜", "out": "❌"}
 
 
 def counts(rows):
-    return {s: sum(1 for _, st, _ in rows if st == s) for s in ORDER}
+    return {s: sum(1 for r in rows if r[1] == s) for s in ORDER}
 
 
 def total_counts():
@@ -36,6 +36,10 @@ def bar(c, cls="bar", titles=True):
     return f'<div class="{cls}" role="img" aria-label="{label}">{segs}</div>'
 
 
+def look(r):
+    return r[3] if len(r) > 3 else ""
+
+
 def build_md():
     t = total_counts()
     n = sum(t.values())
@@ -46,8 +50,8 @@ def build_md():
            ""]
     for name, rows in D.G:
         c = counts(rows)
-        out += [f"## {name} ({c['ok']}/{len(rows)} working)", "", "| Feature | Status | Notes |", "|---|---|---|"]
-        out += [f"| {f} | {ICON[s]} {LABEL[s]} | {note} |" for f, s, note in rows]
+        out += [f"## {name} ({c['ok']}/{len(rows)} working)", "", "| Feature | Status | Notes | Where to look for the fix |", "|---|---|---|---|"]
+        out += [f"| {r[0]} | {ICON[r[1]]} {LABEL[r[1]]} | {r[2]} | {look(r)} |" for r in rows]
         out.append("")
     return "\n".join(out)
 
@@ -66,12 +70,12 @@ def build_html():
     for name, rows in D.G:
         c = counts(rows)
         trs = "".join(
-            f'<tr data-s="{s}"><td class="f">{e(f)}</td><td><span class="pill {s}">{LABEL[s]}</span></td><td class="n">{e(note)}</td></tr>'
-            for f, s, note in rows)
+            f'<tr data-s="{r[1]}"><td class="f">{e(r[0])}</td><td><span class="pill {r[1]}">{LABEL[r[1]]}</span></td><td class="n">{e(r[2])}</td><td class="l">{e(look(r))}</td></tr>'
+            for r in rows)
         groups.append(
             f'<section class="grp"><header><h2>{e(name)}</h2><span class="cnt">{c["ok"]}/{len(rows)} working</span></header>\n'
             f'{bar(c)}\n'
-            f'<div class="tw"><table><thead><tr><th>Feature</th><th>Status</th><th>Notes</th></tr></thead><tbody>{trs}</tbody></table></div></section>')
+            f'<div class="tw"><table><thead><tr><th>Feature</th><th>Status</th><th>Notes</th><th>Where to look for the fix</th></tr></thead><tbody>{trs}</tbody></table></div></section>')
     return HTML_HEAD + f"""<div class="wrap">
   <div class="top">
     <div class="eyebrow">OnePlus Pad 4 · SM8850P “iceland” · mainline Linux + Fedora 44</div>
@@ -103,7 +107,7 @@ HTML_HEAD = """<title>Pad 4 Feature Matrix</title>
   --bg:#0f141b; --panel:#161d27; --fg:#e6ebf2; --muted:#98a4b3; --line:#27313e; --accent:#7f9cff;
   --ok:#5fd08e; --ok-bg:#16301f; --part:#f0b25a; --part-bg:#352813; --todo:#a3adba; --todo-bg:#232b36; --out:#ee8d8d; --out-bg:#3a1f22; color-scheme:dark }
 body { background:var(--bg); color:var(--fg); font-family:var(--body); font-size:15px; line-height:1.45; }
-.wrap { max-width:1080px; margin:0 auto; padding-inline:16px; padding-block:28px 48px; display:grid; gap:22px; }
+.wrap { max-width:1280px; margin:0 auto; padding-inline:16px; padding-block:28px 48px; display:grid; gap:22px; }
 .top { display:grid; gap:10px; }
 .eyebrow { font-family:var(--mono); font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
 h1 { font-family:var(--display); font-stretch:80%; font-weight:800; font-size:clamp(28px,5vw,40px); line-height:1.05; margin:0; text-wrap:balance; }
@@ -129,12 +133,14 @@ td { padding:8px; border-bottom:1px solid var(--line); vertical-align:top; }
 tr:last-child td { border-bottom:0; }
 td.f { font-weight:600; min-width:14ch; }
 td.n { color:var(--muted); min-width:18ch; }
+td.l { font-size:13.5px; min-width:26ch; }
+td.l:not(:empty) { border-left:3px solid var(--accent); }
 .pill { display:inline-block; white-space:nowrap; font-size:12.5px; font-weight:600; padding:2px 9px; border-radius:999px; }
 .pill.ok { color:var(--ok); background:var(--ok-bg); } .pill.part { color:var(--part); background:var(--part-bg); }
 .pill.todo { color:var(--todo); background:var(--todo-bg); } .pill.out { color:var(--out); background:var(--out-bg); }
 .grp.empty { display:none; }
 footer { color:var(--muted); font-size:13px; }
-@media (max-width:560px) { th:nth-child(3) { display:none; } td.n { display:block; padding-top:0; border-bottom:0; } tr { display:grid; grid-template-columns:1fr auto; border-bottom:1px solid var(--line); } td { border-bottom:0; } td.n { grid-column:1 / -1; } }
+@media (max-width:560px) { th:nth-child(n+3) { display:none; } td.n, td.l { display:block; padding-top:0; border-bottom:0; } tr { display:grid; grid-template-columns:1fr auto; border-bottom:1px solid var(--line); } td { border-bottom:0; } td.n, td.l { grid-column:1 / -1; } td.l:empty { display:none; } td.l:not(:empty) { margin:0 8px 8px; padding-left:8px; } }
 </style>
 """
 
