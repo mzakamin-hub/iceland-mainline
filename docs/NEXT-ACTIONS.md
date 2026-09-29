@@ -28,7 +28,7 @@ The PC port was asked for 1.2–1.9 A (stock SDP: 500 mA), and 12 V is above the
 | 0.1 | Rework the relay 015 battmgr candidate into queue **0053** with the offline-review fixes (list below) | `relay/requests/015/`, `offline-prep/power.md` A6–A9, B3–B5, B12 |
 | 0.2 | Build q18 = queue + 0053 and check it compiles clean | build-q18.sh |
 | 0.3 | Unattended checks on the PC's USB port (SDP), in the next kit (list below) | power.md T1/T4 |
-| 0.4 | Queue 0053 when 0.3 passes (TREE hash, prepare.sh), then PD/DCP charger tests with the user watching (T2/T3/T4) | Power area |
+| 0.4 | ✅ 0053 queued 2026-09-29 (iceland-linux d36c1be, QUEUE-VERIFIED). Next: PD/DCP charger tests with the user watching (T2/T3/T4) | Power area |
 | 0.5 | Battery guard fixes (list below), with unit tests | `packaging/iceland-device/files/iceland-battery-guard`, `tests/test_battery_guard.py` |
 
 **0.1: the fixes to the candidate:**
@@ -57,8 +57,8 @@ The PC port was asked for 1.2–1.9 A (stock SDP: 500 mA), and 12 V is above the
 
 | Item | Next action | Needs the user |
 |---|---|---|
-| Black screen after a refresh-rate change (cause not proven; see area-display.md §3) | Diagnostic run first: DPMS off/on at 144 Hz with the touch driver bound and unbound, 144 → 120 → 144 Hz with DPMS in between, one suspend/resume, each with DSI/DPU state + timestamps. The touch driver's role is unproven (boot shows display init → touch reset working). Then the fix: the mode-switch path and/or per-rate panel commands, or the touch/panel order if the bound DPMS run blanks | Watch the screen after each step; touch after each cycle |
-| 120/60 Hz black | Short term: advertise 144 Hz only (panel driver mode list), so GNOME can't pick a broken mode. Then port stock's per-rate commands (`qcom,mdss-dsi-timing-switch-command`, per-DFPS on-commands; display.md R6-3) | Watch the screen per rate |
+| Black screen after a live refresh-rate change (area-display-2: the touch driver is ruled out; area-display-3: panel DCS, error flags, backlight ICs and DPU blocks all read normal in the black state) | **Workaround done:** iceland-device 0.9 switches the display off/on once after every rate change (tested live). **Deferred (needs a look):** one rate change on q19 with `legacy_seq=0` = candidate 0054 (stock power sequence) alone → queue 0054 if the picture stays. **Root cause:** the msm single-commit modeset (DSC/PPS order, video start vs panel init); long term stock-style seamless DFPS (120 ↔ 60 ↔ 30 Hz share one pixel clock) | A 1-minute look (deferred) |
+| 120/60 Hz black | Every rate displays fine after an off/on; covered by the relight above | — |
 | Pink glitches | Not reproduced. Keep the checks ready: photo + drm state, XR24 vs XR30, `FD_MESA_DEBUG=noubwc`/`notile`, SSPP UBWC error registers. Evaluate DSC 1.2 + stock 0x91/0x92 init bytes (display.md R6-1/R6-2) against the panel | A photo if it returns |
 | Screenshot path | `gnome-screenshot` fails on GNOME 50 Wayland: use the Shell's D-Bus Screenshot through an allowed caller, or `xdg-desktop-portal` + `grim`-like capture | none |
 | Pen | libinput recheck with a charged pen (tip, hover, buttons, pressure) | Charge the pen, draw |
@@ -99,7 +99,7 @@ The PC port was asked for 1.2–1.9 A (stock SDP: 500 mA), and 12 V is above the
 |---|---|
 | s2idle stalls after audio, long-sleep reboot | Kit with the timer-sm8850 candidates (rpmh-rsc past-wakeup clamp, arch timer always-on) + ramoops (pc-026-s10-crashlog) + debug-hang config; one 5-min sleep with the watchdog on/off. PipeWire after resume |
 | Wake by lid/keyboard/charger | `wakeup-source` on the lid gpio-key and pmic-glink/UCSI; check `/sys/power/pm_wakeup_irq` |
-| 60 Hz on battery, CDSP off | Test the iceland-device units (after the refresh fix; 60 Hz is broken today, so the battery rule must wait) |
+| 60 Hz on battery, CDSP off | Test the iceland-device units on battery (the 60/120 Hz switch now relights the panel, iceland-device 0.9). Also: ~300 mA more right after a display-on commit (the crtc's `bw_ctl` reads 0k then; area-display-3 §1) |
 | Overnight drain | qcom_stats before/after, unplugged overnight; the user's OK for an unwatched night (the battery isn't charging) |
 
 ## 6. Connectivity

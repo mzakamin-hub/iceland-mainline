@@ -1,6 +1,6 @@
 # OnePlus Pad 4 mainline: feature matrix
 
-Status 29 Sep 2026 (area-display-2 done: the touch driver is ruled out, only a live refresh-rate change blanks the panel (every rate works after a display off/on); charging-safety patch 0053 passed on the PC port; Bluetooth pairing works; next: queue 0053, a minimum panel-off-time candidate for rate changes, then GPU and NPU). Everything is tested by RAM boot; nothing is installed on the tablet yet.
+Status 29 Sep 2026 (area-display-3 done (automated): charging-safety patch 0053 queued; a live refresh-rate change still blanks the panel with the current kernel, and iceland-device 0.9 relights it with one display off/on; the stock-sequence candidate 0054 waits for a look; no 5 GHz network in range (the router is 2.4 GHz only there); next: the msm modeset root cause, then GPU and NPU). Everything is tested by RAM boot; nothing is installed on the tablet yet.
 Legend: ✅ working · 🟡 in progress · ⬜ not started · ❌ not planned. Sorted by functionality.
 Totals: 32 working, 16 in progress, 20 not started, 2 not planned (70).
 
@@ -22,7 +22,7 @@ Totals: 32 working, 16 in progress, 20 not started, 2 not planned (70).
 | Feature | Status | Notes | Where to look for the fix |
 |---|---|---|---|
 | Native display 3392×2400, dual DSI + DSC | ✅ Working | Boot splash handed over to MSM DRM |  |
-| Refresh 30 / 60 / 90 / 120 / 144 Hz | 🟡 In progress | Every rate displays fine after a display off/on; only a live rate change (one modeset) blanks the panel until an off/on (area-display-2) | panel-novatek-nt36536: minimum panel-off time (the modeset keeps it off ~0.36 s; ≥ 0.69 s works) as a first candidate; stock changes rate by porch updates without a power cycle (dfps_immediate_porch_mode_both_hv_porch, 120/144/90/60/50/48/30); 144 Hz only until fixed |
+| Refresh 30 / 60 / 90 / 120 / 144 Hz | 🟡 In progress | Every rate works; a live rate change blanks the panel, and iceland-device 0.9 now switches the display off/on once after every change (tested live: one relight per change, also for the 60/120 Hz power-source switch); the panel and backlight read normal in the black state, so logs can't judge it (area-display-3) | Your 1-minute look (deferred): a rate change with the relight, and one with candidate 0054 (stock power sequence) alone; root cause in the msm single-commit modeset; long term stock-style seamless DFPS |
 | Backlight | ✅ Working | Brightness curve still being checked against stock |  |
 | GNOME pink / blocky glitches | 🟡 In progress | Not reproduced in area-display-1 (clean at 144 Hz, 0 underruns, UBWC scanout); watch for a return | If it returns: photo + drm state, XR30 vs XR24 compositor, FD_MESA_DEBUG=noubwc/notile, SSPP UBWC error registers; DSC 1.2 + stock 0x91/0x92 (offline-prep/display.md) |
 | Touchscreen | ✅ Working | Confirmed by you; keeps working through display off/on cycles and suspend (area-display-2) |  |
@@ -62,7 +62,7 @@ Totals: 32 working, 16 in progress, 20 not started, 2 not planned (70).
 | Feature | Status | Notes | Where to look for the fix |
 |---|---|---|---|
 | Wi-Fi 2.4 GHz | ✅ Working | Connected by you; GNOME showed “?” until NetworkManager re-checked (a fresh check says full internet) |  |
-| Wi-Fi 5 / 6 GHz | 🟡 In progress | Region US (your choice); bands enabled, no 5/6 GHz network tested yet | Test on a 5/6 GHz AP; iw reg get (US), ath12k board-2.bin match |
+| Wi-Fi 5 / 6 GHz | 🟡 In progress | Region US; 5 GHz (28 ch) and 6 GHz (60 ch) enabled, but no 5/6 GHz network is visible where the tablet was tested: your router shows up only on 2.4 GHz (ch 1), so the connection you made was 2.4 GHz (area-display-3 scan) | Test near a 5 GHz AP (router 5 GHz radio, or a phone hotspot on 5 GHz); iw reg get (US), ath12k board-2.bin match |
 | Bluetooth, own address | ✅ Working |  |  |
 | Bluetooth pairing in GNOME | ✅ Working | Confirmed by you (29 Sep 2026) |  |
 | USB device mode / USB network | ✅ Working |  |  |
@@ -75,7 +75,7 @@ Totals: 32 working, 16 in progress, 20 not started, 2 not planned (70).
 |---|---|---|---|
 | Battery level, voltage, current, temperature, health | ✅ Working | UPower and GNOME battery |  |
 | Battery time estimate | 🟡 In progress | Inaccurate (your report): jumpy current reading, no charge-now value; fix in the Power area | qcom_battmgr OPLUS: STATUS forced to Charging when USB is online; instantaneous 1 Hz current; gauge word 4 is not a charge; derive CHARGE_NOW = capacity × charge_full, probe TTE/TTF/POWER_AVG (offline-prep/power.md A2–A4) |
-| Charging | 🟡 In progress | Stock limits patch 0053 tested on the PC port: SDP input 500 mA (494 mA measured, was 1.2–1.9 A), knobs work; queue it next | Queue 0053; then chargers with you watching (power.md T2–T6: DCP, PD 9 V never 12 V, inhibit and FCC effects below 80 %) |
+| Charging | 🟡 In progress | Stock limits patch 0053 queued (iceland-linux d36c1be): SDP input 500 mA (494 mA measured, was 1.2–1.9 A), knobs work | Chargers with you watching (power.md T2–T6: DCP, PD 9 V never 12 V, inhibit and FCC effects below 80 %) |
 | Battery safety guard (stock limits) | 🟡 In progress | Review fixes in (iceland-device 0.8: retries, VBUS > 11 V, rise-fast, unreadable voltage); 47 simulated cases pass; tablet test pending | Tablet test with 0053's charge_behaviour / constant_charge_current_max (power.md T5) |
 | Charge limit (85 %, your request) | ⬜ Not started | battmgr OnePlus variant exposes no charge_control_* files | Add the thresholds + setter to the OPLUS battmgr props; check the SoCCP honours opcode 0x48; UPower limit in iceland-device |
 | Low-battery current limiting (BCL) | ⬜ Not started |  | Stock PMH0101/PMIH010x BCL nodes (relay 018 item 6); qcom-bcl-hwmon / spmi bcl |
@@ -117,7 +117,7 @@ Totals: 32 working, 16 in progress, 20 not started, 2 not planned (70).
 | Feature | Status | Notes | Where to look for the fix |
 |---|---|---|---|
 | Kernel package (kernel-iceland) | ✅ Working | Test-built: 948 modules, device tree, install hooks |  |
-| Device package (iceland-device 0.7) | ✅ Working | Settings, battery guard, sound, Wi-Fi region; built |  |
+| Device package (iceland-device 0.9) | ✅ Working | Settings, battery guard 0.8, sound, Wi-Fi region, 60/120 Hz by power source with the panel relight; built |  |
 | Local update repository | ✅ Working | Checksum-verified sync; tested |  |
 | Full GNOME app set | ⬜ Not started | Relay 008 | Relay 008 package list in the RAM rootfs |
 | Stock-values audit | ⬜ Not started | Relay 013 | Relay 013 table; offline-prep/*.md stock comparisons |

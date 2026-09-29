@@ -7,13 +7,20 @@
 #   BATTERY_HZ=60
 #   AC_HZ=120
 #   ENABLED=1
+#   RELIGHT=1
+#   RELIGHT_OFF_MS=1000
 # It changes the mode through mutter's DisplayConfig D-Bus API as a *temporary* configuration, so the user's own
 # monitors.xml is never rewritten; the resolution, scale and layout are kept.
+#
+# RELIGHT: with the current kernel a live refresh-rate change (one modeset) leaves the Pad 4 panel black until the
+# next display off/on (area-display-2). After every rate change of the built-in panel - ours or the user's in GNOME
+# Settings - the display is switched off and on once through mutter's PowerSaveMode, which brings the picture and
+# touch back. It runs even with ENABLED=0 and goes away once the kernel changes rates without a black screen.
 import os, sys
 from gi.repository import Gio, GLib
 
 def conf():
-    c = {"BATTERY_HZ": "60", "AC_HZ": "120", "ENABLED": "1"}
+    c = {"BATTERY_HZ": "60", "AC_HZ": "120", "ENABLED": "1", "RELIGHT": "1", "RELIGHT_OFF_MS": "1000"}
     for p in ("/etc/iceland/refresh.conf", os.path.expanduser("~/.config/iceland/refresh.conf")):
         try:
             for line in open(p):
@@ -32,6 +39,18 @@ def pick_mode(modes, cur_w, cur_h, target):
         return None
     return min(same, key=lambda m: abs(m[3] - target))[0]
 
+def builtin_rate(monitors):
+    """refresh rate of the built-in panel's current mode in GetCurrentState's monitor list, or None"""
+    for spec, modes, props in monitors:
+        if props.get("is-builtin"):
+            cur = next((m for m in modes if m[6].get("is-current")), None)
+            return round(cur[3], 1) if cur else None
+    return None
+
+def relight_needed(old, new, c):
+    """a refresh-rate change of the built-in panel with RELIGHT on"""
+    return c.get("RELIGHT", "1") == "1" and old is not None and new is not None and old != new
+
 class Refresh:
     def __init__(self):
         self.bus = Gio.bus_get_sync(Gio.BusType.SESSION)
@@ -40,8 +59,43 @@ class Refresh:
                                          "/org/gnome/Mutter/DisplayConfig", "org.gnome.Mutter.DisplayConfig", None)
         self.up = Gio.DBusProxy.new_sync(self.sysbus, 0, None, "org.freedesktop.UPower",
                                          "/org/freedesktop/UPower", "org.freedesktop.UPower", None)
+        self.rate = builtin_rate(self.dc.call_sync("GetCurrentState", None, 0, -1, None).unpack()[1])
+        self.pending = None
         self.up.connect("g-properties-changed", lambda *a: self.apply())
-        self.dc.connect("g-signal", lambda p, s, sig, a: sig == "MonitorsChanged" and self.apply())
+        self.dc.connect("g-signal", lambda p, s, sig, a: sig == "MonitorsChanged" and self.changed())
+
+    def changed(self):
+        rate = builtin_rate(self.dc.call_sync("GetCurrentState", None, 0, -1, None).unpack()[1])
+        if relight_needed(self.rate, rate, conf()):
+            # one off/on for a burst of changes (e.g. the user's change and our own correction)
+            if self.pending:
+                GLib.source_remove(self.pending)
+            self.pending = GLib.timeout_add(300, self.relight_off, self.rate, rate)
+        self.rate = rate
+        self.apply()
+
+    def power_save(self, mode):
+        self.bus.call_sync("org.gnome.Mutter.DisplayConfig", "/org/gnome/Mutter/DisplayConfig",
+                           "org.freedesktop.DBus.Properties", "Set",
+                           GLib.Variant("(ssv)", ("org.gnome.Mutter.DisplayConfig", "PowerSaveMode",
+                                                  GLib.Variant("i", mode))), None, 0, -1, None)
+
+    def relight_off(self, old, new):
+        self.pending = None
+        try:
+            self.power_save(3)
+            print("iceland-refresh: %.0f -> %.0f Hz, display off/on to relight the panel" % (old, new), flush=True)
+            GLib.timeout_add(int(conf().get("RELIGHT_OFF_MS", "1000")), self.relight_on)
+        except GLib.Error as e:
+            print("iceland-refresh: relight: " + e.message, file=sys.stderr, flush=True)
+        return False
+
+    def relight_on(self):
+        try:
+            self.power_save(0)
+        except GLib.Error as e:
+            print("iceland-refresh: relight: " + e.message, file=sys.stderr, flush=True)
+        return False
 
     def apply(self):
         c = conf()

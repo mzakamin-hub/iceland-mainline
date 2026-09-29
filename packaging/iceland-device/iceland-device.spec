@@ -4,7 +4,7 @@
 # No firmware and no binaries: configuration files and small scripts only.
 
 Name:           iceland-device
-Version:        0.8
+Version:        0.9
 Release:        1%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
@@ -62,7 +62,9 @@ Settings that make Fedora 44 work safely on the OnePlus Pad 4 with the kernel-ic
 - iceland-battery-guard enforces the stock 11.A.38 charging limits as a second layer over the charger firmware
   (temperature regions, per-region voltages and currents, USB-C connector temperature, 72/77 C power-off);
 - kernel-iceland updates come from a local dnf repository (/var/lib/iceland/repo, filled by iceland-repo-sync);
-- the panel runs 60 Hz on battery and 120 Hz on AC (iceland-refresh, /etc/iceland/refresh.conf);
+- the panel runs 60 Hz on battery and 120 Hz on AC (iceland-refresh, /etc/iceland/refresh.conf); after every
+  refresh-rate change the display is switched off and on once, which brings back the picture a live rate change
+  leaves black with the current kernel (RELIGHT);
 - the CDSP (NPU) stays off until `iceland-npu on`;
 - the Wi-Fi regulatory country comes from /etc/iceland/wifi-country (written at install: the owner's country);
 - sound: the Pad 4 AudioReach topology (TDM speakers, stream gain capped until speaker protection exists) and the
@@ -174,6 +176,10 @@ fi
 %dir /etc/iceland
 
 %changelog
+* Tue Sep 29 2026 mzak <mzak.amin@gmail.com> - 0.9-1
+- iceland-refresh: relight the panel after every refresh-rate change of the built-in panel (one display off/on
+  through mutter's PowerSaveMode, coalesced over a burst of changes; RELIGHT, RELIGHT_OFF_MS) - a live rate change
+  leaves the panel black until an off/on (area-display-2/3)
 * Tue Sep 29 2026 mzak <mzak.amin@gmail.com> - 0.8-1
 - battery guard: retry failed writes (cache only on success), re-assert charge_behaviour every step, stop on an
   unreadable battery voltage, on VBUS above 11 V (stock OV) and on a 3 C connector rise in one step (stock
