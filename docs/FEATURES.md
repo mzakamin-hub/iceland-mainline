@@ -71,7 +71,7 @@ Details: [TODO.md](TODO.md), [PLAN.md](PLAN.md), [KNOWLEDGE.md](KNOWLEDGE.md) §
 | Battery % / voltage / current / temperature / health | ✅ | battmgr over SoCCP; units fixed; design capacity from DT |
 | UPower / GNOME battery | ✅ | |
 | Charging (firmware basics, 5 V / PD) | 🟡 | works; per-charger measurements and safety checks pending |
-| Charging safety (derating, termination, dual cells) | ⬜ | P0 gate before daily charging |
+| Charging safety (derating, termination, dual cells) | 🟡 | `iceland-battery-guard` with stock limits written and tested offline; the tablet test and charge-inhibit knob are next (relay 015) |
 | Charge limit (80 %) in GNOME | ⬜ | |
 | Fast charging (SuperVOOC / PPS / UFCS) | ❌ | OnePlus kernel stack; PPS maybe later |
 | Pen charging (MT5806) | ⬜ | new driver needed (P3) |
