@@ -897,10 +897,13 @@ ABL (stock, untouched)
   although the amplifiers power up and unmute correctly while it runs. **S13: cause 2 found and fixed** - the
   stream graph's MFC output stayed 2 ch/16 bit while the TDM endpoint takes 8 ch/32 bit (exactly 8.00× the
   byte rate); the speaker device subgraph now has its own MFC ([MFC]→[LOG]→[TDM SINK]) → 1.00× real time.
-  **Still silent (cause 3, open):** the amplifiers are on and unmuted but reg 12 = 0x5001 (manager state 1 =
-  waiting, not operating); suspect `tfa9865_hw_params` rewriting reg 0x20 bits 8-11 (0x0021 → 0x0f21) so the
-  amps can't lock to the 8×32-bit frame; next: i2c-tools in the RAM rootfs, reg 0x20 back to the table value
-  during playback, loopback;
+  **Still silent (cause 3, decoded in S14 with the TFA986x field map from the Goodix/NXP tfa98xx driver):** the
+  amplifiers' PLL never locks - reg 11 CLKS = 0, PLLS = 0; reg 10 NOCLK = 1, CLKOOR = 1 ("external clock out of
+  range": the 0x7eaf → 0x7eef flip read as "clock stable" since S6); reg 12 MANSTATE = 1. The per-amplifier
+  tables program a 2-slot I2S-like frame (reg 20: TDMSLOTS 0, TDMNBCK 0, TDMFSPOL 1/0 splitting L/R groups;
+  reg 21: TDMSPKS 0) - the MI2S design they came from - while the port sends stock's 8 × 32-bit TDM frame.
+  Fix = stock's TDM field values (TDMSLOTS/TDMNBCK/TDMSPKS/TDMFSPOL) from the stock TFA container (read-only
+  pull from Android, private) decoded with the field map;
   ⚠️ **sound - root cause found (S3 analysis, fix under test in S4):** the card is up on the ADSP after the
   hand-over (kit firmware bound over the rootfs's `/lib/firmware`; the DT link on stock's `PRIMARY_TDM_RX_0`),
   the front-end graph opens, but **the speaker back-end graph is rejected at `APM_CMD_GRAPH_OPEN` because the
