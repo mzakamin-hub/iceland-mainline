@@ -5,3 +5,5 @@ out/
 capture-*/
 *.tar.gz
 private/
+__pycache__/
+*.pyc
