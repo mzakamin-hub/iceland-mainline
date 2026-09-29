@@ -875,10 +875,13 @@ ABL (stock, untouched)
   stalls`, NMI unanswered, watchdog reset) - under test (S3: stall watch after one cycle; then the big cores'
   deepest idle state after resume);
   ✅ S3: no CPU stall in 6 min after one s2idle cycle (the S2 stall stays a watch item after multiple cycles);
-  ⚠️ **S10 (q9 kernel = queue 0001-0045): the first s2idle cycle did not come back - the tablet hard-reset**
-  (`/proc/bootloader_log`: "Reset Type: Hard Reset", PonReason 0x11) while S2/S3 (q6 kernel) cycled fine → a
-  suspend regression from the audio patches 0041-0045 or from PipeWire holding the card is the suspect;
-  bisect next (q6 + same probe, then q7/q8/q9);
+  ⚠️ **S10 (q9 kernel = queue 0001-0045): the tablet hard-reset after its first s2idle cycle**
+  (`/proc/bootloader_log`: "Reset Type: Hard Reset", PonReason 0x11). The live stream shows the cycle DID
+  resume (suspend exit at 87.7 s); the log went silent ~8 s later and the reset came ~26 s after that. Same
+  class as the S2 CPU 7 idle stall (q6-era kernel, no audio patches) → most likely **one CPU not waking from
+  idle after an s2idle cycle** (2 events in ~15 cycles), not the audio queue. The idle states equal the stock
+  live DT exactly. Under test in S11: post-resume idle depth capped by the CPU latency QoS (1000 µs = C4 only,
+  5000 µs = + cluster, none = + system), per-CPU liveness checks, USB IRQ/stream/watchdog pinned to CPU 0;
   ⚠️ **sound - root cause found (S3 analysis, fix under test in S4):** the card is up on the ADSP after the
   hand-over (kit firmware bound over the rootfs's `/lib/firmware`; the DT link on stock's `PRIMARY_TDM_RX_0`),
   the front-end graph opens, but **the speaker back-end graph is rejected at `APM_CMD_GRAPH_OPEN` because the
