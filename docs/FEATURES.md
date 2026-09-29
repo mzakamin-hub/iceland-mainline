@@ -1,8 +1,8 @@
 # OnePlus Pad 4 mainline: feature matrix
 
-Status 29 Sep 2026 (area-display-1 done (GPU + Vulkan accelerated, lid works; any refresh-rate change blanks the screen until a display off/on at 144 Hz); the project is now run by the PC session alone (relay 020); each open item has a where-to-look pointer; next: the charging-safety patch, then area-display-2 (touch/panel power-on order, 144 Hz only), then GPU and NPU). Everything is tested by RAM boot; nothing is installed on the tablet yet.
+Status 29 Sep 2026 (area-display-2 done: the touch driver is ruled out, only a live refresh-rate change blanks the panel (every rate works after a display off/on); charging-safety patch 0053 passed on the PC port; Bluetooth pairing works; next: queue 0053, a minimum panel-off-time candidate for rate changes, then GPU and NPU). Everything is tested by RAM boot; nothing is installed on the tablet yet.
 Legend: ✅ working · 🟡 in progress · ⬜ not started · ❌ not planned. Sorted by functionality.
-Totals: 31 working, 16 in progress, 21 not started, 2 not planned (70).
+Totals: 32 working, 16 in progress, 20 not started, 2 not planned (70).
 
 ## Boot & platform (5/8 working)
 
@@ -22,10 +22,10 @@ Totals: 31 working, 16 in progress, 21 not started, 2 not planned (70).
 | Feature | Status | Notes | Where to look for the fix |
 |---|---|---|---|
 | Native display 3392×2400, dual DSI + DSC | ✅ Working | Boot splash handed over to MSM DRM |  |
-| Refresh 30 / 60 / 90 / 120 / 144 Hz | 🟡 In progress | 144 Hz works; any rate change (even back to 144 Hz) turns the screen black until a display off/on at 144 Hz (area-display-1) | panel-novatek-nt36536: stock per-mode rate commands (panel dtsi / LineageOS panel driver); until then offer only 144 Hz in iceland-device |
+| Refresh 30 / 60 / 90 / 120 / 144 Hz | 🟡 In progress | Every rate displays fine after a display off/on; only a live rate change (one modeset) blanks the panel until an off/on (area-display-2) | panel-novatek-nt36536: minimum panel-off time (the modeset keeps it off ~0.36 s; ≥ 0.69 s works) as a first candidate; stock changes rate by porch updates without a power cycle (dfps_immediate_porch_mode_both_hv_porch, 120/144/90/60/50/48/30); 144 Hz only until fixed |
 | Backlight | ✅ Working | Brightness curve still being checked against stock |  |
 | GNOME pink / blocky glitches | 🟡 In progress | Not reproduced in area-display-1 (clean at 144 Hz, 0 underruns, UBWC scanout); watch for a return | If it returns: photo + drm state, XR30 vs XR24 compositor, FD_MESA_DEBUG=noubwc/notile, SSPP UBWC error registers; DSC 1.2 + stock 0x91/0x92 (offline-prep/display.md) |
-| Touchscreen | ✅ Working | Confirmed by you; 20 700 events in area-display-1. Stopped after a driver rebind + display off/on (while the screen was already broken) | area-display-2: DPMS off/on with the touch driver bound, from a good screen; nt36536 resume does a bootloader reset + firmware download after each panel power-on |
+| Touchscreen | ✅ Working | Confirmed by you; keeps working through display off/on cycles and suspend (area-display-2) |  |
 | Pen | 🟡 In progress | 0 events in area-display-1 (pen maybe not charged); recheck | Driver 0036 (tablet caps); libinput debug-events with a charged pen; palm rejection |
 | Lid switch | ✅ Working | SW_LID events on GPIO 98 (area-display-1) |  |
 | Power and volume keys | ✅ Working | Power key also wakes from sleep |  |
@@ -57,14 +57,14 @@ Totals: 31 working, 16 in progress, 21 not started, 2 not planned (70).
 | Speaker protection (NXP container) | ⬜ Not started | Closed firmware; volume stays capped | tfa98xx.cnt from odm; TFA DSP protocol (closed); volume stays capped |
 | Headset over USB-C | ⬜ Not started | No 3.5 mm jack | WCD939x USBSS mux + UCSI/typec altmode audio accessory |
 
-## Connectivity (3/7 working)
+## Connectivity (4/7 working)
 
 | Feature | Status | Notes | Where to look for the fix |
 |---|---|---|---|
-| Wi-Fi 2.4 GHz | ✅ Working | NetworkManager, scan, connect |  |
+| Wi-Fi 2.4 GHz | ✅ Working | Connected by you; GNOME showed “?” until NetworkManager re-checked (a fresh check says full internet) |  |
 | Wi-Fi 5 / 6 GHz | 🟡 In progress | Region US (your choice); bands enabled, no 5/6 GHz network tested yet | Test on a 5/6 GHz AP; iw reg get (US), ath12k board-2.bin match |
 | Bluetooth, own address | ✅ Working |  |  |
-| Bluetooth pairing in GNOME | ⬜ Not started |  | bluetoothctl + GNOME Settings; hci_qca firmware gngbt |
+| Bluetooth pairing in GNOME | ✅ Working | Confirmed by you (29 Sep 2026) |  |
 | USB device mode / USB network | ✅ Working |  |  |
 | USB host / OTG, PD hub | ⬜ Not started |  | dwc3 role switch via pmic-glink UCSI; typec sysfs; dwc3 power_lost after resume |
 | DisplayPort over USB-C | ⬜ Not started |  | qmp-combo PHY + DP controller from the infiniti series; DT enable + altmode |
@@ -75,7 +75,7 @@ Totals: 31 working, 16 in progress, 21 not started, 2 not planned (70).
 |---|---|---|---|
 | Battery level, voltage, current, temperature, health | ✅ Working | UPower and GNOME battery |  |
 | Battery time estimate | 🟡 In progress | Inaccurate (your report): jumpy current reading, no charge-now value; fix in the Power area | qcom_battmgr OPLUS: STATUS forced to Charging when USB is online; instantaneous 1 Hz current; gauge word 4 is not a charge; derive CHARGE_NOW = capacity × charge_full, probe TTE/TTF/POWER_AVG (offline-prep/power.md A2–A4) |
-| Charging | 🟡 In progress | Works; stock charger limits patch 0053 ready (review fixes in, builds clean); tablet test next | Queue still has the OnePlus 15 policy (3 A input, 12 V PDO): 1.2–1.9 A seen on SDP vs stock 500 mA. Test 0053 on the PC port (power.md T1/T4), then queue it; chargers with you watching (T2–T6) |
+| Charging | 🟡 In progress | Stock limits patch 0053 tested on the PC port: SDP input 500 mA (494 mA measured, was 1.2–1.9 A), knobs work; queue it next | Queue 0053; then chargers with you watching (power.md T2–T6: DCP, PD 9 V never 12 V, inhibit and FCC effects below 80 %) |
 | Battery safety guard (stock limits) | 🟡 In progress | Review fixes in (iceland-device 0.8: retries, VBUS > 11 V, rise-fast, unreadable voltage); 47 simulated cases pass; tablet test pending | Tablet test with 0053's charge_behaviour / constant_charge_current_max (power.md T5) |
 | Charge limit (85 %, your request) | ⬜ Not started | battmgr OnePlus variant exposes no charge_control_* files | Add the thresholds + setter to the OPLUS battmgr props; check the SoCCP honours opcode 0x48; UPower limit in iceland-device |
 | Low-battery current limiting (BCL) | ⬜ Not started |  | Stock PMH0101/PMIH010x BCL nodes (relay 018 item 6); qcom-bcl-hwmon / spmi bcl |
