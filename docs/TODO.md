@@ -81,7 +81,9 @@ Difficulty scale:
 - [ ] [P2] M+PC: resume of every device (panel + KTZ8869, touch firmware re-download, USB, Wi-Fi, BT, GPU); 20/20 cycles
 - [ ] [P2] PC: 8 h overnight drain ≤ ~1 %/h (a long debugging tail)
 - [x] [P2] M+PC: speakers play (TDM, 0038 + 0041–0045) and mics capture, at the ALSA level
-- [ ] [P1] PC+M: UCM for GNOME with stock volume caps and gains (relay 015 item 3), then package in iceland-device; headset later
+- [x] [P1] PC: UCM for GNOME (pc-026 S9: PipeWire speakers + mics)
+- [ ] [P1] PC: test the speaker gain cap (kernel patch + capped topology + UCM; answer pc-026-s8-s9), then the stock cap value
+- [ ] [P1] M: package UCM + Pad 4 topology in iceland-device once the cap is tested
 - [ ] [P2] M+PC: OTG enable (the OnePlus glink message), host mode, host + charging via a PD hub, reverse charging
 - [ ] [P2] M+PC: DisplayPort alt mode (pmic-glink altmode + QMP combo + DP)
 - [ ] [P2] PC: map `super` (LP metadata) for the extractor; refresh firmware from the current slot at boot
