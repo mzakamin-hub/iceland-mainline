@@ -4,12 +4,14 @@
 # No firmware and no binaries: configuration files and small scripts only.
 
 Name:           iceland-device
-Version:        0.5
+Version:        0.6
 Release:        1%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
-License:        GPL-2.0-or-later
+License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
 BuildArch:      noarch
+BuildRequires:  m4
+BuildRequires:  alsa-utils
 Source0:        80-iceland-kernel.conf
 Source1:        sleep-iceland.conf
 Source2:        journald-iceland.conf
@@ -30,6 +32,9 @@ Source16:       iceland-npu
 Source17:       iceland-npu-off.service
 Source18:       iceland-wifi-country
 Source19:       iceland-wifi-country.service
+# upstream linux-msm/audioreach-topology at 993a17d (BSD-3-Clause) + our Pad 4 overlay (audio/ in iceland-mainline)
+Source20:       audioreach-topology-993a17d.tar.gz
+Source21:       iceland-audio.tar.gz
 
 Requires:       kernel-iceland
 Requires:       bluez
@@ -59,10 +64,21 @@ Settings that make Fedora 44 work safely on the OnePlus Pad 4 with the kernel-ic
 - kernel-iceland updates come from a local dnf repository (/var/lib/iceland/repo, filled by iceland-repo-sync);
 - the panel runs 60 Hz on battery and 120 Hz on AC (iceland-refresh, /etc/iceland/refresh.conf);
 - the CDSP (NPU) stays off until `iceland-npu on`;
-- the Wi-Fi regulatory country comes from /etc/iceland/wifi-country (written at install: the owner's country).
+- the Wi-Fi regulatory country comes from /etc/iceland/wifi-country (written at install: the owner's country);
+- sound: the Pad 4 AudioReach topology (TDM speakers, stream gain capped until speaker protection exists) and the
+  ALSA UCM profile (speakers + internal microphones for PipeWire/GNOME).
 
 %prep
+%setup -q -c -T
+tar -xzf %{SOURCE20}
+tar -xzf %{SOURCE21}
+
 %build
+# the Pad 4 AudioReach topology: upstream m4 + our overlay (TDM speakers, capped stream gain)
+cp -a audio/topology/. audioreach-topology/
+(cd audioreach-topology && m4 -I . OnePlus-Pad4.m4 > OnePlus-Pad4.conf && alsatplg -c OnePlus-Pad4.conf -o OnePlus-Pad4-tplg.bin)
+grep -q 'max "2056"' audioreach-topology/OnePlus-Pad4.conf
+
 
 %install
 install -Dm0644 %{SOURCE0} %{buildroot}/usr/share/dnf5/libdnf.conf.d/80-iceland-kernel.conf
@@ -85,6 +101,11 @@ install -Dm0755 %{SOURCE16} %{buildroot}/usr/bin/iceland-npu
 install -Dm0644 %{SOURCE17} %{buildroot}/usr/lib/systemd/system/iceland-npu-off.service
 install -Dm0755 %{SOURCE18} %{buildroot}/usr/libexec/iceland/iceland-wifi-country
 install -Dm0644 %{SOURCE19} %{buildroot}/usr/lib/systemd/system/iceland-wifi-country.service
+install -Dm0644 audioreach-topology/OnePlus-Pad4-tplg.bin %{buildroot}/usr/lib/firmware/qcom/kaanapali/OnePlus-Pad4-tplg.bin
+install -Dm0644 audio/ucm/OnePlus-Pad4/OnePlus-Pad4.conf %{buildroot}/usr/share/alsa/ucm2/Qualcomm/kaanapali/OnePlus-Pad4/OnePlus-Pad4.conf
+install -Dm0644 audio/ucm/OnePlus-Pad4/HiFi.conf %{buildroot}/usr/share/alsa/ucm2/Qualcomm/kaanapali/OnePlus-Pad4/HiFi.conf
+install -d %{buildroot}/usr/share/alsa/ucm2/conf.d/kaanapali
+ln -s ../../Qualcomm/kaanapali/OnePlus-Pad4/OnePlus-Pad4.conf %{buildroot}/usr/share/alsa/ucm2/conf.d/kaanapali/oneplus-OnePlusPad4.conf
 install -d %{buildroot}/var/lib/iceland/repo/aarch64
 install -d %{buildroot}/etc/iceland
 
@@ -136,12 +157,19 @@ fi
 /usr/lib/systemd/system/iceland-npu-off.service
 /usr/libexec/iceland/iceland-wifi-country
 /usr/lib/systemd/system/iceland-wifi-country.service
+/usr/lib/firmware/qcom/kaanapali/OnePlus-Pad4-tplg.bin
+%dir /usr/share/alsa/ucm2/Qualcomm/kaanapali/OnePlus-Pad4
+/usr/share/alsa/ucm2/Qualcomm/kaanapali/OnePlus-Pad4/OnePlus-Pad4.conf
+/usr/share/alsa/ucm2/Qualcomm/kaanapali/OnePlus-Pad4/HiFi.conf
+/usr/share/alsa/ucm2/conf.d/kaanapali/oneplus-OnePlusPad4.conf
 %dir /var/lib/iceland
 %dir /var/lib/iceland/repo
 %dir /var/lib/iceland/repo/aarch64
 %dir /etc/iceland
 
 %changelog
+* Tue Sep 29 2026 mzak <mzak.amin@gmail.com> - 0.6-1
+- ship the Pad 4 topology (built from m4, speaker gain capped) and the UCM profile
 * Tue Sep 29 2026 mzak <mzak.amin@gmail.com> - 0.5-1
 - Wi-Fi regulatory country from /etc/iceland/wifi-country; requires iw and alsa-utils (UCM FixedBootSequence)
 * Tue Sep 29 2026 mzak <mzak.amin@gmail.com> - 0.4-1
