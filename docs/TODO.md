@@ -11,6 +11,7 @@ Difficulty scale:
 - **4 Very hard:** reverse engineering or closed parts; weeks, may not be fully solvable.
 
 ## 1 — Easy
+- [x] [P0] M: relay 012 A: standing policy, so the PC runs the build → kit → judge → iterate → queue loop by itself (no tablet writes)
 - [ ] [P0] U: decide single boot (4e) or dual boot (4-DB)
 - [ ] [P0] U: if dual boot, choose the Android / Fedora (/ shared) partition sizes
 - [ ] [P0] U: accept that Android's data is wiped once (both slots share userdata)
@@ -60,6 +61,9 @@ Difficulty scale:
 - [ ] [P3] Other distros (Phase 7): the same kernel, a per-distro wrapper
 
 ## 3 — Hard
+- [ ] [P2] PC: **GPU acceleration validation** (relay 012 B): GNOME on the a840, dEQP GLES subsets, glmark2/WebGL, 30 min stress, devfreq, turnip when available
+- [ ] [P2] PC: **NPU**: CDSP boot + `/dev/fastrpc-cdsp` + a `quic/fastrpc` offload; optional QNN HTP model run (relay 012 C); on-demand start/stop without blocking s2idle
+- [ ] [P2] M: `iceland-device`: udev permissions for `/dev/fastrpc-*` once relay 012 C works
 - [ ] [P0] M+PC: BCL / low-battery protection. There may be no mainline driver for the PMH0101/PMIH010x BCL, so a
       userspace guard is the fallback; test at low battery with no brown-out
 - [ ] [P0] PC+U: charging safety without the OnePlus stack: derating, termination, dual-cell safety. It depends on

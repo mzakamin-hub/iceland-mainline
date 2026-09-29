@@ -442,6 +442,18 @@ Compare each against stock/LineageOS doing the same scenario (read-only measurem
 - host mode, a PD hub and DP alt mode each work or are documented as blocked;
 - screen-on power is within ~20 % of stock in the measured scenarios.
 
+### Phase 5-GN — GPU acceleration and NPU (the user asked for it; relay 012)
+- **GPU (Adreno 840, freedreno gen8):** a GNOME session on the GPU renderer; dEQP GLES2/3/31 subsets for correctness
+  (linked to the pink-glitch bug, relay 011); glmark2, WebGL and Firefox WebRender for speed; a 30 min stress test
+  with no faults and working devfreq; turnip/Vulkan when Mesa supports the a840; optional rusticl OpenCL. Exit: all
+  pass, no GPU faults, skin within 5-PM limits.
+- **NPU (Hexagon NSP on the CDSP):** boot the CDSP with the stock firmware (already in the DT), prove the FastRPC
+  device and an offload with `quic/fastrpc`, then optionally a QNN HTP model run (proprietary SDK, the user's download,
+  never uploaded). The CDSP is off unless used and doesn't block s2idle. Exit: a FastRPC offload works; the NPU starts
+  and stops on demand.
+- **The PC automates the fix loop** (relay 012 A): build → RAM kit → judge from logs → iterate → queue verified patches,
+  with no tablet writes. People are only asked for what needs a person.
+
 ### Phase 6 — Upstreaming (runs alongside)
 Pad 4 DTS, KTZ8869, the NT36536 panel desc (already in the upstream driver), touch driver cleanup, TFA9865, the
 generic fixes found here, and the U-Boot board:
