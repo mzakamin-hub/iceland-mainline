@@ -70,7 +70,7 @@ Details: [TODO.md](TODO.md), [PLAN.md](PLAN.md), [KNOWLEDGE.md](KNOWLEDGE.md) §
 |---|---|---|
 | Battery % / voltage / current / temperature / health | ✅ | battmgr over SoCCP; units fixed; design capacity from DT |
 | UPower / GNOME battery | ✅ | |
-| Charging (firmware basics, 5 V / PD) | 🟡 | works; per-charger measurements and safety checks pending |
+| Charging (firmware basics, 5 V / PD) | 🟡 | works; **the inherited code used OnePlus 15 limits (12 V / 3 A / 4 A)**: fix with the Pad 4 stock 9 V / 2 A / 3.3 A in relay 015 |
 | Charging safety (derating, termination, dual cells) | 🟡 | `iceland-battery-guard` with stock limits written and tested offline; the tablet test and charge-inhibit knob are next (relay 015) |
 | Charge limit (80 %) in GNOME | ⬜ | |
 | Fast charging (SuperVOOC / PPS / UFCS) | ❌ | OnePlus kernel stack; PPS maybe later |
@@ -98,7 +98,7 @@ Details: [TODO.md](TODO.md), [PLAN.md](PLAN.md), [KNOWLEDGE.md](KNOWLEDGE.md) §
 ## Software and packaging
 | Feature | Status | Notes |
 |---|---|---|
-| `kernel-iceland` rpm + DTB kernel-install hook | 🟡 | spec + plugin done; full rpm test build pending |
+| `kernel-iceland` rpm + DTB kernel-install hook | ✅ | test-built (aarch64, 948 modules, DTB, kernel-install hooks + source rpm); install test on Fedora pending |
 | `iceland-device` rpm (settings) | ✅ | built with rpmbuild; grows as the hardware lands |
 | Full GNOME app set (Files, Software + Flathub, …) | ⬜ | RAM rehearsal is relay 008 |
 | Fedora upgrades / kernel updates via dnf | 🟡 | policy in iceland-device; offline-update test pending |

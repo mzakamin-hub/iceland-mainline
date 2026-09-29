@@ -68,7 +68,9 @@ Difficulty scale:
 - [ ] [P0] M+PC: BCL / low-battery protection. There may be no mainline driver for the PMH0101/PMIH010x BCL, so a
       userspace guard is the fallback; test at low battery with no brown-out
 - [x] [P0] M: `iceland-battery-guard` (stock limits, iceland-device 0.2)
-- [ ] [P0] PC: find the charge-inhibit knob and test the guard on the tablet (relay 015 item 2)
+- [x] [P0] M: charge-inhibit knob: `charge_behaviour` via OPLUS_CHG_EN + stock Pad 4 charger limits (candidate patch, relay 015)
+- [x] [P0] M: usb-therm zone (stock USB-C thermistor, 65 °C) candidate patch (relay 015)
+- [ ] [P0] PC: test and queue the relay 015 patches, then test the guard on the tablet
 - [ ] [P0] PC+U: charging safety without the OnePlus stack: derating, termination, dual-cell safety. It depends on
       what the SoCCP firmware does alone; until proven, charge attended only with an 80 % limit
 - [ ] [P1] U (4-DB only): repartition LUN 0 (shrink `userdata`, add `fedora`) with the guarded partitioner, then
