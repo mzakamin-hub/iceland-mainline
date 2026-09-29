@@ -894,8 +894,13 @@ ABL (stock, untouched)
   MultiMedia1 into RX_CODEC_DMA_RX_0 too (graph 113 AR_ENOTEXIST → every MM1 prepare failed → "Dummy Output");
   route off → WirePlumber shows the speakers + mics; UCM FixedBootSequence now forces it off; clean state handed
   back. Cause 2 (open): the ADSP consumes the stream ~3-10× faster than real time (a 10-s play ends in ~1 s)
-  although the amplifiers power up and unmute correctly while it runs → the TDM endpoint isn't clocking samples
-  out; next: APM/PRM packet dumps vs stock TDM settings;
+  although the amplifiers power up and unmute correctly while it runs. **S13: cause 2 found and fixed** - the
+  stream graph's MFC output stayed 2 ch/16 bit while the TDM endpoint takes 8 ch/32 bit (exactly 8.00× the
+  byte rate); the speaker device subgraph now has its own MFC ([MFC]→[LOG]→[TDM SINK]) → 1.00× real time.
+  **Still silent (cause 3, open):** the amplifiers are on and unmuted but reg 12 = 0x5001 (manager state 1 =
+  waiting, not operating); suspect `tfa9865_hw_params` rewriting reg 0x20 bits 8-11 (0x0021 → 0x0f21) so the
+  amps can't lock to the 8×32-bit frame; next: i2c-tools in the RAM rootfs, reg 0x20 back to the table value
+  during playback, loopback;
   ⚠️ **sound - root cause found (S3 analysis, fix under test in S4):** the card is up on the ADSP after the
   hand-over (kit firmware bound over the rootfs's `/lib/firmware`; the DT link on stock's `PRIMARY_TDM_RX_0`),
   the front-end graph opens, but **the speaker back-end graph is rejected at `APM_CMD_GRAPH_OPEN` because the

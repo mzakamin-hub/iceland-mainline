@@ -1,15 +1,21 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Device back-end subgraph on a classic TDM sink: [LOG] -> [TDM SINK]
+# Device back-end subgraph on a classic TDM sink: [MFC] -> [LOG] -> [TDM SINK]
+# The MFC converts the stream (e.g. 2 ch / 16 bit) to the endpoint format the ADSP needs on the Pad 4 speaker
+# port (8 slots x 32 bit, 48 kHz): the kernel configures every back-end module with the back end's hw_params, so
+# the MFC output = the TDM sink's format. Without it the sink consumed the 2-ch/16-bit stream as 8-ch/32-bit
+# frames - 8x faster than real time, and nothing audible (pc-026 S13).
 # Used with DEVICE_SG_ADD(); the TDM_* macros must be defined by the caller before the include.
 include(`audioreach/audioreach.m4') dnl
 include(`util/pcm.m4') dnl
 include(`audioreach/subgraph.m4') dnl
 include(`audioreach/container.m4') dnl
 include(`audioreach/module_log.m4') dnl
+include(`audioreach/module_mfc.m4') dnl
 include(`audioreach/module_tdm.m4') dnl
 include(`util/mixer.m4') dnl
 dnl
 undefine(`LOG_MODULE_IID') dnl
+undefine(`MFC_MODULE_IID') dnl
 undefine(`TDM_MODULE_IID') dnl
 undefine(`SG_INDEX') dnl
 undefine(`CONTAINER_INDEX') dnl
@@ -33,6 +39,7 @@ define(`CONT_STACK_SIZE', 8192) dnl'
 dnl
 define(`LOG_MODULE_IID', MOD_IID_START) dnl
 define(`TDM_MODULE_IID', eval(MOD_IID_START + 1)) dnl
+define(`MFC_MODULE_IID', eval(MOD_IID_START + 2)) dnl
 define(`SG_INDEX', 1) dnl
 define(`CONTAINER_INDEX', 1) dnl
 define(`MOD_INDEX', 1) dnl
@@ -43,7 +50,8 @@ define(`DEVICE_PLAYBACK_ROUTE',
 `SectionGraph."NAME_PREFIX.$1 $3 Graph" {'
 `        index STR($1)'
 `        lines ['
-`                "NAME_PREFIX.logger$1, , $3 Audio Mixer"'
+`                "NAME_PREFIX.mfc$1, , $3 Audio Mixer"'
+`                "NAME_PREFIX.logger$1, , NAME_PREFIX.mfc$1"'
 `                "NAME_PREFIX.tdm_rx$1, , NAME_PREFIX.logger$1"'
 `                "$2 TDM0 Playback, , NAME_PREFIX.tdm_rx$1"'
 `        ]'
@@ -53,6 +61,7 @@ define(`DEVICE_PLAYBACK_ROUTE',
 AR_SUBGRAPH(SG_INDEX, DEVICE_DAI_ID, SG_IID_START, DEVICE_PERF_MODE, DEVICE_DIRECTION, CONT_SENARIO_ID)
 AR_CONTAINER(CONTAINER_INDEX, CONT_IID_START, CONT_CAP, CONT_STACK_SIZE, CONT_POSITION, DEVICE_DOMAIN_ID)
 
+AR_MODULE_MFC(MOD_INDEX, SG_INDEX, CONTAINER_INDEX, 	MFC_MODULE_IID, 1, 1, 1, 2, LOG_MODULE_IID)
 AR_MODULE_LOG(MOD_INDEX, SG_INDEX, CONTAINER_INDEX, 	LOG_MODULE_IID, 1, 1, 1, 2, 0x000019ab, 1, 0, TDM_MODULE_IID )
 AR_MODULE_TDM_RX(MOD_INDEX, SG_INDEX, CONTAINER_INDEX, 	TDM_MODULE_IID, 1, 0, 1, 0, DEVICE_INTF_TYPE, DEVICE_INTF_INDEX, DEVICE_DATA_FORMAT, `DEVICE_NAME', NONE_IID, TDM_SYNC_SRC, TDM_CTRL_DATA_OE, TDM_SLOT_MASK, TDM_NSLOTS, TDM_SLOT_WIDTH, TDM_SYNC_MODE, TDM_INVERT_SYNC, TDM_DATA_DELAY)
 DEVICE_PLAYBACK_ROUTE(MOD_INDEX, `DEVICE_NAME', `MIXER_PREFIX')
