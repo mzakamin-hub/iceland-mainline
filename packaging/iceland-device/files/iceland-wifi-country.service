@@ -1,0 +1,13 @@
+[Unit]
+Description=OnePlus Pad 4: set the Wi-Fi regulatory country
+Before=NetworkManager.service
+After=systemd-modules-load.service
+ConditionPathExists=/etc/iceland/wifi-country
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/iceland/iceland-wifi-country
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

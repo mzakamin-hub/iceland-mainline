@@ -99,6 +99,10 @@ Contents:
     - Every such value in a patch or config names its source (file/node/property) in a comment or the commit message.
     - Mainline and the PC both follow this; the PC's automated loop (relay 012) too.
 
+14. **The owner's country is Egypt (EG)** (user, 2026-09-29): the Wi-Fi regulatory domain is `EG`, written to
+    `/etc/iceland/wifi-country` by the installer and the kits, and applied by iceland-device's
+    `iceland-wifi-country.service`. The stock `persist.sys.timezone` (America/New_York) isn't the owner's location.
+
 ## 3. Repositories and layout
 
 All repos belong to GitHub user **mzakamin-hub** and are private. The cloud session's working copies are under `/home/user`.

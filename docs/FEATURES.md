@@ -47,7 +47,7 @@ Details: [TODO.md](TODO.md), [PLAN.md](PLAN.md), [KNOWLEDGE.md](KNOWLEDGE.md) §
 | Feature | Status | Notes |
 |---|---|---|
 | Wi-Fi (WCN7860, ath12k) | ✅ | NetworkManager, scan; `qdss.cfg` needed |
-| Wi-Fi 5/6 GHz, regulatory domain | 🟡 | PHY has 2.4/5/6 GHz; ath12k fails to set the country; stock boots with `00`, test `iw reg set` with the user's country |
+| Wi-Fi 5/6 GHz, regulatory domain | 🟡 | PHY has 2.4/5/6 GHz; ath12k fails to set the country; stock boots with `00`, country = **EG** (user); `iceland-wifi-country` in iceland-device 0.5; test pending |
 | Bluetooth (hci_qca) | ✅ | the tablet's own address applied |
 | Bluetooth pairing under GNOME | ⬜ | |
 | USB device mode / USB network | ✅ | |

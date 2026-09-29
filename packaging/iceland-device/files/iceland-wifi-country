@@ -1,0 +1,12 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Set the Wi-Fi regulatory country from /etc/iceland/wifi-country (ISO 3166 alpha-2, written at install time;
+# the owner's country, e.g. EG). Stock boots with country 00 (world) and sets the real one at runtime; mainline
+# ath12k needs it from userspace for the 5/6 GHz and DFS channels the country allows.
+set -eu
+f=/etc/iceland/wifi-country
+[ -r "$f" ] || exit 0
+cc=$(tr -d ' \n' < "$f" | tr a-z A-Z)
+echo "$cc" | grep -Eq '^[A-Z]{2}$' || { echo "iceland-wifi-country: bad country '$cc' in $f" >&2; exit 1; }
+iw reg set "$cc"
+echo "iceland-wifi-country: regulatory domain $cc"
