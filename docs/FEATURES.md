@@ -2,7 +2,7 @@
 
 Status 29 Sep 2026 (area-display-3 done (automated): charging-safety patch 0053 queued; a live refresh-rate change still blanks the panel with the current kernel, and iceland-device 0.9 relights it with one display off/on; the stock-sequence candidate 0054 waits for a look; no 5 GHz network in range (the router is 2.4 GHz only there); next: the msm modeset root cause, then GPU and NPU). Everything is tested by RAM boot; nothing is installed on the tablet yet.
 Legend: ✅ working · 🟡 in progress · ⬜ not started · ❌ not planned. Sorted by functionality.
-Totals: 32 working, 16 in progress, 20 not started, 2 not planned (70).
+Totals: 34 working, 14 in progress, 20 not started, 2 not planned (70).
 
 ## Boot & platform (5/8 working)
 
@@ -17,16 +17,16 @@ Totals: 32 working, 16 in progress, 20 not started, 2 not planned (70).
 | Fedora installed on the tablet | ⬜ Not started | Final step; needs your decisions and OK | Waits for your install decision (relay 019: Boot & platform last) |
 | Dual boot with Android | ⬜ Not started | Planned; recovery re-flash helper ready | iceland-u-boot patch 0003 (fedora_blkmap); tools/dualboot/reflash-recovery.ps1 |
 
-## Display & input (5/10 working)
+## Display & input (7/10 working)
 
 | Feature | Status | Notes | Where to look for the fix |
 |---|---|---|---|
 | Native display 3392×2400, dual DSI + DSC | ✅ Working | Boot splash handed over to MSM DRM |  |
 | Refresh 30 / 60 / 90 / 120 / 144 Hz | 🟡 In progress | Every rate works; a live rate change blanks the panel, and iceland-device 0.9 now switches the display off/on once after every change (tested live: one relight per change, also for the 60/120 Hz power-source switch); the panel and backlight read normal in the black state, so logs can't judge it (area-display-3) | Your 1-minute look (deferred): a rate change with the relight, and one with candidate 0054 (stock power sequence) alone; root cause in the msm single-commit modeset; long term stock-style seamless DFPS |
 | Backlight | ✅ Working | Brightness curve still being checked against stock |  |
-| GNOME pink / blocky glitches | 🟡 In progress | Not reproduced in area-display-1 (clean at 144 Hz, 0 underruns, UBWC scanout); watch for a return | If it returns: photo + drm state, XR30 vs XR24 compositor, FD_MESA_DEBUG=noubwc/notile, SSPP UBWC error registers; DSC 1.2 + stock 0x91/0x92 (offline-prep/display.md) |
+| GNOME pink / blocky glitches | ✅ Working | Working per your call: no glitches since area-display-1 (clean at 144 Hz, 0 underruns, UBWC scanout); not tested enough yet | Longer sessions at every rate; if they return: photo + drm state, XR30 vs XR24, FD_MESA_DEBUG=noubwc/notile, SSPP UBWC error registers |
 | Touchscreen | ✅ Working | Confirmed by you; keeps working through display off/on cycles and suspend (area-display-2) |  |
-| Pen | 🟡 In progress | 0 events in area-display-1 (pen maybe not charged); recheck | Driver 0036 (tablet caps); libinput debug-events with a charged pen; palm rejection |
+| Pen | ✅ Working | Working per your call; not tested enough yet (area-display-1 logged 0 pen events, pen maybe not charged) | Charged pen: tip, hover, buttons, pressure in libinput debug-events; palm rejection |
 | Lid switch | ✅ Working | SW_LID events on GPIO 98 (area-display-1) |  |
 | Power and volume keys | ✅ Working | Power key also wakes from sleep |  |
 | Pogo keyboard | ⬜ Not started | Private UART protocol | Private UART protocol: stock oplus pogo driver in OnePlusOSS; serdev + HID bridge |
