@@ -11,7 +11,7 @@ Difficulty scale:
 - **4 Very hard:** reverse engineering or closed parts; weeks, may not be fully solvable.
 
 ## Campaign (relay 019, the user 2026-09-29): one run per area, in this order
-Audio → Power & charging → Thermal → Sleep & power saving → Display & input → Connectivity → Graphics & compute → Sensors & camera → Software & packaging. **Boot & platform only after the user confirms the final installation.**
+Audio → Display & input (pink glitches, screen) → Graphics & compute (GPU, NPU) → Power & charging → Thermal → Sleep & power saving → Connectivity → Sensors & camera → Software & packaging (reordered by the user 2026-09-29). **Boot & platform only after the user confirms the final installation.**
 
 ## 1 — Easy
 - [ ] [P0] PC: relay 013: audit every hardware value (sound, brightness, clocks, GPU, speaker/mic tuning, power, thermals) against Pad 4 stock (OxygenOS 11.A.38 / the user's LineageOS trees); replace placeholders
