@@ -1,0 +1,13 @@
+[Unit]
+Description=Set the OnePlus Pad 4's own Bluetooth address
+After=bluetooth.service
+Requires=bluetooth.service
+ConditionPathExists=/etc/iceland/bdaddr
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/iceland/iceland-bdaddr
+RemainAfterExit=yes
+
+[Install]
+WantedBy=bluetooth.target

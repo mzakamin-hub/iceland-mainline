@@ -1,0 +1,8 @@
+// iceland-device: no Fedora version upgrade (e.g. 44 -> 45) until it has been tested with kernel-iceland.
+// Normal package updates are not affected. Remove this file (or the package) to allow upgrades.
+polkit.addRule(function(action, subject) {
+    if (action.id == "org.freedesktop.packagekit.upgrade-system" ||
+        action.id == "org.freedesktop.packagekit.trigger-offline-upgrade") {
+        return polkit.Result.NO;
+    }
+});

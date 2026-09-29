@@ -1,0 +1,13 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Kernel options kernel-iceland still needs (the ABL/U-Boot boot state is kept until every driver takes over):
+# added to every boot entry and to /etc/kernel/cmdline for future kernels. Idempotent.
+ARGS="clk_ignore_unused pd_ignore_unused regulator_ignore_unused"
+if command -v grubby >/dev/null 2>&1; then grubby --update-kernel=ALL --args="$ARGS" >/dev/null 2>&1 || :; fi
+f=/etc/kernel/cmdline
+[ -f "$f" ] || exit 0
+line=$(cat "$f")
+for a in $ARGS; do
+	case " $line " in *" $a "*) ;; *) line="$line $a" ;; esac
+done
+printf '%s\n' "$line" > "$f"
