@@ -60,7 +60,7 @@ Details: [TODO.md](TODO.md), [PLAN.md](PLAN.md), [KNOWLEDGE.md](KNOWLEDGE.md) §
 | ADSP + AudioReach sound card | ✅ | |
 | **Speakers** (6× TFA9865 on primary TDM) | ✅ | play at the ALSA level (0038, 0041–0045) |
 | **Microphones** (2 analog mics, WCD9395) | ✅ | capture works; mixer settings, no kernel change |
-| UCM profile for PipeWire/GNOME | ✅ | pc-026 S9: "Built-in Audio Speakers" + "Internal microphones" in PipeWire |
+| UCM profile for PipeWire/GNOME | 🟡 | worked inside the S9 probe only; **the user still sees Dummy Output and no mic on a normal boot** (profile not in the rootfs, routes not set before WirePlumber, no alsa-utils): answer user-report-dummy-output |
 | Speaker volume caps + stock channel layout | 🟡 | cap in kernel + topology + UCM (−12 dB placeholder, answer pc-026-s8-s9); stock value and channel layout pending |
 | Speaker protection (TFA9865 `tfa98xx.cnt`) | ⬜ | very hard (closed); volume capped until then |
 | Headset (USB-C analog) | ⬜ | no 3.5 mm jack; WCD paths noted |
