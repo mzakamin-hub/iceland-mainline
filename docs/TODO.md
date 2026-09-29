@@ -1,6 +1,6 @@
 # OnePlus Pad 4 → Fedora 44 GNOME: TODO (sorted by difficulty)
 
-Updated 2026-09-28. Details: [PLAN.md](PLAN.md) (v4) and [KNOWLEDGE.md](KNOWLEDGE.md) §13.
+Updated 2026-09-29. Details: [PLAN.md](PLAN.md) (v4) and [KNOWLEDGE.md](KNOWLEDGE.md) §13.
 Each item shows **[priority]** (P0 = safety gate or blocker … P3 = later) and **owner**: M = Mainline (cloud),
 PC = PC session, U = user. Tick items when done, in the same commit as the result. Both sessions edit this file.
 
@@ -37,7 +37,7 @@ Difficulty scale:
 - [ ] [P0] PC: relay 006 (stock skin gear table, thermal-engine rules, GPU trips, BCL, standby numbers)
 - [ ] [P0] PC: relay 007 (reading `oplus_chg`: OTG glink message, charge stop/limit, what the firmware does alone)
 - [ ] [P1] PC+U: Y10: GNOME from `rootfs-gnome.tar.gz` in RAM + the touch/pen window
-- [x] [P1] M: `kernel-iceland` rpm spec + kernel-install plugin (DTB to the ESP `dtb/qcom/…`; no GRUB `devicetree` line, to keep U-Boot's memory fixups): iceland-linux bcdab5e; a full rpm test build is running
+- [x] [P1] M: `kernel-iceland` rpm spec + kernel-install plugin (DTB to the ESP `dtb/qcom/…`; no GRUB `devicetree` line, to keep U-Boot's memory fixups): iceland-linux bcdab5e; test-built (aarch64, 948 modules)
 - [x] [P1] M: `iceland-device` rpm v0.1 (kernel exclusion, DEFAULTKERNEL, s2idle, journald cap, upgrade block, fwupd guard, BT address unit, kernel options, dracut, Wi-Fi power save): iceland-mainline 59d170c, built with rpmbuild
 - [ ] [P2] M: iceland-device additions as the hardware lands: UCM volume caps, 60 Hz on battery, charge limit, libinput quirks
 - [ ] [P1] M+PC: firmware into `/usr/lib/firmware/updates/` (extractor + OTA for the `super` files), never uploaded
@@ -46,12 +46,13 @@ Difficulty scale:
 - [ ] [P1] PC: build the install image (packages, `/.autorelabel`, sparse)
 - [ ] [P1] U: write Fedora (ABL `fastboot flash userdata`, or a guarded `dd` into `fedora`); boot tethered; first boot + updates
 - [ ] [P1] U: place U-Boot (`recovery_<slot>` for dual boot, or `boot`); test rollback once
-- [ ] [P2] PC: suspend kit pc-025 (s2idle + RTC wake), first pass
+- [x] [P2] PC: suspend (s2idle + RTC wake) works after the WAKE# fix (0040)
 - [ ] [P2] M+PC: wake sources: power key, lid open, pogo keyboard (TLMM151), RTC, charger
-- [ ] [P2] M: nt36536 pen: report ABS resolution + stylus buttons (libinput accepts the pen)
+- [x] [P2] M: nt36536 pen: ABS resolution + stylus buttons, libinput accepts the pen
 - [ ] [P2] PC+U: confirm touch and pen events; lid closing
 - [ ] [P2] PC: Wi-Fi under NetworkManager; 5/6 GHz (U: an AP in range); regulatory domain
-- [ ] [P2] M+PC: BT address from wlan0's MAC at boot; pairing under GNOME
+- [x] [P2] M+PC: BT address applied at boot
+- [ ] [P2] PC: Bluetooth pairing under GNOME
 - [ ] [P2] M: restore the Type-C graph in the DT (UCSI → dwc3 role switch, QMP combo, WCD939x mux)
 - [ ] [P2] PC+U: charging measurements per charger; charge limit exposed in GNOME (if the firmware accepts it)
 - [ ] [P2] M+PC: EAS energy model, cpuidle usage, GPU idle, UFS runtime PM / auto-hibern8, dwc3 runtime suspend
@@ -67,9 +68,9 @@ Difficulty scale:
 - [ ] [P2] M: `iceland-device`: udev permissions for `/dev/fastrpc-*` once relay 012 C works
 - [ ] [P0] M+PC: BCL / low-battery protection. There may be no mainline driver for the PMH0101/PMIH010x BCL, so a
       userspace guard is the fallback; test at low battery with no brown-out
-- [x] [P0] M: `iceland-battery-guard` (stock limits, iceland-device 0.2)
-- [x] [P0] M: charge-inhibit knob: `charge_behaviour` via OPLUS_CHG_EN + stock Pad 4 charger limits (candidate patch, relay 015)
-- [x] [P0] M: usb-therm zone (stock USB-C thermistor, 65 °C) candidate patch (relay 015)
+- [x] [P0] M: `iceland-battery-guard`, verified against stock (iceland-device 0.3, 30 tests; research/battery-guard-verification.md)
+- [x] [P0] M: battmgr: stock Pad 4 per-type charger inputs (PD 1.5 A at 9 V etc.), `charge_behaviour`, lower-only `constant_charge_current_max` (candidate, relay 015)
+- [x] [P0] M: usb-therm zone (stock USB-C thermistor, 57 °C stop) candidate patch (relay 015)
 - [ ] [P0] PC: test and queue the relay 015 patches, then test the guard on the tablet
 - [ ] [P0] PC+U: charging safety without the OnePlus stack: derating, termination, dual-cell safety. It depends on
       what the SoCCP firmware does alone; until proven, charge attended only with an 80 % limit
@@ -78,8 +79,8 @@ Difficulty scale:
 - [ ] [P2] M+PC: prove deep sleep (`qcom_stats` AOSS/CX/DDR); find what blocks it (remoteprocs, USB, PCIe/Wi-Fi)
 - [ ] [P2] M+PC: resume of every device (panel + KTZ8869, touch firmware re-download, USB, Wi-Fi, BT, GPU); 20/20 cycles
 - [ ] [P2] PC: 8 h overnight drain ≤ ~1 %/h (a long debugging tail)
-- [ ] [P2] M: speakers DT link to PRIMARY_TDM_RX_0 + PC: Audio IF (TDM) subgraph m4; nobody has kaanapali audio yet
-- [ ] [P2] M+PC: volume caps + UCM, headset, mics
+- [x] [P2] M+PC: speakers play (TDM, 0038 + 0041–0045) and mics capture, at the ALSA level
+- [ ] [P1] PC+M: UCM for GNOME with stock volume caps and gains (relay 015 item 3), then package in iceland-device; headset later
 - [ ] [P2] M+PC: OTG enable (the OnePlus glink message), host mode, host + charging via a PD hub, reverse charging
 - [ ] [P2] M+PC: DisplayPort alt mode (pmic-glink altmode + QMP combo + DP)
 - [ ] [P2] PC: map `super` (LP metadata) for the extractor; refresh firmware from the current slot at boot
