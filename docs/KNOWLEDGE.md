@@ -877,7 +877,14 @@ ABL (stock, untouched)
   all six TFA9865 report a stable clock (status 0x7eaf → 0x7eef)** - the ALSA path to the speakers works;
   not yet confirmed by ear, and the stereo stream is spread over the 8 slots with a 7.1 map (stock: custom
   per-amplifier channels) → follow-ups: channel layout, volume controls, UCM, PipeWire. Queue 0038-0045
-  (`queue-tdm2.sh`). Second issue: the WCD playback and the
+  (`queue-tdm2.sh`). **✅ S7 (08:19): the microphones capture** (hw:0,2, both channels, room sound) - no kernel
+  change, only the right controls: `ADC1 MUX=CH1_AMIC1`, `ADC2 MUX=CH2_AMIC5`, `ADC1/2 Switch=1`,
+  **`ADC1_MIXER Switch=1`, `ADC2_MIXER Switch=1`** (the DAPM switches the probes had missed), `TX SMIC MUX0=
+  SWR_MIC0`, `TX SMIC MUX1=SWR_MIC1` (the v9.2 TX macro's input names), `TX DEC0/1 MUX=SWR_MIC`, `TX_AIF1_CAP
+  Mixer DEC0/1=1`, `MultiMedia3 Mixer TX_CODEC_DMA_TX_3=1`. The codec-DMA "EIO" was never a DSP fault: the DSP
+  graphs ran, the codec DAPM chain was unpowered (packet dumps + widget dumps in `docs/tests/linux-runpc26i`).
+  WCD headphone path: `HPHL_RDAC Switch`/`HPHR_RDAC Switch` were the missing bits (no jack on the Pad 4; parked).
+  Second issue (resolved as above): the WCD playback and the
   mic capture get `EIO` after ~1 s with no DSP error = no buffer completions (ALSA `wait_for_avail` timeout) -
   data-flow/clocking on the codec-DMA paths, S4 samples the PCM status. Front ends take S16 stereo 48 kHz only;
   mics: WCD9395 analog mics → TX macro → `TX_CODEC_DMA_TX_3`; ✅ `upower` works with `PrivateUsers=no` under
