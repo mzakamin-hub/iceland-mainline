@@ -1,6 +1,6 @@
 # Mainline (cloud debugger) state, 2026-09-29
 
-**HANDED OVER to the PC (local) session: see `relay/requests/020-handover-to-pc.md`. The cloud session no longer
+**HANDED OVER to the PC (local) session - acknowledged 2026-09-29 (relay/results/020-handover-ack.md): see `relay/requests/020-handover-to-pc.md`. The cloud session no longer
 watches or answers; the PC owns everything below.** New since the first save: `docs/research/offline-prep/` (display,
 graphics, power findings) and the matrix's where-to-look column (`docs/features/features-data.py` + `build.py`).
 
