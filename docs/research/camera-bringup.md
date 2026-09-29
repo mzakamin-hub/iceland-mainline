@@ -34,6 +34,23 @@ libcamera's **software ISP** (CPU/GPU).
 **Not available anywhere:** mainline drivers for SC1320CS / SC820CS or the actuator IC. Downstream, the kernel driver
 is Qualcomm's generic `cam_sensor`; the sensor **register sequences live in the userspace `sensormodule.bin`**.
 
+## 1b. Resolved from the stock DT (Mainline, 2026-09-29), mapped to our DT labels
+
+| Stock | Value | Our DT |
+|---|---|---|
+| cam_vana (both sensors) | `pmh0101_l14`, 2.8 V, 600 mA | `vreg_l14b_2p8` |
+| cam_vaf (rear actuator) | `pmh0101_l16`, 2.8 V, 120 mA | `vreg_l16b_2p8` |
+| cam_vdig (both) | `pmh0110_f_l1`, 1.2 V, 120 mA | `vreg_l1f_1p2` |
+| cam_vio (both, actuator) | `pmh0110_f_l2`, 1.8 V, 300 mA | `vreg_l2f_1p8` |
+| **MCLK** `cam_clk` | **`<&rpmhcc RPMH_DIV_CLK1>`** at 19.2 MHz, output on **PMK8850 GPIO 2, function func2** (`cam_sensor_main_mclk1_active`: output-enable; suspend: high-Z). **Not** a camcc MCLK. | `&rpmhcc RPMH_DIV_CLK1` (in clk-rpmh for kaanapali) + a `pmk8850_gpios` gpio2 func2 pin state |
+| Reset, rear | PMH0110 **SID 6** GPIO 14 (`CAM_RESET1_1P8`), drive 2, low in suspend | `&pmh0110_g_e0_gpios 14` |
+| Reset, front | PMH0110 SID 6 GPIO 13 | `&pmh0110_g_e0_gpios 13` |
+| Power domain | `<&camcc 5>` (camcc@956d000) | `&camcc` index 5 (check its name in the kaanapali camcc binding) |
+| Actuator | `qcom,cam-i2c-actuator` @0x18, supplies vio + vaf; IC name not in the DT | to find in the sensormodule/.so (relay 014) |
+
+Still needed from relay 014 (C0): the power-up order and delays, the register tables, the CSI lane count and link
+frequency, the EEPROM sizes, and the actuator IC.
+
 ## 2. Plan (every step RAM boot only; the PC's automated loop, relay 012, runs the kits)
 
 **C0. Collect the missing stock values (PC, read-only).**
