@@ -887,7 +887,13 @@ ABL (stock, untouched)
   stall**, with thousands of runtime system-state entries after resume. A bare cycle does not reproduce the
   stall; next: what S10 did before suspending (UCM/PipeWire/audio/Wi-Fi) on the debug-hang kernel + ramoops
   (Mainline answer pc-026-s10-crashlog), so a reset leaves a log;
-  ⚠️ **SOUND IS NOT CONFIRMED - the user reports no sound (2026-09-29 13:46).** Every speaker result below is
+  ✅ **SPEAKERS HEARD BY THE USER - TOP PAIR ONLY (2026-09-29 15:52, S17).** The q11 kernel (stock TDM tables at
+  probe + MANSCONF after power-up; nothing written by hand) played a 1 kHz tone twice through raw ALSA ("hearing a
+  test note", "stopped now", "started again"). At 15:54 it played again through PipeWire as the GNOME user
+  ("heard another lower test note": the sink sits at 0.40). The mics measured -47 dBFS, 30 dB above the noise. The
+  other four speakers stay silent: their amplifiers lock but get empty slots 2-5 from the default 7.1 channel map
+  (next: L R L R L R). History below.
+  ⚠️ (before 15:52) the user reported no sound (2026-09-29 13:46). Every speaker result below until S16 was
   log-level (graphs start, aplay/pw-play rc=0, amplifier status 0x7eaf → 0x7eef); nobody has heard it, and GNOME
   only ever showed "Dummy Output" (the UCM profile was never persisted). **S12 measured it acoustically (mics
   record while the speakers play, `an/loopback.py`): silent.** Cause 1 (fixed): a saved alsactl state routed
@@ -903,7 +909,12 @@ ABL (stock, untouched)
   tables program a 2-slot I2S-like frame (reg 20: TDMSLOTS 0, TDMNBCK 0, TDMFSPOL 1/0 splitting L/R groups;
   reg 21: TDMSPKS 0) - the MI2S design they came from - while the port sends stock's 8 × 32-bit TDM frame.
   Fix = stock's TDM field values (TDMSLOTS/TDMNBCK/TDMSPKS/TDMFSPOL) from the stock TFA container (read-only
-  pull from Android, private) decoded with the field map;
+  pull from Android, private) decoded with the field map. **Correction (S15): the reg 10 flags are sticky
+  (clear on write 1), so NOCLK/CLKOOR say nothing about the live clock.** **Cause 4 (S15/S16): MANSTATE 1 is
+  "wait for source settings". The manager leaves it only with MANSCONF (reg 01 bit 2, "I2C configured") set, and
+  it clears MANSCONF itself while the TDM setup doesn't match the frame.** Stock TDM values + MANSCONF → PLL
+  locked, MANSTATE 9, sound (S16 by hand, S17 in the kernel: Mainline's 0001 stock TDM tables + 0002 MANSCONF on
+  power-up, relay/answers/pc-026-s15/);
   ⚠️ **sound - root cause found (S3 analysis, fix under test in S4):** the card is up on the ADSP after the
   hand-over (kit firmware bound over the rootfs's `/lib/firmware`; the DT link on stock's `PRIMARY_TDM_RX_0`),
   the front-end graph opens, but **the speaker back-end graph is rejected at `APM_CMD_GRAPH_OPEN` because the
