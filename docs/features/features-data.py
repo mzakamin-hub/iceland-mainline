@@ -6,12 +6,12 @@
 DATE = "29 Sep 2026"
 
 # One sentence after the date in FEATURES.md.
-STATUS_MD = ("after the audio area closed (mic hiss a known issue) and the touchscreen confirmed by you; each open item has a where-to-look pointer; "
+STATUS_MD = ("after the audio area closed (mic hiss a known issue) the touchscreen confirmed by you and area-display-1 in (GPU + Vulkan accelerated, lid works, refresh switching broken); each open item has a where-to-look pointer; "
              "area-by-area campaign, relay 019; next: the display glitches and screen, then GPU and NPU")
 
 # The subtitle of the published page.
 STATUS_HTML = ("Everything is tested by booting from RAM; nothing is installed on the tablet yet. Status as of "
-               f"{DATE}: audio area closed (mic hiss a known issue), touchscreen confirmed by you; next: the display "
+               f"{DATE}: audio area closed (mic hiss a known issue), touchscreen confirmed, GPU and Vulkan accelerated (area-display-1); refresh switching to 120/60 Hz is broken; next: the display "
                "glitches and screen, then GPU and NPU. Work runs area by area (relay 019); Boot & platform waits for "
                "your go-ahead on the install.")
 
@@ -28,21 +28,21 @@ G = [
 ]),
 ("Display & input", [
  ("Native display 3392×2400, dual DSI + DSC", "ok", "Boot splash handed over to MSM DRM"),
- ("Refresh 30 / 60 / 90 / 120 / 144 Hz", "ok", "144 Hz after the DPU clock fix"),
+ ("Refresh 30 / 60 / 90 / 120 / 144 Hz", "part", "144 Hz works; switching to 120 or 60 Hz turns the screen black (area-display-1)", "panel-novatek-nt36536: stock per-mode rate commands (panel dtsi / LineageOS panel driver); until then offer only 144 Hz in iceland-device"),
  ("Backlight", "ok", "Brightness curve still being checked against stock"),
- ("GNOME pink / blocky glitches", "part", "Isolation plan sent (relay 011); Mesa side checked; first display run next", "GNOME scans out a 10-bit XR30 UBWC buffer, the clean console is 8-bit linear XR24 (drm state dumps): dpu_hw_sspp.c UBWC ≥ 5.0 DX-format bits vs a8xx rgba8888_lossless; the SSPP UBWC error registers; FD_MESA_DEBUG=noubwc / notile; panel DSC 1.2 + stock 0x91/0x92 init bytes (offline-prep/display.md)"),
- ("Touchscreen", "ok", "Confirmed by you: GNOME used by touch during the audio runs"),
- ("Pen", "part", "GNOME accepts it; strokes not confirmed", "Driver 0036 (tablet caps); check libinput debug-events strokes/pressure; palm rejection"),
- ("Lid switch", "part", "Closing not tested", "DT gpio-key TLMM 98 (0030); evtest SW_LID + logind HandleLidSwitch"),
+ ("GNOME pink / blocky glitches", "part", "Not reproduced in area-display-1 (clean at 144 Hz, 0 underruns, UBWC scanout); watch for a return", "If it returns: photo + drm state, XR30 vs XR24 compositor, FD_MESA_DEBUG=noubwc/notile, SSPP UBWC error registers; DSC 1.2 + stock 0x91/0x92 (offline-prep/display.md)"),
+ ("Touchscreen", "ok", "Confirmed by you; 20 700 events in area-display-1. Stops after a panel power cycle", "nt36536 touch resume: bootloader reset + firmware download runs after the panel init; move it before the display init (stock notifier order) or skip the reset on resume"),
+ ("Pen", "part", "0 events in area-display-1 (pen maybe not charged); recheck", "Driver 0036 (tablet caps); libinput debug-events with a charged pen; palm rejection"),
+ ("Lid switch", "ok", "SW_LID events on GPIO 98 (area-display-1)"),
  ("Power and volume keys", "ok", "Power key also wakes from sleep"),
  ("Pogo keyboard", "todo", "Private UART protocol", "Private UART protocol: stock oplus pogo driver in OnePlusOSS; serdev + HID bridge"),
  ("Auto-rotate", "todo", "Needs the sensors", "SSC sensors: hexagonrpcd + libssc + iio-sensor-proxy, persist registry"),
 ]),
 ("Graphics & compute", [
- ("Adreno 840 GPU, GLES 3.2", "ok", "kmscube 120 fps, glmark2 1836"),
+ ("Adreno 840 GPU, GLES 3.2", "ok", "OpenGL 4.6 / ES 3.2 on Mesa 26.2.3; glmark2 3015 under GNOME"),
  ("GNOME and Wayland drawn by the GPU", "ok", ""),
  ("GPU correctness, WebGL, 30-min stress", "todo", "Relay 012", "Run on the stock gen80200 firmware set (kits use linux-firmware's); missing stock 1100 MHz OPP; dEQP/piglit availability (offline-prep/graphics.md A2/A7/A11)"),
- ("Vulkan", "todo", "Mesa 26.2.3 has turnip for the Adreno 840; vulkaninfo/vkcube check in the display run", "Mesa 26.2.3 turnip; vulkaninfo/vkcube/vkmark"),
+ ("Vulkan", "ok", "turnip 26.2.3: Vulkan 1.4, vkmark 24562, vkcube 142 fps"),
  ("Hardware video decoding", "todo", "Driver in the tree; firmware known", "Iris node disabled and no &iris override in the iceland DTS; set firmware-name vpu40_2v.mbn (driver default vpu40_p2 = ENOENT); CONFIG_VIDEO_QCOM_IRIS; gst v4l2h264dec, CPU time"),
  ("NPU (Hexagon on the CDSP)", "todo", "Off by default; bring-up in relay 012", "CDSP disabled in every kit's debug DTB (build.sh:69); cdsp.mbn vs split .mdt names; iceland-npu-off.service ExecStart path wrong; fastrpc + quic/fastrpc unsigned PD test"),
 ]),
@@ -70,7 +70,7 @@ G = [
  ("Battery time estimate", "part", "Inaccurate (your report): jumpy current reading, no charge-now value; fix in the Power area", "qcom_battmgr OPLUS: STATUS forced to Charging when USB is online; instantaneous 1 Hz current; gauge word 4 is not a charge; derive CHARGE_NOW = capacity × charge_full, probe TTE/TTF/POWER_AVG (offline-prep/power.md A2–A4)"),
  ("Charging", "part", "Works; Pad 4 stock charger limits patch (9 V / 1.5 A) awaiting test", "Queue still has the OnePlus 15 policy (3 A input, 12 V PDO): 1.2–1.9 A seen on SDP vs stock 500 mA. Queue relay 015 first, fixing USB_ADAP_TYPE and the fail-low 9 V error path (power.md B1–B4, C7)"),
  ("Battery safety guard (stock limits)", "part", "Written and simulated (30 cases); tablet test pending", "Retry failed writes (cache only on success); stop on unreadable voltage and VBUS > 11 V; rise-fast rule (power.md B8/B9/B11)"),
- ("Charge limit (80 %)", "todo", "", "charge_behaviour inhibit via OPLUS_CHG_EN, re-sent on every attach (relay 015); upstream 0x48 charge-control support unknown"),
+ ("Charge limit (80 %)", "todo", "battmgr OnePlus variant exposes no charge_control_* files", "Add the thresholds + setter to the OPLUS battmgr props; check the SoCCP honours opcode 0x48; UPower limit in iceland-device"),
  ("Low-battery current limiting (BCL)", "todo", "", "Stock PMH0101/PMIH010x BCL nodes (relay 018 item 6); qcom-bcl-hwmon / spmi bcl"),
  ("Pen charging", "todo", "New driver needed", "Pen wireless-charge IC on the pogo/magnet side: stock driver in OnePlusOSS"),
  ("Fast charging (SuperVOOC / PPS)", "out", "OnePlus-proprietary; not planned"),

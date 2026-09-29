@@ -1,8 +1,8 @@
 # OnePlus Pad 4 mainline: feature matrix
 
-Status 29 Sep 2026 (after the audio area closed (mic hiss a known issue) and the touchscreen confirmed by you; each open item has a where-to-look pointer; area-by-area campaign, relay 019; next: the display glitches and screen, then GPU and NPU). Everything is tested by RAM boot; nothing is installed on the tablet yet.
+Status 29 Sep 2026 (after the audio area closed (mic hiss a known issue) the touchscreen confirmed by you and area-display-1 in (GPU + Vulkan accelerated, lid works, refresh switching broken); each open item has a where-to-look pointer; area-by-area campaign, relay 019; next: the display glitches and screen, then GPU and NPU). Everything is tested by RAM boot; nothing is installed on the tablet yet.
 Legend: ✅ working · 🟡 in progress · ⬜ not started · ❌ not planned. Sorted by functionality.
-Totals: 29 working, 15 in progress, 22 not started, 2 not planned (68).
+Totals: 30 working, 15 in progress, 21 not started, 2 not planned (68).
 
 ## Boot & platform (5/8 working)
 
@@ -22,24 +22,24 @@ Totals: 29 working, 15 in progress, 22 not started, 2 not planned (68).
 | Feature | Status | Notes | Where to look for the fix |
 |---|---|---|---|
 | Native display 3392×2400, dual DSI + DSC | ✅ Working | Boot splash handed over to MSM DRM |  |
-| Refresh 30 / 60 / 90 / 120 / 144 Hz | ✅ Working | 144 Hz after the DPU clock fix |  |
+| Refresh 30 / 60 / 90 / 120 / 144 Hz | 🟡 In progress | 144 Hz works; switching to 120 or 60 Hz turns the screen black (area-display-1) | panel-novatek-nt36536: stock per-mode rate commands (panel dtsi / LineageOS panel driver); until then offer only 144 Hz in iceland-device |
 | Backlight | ✅ Working | Brightness curve still being checked against stock |  |
-| GNOME pink / blocky glitches | 🟡 In progress | Isolation plan sent (relay 011); Mesa side checked; first display run next | GNOME scans out a 10-bit XR30 UBWC buffer, the clean console is 8-bit linear XR24 (drm state dumps): dpu_hw_sspp.c UBWC ≥ 5.0 DX-format bits vs a8xx rgba8888_lossless; the SSPP UBWC error registers; FD_MESA_DEBUG=noubwc / notile; panel DSC 1.2 + stock 0x91/0x92 init bytes (offline-prep/display.md) |
-| Touchscreen | ✅ Working | Confirmed by you: GNOME used by touch during the audio runs |  |
-| Pen | 🟡 In progress | GNOME accepts it; strokes not confirmed | Driver 0036 (tablet caps); check libinput debug-events strokes/pressure; palm rejection |
-| Lid switch | 🟡 In progress | Closing not tested | DT gpio-key TLMM 98 (0030); evtest SW_LID + logind HandleLidSwitch |
+| GNOME pink / blocky glitches | 🟡 In progress | Not reproduced in area-display-1 (clean at 144 Hz, 0 underruns, UBWC scanout); watch for a return | If it returns: photo + drm state, XR30 vs XR24 compositor, FD_MESA_DEBUG=noubwc/notile, SSPP UBWC error registers; DSC 1.2 + stock 0x91/0x92 (offline-prep/display.md) |
+| Touchscreen | ✅ Working | Confirmed by you; 20 700 events in area-display-1. Stops after a panel power cycle | nt36536 touch resume: bootloader reset + firmware download runs after the panel init; move it before the display init (stock notifier order) or skip the reset on resume |
+| Pen | 🟡 In progress | 0 events in area-display-1 (pen maybe not charged); recheck | Driver 0036 (tablet caps); libinput debug-events with a charged pen; palm rejection |
+| Lid switch | ✅ Working | SW_LID events on GPIO 98 (area-display-1) |  |
 | Power and volume keys | ✅ Working | Power key also wakes from sleep |  |
 | Pogo keyboard | ⬜ Not started | Private UART protocol | Private UART protocol: stock oplus pogo driver in OnePlusOSS; serdev + HID bridge |
 | Auto-rotate | ⬜ Not started | Needs the sensors | SSC sensors: hexagonrpcd + libssc + iio-sensor-proxy, persist registry |
 
-## Graphics & compute (2/6 working)
+## Graphics & compute (3/6 working)
 
 | Feature | Status | Notes | Where to look for the fix |
 |---|---|---|---|
-| Adreno 840 GPU, GLES 3.2 | ✅ Working | kmscube 120 fps, glmark2 1836 |  |
+| Adreno 840 GPU, GLES 3.2 | ✅ Working | OpenGL 4.6 / ES 3.2 on Mesa 26.2.3; glmark2 3015 under GNOME |  |
 | GNOME and Wayland drawn by the GPU | ✅ Working |  |  |
 | GPU correctness, WebGL, 30-min stress | ⬜ Not started | Relay 012 | Run on the stock gen80200 firmware set (kits use linux-firmware's); missing stock 1100 MHz OPP; dEQP/piglit availability (offline-prep/graphics.md A2/A7/A11) |
-| Vulkan | ⬜ Not started | Mesa 26.2.3 has turnip for the Adreno 840; vulkaninfo/vkcube check in the display run | Mesa 26.2.3 turnip; vulkaninfo/vkcube/vkmark |
+| Vulkan | ✅ Working | turnip 26.2.3: Vulkan 1.4, vkmark 24562, vkcube 142 fps |  |
 | Hardware video decoding | ⬜ Not started | Driver in the tree; firmware known | Iris node disabled and no &iris override in the iceland DTS; set firmware-name vpu40_2v.mbn (driver default vpu40_p2 = ENOENT); CONFIG_VIDEO_QCOM_IRIS; gst v4l2h264dec, CPU time |
 | NPU (Hexagon on the CDSP) | ⬜ Not started | Off by default; bring-up in relay 012 | CDSP disabled in every kit's debug DTB (build.sh:69); cdsp.mbn vs split .mdt names; iceland-npu-off.service ExecStart path wrong; fastrpc + quic/fastrpc unsigned PD test |
 
@@ -76,7 +76,7 @@ Totals: 29 working, 15 in progress, 22 not started, 2 not planned (68).
 | Battery time estimate | 🟡 In progress | Inaccurate (your report): jumpy current reading, no charge-now value; fix in the Power area | qcom_battmgr OPLUS: STATUS forced to Charging when USB is online; instantaneous 1 Hz current; gauge word 4 is not a charge; derive CHARGE_NOW = capacity × charge_full, probe TTE/TTF/POWER_AVG (offline-prep/power.md A2–A4) |
 | Charging | 🟡 In progress | Works; Pad 4 stock charger limits patch (9 V / 1.5 A) awaiting test | Queue still has the OnePlus 15 policy (3 A input, 12 V PDO): 1.2–1.9 A seen on SDP vs stock 500 mA. Queue relay 015 first, fixing USB_ADAP_TYPE and the fail-low 9 V error path (power.md B1–B4, C7) |
 | Battery safety guard (stock limits) | 🟡 In progress | Written and simulated (30 cases); tablet test pending | Retry failed writes (cache only on success); stop on unreadable voltage and VBUS > 11 V; rise-fast rule (power.md B8/B9/B11) |
-| Charge limit (80 %) | ⬜ Not started |  | charge_behaviour inhibit via OPLUS_CHG_EN, re-sent on every attach (relay 015); upstream 0x48 charge-control support unknown |
+| Charge limit (80 %) | ⬜ Not started | battmgr OnePlus variant exposes no charge_control_* files | Add the thresholds + setter to the OPLUS battmgr props; check the SoCCP honours opcode 0x48; UPower limit in iceland-device |
 | Low-battery current limiting (BCL) | ⬜ Not started |  | Stock PMH0101/PMIH010x BCL nodes (relay 018 item 6); qcom-bcl-hwmon / spmi bcl |
 | Pen charging | ⬜ Not started | New driver needed | Pen wireless-charge IC on the pogo/magnet side: stock driver in OnePlusOSS |
 | Fast charging (SuperVOOC / PPS) | ❌ Not planned | OnePlus-proprietary; not planned |  |
