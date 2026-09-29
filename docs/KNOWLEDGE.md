@@ -888,8 +888,13 @@ ABL (stock, untouched)
   (Mainline answer pc-026-s10-crashlog), so a reset leaves a log;
   ⚠️ **SOUND IS NOT CONFIRMED - the user reports no sound (2026-09-29 13:46).** Every speaker result below is
   log-level (graphs start, aplay/pw-play rc=0, amplifier status 0x7eaf → 0x7eef); nobody has heard it, and GNOME
-  only ever showed "Dummy Output" (the UCM profile was never persisted). S12 measures it acoustically: the mics
-  record while the speakers play (`an/loopback.py`), one tone per TDM slot, amplifier registers + DAPM;
+  only ever showed "Dummy Output" (the UCM profile was never persisted). **S12 measured it acoustically (mics
+  record while the speakers play, `an/loopback.py`): silent.** Cause 1 (fixed): a saved alsactl state routed
+  MultiMedia1 into RX_CODEC_DMA_RX_0 too (graph 113 AR_ENOTEXIST → every MM1 prepare failed → "Dummy Output");
+  route off → WirePlumber shows the speakers + mics; UCM FixedBootSequence now forces it off; clean state handed
+  back. Cause 2 (open): the ADSP consumes the stream ~3-10× faster than real time (a 10-s play ends in ~1 s)
+  although the amplifiers power up and unmute correctly while it runs → the TDM endpoint isn't clocking samples
+  out; next: APM/PRM packet dumps vs stock TDM settings;
   ⚠️ **sound - root cause found (S3 analysis, fix under test in S4):** the card is up on the ADSP after the
   hand-over (kit firmware bound over the rootfs's `/lib/firmware`; the DT link on stock's `PRIMARY_TDM_RX_0`),
   the front-end graph opens, but **the speaker back-end graph is rejected at `APM_CMD_GRAPH_OPEN` because the
@@ -1057,7 +1062,8 @@ item, judged from logs, results saved after each; anything that writes to the ta
      with read-only adb `getprop`); `btmgmt public-addr` / `local-bd-address`; pairing under GNOME.
   4. **Audio** (pending #2): ⚠️ NOT AUDIBLE per the user (13:46) - the primary TDM playback completes at the
      ALSA level (pc-026 S6: classic TDM sink, PRM bit clock, 32-bit/8-ch back end; queue 0038-0045), but no
-     sound has been heard; S12 = acoustic loopback + TDM slot sweep + amp registers; pending: per-amplifier channel layout (stock:
+     sound has been heard; S12 measured silence (acoustic loopback): stray MM1 route fixed, stream not paced in
+     real time (TDM endpoint not outputting) open; pending: per-amplifier channel layout (stock:
      custom channels 48-56 on the 8 slots), volume caps, UCM/PipeWire, **mic + WCD codec paths** (EIO without a
      DSP error, RX SoundWire bus clash - S7 with the packet-dump kernel), headset;
      the TFA9865 `tfa98xx.cnt` protection before any playback; mics.
