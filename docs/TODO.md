@@ -27,8 +27,9 @@ Difficulty scale:
 - [ ] [P3] Housekeeping: KNOWLEDGE §13 in sync with PLAN v4 (PC); refresh the cloud kernel tree (M)
 
 ## 2 — Moderate
-- [ ] [P0] M: thermal DT: skin zone `pmh0101_skin_therm` (48/50/60 °C steps, 90 °C critical), XO zone (78/80 °C, 90 °C)
-- [ ] [P0] M+PC: GPU trips confirmed against stock; GPU devfreq cooling tested (glmark2, 10 min)
+- [x] [P0] M: thermal DT: skin zone `pmh0101_skin_therm` (48/50/60 °C steps, 90 °C critical), XO zone (78/80 °C, 90 °C). Candidate patch in relay 009
+- [ ] [P0] PC: test and queue relay 009 (skin/XO zones) with a 15 min load kit
+- [ ] [P0] M+PC: GPU trips confirmed against stock (kaanapali.dtsi already maps gpuss-N at 105 °C to `&gpu`); GPU devfreq cooling tested (glmark2, 10 min)
 - [ ] [P0] PC: thermal load kits (CPU, GPU, combined, charging; 15 min each; skin ≤ 50 °C sustained)
 - [ ] [P0] PC: relay 006 (stock skin gear table, thermal-engine rules, GPU trips, BCL, standby numbers)
 - [ ] [P0] PC: relay 007 (reading `oplus_chg`: OTG glink message, charge stop/limit, what the firmware does alone)
