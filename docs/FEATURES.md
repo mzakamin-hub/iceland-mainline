@@ -1,8 +1,8 @@
 # OnePlus Pad 4 mainline: feature matrix
 
-Status 29 Sep 2026 (after area-audio-1: you heard all six speakers from GNOME; area-by-area campaign, relay 019). Everything is tested by RAM boot; nothing is installed on the tablet yet.
+Status 29 Sep 2026 (after the audio area closed (mic hiss a known issue) and the touchscreen confirmed by you; area-by-area campaign, relay 019; next: the display glitches and screen, then GPU and NPU). Everything is tested by RAM boot; nothing is installed on the tablet yet.
 Legend: ✅ working · 🟡 in progress · ⬜ not started · ❌ not planned. Sorted by functionality.
-Totals: 28 working, 16 in progress, 22 not started, 2 not planned (68).
+Totals: 29 working, 15 in progress, 22 not started, 2 not planned (68).
 
 ## Boot & platform (5/8 working)
 
@@ -17,15 +17,15 @@ Totals: 28 working, 16 in progress, 22 not started, 2 not planned (68).
 | Fedora installed on the tablet | ⬜ Not started | Final step; needs your decisions and OK |
 | Dual boot with Android | ⬜ Not started | Planned; recovery re-flash helper ready |
 
-## Display & input (4/10 working)
+## Display & input (5/10 working)
 
 | Feature | Status | Notes |
 |---|---|---|
 | Native display 3392×2400, dual DSI + DSC | ✅ Working | Boot splash handed over to MSM DRM |
 | Refresh 30 / 60 / 90 / 120 / 144 Hz | ✅ Working | 144 Hz after the DPU clock fix |
 | Backlight | ✅ Working | Brightness curve still being checked against stock |
-| GNOME pink / blocky glitches | 🟡 In progress | Isolation plan sent (relay 011); no result yet |
-| Touchscreen | 🟡 In progress | Driver, firmware and libinput OK; a real touch not confirmed |
+| GNOME pink / blocky glitches | 🟡 In progress | Isolation plan sent (relay 011); Mesa side checked; first display run next |
+| Touchscreen | ✅ Working | Confirmed by you: GNOME used by touch during the audio runs |
 | Pen | 🟡 In progress | GNOME accepts it; strokes not confirmed |
 | Lid switch | 🟡 In progress | Closing not tested |
 | Power and volume keys | ✅ Working | Power key also wakes from sleep |
@@ -39,7 +39,7 @@ Totals: 28 working, 16 in progress, 22 not started, 2 not planned (68).
 | Adreno 840 GPU, GLES 3.2 | ✅ Working | kmscube 120 fps, glmark2 1836 |
 | GNOME and Wayland drawn by the GPU | ✅ Working |  |
 | GPU correctness, WebGL, 30-min stress | ⬜ Not started | Relay 012 |
-| Vulkan | ⬜ Not started | Waiting for Mesa support |
+| Vulkan | ⬜ Not started | Mesa 26.2.3 has turnip for the Adreno 840; vulkaninfo/vkcube check in the display run |
 | Hardware video decoding | ⬜ Not started | Driver in the tree; firmware known |
 | NPU (Hexagon on the CDSP) | ⬜ Not started | Off by default; bring-up in relay 012 |
 

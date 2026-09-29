@@ -1,5 +1,19 @@
-# Source list for docs/FEATURES.md and the published feature-matrix page (status: ok / part / todo / out).
-# status: ok / part / todo / out
+# Single source for docs/FEATURES.md and the published feature-matrix page (docs/features/feature-matrix.html).
+# Edit here, then run: python3 docs/features/build.py   (regenerates both files; republish the page afterwards).
+# status: ok (working) / part (in progress) / todo (not started) / out (not planned)
+
+DATE = "29 Sep 2026"
+
+# One sentence after the date in FEATURES.md.
+STATUS_MD = ("after the audio area closed (mic hiss a known issue) and the touchscreen confirmed by you; "
+             "area-by-area campaign, relay 019; next: the display glitches and screen, then GPU and NPU")
+
+# The subtitle of the published page.
+STATUS_HTML = ("Everything is tested by booting from RAM; nothing is installed on the tablet yet. Status as of "
+               f"{DATE}: audio area closed (mic hiss a known issue), touchscreen confirmed by you; next: the display "
+               "glitches and screen, then GPU and NPU. Work runs area by area (relay 019); Boot & platform waits for "
+               "your go-ahead on the install.")
+
 G = [
 ("Boot & platform", [
  ("U-Boot booted from RAM (display, USB fastboot, UFS read, EFI)", "ok", "Nothing written to the tablet; fastboot flashing compiled out"),
@@ -15,8 +29,8 @@ G = [
  ("Native display 3392×2400, dual DSI + DSC", "ok", "Boot splash handed over to MSM DRM"),
  ("Refresh 30 / 60 / 90 / 120 / 144 Hz", "ok", "144 Hz after the DPU clock fix"),
  ("Backlight", "ok", "Brightness curve still being checked against stock"),
- ("GNOME pink / blocky glitches", "part", "Isolation plan sent (relay 011); no result yet"),
- ("Touchscreen", "part", "Driver, firmware and libinput OK; a real touch not confirmed"),
+ ("GNOME pink / blocky glitches", "part", "Isolation plan sent (relay 011); Mesa side checked; first display run next"),
+ ("Touchscreen", "ok", "Confirmed by you: GNOME used by touch during the audio runs"),
  ("Pen", "part", "GNOME accepts it; strokes not confirmed"),
  ("Lid switch", "part", "Closing not tested"),
  ("Power and volume keys", "ok", "Power key also wakes from sleep"),
@@ -27,17 +41,17 @@ G = [
  ("Adreno 840 GPU, GLES 3.2", "ok", "kmscube 120 fps, glmark2 1836"),
  ("GNOME and Wayland drawn by the GPU", "ok", ""),
  ("GPU correctness, WebGL, 30-min stress", "todo", "Relay 012"),
- ("Vulkan", "todo", "Waiting for Mesa support"),
+ ("Vulkan", "todo", "Mesa 26.2.3 has turnip for the Adreno 840; vulkaninfo/vkcube check in the display run"),
  ("Hardware video decoding", "todo", "Driver in the tree; firmware known"),
  ("NPU (Hexagon on the CDSP)", "todo", "Off by default; bring-up in relay 012"),
 ]),
 ("Audio", [
  ("DSP audio + sound card", "ok", ""),
  ("GNOME shows speakers and microphones", "ok", "Fixed: stray mixer route; appears on a fresh boot"),
- ("Microphones (2)", "part", "Capture works; GNOME’s meter was flat (analog gain 0 = mute); stock gain 14 now in the profile, re-test next"),
+ ("Microphones (2)", "part", "Known issue: a steady hiss 25–35 dB above stock, so GNOME’s meter barely moves; speech gets through"),
  ("Speakers (top pair)", "ok", "You heard them (S17), raw ALSA and through GNOME/PipeWire; kernel fix only"),
  ("All six speakers in stereo", "ok", "You heard all six from GNOME’s Sound test, both sides correct"),
- ("Speaker volume cap", "part", "−12 dB cap in topology + UCM; kernel enforcement patch untested"),
+ ("Speaker volume cap", "ok", "−12 dB cap enforced by the kernel (queued 0051); stock value still to find"),
  ("Speaker protection (NXP container)", "todo", "Closed firmware; volume stays capped"),
  ("Headset over USB-C", "todo", "No 3.5 mm jack"),
 ]),
@@ -52,6 +66,7 @@ G = [
 ]),
 ("Power & charging", [
  ("Battery level, voltage, current, temperature, health", "ok", "UPower and GNOME battery"),
+ ("Battery time estimate", "part", "Inaccurate (your report): jumpy current reading, no charge-now value; fix in the Power area"),
  ("Charging", "part", "Works; Pad 4 stock charger limits patch (9 V / 1.5 A) awaiting test"),
  ("Battery safety guard (stock limits)", "part", "Written and simulated (30 cases); tablet test pending"),
  ("Charge limit (80 %)", "todo", ""),
