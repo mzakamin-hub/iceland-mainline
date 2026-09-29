@@ -34,9 +34,9 @@ G = [
 ("Audio", [
  ("DSP audio + sound card", "ok", ""),
  ("GNOME shows speakers and microphones", "ok", "Fixed: stray mixer route; appears on a fresh boot"),
- ("Microphones (2)", "ok", "Clean capture through PipeWire"),
+ ("Microphones (2)", "part", "Capture works; GNOME’s meter was flat (analog gain 0 = mute); stock gain 14 now in the profile, re-test next"),
  ("Speakers (top pair)", "ok", "You heard them (S17), raw ALSA and through GNOME/PipeWire; kernel fix only"),
- ("All six speakers in stereo", "part", "All six play, left/right exact (mic-measured, S19); your listen from GNOME’s Sound test next"),
+ ("All six speakers in stereo", "ok", "You heard all six from GNOME’s Sound test, both sides correct"),
  ("Speaker volume cap", "part", "−12 dB cap in topology + UCM; kernel enforcement patch untested"),
  ("Speaker protection (NXP container)", "todo", "Closed firmware; volume stays capped"),
  ("Headset over USB-C", "todo", "No 3.5 mm jack"),
