@@ -6,6 +6,12 @@ include(`audioreach/device-subgraph.m4')
 include(`util/route.m4')
 include(`util/mixer.m4')
 include(`audioreach/tokens.m4')
+dnl
+dnl OnePlus Pad 4: the stream gain into the speakers (MultiMedia1/2/5 -> PRIMARY_TDM_RX_0 -> 6x TFA9865) is capped,
+dnl because there is no speaker protection yet (the TFA9865 container is not loaded). Q13 linear gain, 8192 = 0 dB.
+dnl PLACEHOLDER (rule 13): 2056 = -12.0 dB until the stock volume limits are known (relay 018 item 9); the kernel
+dnl keeps writes and the power-up gain within this maximum (candidate patch in relay/answers/pc-026-s8-s9/).
+define(`VOL_CTRL_MAX', `2056')dnl
 #
 # Stream SubGraph  for MultiMedia Playback
 #
@@ -15,11 +21,11 @@ include(`audioreach/tokens.m4')
 # |______________________________________________|
 #
 dnl Playback MultiMedia1
-STREAM_SG_PCM_ADD(audioreach/subgraph-stream-vol-playback.m4, FRONTEND_DAI_MULTIMEDIA1,
+STREAM_SG_PCM_ADD(audioreach/subgraph-stream-vol-playback-capped.m4, FRONTEND_DAI_MULTIMEDIA1,
 	`S16_LE', 48000, 48000, 2, 2,
 	0x00004001, 0x00004001, 0x00006001, `110000')
 dnl Playback MultiMedia2
-STREAM_SG_PCM_ADD(audioreach/subgraph-stream-vol-playback.m4, FRONTEND_DAI_MULTIMEDIA2,
+STREAM_SG_PCM_ADD(audioreach/subgraph-stream-vol-playback-capped.m4, FRONTEND_DAI_MULTIMEDIA2,
 	`S16_LE', 48000, 48000, 2, 2,
 	0x00004002, 0x00004002, 0x00006010, `110000')
 dnl Capture MultiMedia3
@@ -31,7 +37,7 @@ STREAM_SG_PCM_ADD(audioreach/subgraph-stream-capture.m4, FRONTEND_DAI_MULTIMEDIA
 	`S16_LE', 48000, 48000, 1, 2,
 	0x00004004, 0x00004004, 0x00006030, `110000')
 dnl Playback MultiMedia5
-STREAM_SG_PCM_ADD(audioreach/subgraph-compress-stream-vol-playback.m4, FRONTEND_DAI_MULTIMEDIA5,
+STREAM_SG_PCM_ADD(audioreach/subgraph-compress-stream-vol-playback-capped.m4, FRONTEND_DAI_MULTIMEDIA5,
 	`S16_LE', 48000, 48000, 2, 2,
 	0x0000400a, 0x0000400a, 0x00006040, `110000')
 dnl Playback MultiMedia6 - for DisplayPort RX 0
