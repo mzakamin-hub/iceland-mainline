@@ -71,8 +71,8 @@ G = [
 ("Power & charging", [
  ("Battery level, voltage, current, temperature, health", "ok", "UPower and GNOME battery"),
  ("Battery time estimate", "part", "Inaccurate (your report): jumpy current reading, no charge-now value; fix in the Power area", "qcom_battmgr OPLUS: STATUS forced to Charging when USB is online; instantaneous 1 Hz current; gauge word 4 is not a charge; derive CHARGE_NOW = capacity × charge_full, probe TTE/TTF/POWER_AVG (offline-prep/power.md A2–A4)"),
- ("Charging", "part", "Works; Pad 4 stock charger limits patch (9 V / 1.5 A) awaiting test", "Queue still has the OnePlus 15 policy (3 A input, 12 V PDO): 1.2–1.9 A seen on SDP vs stock 500 mA. Queue relay 015 first, fixing USB_ADAP_TYPE and the fail-low 9 V error path (power.md B1–B4, C7)"),
- ("Battery safety guard (stock limits)", "part", "Written and simulated (30 cases); tablet test pending", "Retry failed writes (cache only on success); stop on unreadable voltage and VBUS > 11 V; rise-fast rule (power.md B8/B9/B11)"),
+ ("Charging", "part", "Works; stock charger limits patch 0053 ready (review fixes in, builds clean); tablet test next", "Queue still has the OnePlus 15 policy (3 A input, 12 V PDO): 1.2–1.9 A seen on SDP vs stock 500 mA. Test 0053 on the PC port (power.md T1/T4), then queue it; chargers with you watching (T2–T6)"),
+ ("Battery safety guard (stock limits)", "part", "Review fixes in (iceland-device 0.8: retries, VBUS > 11 V, rise-fast, unreadable voltage); 47 simulated cases pass; tablet test pending", "Tablet test with 0053's charge_behaviour / constant_charge_current_max (power.md T5)"),
  ("Charge limit (85 %, your request)", "todo", "battmgr OnePlus variant exposes no charge_control_* files", "Add the thresholds + setter to the OPLUS battmgr props; check the SoCCP honours opcode 0x48; UPower limit in iceland-device"),
  ("Low-battery current limiting (BCL)", "todo", "", "Stock PMH0101/PMIH010x BCL nodes (relay 018 item 6); qcom-bcl-hwmon / spmi bcl"),
  ("Pen charging", "todo", "New driver needed", "Pen wireless-charge IC on the pogo/magnet side: stock driver in OnePlusOSS"),

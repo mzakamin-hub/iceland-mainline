@@ -4,7 +4,7 @@
 # No firmware and no binaries: configuration files and small scripts only.
 
 Name:           iceland-device
-Version:        0.7
+Version:        0.8
 Release:        1%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
@@ -174,6 +174,10 @@ fi
 %dir /etc/iceland
 
 %changelog
+* Tue Sep 29 2026 mzak <mzak.amin@gmail.com> - 0.8-1
+- battery guard: retry failed writes (cache only on success), re-assert charge_behaviour every step, stop on an
+  unreadable battery voltage, on VBUS above 11 V (stock OV) and on a 3 C connector rise in one step (stock
+  rise_fast_temp); log the missing inputs at start and every 5 min while plugged (offline review B8/B9/B11)
 * Tue Sep 29 2026 mzak <mzak.amin@gmail.com> - 0.7-1
 - drop a stale /var/lib/alsa/asound.state once (it broke the speaker route, pc-026 S12); UCM switches stray routes off
 * Tue Sep 29 2026 mzak <mzak.amin@gmail.com> - 0.6-1

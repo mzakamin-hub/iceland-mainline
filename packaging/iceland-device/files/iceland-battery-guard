@@ -26,9 +26,13 @@
 #                      usbtemp_batt_temp_over_hot); stock then stays stopped until the charger is unplugged.
 #              cool down: usb >= 54 / 65 C or gap >= 12 / 20 C -> 1200 mA (usbtemp_cool_down_*,
 #                      cool_down_pdqc_curr_ma level 1); recover below 48 / 60 C and gap below 6 / 15 C.
+#              rise fast: the connector warming by rise_fast_temp 3 C -> stop (latched like the other USB stops).
+#  VBUS over-voltage: stock's charger OV is 11000 mV -> stop (latched until unplugged).
 #  OURS (not stock values): the 45 C floor for the gap rules (stop and cool-down) (as in the OnePlus usbtemp code; PC verifies it in the
 #  OnePlusOSS source, relay 013), 2 C temperature hysteresis on region changes, 3 consecutive low-voltage readings
-#  before a power-off (load dips), and "no charging while the battery temperature can't be read".
+#  before a power-off (load dips), "no charging while the battery temperature or voltage can't be read", the
+#  rise-fast window (one 5 s sample; stock counts over 20-30 samples), and a failed stop being retried every step
+#  with the warning repeated every 5 minutes.
 import glob, os, subprocess, sys, syslog, time
 
 BAT = os.environ.get("ICELAND_BAT", "/sys/class/power_supply/qcom-battmgr-bat")
@@ -54,8 +58,11 @@ USB_COOL_GAP_LOW, USB_COOL_GAP_HIGH = 12.0, 20.0
 USB_REC_LOW, USB_REC_HIGH = 48.0, 60.0
 USB_REC_GAP_LOW, USB_REC_GAP_HIGH = 6.0, 15.0
 USB_COOL_MA = 1200
+USB_RISE_FAST = 3.0                       # rise_fast_temp (C)
+VBUS_OV = 11.0                            # stock charger OV (V)
 HYST_T = 2.0                              # OURS
 UV_COUNT = 3                              # OURS
+REWARN_S = 300                            # OURS: repeat a "can't stop charging" warning every 5 min
 
 def rd(path, default=None):
     try:
@@ -84,13 +91,24 @@ def run(cmd):
         return 0
     return subprocess.call(cmd)
 
-def usb_therm():
+def usb_therm_zone():
     for z in glob.glob(THERMAL + "/thermal_zone*"):
         if rd(z + "/type", "") in ("usb-therm-thermal", "usb-therm"):
-            t = rd(z + "/temp")
-            if t and t.lstrip("-").isdigit():
-                return int(t) / 1000.0
+            return z
     return None
+
+def usb_therm():
+    z = usb_therm_zone()
+    t = rd(z + "/temp") if z else None
+    if t and t.lstrip("-").isdigit():
+        return int(t) / 1000.0
+    return None
+
+def behaviour(value):
+    """charge_behaviour as the kernel shows it ("[auto] inhibit-charge") or as a plain word"""
+    if value and "[" in value:
+        return value[value.index("[") + 1:value.index("]")]
+    return value
 
 def region(temp, prev):
     """stock region index; leaving the current region needs HYST_T of margin (OURS)"""
@@ -131,28 +149,49 @@ def usb_cool(ut, temp, cooling):
 
 class Guard:
     def __init__(self):
-        self.inhibited = None      # None = unknown, write on first decision
+        self.inhibited = None      # the last state written successfully; None = unknown, write on first decision
         self.fcc = None
         self.region = None
         self.usb_latched = False
+        self.usb_why = None        # why the USB latch was set (kept for the log until unplugged)
+        self.prev_ut = None        # the connector temperature at the previous plugged step (rise-fast rule)
         self.cooling = False
         self.uv_count = 0
-        self.warned = False
+        self.warned_at = None      # when "can't stop charging" was last reported
+        self.missing_at = None     # when a missing input was last reported while plugged
         self.v_stop = False        # stopped for voltage: resume only below the stock recharge voltage
 
+    def report_inputs(self):
+        """log once at start which inputs and knobs exist (a missing one disables its rules)"""
+        have = {"charge_behaviour": os.path.exists(BAT + "/charge_behaviour"),
+                "constant_charge_current_max": os.path.exists(BAT + "/constant_charge_current_max"),
+                "usb-therm zone": usb_therm_zone() is not None,
+                "battery voltage": rd(BAT + "/voltage_now") is not None,
+                "USB voltage": rd(USB + "/voltage_now") is not None}
+        missing = [k for k, ok in have.items() if not ok]
+        log("iceland-battery-guard: inputs " + ", ".join("%s %s" % (k, "ok" if ok else "MISSING") for k, ok in have.items()),
+            syslog.LOG_WARNING if missing else syslog.LOG_NOTICE)
+        return missing
+
     def inhibit(self, on, why=""):
-        if self.inhibited == on:
-            return
         cb = BAT + "/charge_behaviour"
-        ok = os.path.exists(cb) and wr(cb, "inhibit-charge" if on else "auto")
-        if not ok and on and not self.warned:
-            log("iceland-battery-guard: must stop charging (%s) but can't; unplug the charger" % why, syslog.LOG_CRIT)
-            run(["wall", "OnePlus Pad 4: unplug the charger (%s)" % why])
-            self.warned = True
-        if ok:
+        want = "inhibit-charge" if on else "auto"
+        # re-read every step: something else may have changed it (or an earlier write failed)
+        if self.inhibited == on and behaviour(rd(cb)) == want:
+            return
+        ok = os.path.exists(cb) and wr(cb, want)
+        if not ok:
+            now = time.monotonic()
+            if on and (self.warned_at is None or now - self.warned_at >= REWARN_S):
+                log("iceland-battery-guard: must stop charging (%s) but can't; unplug the charger" % why, syslog.LOG_CRIT)
+                run(["wall", "OnePlus Pad 4: unplug the charger (%s)" % why])
+                self.warned_at = now
+            return                 # not cached: the next step tries again
+        if self.inhibited != on:
             log("iceland-battery-guard: " + ("charging stopped: " + why if on else "charging allowed"),
                 syslog.LOG_WARNING if on else syslog.LOG_NOTICE)
         self.inhibited = on
+        self.warned_at = None
 
     def set_fcc(self, ma):
         if self.fcc == ma:
@@ -160,14 +199,21 @@ class Guard:
         p = BAT + "/constant_charge_current_max"
         if os.path.exists(p) and wr(p, str(ma * 1000)):
             log("iceland-battery-guard: charge current cap %d mA" % ma, syslog.LOG_NOTICE)
-        self.fcc = ma
+            self.fcc = ma          # cached only on success: a failed write is retried next step
 
     def step(self):
         t = rd(BAT + "/temp"); v = rd(BAT + "/voltage_now"); st = rd(BAT + "/status", "")
         temp = int(t) / 10.0 if t and t.lstrip("-").isdigit() else None   # tenths of a degree C
         volt = int(v) / 1e6 if v and v.isdigit() else None                 # uV
         plugged = rd(USB + "/online", "0") == "1"
+        vb = rd(USB + "/voltage_now")
+        vbus = int(vb) / 1e6 if vb and vb.isdigit() else None               # uV
         ut = usb_therm()
+        if plugged and ut is None:
+            now = time.monotonic()
+            if self.missing_at is None or now - self.missing_at >= REWARN_S:
+                log("iceland-battery-guard: no usb-therm zone: the USB-C connector rules are off")
+                self.missing_at = now
 
         # shutdowns
         if temp is not None and temp >= T_EMERGENCY:
@@ -187,9 +233,18 @@ class Guard:
         # the USB-C connector latch lasts until the charger is unplugged, as on stock
         if not plugged:
             self.usb_latched = False
+            self.usb_why = None
+            self.prev_ut = None
         why = usb_stop(ut, temp)
+        if not why and plugged and ut is not None and self.prev_ut is not None and ut - self.prev_ut >= USB_RISE_FAST:
+            why = "USB connector rose %.1f C in one step (%.1f C)" % (ut - self.prev_ut, ut)
+        if not why and plugged and vbus is not None and vbus > VBUS_OV:
+            why = "VBUS %.2f V above %.1f V" % (vbus, VBUS_OV)
+        if plugged:
+            self.prev_ut = ut
         if why:
             self.usb_latched = True
+            self.usb_why = why
 
         # charging decision
         stop = None
@@ -200,7 +255,9 @@ class Guard:
             r = self.region
             if FCC_MA[r] == 0:
                 stop = "battery %.1f C outside -10..53 C" % temp
-            elif volt is not None and volt >= V_OV:
+            elif volt is None:
+                stop = "battery voltage unreadable"
+            elif volt >= V_OV:
                 stop = "over-voltage %.3f V" % volt
                 self.v_stop = True
             elif volt is not None and volt > SW_OVER_FV[r]:
@@ -211,7 +268,7 @@ class Guard:
             else:
                 self.v_stop = False
         if self.usb_latched:
-            stop = why or "USB connector was too hot (unplug to reset)"
+            stop = why or "%s (unplug to reset)" % (self.usb_why or "USB connector was too hot")
         self.inhibit(stop is not None, stop or "")
 
         if temp is not None:
@@ -229,6 +286,7 @@ def main():
         log("no %s, nothing to guard" % BAT)
         return 0
     g = Guard()
+    g.report_inputs()
     while True:
         plugged = g.step()
         if ONESHOT:
