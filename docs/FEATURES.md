@@ -1,8 +1,8 @@
 # OnePlus Pad 4 mainline: feature matrix
 
-Status 29 Sep 2026 (after pc-026 S16). Everything is tested by RAM boot; nothing is installed on the tablet yet.
+Status 29 Sep 2026 (after pc-026 S17: you heard the speakers; area-by-area campaign, relay 019). Everything is tested by RAM boot; nothing is installed on the tablet yet.
 Legend: ✅ working · 🟡 in progress · ⬜ not started · ❌ not planned. Sorted by functionality.
-Totals: 26 working, 17 in progress, 22 not started, 2 not planned (67).
+Totals: 27 working, 16 in progress, 22 not started, 2 not planned (67).
 
 ## Boot & platform (5/8 working)
 
@@ -43,15 +43,15 @@ Totals: 26 working, 17 in progress, 22 not started, 2 not planned (67).
 | Hardware video decoding | ⬜ Not started | Driver in the tree; firmware known |
 | NPU (Hexagon on the CDSP) | ⬜ Not started | Off by default; bring-up in relay 012 |
 
-## Audio (3/8 working)
+## Audio (4/8 working)
 
 | Feature | Status | Notes |
 |---|---|---|
 | DSP audio + sound card | ✅ Working |  |
 | GNOME shows speakers and microphones | ✅ Working | Fixed: stray mixer route; appears on a fresh boot |
 | Microphones (2) | ✅ Working | Clean capture through PipeWire |
-| Speakers (6 amplifiers) | 🟡 In progress | Mics hear the tone after the stock slot setup + MANSCONF; waiting for your listen |
-| All six speakers in stereo | 🟡 In progress | Channel-map patches ready; top pair only until tested |
+| Speakers (top pair) | ✅ Working | You heard them (S17), raw ALSA and through GNOME/PipeWire; kernel fix only |
+| All six speakers in stereo | 🟡 In progress | Channel-map patches 0001–0005 ready for the next run |
 | Speaker volume cap | 🟡 In progress | −12 dB cap in topology + UCM; kernel enforcement patch untested |
 | Speaker protection (NXP container) | ⬜ Not started | Closed firmware; volume stays capped |
 | Headset over USB-C | ⬜ Not started | No 3.5 mm jack |
