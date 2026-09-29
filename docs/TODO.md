@@ -27,6 +27,7 @@ Difficulty scale:
 - [ ] [P3] Housekeeping: KNOWLEDGE §13 in sync with PLAN v4 (PC); refresh the cloud kernel tree (M)
 
 ## 2 — Moderate
+- [ ] [P1] PC+U: **GNOME pink/blocky glitches** (user report 2026-09-29): isolate (relay 011: screenshot vs screen, 60 Hz, `FD_MESA_DEBUG=noubwc`, software GL), then fix
 - [x] [P0] M: thermal DT: skin zone `pmh0101_skin_therm` (48/50/60 °C steps, 90 °C critical), XO zone (78/80 °C, 90 °C). Candidate patch in relay 009
 - [ ] [P0] PC: test and queue relay 009 (skin/XO zones) with a 15 min load kit
 - [ ] [P0] M+PC: GPU trips confirmed against stock (kaanapali.dtsi already maps gpuss-N at 105 °C to `&gpu`); GPU devfreq cooling tested (glmark2, 10 min)
