@@ -871,6 +871,10 @@ ABL (stock, untouched)
   stalls`, NMI unanswered, watchdog reset) - under test (S3: stall watch after one cycle; then the big cores'
   deepest idle state after resume);
   ✅ S3: no CPU stall in 6 min after one s2idle cycle (the S2 stall stays a watch item after multiple cycles);
+  ⚠️ **S10 (q9 kernel = queue 0001-0045): the first s2idle cycle did not come back - the tablet hard-reset**
+  (`/proc/bootloader_log`: "Reset Type: Hard Reset", PonReason 0x11) while S2/S3 (q6 kernel) cycled fine → a
+  suspend regression from the audio patches 0041-0045 or from PipeWire holding the card is the suspect;
+  bisect next (q6 + same probe, then q7/q8/q9);
   ⚠️ **sound - root cause found (S3 analysis, fix under test in S4):** the card is up on the ADSP after the
   hand-over (kit firmware bound over the rootfs's `/lib/firmware`; the DT link on stock's `PRIMARY_TDM_RX_0`),
   the front-end graph opens, but **the speaker back-end graph is rejected at `APM_CMD_GRAPH_OPEN` because the
