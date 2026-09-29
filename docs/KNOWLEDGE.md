@@ -897,6 +897,14 @@ ABL (stock, untouched)
   Mixer DEC0/1=1`, `MultiMedia3 Mixer TX_CODEC_DMA_TX_3=1`. The codec-DMA "EIO" was never a DSP fault: the DSP
   graphs ran, the codec DAPM chain was unpowered (packet dumps + widget dumps in `docs/tests/linux-runpc26i`).
   WCD headphone path: `HPHL_RDAC Switch`/`HPHR_RDAC Switch` were the missing bits (no jack on the Pad 4; parked).
+  **✅ User space (S9):** the UCM profile for card "OnePlusPad4" (`audio/ucm/OnePlus-Pad4/`: HiFi verb, Speaker =
+  MultiMedia1→PRIMARY_TDM_RX_0, Mic = MultiMedia3←TX_CODEC_DMA_TX_3 with the S7 controls) is taken by
+  WirePlumber 0.5.17: profile HiFi active, sink "Built-in Audio Speakers", source "Built-in Audio Internal
+  microphones"; pw-play and pw-record work (clean capture). **Never set `TX0/TX1 MODE = ADC_HIFI`** (stock's
+  value): on mainline it turns the capture into full-scale noise; the boot default (untouched) is clean. Rootfs
+  facts: pipewire 1.6.9 + wireplumber + pipewire-alsa/pulse present, `alsaucm`/`diffutils` absent, dnf without
+  proxy (pass `--setopt=proxy=`). The rootfs hand-back (rootfstar) fails gzip -t since S8 - to fix; the profile
+  must be installed into the rootfs (post script / hand-back) to persist.
   Second issue (resolved as above): the WCD playback and the
   mic capture get `EIO` after ~1 s with no DSP error = no buffer completions (ALSA `wait_for_avail` timeout) -
   data-flow/clocking on the codec-DMA paths, S4 samples the PCM status. Front ends take S16 stereo 48 kHz only;
