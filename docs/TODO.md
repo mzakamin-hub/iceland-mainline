@@ -11,6 +11,7 @@ Difficulty scale:
 - **4 Very hard:** reverse engineering or closed parts; weeks, may not be fully solvable.
 
 ## 1 — Easy
+- [ ] [P0] PC: relay 013: audit every hardware value (sound, brightness, clocks, GPU, speaker/mic tuning, power, thermals) against Pad 4 stock (OxygenOS 11.A.38 / the user's LineageOS trees); replace placeholders
 - [x] [P0] M: relay 012 A: standing policy, so the PC runs the build → kit → judge → iterate → queue loop by itself (no tablet writes)
 - [ ] [P0] U: decide single boot (4e) or dual boot (4-DB)
 - [ ] [P0] U: if dual boot, choose the Android / Fedora (/ shared) partition sizes

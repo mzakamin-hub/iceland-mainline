@@ -86,6 +86,19 @@ Contents:
 12. The PC also builds kernels and kits itself (WSL). Both sessions push to the same repos. Always `git pull --rebase`
     before pushing, and never rewrite shared history.
 
+13. **Every hardware value comes from Pad 4 stock sources** (user, 2026-09-29). This covers sound (mixer
+    paths, gains, volume caps), speaker and mic tuning (TFA9865 `tfa98xx.cnt`, stock UCM/mixer_paths/ACDB), brightness
+    (KTZ8869 registers, curve, min/max), clocks and OPPs, GPU (OPP table, devfreq, zap), power (charging limits,
+    regulators, idle and suspend), and thermals (trips, hysteresis, cooling steps).
+    - **Allowed sources, in this order:** this unit's stock OxygenOS 11.A.38 (live DT captures, the OTA partitions on
+      the PC: vendor, odm, `/odm/etc`, `/vendor/etc`); the user's LineageOS trees for the Pad 4 on the PC
+      (`device/oneplus/iceland`, `sm8850-common`, the OnePlus SM8850 devicetrees/modules with the iceland overlays);
+      the OnePlusOSS sources for OPD2514.
+    - Values from other devices (the OnePlus 15, reference boards, upstream defaults) are allowed **only** as a
+      labelled placeholder until the stock value is found.
+    - Every such value in a patch or config names its source (file/node/property) in a comment or the commit message.
+    - Mainline and the PC both follow this; the PC's automated loop (relay 012) too.
+
 ## 3. Repositories and layout
 
 All repos belong to GitHub user **mzakamin-hub** and are private. The cloud session's working copies are under `/home/user`.
