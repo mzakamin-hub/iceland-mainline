@@ -854,15 +854,31 @@ ABL (stock, untouched)
   ⚠️ **after real suspend cycles CPU 7 stalled in a deep idle state 2.5 min later** (S2: `rcu_preempt detected
   stalls`, NMI unanswered, watchdog reset) - under test (S3: stall watch after one cycle; then the big cores'
   deepest idle state after resume);
-  ⚠️ **sound**: the card is up on the ADSP after the hand-over (kit firmware bound over the rootfs's
-  `/lib/firmware`; the DT link on stock's `PRIMARY_TDM_RX_0`, the Audio-Interface TDM topology loaded), but
-  every graph open fails, before and after suspend (S3): **the APM never answers `APM_CMD_GET_SPF_STATE`**
-  ("CMD timeout for [1001021]", identical since pc-017) - the stock ADSP's audio framework does not talk to
-  mainline's q6apm on this unit; the topology is not the cause (linux-firmware's Kaanapali MTP topology is the
-  same template). Leads: a TrustZone-side listener during SPF init (OnePlus 15 ships `minkipc`), the stock
-  `spf-core` bring-up; topology/driver variants can be tried in-session (rebind `snd-sc8280xp`);
-  the front ends take S16 stereo only (48 kHz); mics: WCD9395 analog mics → TX macro → `TX_CODEC_DMA_TX_3`;
-  `upower` needs `PrivateUsers=no` under the chroot hand-over.
+  ✅ S3: no CPU stall in 6 min after one s2idle cycle (the S2 stall stays a watch item after multiple cycles);
+  ⚠️ **sound - root cause found (S3 analysis, fix under test in S4):** the card is up on the ADSP after the
+  hand-over (kit firmware bound over the rootfs's `/lib/firmware`; the DT link on stock's `PRIMARY_TDM_RX_0`),
+  the front-end graph opens, but **the speaker back-end graph is rejected at `APM_CMD_GRAPH_OPEN` because the
+  stock ADSP firmware has no Audio Interface (QAIF) module** (0x0700117C/D, what mainline 7.3's TDM support and
+  linux-firmware's Kaanapali MTP topology use): its static module table (`an/adsp-modules.py` over the adsp.bNN
+  segments) holds the classic I2S/PCM/**TDM (0x0700100E/F)**/codec-DMA/DP endpoints, and the stock ACDB
+  (`an/acdb-scan.py`; the file itself stays private) references `MODULE_ID_TDM_SINK` 95× and Audio-IF 0×. The
+  probe-time `GET_SPF_STATE` timeout is harmless (5 s too early; the PRM's identical query is answered). Stock
+  TDM settings from the ACDB: LPAIF 0, intf 0, sync internal, ctrl data-out enable, slot mask 0xff, 8 × 32 bit,
+  long sync mode, no inversion, 1-cycle data delay; endpoint format 48 kHz/32-bit/8 ch. Fix, step by step:
+  kernel `tdm-sink` (classic TDM modules + `PARAM_ID_TDM_INTF_CFG` 0x0800101B in audioreach, topology loader,
+  graph-open error logged) + `module_tdm.m4`/`subgraph-device-tdm-playback.m4` → **S4: the graph is accepted
+  (open, media format, prepare), START returns error 1**; `tdm-clk` (q6prm TDM clock ids 0x200.., DT
+  `&q6apmbedai { dai@18 { … "bclk" } }` like the OnePlus 15's MI2S) → **S5: the PRM grants the 12.288 MHz bit
+  clock (ftrace-verified chain), START still error 1**; `tdm-fmt` (BE fixup S32_LE / 8 ch = the stock endpoint
+  format, + 6/8-channel default maps) → **✅ S6 (07:59): playback on PRIMARY_TDM_RX_0 completes, no DSP error,
+  all six TFA9865 report a stable clock (status 0x7eaf → 0x7eef)** - the ALSA path to the speakers works;
+  not yet confirmed by ear, and the stereo stream is spread over the 8 slots with a 7.1 map (stock: custom
+  per-amplifier channels) → follow-ups: channel layout, volume controls, UCM, PipeWire. Queue 0038-0045
+  (`queue-tdm2.sh`). Second issue: the WCD playback and the
+  mic capture get `EIO` after ~1 s with no DSP error = no buffer completions (ALSA `wait_for_avail` timeout) -
+  data-flow/clocking on the codec-DMA paths, S4 samples the PCM status. Front ends take S16 stereo 48 kHz only;
+  mics: WCD9395 analog mics → TX macro → `TX_CODEC_DMA_TX_3`; ✅ `upower` works with `PrivateUsers=no` under
+  the chroot hand-over (S3). Never unbind/bind the GPR/APM devices in-session (port idr dropped, replies lost).
 
 **Open issues:**
 1. ✅ **Early reset - closed (pc-022): it was the kit's own `/dev/mem` display sampler, not the kernel.** History:
@@ -899,8 +915,9 @@ ABL (stock, untouched)
 2. **Audio:**
    1. ✅ topology + card registration (pc-017; upstream's Kaanapali topology as `OnePlus-Pad4-tplg.bin`);
    2. ✅ mixer listing: 223 controls (pc-019, `amixer -c 0 contents`, read only);
-   3. speakers: Mainline moves the DT speaker link to PRIMARY_TDM_RX_0 (8 × 32 bit, TFA9865 slots); the PC writes an
-      Audio IF (TDM) device subgraph m4 for the topology;
+   3. speakers: DT speaker link on PRIMARY_TDM_RX_0 (8 × 32 bit, TFA9865 slots; branch tdm-spk) ✅ card + route;
+      the Audio IF (QAIF) module is **absent from the stock ADSP** → classic `MODULE_ID_TDM_SINK` in the kernel
+      (branch tdm-sink) and the topology (`module_tdm.m4`), stock ACDB settings - S4;
    4. volume caps, then UCM; no playback before that (TFA9865 protection needs `tfa98xx.cnt`).
 3. ✅ **battmgr units**: 0029 (the Oplus gauge gives mV/mA; now ×1000), tested in pc-019.
 4. **Small DT items:**
@@ -988,7 +1005,10 @@ item, judged from logs, results saved after each; anything that writes to the ta
      range (#8, user), regulatory domain; NetworkManager Wi-Fi under Fedora (Y10+).
   3. **Bluetooth address** (pending #6): BD address from wlan0's MAC at boot (confirm stock's rule under LineageOS
      with read-only adb `getprop`); `btmgmt public-addr` / `local-bd-address`; pairing under GNOME.
-  4. **Audio** (pending #2): speakers on Primary TDM (Mainline's DT + the Audio IF m4), volume caps, UCM, headset;
+  4. **Audio** (pending #2): ✅ speakers play on the primary TDM port at the ALSA level (pc-026 S6: classic TDM
+     sink, PRM bit clock, 32-bit/8-ch back end; queue 0038-0045); pending: per-amplifier channel layout (stock:
+     custom channels 48-56 on the 8 slots), volume caps, UCM/PipeWire, **mic + WCD codec paths** (EIO without a
+     DSP error, RX SoundWire bus clash - S7 with the packet-dump kernel), headset;
      the TFA9865 `tfa98xx.cnt` protection before any playback; mics.
   5. **Touch, pen, lid events** (#7): an input-event logger kit, or GNOME's libinput logs in Y10; the lid switch
      closing (0030/0034) and the pen. **Found in Y9 (cage's log):** libinput accepts the touch screen

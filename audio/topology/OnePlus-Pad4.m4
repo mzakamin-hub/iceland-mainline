@@ -1,4 +1,3 @@
-define(`AR_AUDIO_IF_QAIF', `0') dnl
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright, Linaro Ltd, 2023
 include(`audioreach/audioreach.m4')
@@ -58,23 +57,21 @@ DEVICE_SG_ADD(audioreach/subgraph-device-codec-dma-playback.m4, `WSA_CODEC_DMA_R
 	LPAIF_INTF_TYPE_WSA, CODEC_INTF_IDX_RX0, 0, DATA_FORMAT_FIXED_POINT,
 	0x00004005, 0x00004005, 0x00006050)
 dnl
-dnl Primary TDM Playback: the OnePlus Pad 4 speakers (six TFA9865 as TDM slaves on the stock back end
-dnl TDM-LPAIF-RX-PRIMARY: 8 slots x 32 bit, 48 kHz; LPASS drives bit clock and frame sync, short sync, 1-cycle delay)
-define(`TDM_INTF_MODE', `0') dnl AR_AUDIO_IF_INTF_MODE_TDM
-define(`TDM_SYNC_SRC', `1') dnl AR_AUDIO_IF_SYNC_SRC_INTERNAL
-define(`TDM_SYNC_MODE', `0') dnl AR_AUDIO_IF_FRAME_SYNC_MODE_SHORT
-define(`TDM_INVERT_SYNC', `0') dnl
-define(`TDM_DATA_DELAY', `1') dnl AR_AUDIO_IF_DATA_DELAY_1_CYCLE
+dnl Primary TDM Playback: the OnePlus Pad 4 speakers (six TFA9865 as TDM slaves) on the stock back end
+dnl TDM-LPAIF-RX-PRIMARY, classic TDM sink module; every value below is the stock ACDB's for this endpoint:
+dnl 8 slots x 32 bit, 48 kHz, LPASS drives the frame sync (internal), data-out enable, long sync mode, no
+dnl inversion, 1-cycle data delay.
+define(`TDM_SYNC_SRC', `1') dnl TDM_SYNC_SRC_INTERNAL
+define(`TDM_CTRL_DATA_OE', `1') dnl
 define(`TDM_SLOT_MASK', `0xff') dnl
 define(`TDM_NSLOTS', `8') dnl
 define(`TDM_SLOT_WIDTH', `32') dnl
-define(`TDM_BIT_CLK_TYPE', `0') dnl AR_AUDIO_IF_BIT_CLK_INTERNAL
-define(`TDM_CTRL_DATA_OE', `0') dnl
-define(`TDM_LANE_MASK', `1') dnl
-define(`TDM_FRAME_SYNC_RATE', `48000') dnl
-DEVICE_SG_ADD(audioreach/subgraph-device-audio-if-playback.m4, `Primary', PRIMARY_TDM_RX_0,
+define(`TDM_SYNC_MODE', `1') dnl TDM_LONG_SYNC_MODE
+define(`TDM_INVERT_SYNC', `0') dnl
+define(`TDM_DATA_DELAY', `1') dnl
+DEVICE_SG_ADD(audioreach/subgraph-device-tdm-playback.m4, `Primary', PRIMARY_TDM_RX_0,
 	`S32_LE', 48000, 48000, 8, 8,
-	AR_AUDIO_IF_QAIF, I2S_INTF_TYPE_PRIMARY, 0, DATA_FORMAT_FIXED_POINT,
+	LPAIF_INTF_TYPE_LPAIF, I2S_INTF_TYPE_PRIMARY, 0, DATA_FORMAT_FIXED_POINT,
 	0x00004006, 0x00004006, 0x00006060, `PRIMARY_TDM_RX_0')
 dnl
 dnl WCDRX Playback
