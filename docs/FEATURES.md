@@ -1,8 +1,8 @@
 # OnePlus Pad 4 mainline: feature matrix
 
-Status 29 Sep 2026 (after the audio area closed (mic hiss a known issue) the touchscreen confirmed by you and area-display-1 in (GPU + Vulkan accelerated, lid works, refresh switching broken); each open item has a where-to-look pointer; area-by-area campaign, relay 019; next: the display glitches and screen, then GPU and NPU). Everything is tested by RAM boot; nothing is installed on the tablet yet.
+Status 29 Sep 2026 (area-display-1 done (GPU + Vulkan accelerated, lid works; a panel power cycle blanks the screen and 120/60 Hz is broken); the project is now run by the PC session alone (relay 020); each open item has a where-to-look pointer; next: the charging-safety patch, then area-display-2 (touch/panel power-on order, 144 Hz only), then GPU and NPU). Everything is tested by RAM boot; nothing is installed on the tablet yet.
 Legend: ✅ working · 🟡 in progress · ⬜ not started · ❌ not planned. Sorted by functionality.
-Totals: 30 working, 15 in progress, 21 not started, 2 not planned (68).
+Totals: 31 working, 16 in progress, 21 not started, 2 not planned (70).
 
 ## Boot & platform (5/8 working)
 
@@ -10,10 +10,10 @@ Totals: 30 working, 15 in progress, 21 not started, 2 not planned (68).
 |---|---|---|---|
 | U-Boot booted from RAM (display, USB fastboot, UFS read, EFI) | ✅ Working | Nothing written to the tablet; fastboot flashing compiled out |  |
 | U-Boot boot setting for single or dual boot | ✅ Working | Boots a “fedora” partition if present, else userdata |  |
-| Linux 7.3-rc4 through EFI | ✅ Working | Queue 0001–0045 + infiniti |  |
+| Linux 7.3-rc4 through EFI | ✅ Working | Queue 0001–0052 + infiniti |  |
 | Fedora 44 running from RAM | ✅ Working | systemd as PID 1; packages through the PC |  |
 | GNOME Shell 50 | ✅ Working | Autologin session in RAM |  |
-| Firmware extractor (tablet's own partitions, read-only) | 🟡 In progress | vendor/odm inside “super” not mapped yet | Map vendor/odm inside “super” (lpunpack/lpdump metadata); pc-023/024 extractor, 11 files skipped |
+| Firmware extractor (tablet's own partitions, read-only) | 🟡 In progress | modem/bluetooth work on the tablet; vendor/odm inside “super” proven offline from your partition backup (10 of 10 files match stock 11.A.38) | Add the LP-metadata reader (an/lp-list.py) + read-only EROFS mount to tools/linux-ram/fw-extract.sh; test against the backup on the PC, then in a kit |
 | Fedora installed on the tablet | ⬜ Not started | Final step; needs your decisions and OK | Waits for your install decision (relay 019: Boot & platform last) |
 | Dual boot with Android | ⬜ Not started | Planned; recovery re-flash helper ready | iceland-u-boot patch 0003 (fedora_blkmap); tools/dualboot/reflash-recovery.ps1 |
 
@@ -38,12 +38,12 @@ Totals: 30 working, 15 in progress, 21 not started, 2 not planned (68).
 |---|---|---|---|
 | Adreno 840 GPU, GLES 3.2 | ✅ Working | OpenGL 4.6 / ES 3.2 on Mesa 26.2.3; glmark2 3015 under GNOME |  |
 | GNOME and Wayland drawn by the GPU | ✅ Working |  |  |
-| GPU correctness, WebGL, 30-min stress | ⬜ Not started | Relay 012 | Run on the stock gen80200 firmware set (kits use linux-firmware's); missing stock 1100 MHz OPP; dEQP/piglit availability (offline-prep/graphics.md A2/A7/A11) |
+| GPU correctness, WebGL, 30-min stress | ⬜ Not started | Relay 012 | Keep linux-firmware's gen80200 sqe/gmu/aqe + the tablet's own zap (your call); A/B the stock set only as a side check; missing stock 1100 MHz OPP; dEQP/piglit availability (offline-prep/graphics.md A2/A11) |
 | Vulkan | ✅ Working | turnip 26.2.3: Vulkan 1.4, vkmark 24562, vkcube 142 fps |  |
 | Hardware video decoding | ⬜ Not started | Driver in the tree; firmware known | Iris node disabled and no &iris override in the iceland DTS; set firmware-name vpu40_2v.mbn (driver default vpu40_p2 = ENOENT); CONFIG_VIDEO_QCOM_IRIS; gst v4l2h264dec, CPU time |
 | NPU (Hexagon on the CDSP) | ⬜ Not started | Off by default; bring-up in relay 012 | CDSP disabled in every kit's debug DTB (build.sh:69); cdsp.mbn vs split .mdt names; iceland-npu-off.service ExecStart path wrong; fastrpc + quic/fastrpc unsigned PD test |
 
-## Audio (5/8 working)
+## Audio (6/9 working)
 
 | Feature | Status | Notes | Where to look for the fix |
 |---|---|---|---|
@@ -53,6 +53,7 @@ Totals: 30 working, 15 in progress, 21 not started, 2 not planned (68).
 | Speakers (top pair) | ✅ Working | You heard them (S17), raw ALSA and through GNOME/PipeWire; kernel fix only |  |
 | All six speakers in stereo | ✅ Working | You heard all six from GNOME’s Sound test, both sides correct |  |
 | Speaker volume cap | ✅ Working | −12 dB cap enforced by the kernel (queued 0051); stock value still to find |  |
+| GNOME volume bar and input slider | ✅ Working | Measured: follows GNOME’s curve within ~1 dB (area-display-1) |  |
 | Speaker protection (NXP container) | ⬜ Not started | Closed firmware; volume stays capped | tfa98xx.cnt from odm; TFA DSP protocol (closed); volume stays capped |
 | Headset over USB-C | ⬜ Not started | No 3.5 mm jack | WCD939x USBSS mux + UCSI/typec altmode audio accessory |
 
@@ -76,7 +77,7 @@ Totals: 30 working, 15 in progress, 21 not started, 2 not planned (68).
 | Battery time estimate | 🟡 In progress | Inaccurate (your report): jumpy current reading, no charge-now value; fix in the Power area | qcom_battmgr OPLUS: STATUS forced to Charging when USB is online; instantaneous 1 Hz current; gauge word 4 is not a charge; derive CHARGE_NOW = capacity × charge_full, probe TTE/TTF/POWER_AVG (offline-prep/power.md A2–A4) |
 | Charging | 🟡 In progress | Works; Pad 4 stock charger limits patch (9 V / 1.5 A) awaiting test | Queue still has the OnePlus 15 policy (3 A input, 12 V PDO): 1.2–1.9 A seen on SDP vs stock 500 mA. Queue relay 015 first, fixing USB_ADAP_TYPE and the fail-low 9 V error path (power.md B1–B4, C7) |
 | Battery safety guard (stock limits) | 🟡 In progress | Written and simulated (30 cases); tablet test pending | Retry failed writes (cache only on success); stop on unreadable voltage and VBUS > 11 V; rise-fast rule (power.md B8/B9/B11) |
-| Charge limit (80 %) | ⬜ Not started | battmgr OnePlus variant exposes no charge_control_* files | Add the thresholds + setter to the OPLUS battmgr props; check the SoCCP honours opcode 0x48; UPower limit in iceland-device |
+| Charge limit (85 %, your request) | ⬜ Not started | battmgr OnePlus variant exposes no charge_control_* files | Add the thresholds + setter to the OPLUS battmgr props; check the SoCCP honours opcode 0x48; UPower limit in iceland-device |
 | Low-battery current limiting (BCL) | ⬜ Not started |  | Stock PMH0101/PMIH010x BCL nodes (relay 018 item 6); qcom-bcl-hwmon / spmi bcl |
 | Pen charging | ⬜ Not started | New driver needed | Pen wireless-charge IC on the pogo/magnet side: stock driver in OnePlusOSS |
 | Fast charging (SuperVOOC / PPS) | ❌ Not planned | OnePlus-proprietary; not planned |  |
@@ -111,7 +112,7 @@ Totals: 30 working, 15 in progress, 21 not started, 2 not planned (68).
 | Cameras (13 MP rear, 8 MP front) | ⬜ Not started | Plan written; stock supplies, clock and resets resolved; waiting for register data | CAMSS/CCI from infiniti; relay 014 register data; research/camera-bringup.md §1b supplies/MCLK/resets |
 | Haptics, modem, NFC, fingerprint | ❌ Not planned | Not on this tablet |  |
 
-## Software & packaging (4/6 working)
+## Software & packaging (4/7 working)
 
 | Feature | Status | Notes | Where to look for the fix |
 |---|---|---|---|
@@ -120,4 +121,5 @@ Totals: 30 working, 15 in progress, 21 not started, 2 not planned (68).
 | Local update repository | ✅ Working | Checksum-verified sync; tested |  |
 | Full GNOME app set | ⬜ Not started | Relay 008 | Relay 008 package list in the RAM rootfs |
 | Stock-values audit | ⬜ Not started | Relay 013 | Relay 013 table; offline-prep/*.md stock comparisons |
-| Automated PC fix loop + cloud debugger | ✅ Working |  |  |
+| GNOME About page (model, processor) | 🟡 In progress | Shows “oneplus OnePlus Pad 4” and no processor | iceland-device /etc/machine-info (HARDWARE_VENDOR=OnePlus, HARDWARE_MODEL=Pad 4); no CPU model name in cpuinfo/lscpu: socinfo id 661 name, util-linux part 0x51/0x002 |
+| Automated PC fix loop | ✅ Working | The PC session runs everything (cloud debugger handed over, relay 020) |  |
