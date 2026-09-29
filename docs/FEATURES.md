@@ -70,7 +70,7 @@ Details: [TODO.md](TODO.md), [PLAN.md](PLAN.md), [KNOWLEDGE.md](KNOWLEDGE.md) §
 |---|---|---|
 | Battery % / voltage / current / temperature / health | ✅ | battmgr over SoCCP; units fixed; design capacity from DT |
 | UPower / GNOME battery | ✅ | |
-| Charging (firmware basics, 5 V / PD) | 🟡 | works; **the inherited code used OnePlus 15 limits (12 V / 3 A / 4 A)**: fix with the Pad 4 stock 9 V / 2 A / 3.3 A in relay 015 |
+| Charging (firmware basics, 5 V / PD) | 🟡 | works; **the inherited code used OnePlus 15 limits (12 V / 3 A / 4 A)**: fixed to the Pad 4 stock per-type inputs (PD 13.5 W: 1.5 A at 9 V) in relay 015, verified in research/battery-guard-verification.md |
 | Charging safety (derating, termination, dual cells) | 🟡 | `iceland-battery-guard` with stock limits written and tested offline; the tablet test and charge-inhibit knob are next (relay 015) |
 | Charge limit (80 %) in GNOME | ⬜ | |
 | Fast charging (SuperVOOC / PPS / UFCS) | ❌ | OnePlus kernel stack; PPS maybe later |

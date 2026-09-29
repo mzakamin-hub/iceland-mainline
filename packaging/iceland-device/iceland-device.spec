@@ -4,7 +4,7 @@
 # No firmware and no binaries: configuration files and small scripts only.
 
 Name:           iceland-device
-Version:        0.2
+Version:        0.3
 Release:        1%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later
@@ -40,8 +40,8 @@ Settings that make Fedora 44 work safely on the OnePlus Pad 4 with the kernel-ic
 - the kernel command line carries the options kernel-iceland still needs;
 - the initramfs carries the display, touch and GPU drivers and their firmware;
 - Wi-Fi power saving is on;
-- iceland-battery-guard enforces the stock battery limits (no charging outside -10..53 C, 4.13 V float at
-  45-53 C, 4.6 V over-voltage, power-off at 72/77 C and below 3.3 V) as a second layer over the charger firmware.
+- iceland-battery-guard enforces the stock 11.A.38 charging limits as a second layer over the charger firmware
+  (temperature regions, per-region voltages and currents, USB-C connector temperature, 72/77 C power-off).
 
 %prep
 %build
@@ -99,6 +99,9 @@ fi
 %dir /etc/iceland
 
 %changelog
+* Tue Sep 29 2026 mzak <mzak.amin@gmail.com> - 0.3-1
+- battery guard verified against stock: per-region stop/recharge voltages and charge currents, the stock
+  USB-C connector rules (57/69 C, gaps, latch until unplug, cool-down), stop when the temperature is unreadable
 * Tue Sep 29 2026 mzak <mzak.amin@gmail.com> - 0.2-1
 - iceland-battery-guard with the stock 11.A.38 charging limits
 * Tue Sep 29 2026 mzak <mzak.amin@gmail.com> - 0.1-1

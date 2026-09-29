@@ -2,33 +2,60 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
 # iceland-battery-guard: a second safety layer for charging on the OnePlus Pad 4 under mainline Linux.
-# On stock, the OnePlus kernel charging stack (oplus_chg) enforces these limits; mainline only has the SoCCP
-# charger firmware + qcom_battmgr. Until it is proven that the firmware enforces them by itself (PLAN 5-PM C step 2),
-# this service watches the battery and stops charging / shuts down at the stock limits.
+# On stock, the OnePlus charging stack (oplus_chg) enforces these limits; mainline only has the SoCCP charger
+# firmware + qcom_battmgr. Until it is proven that the firmware enforces them by itself (PLAN 5-PM C step 2), this
+# service watches the battery and stops charging, lowers the charge current, or shuts down at the stock limits.
 #
-# Every limit is the stock 11.A.38 value (live stock DT, node oplus,comm / oplus,usbtemp; KNOWLEDGE rule 13):
-#   batt-them-thr (decidegC)  = -100 0 50 120 160 350 450 530  -> regions; no charging below -10 C or at/above 53 C
-#   fv-mv (per region)        = ... 4480 (35-45 C), 4130 (45-53 C) -> in 45-53 C charging is limited (float 4.13 V)
-#   vbatt-ov-thr-mv           = 4600                     -> over-voltage: stop charging
-#   poweroff_high_batt_temp   = 720 (72.0 C)             -> orderly power-off
-#   poweroff_emergency_batt_temp = 770 (77.0 C)          -> immediate power-off
-#   vbat_uv_thr_mv            = 3300                     -> orderly power-off when discharging below 3.3 V
-#   usbtemp_cool_down_ntc_high = 65 (C)                  -> connector too hot: stop charging (only if a usb_therm zone exists)
+# Every limit is the Pad 4's stock 11.A.38 value (live stock DT capture 2; KNOWLEDGE rule 13), unless marked OURS.
+# The kernel side (qcom_battmgr, Pad 4) already applies the stock per-charger-type input and charge currents.
+#
+#  oplus,comm  batt-them-thr (decidegC) = -100 0 50 120 160 350 450 530 -> 9 temperature regions R0..R8
+#              sw-over-fv-mv  (per region) = 4508 x6, 4488, 4138, 4138   -> stop charging above this
+#              wired-vbatdet-mv (per region) = 0 4200 4300 4400 4400 4400 4380 4030 0 -> recharge below this
+#              vbatt-ov-thr-mv = 4600                                   -> over-voltage, stop charging
+#              poweroff_high_batt_temp = 720, poweroff_emergency_batt_temp = 770 (decidegC)
+#              vbat_uv_thr_mv = 3300                                    -> power off when discharging below it
+#  oplus,wired led_on-fccmax-ma (per region) = 0 1959 3300 3300 3300 3300 3300 1000 0 -> charge current cap
+#              (the screen-on table, used always: it is the lower one; 0 = no charging, i.e. below -10 C and
+#              at/above 53 C)
+#  oplus,mms_wired (USB-C connector, pmih010x_usb_therm):
+#              stop  : usb >= usbtemp_ntc_temp_low 57 C (battery <= usbtemp_batt_temp_low 50 C),
+#                      usb >= usbtemp_ntc_temp_high 69 C (battery above 50 C),
+#                      or usb - battery >= 7 / 12 / 15 C (usbtemp_temp_gap_low_with_batt_temp /
+#                      _high_with_batt_temp / _with_batt_temp_in_over_hot, the last from battery >= 60 C
+#                      usbtemp_batt_temp_over_hot); stock then stays stopped until the charger is unplugged.
+#              cool down: usb >= 54 / 65 C or gap >= 12 / 20 C -> 1200 mA (usbtemp_cool_down_*,
+#                      cool_down_pdqc_curr_ma level 1); recover below 48 / 60 C and gap below 6 / 15 C.
+#  OURS (not stock values): the 45 C floor for the gap rules (stop and cool-down) (as in the OnePlus usbtemp code; PC verifies it in the
+#  OnePlusOSS source, relay 013), 2 C temperature hysteresis on region changes, 3 consecutive low-voltage readings
+#  before a power-off (load dips), and "no charging while the battery temperature can't be read".
 import glob, os, subprocess, sys, syslog, time
 
 BAT = os.environ.get("ICELAND_BAT", "/sys/class/power_supply/qcom-battmgr-bat")
+USB = os.environ.get("ICELAND_USB", "/sys/class/power_supply/qcom-battmgr-usb")
+THERMAL = os.environ.get("ICELAND_THERMAL", "/sys/class/thermal")
 DRYRUN = os.environ.get("ICELAND_GUARD_DRYRUN") == "1"   # tests: print actions instead of running them
 ONESHOT = os.environ.get("ICELAND_GUARD_ONESHOT") == "1"
-T_MIN_CHG = -10.0      # C, below: no charging (stock region 0 fcc = 0)
-T_MAX_CHG = 53.0       # C, at/above: no charging (stock hot region fcc = 0)
-T_WARM = 45.0          # C, 45-53: stock float 4.13 V -> we stop charging above 4.13 V in that band
-V_WARM_FLOAT = 4.130   # V
-V_OV = 4.600           # V, over-voltage
-T_POWEROFF = 72.0      # C
-T_EMERGENCY = 77.0     # C
-V_UV = 3.300           # V, discharging
-T_USB_STOP = 65.0      # C
-HYST_T = 2.0           # C, resume charging only after this much margin
+
+REGION_THR = [-10.0, 0.0, 5.0, 12.0, 16.0, 35.0, 45.0, 53.0]
+SW_OVER_FV = [4.508, 4.508, 4.508, 4.508, 4.508, 4.508, 4.488, 4.138, 4.138]
+VBATDET = [0.0, 4.200, 4.300, 4.400, 4.400, 4.400, 4.380, 4.030, 0.0]
+FCC_MA = [0, 1959, 3300, 3300, 3300, 3300, 3300, 1000, 0]
+V_OV = 4.600
+T_POWEROFF = 72.0
+T_EMERGENCY = 77.0
+V_UV = 3.300
+USB_STOP_LOW, USB_STOP_HIGH = 57.0, 69.0
+USB_BATT_LOW, USB_BATT_OVER_HOT = 50.0, 60.0
+USB_GAP_LOW, USB_GAP_HIGH, USB_GAP_OVER_HOT = 7.0, 12.0, 15.0
+USB_GAP_FLOOR = 45.0                      # OURS (see header)
+USB_COOL_LOW, USB_COOL_HIGH = 54.0, 65.0
+USB_COOL_GAP_LOW, USB_COOL_GAP_HIGH = 12.0, 20.0
+USB_REC_LOW, USB_REC_HIGH = 48.0, 60.0
+USB_REC_GAP_LOW, USB_REC_GAP_HIGH = 6.0, 15.0
+USB_COOL_MA = 1200
+HYST_T = 2.0                              # OURS
+UV_COUNT = 3                              # OURS
 
 def rd(path, default=None):
     try:
@@ -38,6 +65,8 @@ def rd(path, default=None):
         return default
 
 def wr(path, value):
+    if DRYRUN:
+        print("DRYRUN: %s <- %s" % (os.path.basename(path), value), flush=True)
     try:
         with open(path, "w") as f:
             f.write(value)
@@ -49,86 +78,162 @@ def log(msg, prio=syslog.LOG_WARNING):
     syslog.syslog(prio, msg)
     print(msg, flush=True)
 
-def usb_therm():
-    for z in glob.glob("/sys/class/thermal/thermal_zone*"):
-        if rd(z + "/type", "") in ("usb-therm-thermal", "usb-thermal", "usb_therm"):
-            t = rd(z + "/temp")
-            if t:
-                return int(t) / 1000.0
-    return None
-
-# the charge-inhibit knob: charge_behaviour (upstream power-supply ABI) if the driver has it,
-# else charge_control_end_threshold set below the current capacity
-def inhibit(on):
-    cb = BAT + "/charge_behaviour"
-    if os.path.exists(cb):
-        return wr(cb, "inhibit-charge" if on else "auto")
-    et = BAT + "/charge_control_end_threshold"
-    if os.path.exists(et):
-        if on:
-            cap = int(rd(BAT + "/capacity", "50"))
-            return wr(et, str(max(cap - 1, 1)))
-        return wr(et, rd("/etc/iceland/charge-limit", "100") or "100")
-    return False
-
 def run(cmd):
     if DRYRUN:
         print("DRYRUN: " + " ".join(cmd), flush=True)
         return 0
     return subprocess.call(cmd)
 
-def poweroff(emergency):
-    log("iceland-battery-guard: battery too hot, powering off%s" % (" NOW" if emergency else ""), syslog.LOG_CRIT)
-    run(["systemctl", "poweroff"] + (["-ff"] if emergency else []))
+def usb_therm():
+    for z in glob.glob(THERMAL + "/thermal_zone*"):
+        if rd(z + "/type", "") in ("usb-therm-thermal", "usb-therm"):
+            t = rd(z + "/temp")
+            if t and t.lstrip("-").isdigit():
+                return int(t) / 1000.0
+    return None
+
+def region(temp, prev):
+    """stock region index; leaving the current region needs HYST_T of margin (OURS)"""
+    r = sum(1 for t in REGION_THR if temp >= t)
+    if prev is not None and r != prev:
+        lo = REGION_THR[prev - 1] if prev > 0 else -1e9
+        hi = REGION_THR[prev] if prev < len(REGION_THR) else 1e9
+        # moving towards the safe middle needs margin; moving towards an extreme is immediate
+        towards_middle = abs(r - 5) < abs(prev - 5)
+        if towards_middle and lo - HYST_T < temp < hi + HYST_T:
+            return prev
+    return r
+
+def usb_stop(ut, temp):
+    if ut is None or temp is None:
+        return None
+    if temp <= USB_BATT_LOW:
+        lim, gap = USB_STOP_LOW, USB_GAP_LOW
+    elif temp < USB_BATT_OVER_HOT:
+        lim, gap = USB_STOP_HIGH, USB_GAP_HIGH
+    else:
+        lim, gap = USB_STOP_HIGH, USB_GAP_OVER_HOT
+    if ut >= lim:
+        return "USB connector %.1f C >= %.0f C" % (ut, lim)
+    if ut >= USB_GAP_FLOOR and ut - temp >= gap:
+        return "USB connector %.1f C is %.1f C above the battery" % (ut, ut - temp)
+    return None
+
+def usb_cool(ut, temp, cooling):
+    if ut is None or temp is None:
+        return False
+    low = temp <= USB_BATT_LOW
+    if cooling:
+        rec, rgap = (USB_REC_LOW, USB_REC_GAP_LOW) if low else (USB_REC_HIGH, USB_REC_GAP_HIGH)
+        return not (ut < rec and ut - temp < rgap)
+    lim, gap = (USB_COOL_LOW, USB_COOL_GAP_LOW) if low else (USB_COOL_HIGH, USB_COOL_GAP_HIGH)
+    return ut >= lim or (ut >= USB_GAP_FLOOR and ut - temp >= gap)
+
+class Guard:
+    def __init__(self):
+        self.inhibited = None      # None = unknown, write on first decision
+        self.fcc = None
+        self.region = None
+        self.usb_latched = False
+        self.cooling = False
+        self.uv_count = 0
+        self.warned = False
+        self.v_stop = False        # stopped for voltage: resume only below the stock recharge voltage
+
+    def inhibit(self, on, why=""):
+        if self.inhibited == on:
+            return
+        cb = BAT + "/charge_behaviour"
+        ok = os.path.exists(cb) and wr(cb, "inhibit-charge" if on else "auto")
+        if not ok and on and not self.warned:
+            log("iceland-battery-guard: must stop charging (%s) but can't; unplug the charger" % why, syslog.LOG_CRIT)
+            run(["wall", "OnePlus Pad 4: unplug the charger (%s)" % why])
+            self.warned = True
+        if ok:
+            log("iceland-battery-guard: " + ("charging stopped: " + why if on else "charging allowed"),
+                syslog.LOG_WARNING if on else syslog.LOG_NOTICE)
+        self.inhibited = on
+
+    def set_fcc(self, ma):
+        if self.fcc == ma:
+            return
+        p = BAT + "/constant_charge_current_max"
+        if os.path.exists(p) and wr(p, str(ma * 1000)):
+            log("iceland-battery-guard: charge current cap %d mA" % ma, syslog.LOG_NOTICE)
+        self.fcc = ma
+
+    def step(self):
+        t = rd(BAT + "/temp"); v = rd(BAT + "/voltage_now"); st = rd(BAT + "/status", "")
+        temp = int(t) / 10.0 if t and t.lstrip("-").isdigit() else None   # tenths of a degree C
+        volt = int(v) / 1e6 if v and v.isdigit() else None                 # uV
+        plugged = rd(USB + "/online", "0") == "1"
+        ut = usb_therm()
+
+        # shutdowns
+        if temp is not None and temp >= T_EMERGENCY:
+            log("iceland-battery-guard: battery %.1f C, powering off NOW" % temp, syslog.LOG_CRIT)
+            run(["systemctl", "poweroff", "-ff"])
+        elif temp is not None and temp >= T_POWEROFF:
+            log("iceland-battery-guard: battery %.1f C, powering off" % temp, syslog.LOG_CRIT)
+            run(["systemctl", "poweroff"])
+        if st == "Discharging" and volt is not None and volt < V_UV:
+            self.uv_count += 1
+            if self.uv_count >= UV_COUNT:
+                log("iceland-battery-guard: battery %.3f V < %.2f V, powering off" % (volt, V_UV), syslog.LOG_CRIT)
+                run(["systemctl", "poweroff"])
+        else:
+            self.uv_count = 0
+
+        # the USB-C connector latch lasts until the charger is unplugged, as on stock
+        if not plugged:
+            self.usb_latched = False
+        why = usb_stop(ut, temp)
+        if why:
+            self.usb_latched = True
+
+        # charging decision
+        stop = None
+        if temp is None:
+            stop = "battery temperature unreadable"
+        else:
+            self.region = region(temp, self.region)
+            r = self.region
+            if FCC_MA[r] == 0:
+                stop = "battery %.1f C outside -10..53 C" % temp
+            elif volt is not None and volt >= V_OV:
+                stop = "over-voltage %.3f V" % volt
+                self.v_stop = True
+            elif volt is not None and volt > SW_OVER_FV[r]:
+                stop = "%.3f V above %.3f V at %.1f C" % (volt, SW_OVER_FV[r], temp)
+                self.v_stop = True
+            elif self.v_stop and volt is not None and volt >= VBATDET[r]:
+                stop = "waiting for %.3f V to recharge" % VBATDET[r]   # stock recharge threshold
+            else:
+                self.v_stop = False
+        if self.usb_latched:
+            stop = why or "USB connector was too hot (unplug to reset)"
+        self.inhibit(stop is not None, stop or "")
+
+        if temp is not None:
+            self.cooling = usb_cool(ut, temp, self.cooling)
+            cap = FCC_MA[self.region]
+            if self.cooling:
+                cap = min(cap, USB_COOL_MA)
+            if cap:
+                self.set_fcc(cap)
+        return plugged
 
 def main():
     syslog.openlog("iceland-battery-guard")
     if not os.path.isdir(BAT):
         log("no %s, nothing to guard" % BAT)
         return 0
-    inhibited, reason = False, ""
-    can_inhibit = True
+    g = Guard()
     while True:
-        t = rd(BAT + "/temp"); v = rd(BAT + "/voltage_now"); st = rd(BAT + "/status", "")
-        temp = int(t) / 10.0 if t else None            # power-supply ABI: tenths of a degree C
-        volt = int(v) / 1e6 if v else None              # uV (0029 scales the Oplus gauge)
-        charging = st in ("Charging", "Full")
-        ut = usb_therm()
-        if temp is not None and temp >= T_EMERGENCY:
-            poweroff(True)
-        elif temp is not None and temp >= T_POWEROFF:
-            poweroff(False)
-        elif volt is not None and not charging and st == "Discharging" and volt < V_UV:
-            log("iceland-battery-guard: battery below %.2f V (%.3f V), powering off" % (V_UV, volt), syslog.LOG_CRIT)
-            run(["systemctl", "poweroff"])
-        want, why = False, ""
-        if temp is not None and (temp < T_MIN_CHG or temp >= T_MAX_CHG):
-            want, why = True, "battery %.1f C outside %.0f..%.0f C" % (temp, T_MIN_CHG, T_MAX_CHG)
-        elif temp is not None and temp >= T_WARM and volt is not None and volt >= V_WARM_FLOAT:
-            want, why = True, "warm %.1f C and %.3f V >= %.2f V" % (temp, volt, V_WARM_FLOAT)
-        elif volt is not None and volt >= V_OV:
-            want, why = True, "over-voltage %.3f V" % volt
-        elif ut is not None and ut >= T_USB_STOP:
-            want, why = True, "USB connector %.1f C" % ut
-        if inhibited and not want:
-            # resume only with margin
-            ok = temp is None or (T_MIN_CHG + HYST_T <= temp <= T_MAX_CHG - HYST_T)
-            if ok and (ut is None or ut < T_USB_STOP - HYST_T):
-                if inhibit(False):
-                    log("iceland-battery-guard: charging allowed again", syslog.LOG_NOTICE)
-                inhibited = False
-        elif want and not inhibited:
-            if inhibit(True):
-                log("iceland-battery-guard: charging stopped: " + why)
-            else:
-                if can_inhibit:
-                    log("iceland-battery-guard: must stop charging (%s) but no charge-inhibit control exists; unplug the charger" % why, syslog.LOG_CRIT)
-                    run(["wall", "OnePlus Pad 4: unplug the charger (%s)" % why])
-                can_inhibit = False
-            inhibited = True
+        plugged = g.step()
         if ONESHOT:
             return 0
-        time.sleep(5 if charging else 15)
+        time.sleep(5 if plugged else 15)
 
 if __name__ == "__main__":
     sys.exit(main())
