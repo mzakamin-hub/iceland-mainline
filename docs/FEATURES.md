@@ -47,7 +47,7 @@ Details: [TODO.md](TODO.md), [PLAN.md](PLAN.md), [KNOWLEDGE.md](KNOWLEDGE.md) §
 | Feature | Status | Notes |
 |---|---|---|
 | Wi-Fi (WCN7860, ath12k) | ✅ | NetworkManager, scan; `qdss.cfg` needed |
-| Wi-Fi 5/6 GHz, regulatory domain | 🟡 | world domain; stock country hint next; needs an AP |
+| Wi-Fi 5/6 GHz, regulatory domain | 🟡 | PHY has 2.4/5/6 GHz; ath12k fails to set the country; stock boots with `00`, test `iw reg set` with the user's country |
 | Bluetooth (hci_qca) | ✅ | the tablet's own address applied |
 | Bluetooth pairing under GNOME | ⬜ | |
 | USB device mode / USB network | ✅ | |
@@ -81,7 +81,7 @@ Details: [TODO.md](TODO.md), [PLAN.md](PLAN.md), [KNOWLEDGE.md](KNOWLEDGE.md) §
 | **Skin + XO thermal zones** | 🟡 | patch in relay 009; skin limits to be replaced by stock gear values |
 | GPU thermal cooling | 🟡 | maps present in the SoC DT; load test pending |
 | Low-battery protection (BCL) | ⬜ | P0 |
-| **Suspend (s2idle)** | ✅ | WAKE# fix (0040); sleeps and wakes; display, touch and BT come back |
+| **Suspend (s2idle)** | 🟡 | worked with the WAKE# fix (0040) on queue ≤0040; **regression on 0045 + PipeWire: hard reset on the first cycle** (pc-026 S10), isolation in answer pc-026-s10 |
 | Deep-sleep proof, 20/20 resumes, overnight drain ≤ ~1 %/h | ⬜ | |
 | Wake sources (power key, lid, keyboard, charger) | 🟡 | RTC/power key seen; others to test |
 | Power tuning (EAS, 60 Hz on battery, CDSP off) | ⬜ | Wi-Fi power save is in iceland-device |
