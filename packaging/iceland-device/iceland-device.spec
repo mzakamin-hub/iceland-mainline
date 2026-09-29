@@ -4,7 +4,7 @@
 # No firmware and no binaries: configuration files and small scripts only.
 
 Name:           iceland-device
-Version:        0.6
+Version:        0.7
 Release:        1%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
@@ -117,6 +117,12 @@ UPDATEDEFAULT=yes
 DEFAULTKERNEL=kernel-iceland
 EOT
 /usr/libexec/iceland/iceland-cmdline || :
+# a stale saved ALSA mixer state can route MultiMedia1 into back ends the ADSP can't open (pc-026 S12: GNOME showed
+# only a Dummy Output); drop it once, the UCM FixedBootSequence then sets the routes at every boot
+if [ ! -e /var/lib/iceland/.asound-state-reset ]; then
+	rm -f /var/lib/alsa/asound.state
+	mkdir -p /var/lib/iceland && touch /var/lib/iceland/.asound-state-reset
+fi
 systemctl enable iceland-battery-guard.service iceland-npu-off.service iceland-wifi-country.service >/dev/null 2>&1 || :
 systemctl --global enable iceland-refresh.service >/dev/null 2>&1 || :
 # an empty local repository, so dnf doesn't complain before the first iceland-repo-sync
@@ -168,6 +174,8 @@ fi
 %dir /etc/iceland
 
 %changelog
+* Tue Sep 29 2026 mzak <mzak.amin@gmail.com> - 0.7-1
+- drop a stale /var/lib/alsa/asound.state once (it broke the speaker route, pc-026 S12); UCM switches stray routes off
 * Tue Sep 29 2026 mzak <mzak.amin@gmail.com> - 0.6-1
 - ship the Pad 4 topology (built from m4, speaker gain capped) and the UCM profile
 * Tue Sep 29 2026 mzak <mzak.amin@gmail.com> - 0.5-1
