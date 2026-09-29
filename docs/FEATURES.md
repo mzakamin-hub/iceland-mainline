@@ -1,8 +1,8 @@
 # OnePlus Pad 4 mainline: feature matrix
 
-Status 29 Sep 2026 (area-display-3 done (automated): charging-safety patch 0053 queued; a live refresh-rate change still blanks the panel with the current kernel, and iceland-device 0.9 relights it with one display off/on; the stock-sequence candidate 0054 waits for a look; no 5 GHz network in range (the router is 2.4 GHz only there); next: the msm modeset root cause, then GPU and NPU). Everything is tested by RAM boot; nothing is installed on the tablet yet.
+Status 29 Sep 2026 (area-graphics-1 and area-power-1 done (automated, under 10 min each): GPU DCVS already at the top under load, the stock 1100 MHz level and CPU capacity data added, GNOME power modes now drive Pad 4 tuned profiles; next (the user's order): battery + thermal protection, the mic, Wi-Fi, the cameras). Everything is tested by RAM boot; nothing is installed on the tablet yet.
 Legend: ✅ working · 🟡 in progress · ⬜ not started · ❌ not planned. Sorted by functionality.
-Totals: 34 working, 14 in progress, 20 not started, 2 not planned (70).
+Totals: 33 working, 17 in progress, 19 not started, 2 not planned (71).
 
 ## Boot & platform (5/8 working)
 
@@ -17,14 +17,14 @@ Totals: 34 working, 14 in progress, 20 not started, 2 not planned (70).
 | Fedora installed on the tablet | ⬜ Not started | Final step; needs your decisions and OK | Waits for your install decision (relay 019: Boot & platform last) |
 | Dual boot with Android | ⬜ Not started | Planned; recovery re-flash helper ready | iceland-u-boot patch 0003 (fedora_blkmap); tools/dualboot/reflash-recovery.ps1 |
 
-## Display & input (7/10 working)
+## Display & input (6/10 working)
 
 | Feature | Status | Notes | Where to look for the fix |
 |---|---|---|---|
 | Native display 3392×2400, dual DSI + DSC | ✅ Working | Boot splash handed over to MSM DRM |  |
 | Refresh 30 / 60 / 90 / 120 / 144 Hz | 🟡 In progress | Every rate works; a live rate change blanks the panel, and iceland-device 0.9 now switches the display off/on once after every change (tested live: one relight per change, also for the 60/120 Hz power-source switch); the panel and backlight read normal in the black state, so logs can't judge it (area-display-3) | Your 1-minute look (deferred): a rate change with the relight, and one with candidate 0054 (stock power sequence) alone; root cause in the msm single-commit modeset; long term stock-style seamless DFPS |
 | Backlight | ✅ Working | Brightness curve still being checked against stock |  |
-| GNOME pink / blocky glitches | ✅ Working | Working per your call: no glitches since area-display-1 (clean at 144 Hz, 0 underruns, UBWC scanout); not tested enough yet | Longer sessions at every rate; if they return: photo + drm state, XR30 vs XR24, FD_MESA_DEBUG=noubwc/notile, SSPP UBWC error registers |
+| GNOME pink / blocky glitches | 🟡 In progress | Back: you filmed the whole wallpaper speckled pink/cyan at 00:19 (area-power-1, kernel q21); no kernel error logged; DRAM bank bit ruled out (LPDDR5X = bit 16, as stock) | Log the DPU's UBWC decode-error status every frame in each kit; then GNOME with FD_MESA_DEBUG=noubwc as the A/B |
 | Touchscreen | ✅ Working | Confirmed by you; keeps working through display off/on cycles and suspend (area-display-2) |  |
 | Pen | ✅ Working | Working per your call; not tested enough yet (area-display-1 logged 0 pen events, pen maybe not charged) | Charged pen: tip, hover, buttons, pressure in libinput debug-events; palm rejection |
 | Lid switch | ✅ Working | SW_LID events on GPIO 98 (area-display-1) |  |
@@ -36,10 +36,10 @@ Totals: 34 working, 14 in progress, 20 not started, 2 not planned (70).
 
 | Feature | Status | Notes | Where to look for the fix |
 |---|---|---|---|
-| Adreno 840 GPU, GLES 3.2 | ✅ Working | OpenGL 4.6 / ES 3.2 on Mesa 26.2.3; glmark2 3015 under GNOME |  |
+| Adreno 840 GPU, GLES 3.2 | ✅ Working | OpenGL 4.6 / ES 3.2 on Mesa 26.2.3 (Fedora 44's newest; Mesa main is 7 % slower here); glmark2 3213 offscreen / 2345 on GNOME, DCVS already at 1.2 GHz under load; the stock 1100 MHz level added (area-graphics-1) |  |
 | GNOME and Wayland drawn by the GPU | ✅ Working |  |  |
-| GPU correctness, WebGL, 30-min stress | ⬜ Not started | Relay 012 | Keep linux-firmware's gen80200 sqe/gmu/aqe + the tablet's own zap (your call); A/B the stock set only as a side check; missing stock 1100 MHz OPP; dEQP/piglit availability (offline-prep/graphics.md A2/A11) |
-| Vulkan | ✅ Working | turnip 26.2.3: Vulkan 1.4, vkmark 24562, vkcube 142 fps |  |
+| GPU correctness, WebGL, stress | 🟡 In progress | 60-s stress steady at 394 fps, 0 faults, but 103 °C at 1.2 GHz within a minute (area-graphics-1) | dEQP subset, WebGL in a browser; the heat ceiling belongs to Thermal (GPU trips, skin zone) |
+| Vulkan | ✅ Working | turnip 26.2.3: Vulkan 1.4; vkmark 19563 headless 1080p (area-graphics-1), 24562 fullscreen (display-1) |  |
 | Hardware video decoding | ⬜ Not started | Driver in the tree; firmware known | Iris node disabled and no &iris override in the iceland DTS; set firmware-name vpu40_2v.mbn (driver default vpu40_p2 = ENOENT); CONFIG_VIDEO_QCOM_IRIS; gst v4l2h264dec, CPU time |
 | NPU (Hexagon on the CDSP) | ⬜ Not started | Off by default; bring-up in relay 012 | CDSP disabled in every kit's debug DTB (build.sh:69); cdsp.mbn vs split .mdt names; iceland-npu-off.service ExecStart path wrong; fastrpc + quic/fastrpc unsigned PD test |
 
@@ -90,9 +90,9 @@ Totals: 34 working, 14 in progress, 20 not started, 2 not planned (70).
 | Board and flash thermistors | ✅ Working |  |  |
 | Skin and XO zones | 🟡 In progress | Patch ready; skin limits to be replaced by stock values | Relay 009 candidate; stock skin gear table (relay 018 item 7) for the caps |
 | USB-C connector temperature zone | 🟡 In progress | Patch ready (57 °C, stock) | Candidate reads 0x2747 but stock usbtemp uses AMUX1/AMUX5 (0x274a/0x275e); needs relay 009 first to apply (power.md A12/B6/B7) |
-| GPU cooling | 🟡 In progress | Load test pending | 105 °C devfreq map matches stock; turn the 125 °C critical into hot; 30-min stress log |
+| GPU cooling | 🟡 In progress | 105 °C passive map matches stock; the GPU reaches 95–103 °C at 1.2 GHz in under a minute of Vulkan/stress, 0 throttled seconds so far (area-graphics-1) | Turn the 125 °C critical into hot (stock has no GPU shutdown trip); a longer stress with the skin zone; sustained-load throttling behaviour |
 
-## Sleep & power saving (1/6 working)
+## Sleep & power saving (1/7 working)
 
 | Feature | Status | Notes | Where to look for the fix |
 |---|---|---|---|
@@ -101,6 +101,7 @@ Totals: 34 working, 14 in progress, 20 not started, 2 not planned (70).
 | Wake by power key and alarm | ✅ Working |  |  |
 | Wake by lid, keyboard, charger | ⬜ Not started |  | wakeup-source on gpio-keys lid, pmic-glink/UCSI; /sys/power/pm_wakeup_irq |
 | 60 Hz on battery, CDSP off | 🟡 In progress | In iceland-device 0.4+; untested on the tablet | iceland-device refresh + npu-off units (fix the npu-off ExecStart path) |
+| CPU scaling and GNOME power modes | 🟡 In progress | Stock CPU capacity data (1792/1894 DMIPS/MHz) and iceland-device 0.10 tuned profiles for GNOME's power modes written; area-power-1 verification pending | Queue the two DTS candidates (GPU levels, CPU capacity); then Thermal |
 | Deep-sleep proof, overnight drain ≤ ~1 %/h | ⬜ Not started |  | qcom_stats before/after, rpmh-stats; overnight unplugged |
 
 ## Sensors & camera (1/4 working)

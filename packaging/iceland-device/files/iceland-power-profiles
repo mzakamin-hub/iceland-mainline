@@ -1,0 +1,46 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# iceland-power-profiles: point tuned-ppd (the service behind GNOME's power mode) at the Pad 4 profiles, or back at
+# Fedora's. tuned-ppd reads /etc/tuned/ppd.conf with Python's configparser, which rejects a repeated section, so the
+# values are changed inside the existing [profiles] / [battery] sections (keys added if missing). The first "apply"
+# keeps a copy of the file as ppd.conf.iceland-orig; "reset" puts the original values back.
+# Usage: iceland-power-profiles apply|reset|show
+set -eu
+CONF=${ICELAND_PPD_CONF:-/etc/tuned/ppd.conf}
+ORIG=$CONF.iceland-orig
+# set KEY=VALUE pairs per section: setvals "profiles:power-saver=a profiles:balanced=b battery:balanced=c"
+setvals() {
+	tmp=$(mktemp)
+	awk -v pairs="$1" '
+		BEGIN { n = split(pairs, p, " "); for (i = 1; i <= n; i++) { split(p[i], a, ":"); split(a[2], kv, "=");
+			want[a[1], kv[1]] = kv[2]; keys[a[1]] = keys[a[1]] " " kv[1] } }
+		function flush(sec,   k, m, i) { if (sec == "") return; m = split(keys[sec], k, " ")
+			for (i = 1; i <= m; i++) if (!((sec, k[i]) in done)) { print k[i] "=" want[sec, k[i]]; done[sec, k[i]] = 1 } }
+		/^\[.*\]$/ { flush(cur); cur = substr($0, 2, length($0) - 2); seen[cur] = 1; print; next }
+		{ line = $0; if (cur != "" && line !~ /^[#;]/ && index(line, "=")) { k = line; sub(/[ \t]*=.*/, "", k)
+			if ((cur, k) in want) { print k "=" want[cur, k]; done[cur, k] = 1; next } } print }
+		END { flush(cur); for (s in keys) if (!(s in seen)) { print ""; print "[" s "]"; flush(s) } }
+	' "$CONF" > "$tmp"
+	cat "$tmp" > "$CONF"; rm -f "$tmp"
+}
+getval() { # $1 section, $2 key, $3 default: the value in the original copy
+	v=$(awk -v s="$1" -v k="$2" '/^\[.*\]$/ { cur = substr($0, 2, length($0) - 2); next }
+		cur == s && $0 !~ /^[#;]/ { x = $0; sub(/[ \t]*=.*/, "", x); if (x == k) { sub(/^[^=]*=[ \t]*/, ""); print; exit } }' "$ORIG" 2>/dev/null)
+	echo "${v:-$3}"; }
+restart() { command -v systemctl > /dev/null && systemctl try-restart tuned-ppd.service 2>/dev/null || :; }
+case ${1:-show} in
+apply)
+	[ -f "$CONF" ] || { echo "iceland-power-profiles: no $CONF (tuned-ppd not installed)" >&2; exit 1; }
+	[ -f "$ORIG" ] || cp -p "$CONF" "$ORIG"
+	setvals "profiles:power-saver=iceland-powersave profiles:balanced=iceland-balanced profiles:performance=iceland-performance battery:balanced=iceland-balanced-battery"
+	restart; echo "iceland-power-profiles: GNOME power modes now map to the iceland-* tuned profiles" ;;
+reset)
+	[ -f "$CONF" ] || exit 0
+	setvals "profiles:power-saver=$(getval profiles power-saver powersave) profiles:balanced=$(getval profiles balanced balanced) profiles:performance=$(getval profiles performance throughput-performance) battery:balanced=$(getval battery balanced balanced-battery)"
+	rm -f "$ORIG"; restart; echo "iceland-power-profiles: Fedora's mapping restored" ;;
+show)
+	echo "mapping in $CONF:"; grep -E '^\[|=' "$CONF" 2>/dev/null | grep -v '^#' || :
+	echo "active tuned profile: $(tuned-adm active 2>/dev/null | sed 's/.*: //')" ;;
+*) echo "usage: iceland-power-profiles apply|reset|show" >&2; exit 2 ;;
+esac

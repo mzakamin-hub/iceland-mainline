@@ -1,5 +1,10 @@
 # Next actions (PC session, from 2026-09-29 evening)
 
+**Order from the user (2026-09-29 night), after the GPU/CPU scaling work:** (1) battery protection and thermal
+protection in place (guard live on a charger, the charge limit, skin/USB-C zones, GPU trips); (2) the mic
+(noise floor); (3) Wi-Fi (5 GHz, regulatory, the "?" icon); (4) the cameras. Runs stay automated and ≤ 10 min;
+anything needing the user's eyes is deferred. RAM boot only.
+
 The PC session owns the project (relay 020).
 
 Sources:
@@ -70,8 +75,9 @@ The PC port was asked for 1.2–1.9 A (stock SDP: 500 mA), and 12 V is above the
 
 | Item | Next action |
 |---|---|
-| GPU correctness / stress | dEQP-GLES subsets (Fedora package or build), glmark2 30-min loop with devfreq + gpuss temps, WebGL in Firefox. GPU firmware: linux-firmware sqe/gmu/aqe + the tablet's zap (the user's call); A/B the stock set only as a side check. Add stock's 1100 MHz OPP (graphics.md A2) |
-| Mesa main slower than 26.2.3 | Re-measure both back to back, cooled; if it holds, bisect-free check of the a8xx autotune/sysmem path; report upstream only with the user's OK |
+| GPU performance | ✅ area-graphics-1 (2026-09-29): DCVS already at 1.2 GHz under load (pinning +0 %), the stock 1100 MHz level works (DTS candidate on `gpu-tune`, in q21), autotune beats forced sysmem/gmem. Left: dEQP subset, WebGL, and the heat ceiling (103 °C at 1.2 GHz in a minute → Thermal) |
+| Mesa main slower than 26.2.3 | ✅ Re-measured cooled, same session: −6.7 % GL / −1.1 % Vulkan. 26.2.3 stays; nothing to report upstream (the display-1 −42 % was heat/order) |
+| CPU scaling / GNOME power modes | Capacity data (stock 1792/1894 DMIPS/MHz, coefficients 238/588) on branch `dcvs` (q21); iceland-device 0.10 tuned profiles behind tuned-ppd (see `docs/research/dcvs-tuning.md`); verified by area-power-1 → queue both DTS candidates |
 | Video decode (Iris) | Enable the Iris node in the iceland DTS with `firmware-name = "qcom/…/vpu40_2v.mbn"` (the driver's default `vpu40_p2` is ENOENT), `CONFIG_VIDEO_QCOM_IRIS`, GStreamer v4l2 decode, CPU time |
 | NPU (CDSP) | Stop disabling the CDSP in the kit's debug DTB (`tools/linux-ram/build.sh:69`), fix the firmware name (`cdsp.mbn` vs split `.mdt`), fix the `iceland-npu-off.service` ExecStart path, then boot the CDSP + FastRPC test (relay 012 C) |
 

@@ -13,5 +13,7 @@ ART=${ART_DIR:-$work/art}
 git -C "$ART" fetch -q --depth 50 origin 993a17d 2>/dev/null || true
 git -C "$ART" archive --prefix=audioreach-topology/ -o "$work/SOURCES/audioreach-topology-993a17d.tar.gz" 993a17d
 tar -C "$top" -czf "$work/SOURCES/iceland-audio.tar.gz" audio
+# the Pad 4 tuned profiles (files/tuned/<profile>/tuned.conf)
+tar -C "$here/files" -czf "$work/SOURCES/iceland-tuned.tar.gz" tuned
 rpmbuild --define "_topdir $work" --define "dist .fc44" --nodeps -ba "$here/iceland-device.spec"
 mkdir -p "$dest"; cp "$work"/RPMS/*/*.rpm "$work"/SRPMS/*.rpm "$dest/"; ls -la "$dest"

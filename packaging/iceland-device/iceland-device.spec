@@ -4,7 +4,7 @@
 # No firmware and no binaries: configuration files and small scripts only.
 
 Name:           iceland-device
-Version:        0.9
+Version:        0.10
 Release:        1%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
@@ -35,6 +35,9 @@ Source19:       iceland-wifi-country.service
 # upstream linux-msm/audioreach-topology at 993a17d (BSD-3-Clause) + our Pad 4 overlay (audio/ in iceland-mainline)
 Source20:       audioreach-topology-993a17d.tar.gz
 Source21:       iceland-audio.tar.gz
+# the Pad 4 tuned profiles behind GNOME's power modes (tuned-ppd) + the script that maps tuned-ppd to them
+Source22:       iceland-tuned.tar.gz
+Source23:       iceland-power-profiles
 
 Requires:       kernel-iceland
 Requires:       bluez
@@ -44,6 +47,7 @@ Requires:       createrepo_c
 Requires:       curl
 Requires:       iw
 Requires:       alsa-utils
+Requires:       tuned-ppd
 Requires(posttrans): grubby
 
 %description
@@ -68,12 +72,16 @@ Settings that make Fedora 44 work safely on the OnePlus Pad 4 with the kernel-ic
 - the CDSP (NPU) stays off until `iceland-npu on`;
 - the Wi-Fi regulatory country comes from /etc/iceland/wifi-country (written at install: the owner's country);
 - sound: the Pad 4 AudioReach topology (TDM speakers, stream gain capped until speaker protection exists) and the
-  ALSA UCM profile (speakers + internal microphones for PipeWire/GNOME).
+  ALSA UCM profile (speakers + internal microphones for PipeWire/GNOME);
+- GNOME's power modes (tuned-ppd) map to Pad 4 profiles: schedutil with the frequency floors of stock's own
+  schedutil fallback, Power Saver capped at stock's efficient-range edges (2.61 / 3.51 GHz) and the GPU below its
+  TURBO levels, Performance with stock's higher floors and no pinning (iceland-power-profiles apply|reset|show).
 
 %prep
 %setup -q -c -T
 tar -xzf %{SOURCE20}
 tar -xzf %{SOURCE21}
+tar -xzf %{SOURCE22}
 
 %build
 # the Pad 4 AudioReach topology: upstream m4 + our overlay (TDM speakers, capped stream gain)
@@ -108,6 +116,10 @@ install -Dm0644 audio/ucm/OnePlus-Pad4/OnePlus-Pad4.conf %{buildroot}/usr/share/
 install -Dm0644 audio/ucm/OnePlus-Pad4/HiFi.conf %{buildroot}/usr/share/alsa/ucm2/Qualcomm/kaanapali/OnePlus-Pad4/HiFi.conf
 install -d %{buildroot}/usr/share/alsa/ucm2/conf.d/kaanapali
 ln -s ../../Qualcomm/kaanapali/OnePlus-Pad4/OnePlus-Pad4.conf %{buildroot}/usr/share/alsa/ucm2/conf.d/kaanapali/oneplus-OnePlusPad4.conf
+for p in iceland-balanced iceland-balanced-battery iceland-powersave iceland-performance; do
+	install -Dm0644 tuned/$p/tuned.conf %{buildroot}/usr/lib/tuned/profiles/$p/tuned.conf
+done
+install -Dm0755 %{SOURCE23} %{buildroot}/usr/bin/iceland-power-profiles
 install -d %{buildroot}/var/lib/iceland/repo/aarch64
 install -d %{buildroot}/etc/iceland
 
@@ -127,6 +139,8 @@ if [ ! -e /var/lib/iceland/.asound-state-reset ]; then
 fi
 systemctl enable iceland-battery-guard.service iceland-npu-off.service iceland-wifi-country.service >/dev/null 2>&1 || :
 systemctl --global enable iceland-refresh.service >/dev/null 2>&1 || :
+# GNOME's power modes -> the Pad 4 tuned profiles (edits tuned-ppd's mapping between marker lines)
+/usr/bin/iceland-power-profiles apply >/dev/null 2>&1 || :
 # an empty local repository, so dnf doesn't complain before the first iceland-repo-sync
 [ -d /var/lib/iceland/repo/aarch64/repodata ] || createrepo_c -q /var/lib/iceland/repo/aarch64 || :
 systemctl preset iceland-bdaddr.service >/dev/null 2>&1 || systemctl enable iceland-bdaddr.service >/dev/null 2>&1 || :
@@ -143,6 +157,7 @@ fi
 
 %preun
 [ "$1" -eq 0 ] && systemctl --global disable iceland-refresh.service >/dev/null 2>&1; [ "$1" -eq 0 ] && systemctl disable iceland-wifi-country.service iceland-npu-off.service iceland-battery-guard.service iceland-bdaddr.service >/dev/null 2>&1 || :
+[ "$1" -eq 0 ] && /usr/bin/iceland-power-profiles reset >/dev/null 2>&1 || :
 
 %files
 /usr/share/dnf5/libdnf.conf.d/80-iceland-kernel.conf
@@ -170,12 +185,22 @@ fi
 /usr/share/alsa/ucm2/Qualcomm/kaanapali/OnePlus-Pad4/OnePlus-Pad4.conf
 /usr/share/alsa/ucm2/Qualcomm/kaanapali/OnePlus-Pad4/HiFi.conf
 /usr/share/alsa/ucm2/conf.d/kaanapali/oneplus-OnePlusPad4.conf
+/usr/lib/tuned/profiles/iceland-balanced/
+/usr/lib/tuned/profiles/iceland-balanced-battery/
+/usr/lib/tuned/profiles/iceland-powersave/
+/usr/lib/tuned/profiles/iceland-performance/
+/usr/bin/iceland-power-profiles
 %dir /var/lib/iceland
 %dir /var/lib/iceland/repo
 %dir /var/lib/iceland/repo/aarch64
 %dir /etc/iceland
 
 %changelog
+* Tue Sep 29 2026 mzak <mzak.amin@gmail.com> - 0.10-1
+- power profiles: GNOME's power modes (tuned-ppd) map to iceland-balanced / -balanced-battery / -powersave /
+  -performance - schedutil with stock's frequency floors (614400/864000 kHz), Power Saver capped at stock's
+  efficient-range edges (2611200 / 3513600 kHz) and the GPU at 902 MHz, Performance with stock's higher floors
+  (787200/864000 kHz); iceland-power-profiles apply|reset|show edits tuned-ppd's mapping (requires tuned-ppd)
 * Tue Sep 29 2026 mzak <mzak.amin@gmail.com> - 0.9-1
 - iceland-refresh: relight the panel after every refresh-rate change of the built-in panel (one display off/on
   through mutter's PowerSaveMode, coalesced over a burst of changes; RELIGHT, RELIGHT_OFF_MS) - a live rate change
