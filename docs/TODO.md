@@ -91,8 +91,14 @@ Difficulty scale:
 - [ ] [P3] GPU turnip/Vulkan for the a840 (waiting on Mesa upstream; we can only test)
 - [ ] [P3] PPS fast charging via the SC8547D charge pumps (the OnePlus glink PPS path + a charge-pump driver).
       UFCS and SuperVOOC are out of scope
-- [ ] [P3] **Cameras:** SC1320CS / SC820CS sensor drivers from scratch (no datasheets), kaanapali CAMSS,
-      `CAMERA_ICP`, libcamera software ISP (the hardest item overall)
+- [ ] [P3] **Cameras** (plan: `research/camera-bringup.md`, PLAN 5-CAM), the hardest item overall:
+  - [ ] PC: C0: stock values (actuator IC, EEPROMs, LDOs, MCLK clock, power sequence) + register tables from `sensormodule.bin` + LineageOS I2C trace (relay 014)
+  - [ ] M: C1: DT (i2c@884000 sensors, CAMSS CSIPHY4/5 ports, at24 EEPROMs)
+  - [ ] M: C2: `sc1320cs`/`sc820cs` V4L2 drivers (chip ID, one mode each, exposure/gain, test pattern)
+  - [ ] PC: C3: test pattern → raw frames → 5 min stream
+  - [ ] M+PC: C4: VCM actuator + EEPROM calibration
+  - [ ] PC: C5: libcamera simple + softISP, stock-derived tuning, PipeWire → Snapshot/Firefox
+  - [ ] C6: PDAF, more modes, the flash as a V4L2 flash
 
 ## Suggested order
 Work top-down inside **P0**, then **P1**. Where the priority is equal, do the easier item first. The fastest route to

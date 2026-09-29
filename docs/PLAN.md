@@ -454,6 +454,18 @@ Compare each against stock/LineageOS doing the same scenario (read-only measurem
 - **The PC automates the fix loop** (relay 012 A): build → RAM kit → judge from logs → iterate → queue verified patches,
   with no tablet writes. People are only asked for what needs a person.
 
+### Phase 5-CAM — Cameras (the user asked for a plan; details in research/camera-bringup.md)
+Rear SC1320CS (13 MP, 0x6c, CSIPHY4, actuator 0x18, EEPROM, PDAF) and front SC820CS (8 MP, 0x20, CSIPHY5), both on
+GENI I2C `i2c@884000`, MCLK 19.2 MHz, stock supplies 2.8/1.2/1.8 V. Steps:
+- C0: the stock register tables from `sensormodule.bin` plus a LineageOS I2C trace;
+- C1: DT nodes and CAMSS/CSIPHY ports;
+- C2: new V4L2 drivers `sc1320cs`/`sc820cs`;
+- C3: test pattern → raw frames (RDI-only CAMSS);
+- C4: the actuator + EEPROM calibration;
+- C5: libcamera software ISP with stock-derived tuning → GNOME Snapshot/Firefox;
+- C6: PDAF, more modes.
+Exit: both cameras stream at 30 fps in Snapshot, with rear autofocus.
+
 ### Phase 6 — Upstreaming (runs alongside)
 Pad 4 DTS, KTZ8869, the NT36536 panel desc (already in the upstream driver), touch driver cleanup, TFA9865, the
 generic fixes found here, and the U-Boot board:
