@@ -1,108 +1,122 @@
 # OnePlus Pad 4 mainline: feature matrix
 
-Status 2026-09-29 (morning). Everything is tested by **RAM boot**; nothing is installed on the tablet yet (the
-install is the last step). Kernel: Linux 7.3-rc4 + infiniti (138) + Pad 4 queue 0001–0045.
-Legend: ✅ done · 🟡 partly working / in progress · ⬜ pending · ❌ out of scope / not planned.
-Details: [TODO.md](TODO.md), [PLAN.md](PLAN.md), [KNOWLEDGE.md](KNOWLEDGE.md) §13, `relay/results/`.
+Status 29 Sep 2026 (after pc-026 S16). Everything is tested by RAM boot; nothing is installed on the tablet yet.
+Legend: ✅ working · 🟡 in progress · ⬜ not started · ❌ not planned. Sorted by functionality.
+Totals: 26 working, 17 in progress, 22 not started, 2 not planned (67).
 
-## Boot and platform
+## Boot & platform (5/8 working)
+
 | Feature | Status | Notes |
 |---|---|---|
-| ABL RAM boot of U-Boot | ✅ | nothing written; header v4, gzip(u-boot.bin) |
-| U-Boot: display, USB fastboot, UFS read, EFI | ✅ | fastboot flash compiled out |
-| U-Boot dual-boot boot command (`fedora` partition, else `userdata`) | ✅ | built; used at install |
-| Linux boot via EFI, 7.3-rc4 | ✅ | |
-| Fedora 44 in RAM (systemd as PID 1, dnf through the PC) | ✅ | pc-024 |
-| **GNOME Shell 50** (gdm autologin) | ✅ | in RAM |
-| Firmware extractor (modem_a, bluetooth_a, persist; read-only) | 🟡 | `super` (vendor/odm) not mapped yet |
-| Installed system (Fedora on UFS) | ⬜ | final step; needs the user's decisions and OK |
-| Dual boot Android + Fedora (U-Boot in recovery) | ⬜ | planned (4-DB); helper script ready |
+| U-Boot booted from RAM (display, USB fastboot, UFS read, EFI) | ✅ Working | Nothing written to the tablet; fastboot flashing compiled out |
+| U-Boot boot setting for single or dual boot | ✅ Working | Boots a “fedora” partition if present, else userdata |
+| Linux 7.3-rc4 through EFI | ✅ Working | Queue 0001–0045 + infiniti |
+| Fedora 44 running from RAM | ✅ Working | systemd as PID 1; packages through the PC |
+| GNOME Shell 50 | ✅ Working | Autologin session in RAM |
+| Firmware extractor (tablet's own partitions, read-only) | 🟡 In progress | vendor/odm inside “super” not mapped yet |
+| Fedora installed on the tablet | ⬜ Not started | Final step; needs your decisions and OK |
+| Dual boot with Android | ⬜ Not started | Planned; recovery re-flash helper ready |
 
-## Display, input
+## Display & input (4/10 working)
+
 | Feature | Status | Notes |
 |---|---|---|
-| Boot splash kept → native MSM DRM | ✅ | INT2 GDSC fix |
-| Panel 3392x2400, dual DSI + DSC | ✅ | |
-| Refresh 120 / 90 / 60 / 30 Hz; **144 Hz** | ✅ | 144 Hz after the DPU clock-factor fix |
-| Backlight (KTZ8869) | ✅ | brightness range and curve from stock: audit pending (relay 013) |
-| **GNOME pink/blocky glitches** | 🟡 | new bug; isolation running (relay 011: UBWC / 144 Hz / Mesa) |
-| Touchscreen (NT36536, SRAM firmware) | 🟡 | driver + firmware + libinput OK; a real touch not confirmed by a person |
-| Pen input | 🟡 | tablet capabilities fixed, libinput accepts it; strokes not confirmed |
-| Lid switch | 🟡 | DT + debounce done; closing not tested |
-| Power / volume keys | ✅ | |
-| Pogo keyboard | ⬜ | private UART protocol (P3) |
-| Screen rotation (sensors) | ⬜ | needs the SSC sensors |
+| Native display 3392×2400, dual DSI + DSC | ✅ Working | Boot splash handed over to MSM DRM |
+| Refresh 30 / 60 / 90 / 120 / 144 Hz | ✅ Working | 144 Hz after the DPU clock fix |
+| Backlight | ✅ Working | Brightness curve still being checked against stock |
+| GNOME pink / blocky glitches | 🟡 In progress | Isolation plan sent (relay 011); no result yet |
+| Touchscreen | 🟡 In progress | Driver, firmware and libinput OK; a real touch not confirmed |
+| Pen | 🟡 In progress | GNOME accepts it; strokes not confirmed |
+| Lid switch | 🟡 In progress | Closing not tested |
+| Power and volume keys | ✅ Working | Power key also wakes from sleep |
+| Pogo keyboard | ⬜ Not started | Private UART protocol |
+| Auto-rotate | ⬜ Not started | Needs the sensors |
 
-## Graphics, compute
+## Graphics & compute (2/6 working)
+
 | Feature | Status | Notes |
 |---|---|---|
-| GPU Adreno 840 (freedreno, Mesa 26.2) | ✅ | GLES 3.2, kmscube 120 fps, glmark2 1836 |
-| Wayland compositing on the GPU | ✅ | cage and GNOME |
-| GPU validation (dEQP, WebGL, stress, devfreq) | ⬜ | relay 012 B |
-| Vulkan (turnip) | ⬜ | waiting for Mesa a840 support |
-| Hardware video decode (Iris) | ⬜ | driver in the tree; firmware known |
-| **NPU** (Hexagon NSP on the CDSP, FastRPC) | ⬜ | DT and driver present; bring-up is relay 012 C |
+| Adreno 840 GPU, GLES 3.2 | ✅ Working | kmscube 120 fps, glmark2 1836 |
+| GNOME and Wayland drawn by the GPU | ✅ Working |  |
+| GPU correctness, WebGL, 30-min stress | ⬜ Not started | Relay 012 |
+| Vulkan | ⬜ Not started | Waiting for Mesa support |
+| Hardware video decoding | ⬜ Not started | Driver in the tree; firmware known |
+| NPU (Hexagon on the CDSP) | ⬜ Not started | Off by default; bring-up in relay 012 |
 
-## Connectivity
+## Audio (3/8 working)
+
 | Feature | Status | Notes |
 |---|---|---|
-| Wi-Fi (WCN7860, ath12k) | ✅ | NetworkManager, scan; `qdss.cfg` needed |
-| Wi-Fi 5/6 GHz, regulatory domain | 🟡 | regulatory domain **US** (the user's choice; the firmware refuses EG): 2.4/5/6 GHz enabled; a 5/6 GHz connection not tested yet (no AP in range) |
-| Bluetooth (hci_qca) | ✅ | the tablet's own address applied |
-| Bluetooth pairing under GNOME | ⬜ | |
-| USB device mode / USB network | ✅ | |
-| USB host / OTG, PD hub, reverse charging | ⬜ | OTG glink message (relay 007) |
-| DisplayPort over USB-C | ⬜ | |
+| DSP audio + sound card | ✅ Working |  |
+| GNOME shows speakers and microphones | ✅ Working | Fixed: stray mixer route; appears on a fresh boot |
+| Microphones (2) | ✅ Working | Clean capture through PipeWire |
+| Speakers (6 amplifiers) | 🟡 In progress | Mics hear the tone after the stock slot setup + MANSCONF; waiting for your listen |
+| All six speakers in stereo | 🟡 In progress | Channel-map patches ready; top pair only until tested |
+| Speaker volume cap | 🟡 In progress | −12 dB cap in topology + UCM; kernel enforcement patch untested |
+| Speaker protection (NXP container) | ⬜ Not started | Closed firmware; volume stays capped |
+| Headset over USB-C | ⬜ Not started | No 3.5 mm jack |
 
-## Audio
+## Connectivity (3/7 working)
+
 | Feature | Status | Notes |
 |---|---|---|
-| ADSP + AudioReach sound card | ✅ | |
-| **Speakers** (6× TFA9865 on primary TDM) | ✅ | play at the ALSA level (0038, 0041–0045) |
-| **Microphones** (2 analog mics, WCD9395) | ✅ | capture works; mixer settings, no kernel change |
-| UCM profile for PipeWire/GNOME | 🟡 | worked inside the S9 probe only; **the user still sees Dummy Output and no mic on a normal boot** (profile not in the rootfs, routes not set before WirePlumber, no alsa-utils): answer user-report-dummy-output |
-| Speaker volume caps + stock channel layout | 🟡 | cap in kernel + topology + UCM (−12 dB placeholder, answer pc-026-s8-s9); stock value and channel layout pending |
-| Speaker protection (TFA9865 `tfa98xx.cnt`) | ⬜ | very hard (closed); volume capped until then |
-| Headset (USB-C analog) | ⬜ | no 3.5 mm jack; WCD paths noted |
+| Wi-Fi 2.4 GHz | ✅ Working | NetworkManager, scan, connect |
+| Wi-Fi 5 / 6 GHz | 🟡 In progress | Region US (your choice); bands enabled, no 5/6 GHz network tested yet |
+| Bluetooth, own address | ✅ Working |  |
+| Bluetooth pairing in GNOME | ⬜ Not started |  |
+| USB device mode / USB network | ✅ Working |  |
+| USB host / OTG, PD hub | ⬜ Not started |  |
+| DisplayPort over USB-C | ⬜ Not started |  |
 
-## Power and thermals
+## Power & charging (1/7 working)
+
 | Feature | Status | Notes |
 |---|---|---|
-| Battery % / voltage / current / temperature / health | ✅ | battmgr over SoCCP; units fixed; design capacity from DT |
-| UPower / GNOME battery | ✅ | |
-| Charging (firmware basics, 5 V / PD) | 🟡 | works; **the inherited code used OnePlus 15 limits (12 V / 3 A / 4 A)**: fixed to the Pad 4 stock per-type inputs (PD 13.5 W: 1.5 A at 9 V) in relay 015, verified in research/battery-guard-verification.md |
-| Charging safety (derating, termination, dual cells) | 🟡 | `iceland-battery-guard` with stock limits written and tested offline; the tablet test and charge-inhibit knob are next (relay 015) |
-| Charge limit (80 %) in GNOME | ⬜ | |
-| Fast charging (SuperVOOC / PPS / UFCS) | ❌ | OnePlus kernel stack; PPS maybe later |
-| Pen charging (MT5806) | ⬜ | new driver needed (P3) |
-| CPU frequency scaling (stock tables), cpuidle | ✅ | |
-| CPU thermal (stock 105/112/114 °C) | ✅ | held at 105 °C under load |
-| Board + flash thermistors | ✅ | |
-| **Skin + XO thermal zones** | 🟡 | patch in relay 009; skin limits to be replaced by stock gear values |
-| GPU thermal cooling | 🟡 | maps present in the SoC DT; load test pending |
-| Low-battery protection (BCL) | ⬜ | P0 |
-| **Suspend (s2idle)** | 🟡 | worked with the WAKE# fix (0040) on queue ≤0040; **regression on 0045 + PipeWire: hard reset on the first cycle** (pc-026 S10), isolation in answer pc-026-s10 |
-| Deep-sleep proof, 20/20 resumes, overnight drain ≤ ~1 %/h | ⬜ | |
-| Wake sources (power key, lid, keyboard, charger) | 🟡 | RTC/power key seen; others to test |
-| Power tuning (EAS, 60 Hz on battery, CDSP off) | ⬜ | Wi-Fi power save is in iceland-device |
+| Battery level, voltage, current, temperature, health | ✅ Working | UPower and GNOME battery |
+| Charging | 🟡 In progress | Works; Pad 4 stock charger limits patch (9 V / 1.5 A) awaiting test |
+| Battery safety guard (stock limits) | 🟡 In progress | Written and simulated (30 cases); tablet test pending |
+| Charge limit (80 %) | ⬜ Not started |  |
+| Low-battery current limiting (BCL) | ⬜ Not started |  |
+| Pen charging | ⬜ Not started | New driver needed |
+| Fast charging (SuperVOOC / PPS) | ❌ Not planned | OnePlus-proprietary; not planned |
 
-## Other hardware
+## Thermal (2/5 working)
+
 | Feature | Status | Notes |
 |---|---|---|
-| Rear flash LEDs | ✅ | |
-| Sensors (accel, compass, ALS/proximity via SSC) | ⬜ | hexagonrpcd + libssc (P3) |
-| **Cameras** (SC1320CS rear, SC820CS front) | ⬜ | plan written (PLAN 5-CAM); step C0 is relay 014 |
-| Haptics | ❌ | the Pad 4 has none (disabled in stock) |
-| Modem, NFC, fingerprint, IR | ❌ | not on this device |
+| CPU frequencies and CPU limits (stock) | ✅ Working | Held at 105 °C under load |
+| Board and flash thermistors | ✅ Working |  |
+| Skin and XO zones | 🟡 In progress | Patch ready; skin limits to be replaced by stock values |
+| USB-C connector temperature zone | 🟡 In progress | Patch ready (57 °C, stock) |
+| GPU cooling | 🟡 In progress | Load test pending |
 
-## Software and packaging
+## Sleep & power saving (1/6 working)
+
 | Feature | Status | Notes |
 |---|---|---|
-| `kernel-iceland` rpm + DTB kernel-install hook | ✅ | test-built (aarch64, 948 modules, DTB, kernel-install hooks + source rpm); install test on Fedora pending |
-| `iceland-device` rpm (settings) | ✅ | built with rpmbuild; grows as the hardware lands |
-| Full GNOME app set (Files, Software + Flathub, …) | ⬜ | RAM rehearsal is relay 008 |
-| Fedora upgrades / kernel updates via dnf | 🟡 | policy in iceland-device; offline-update test pending |
-| Automated fix loop on the PC | ✅ | relay 012 A policy |
-| Stock-values audit (rule 13) | ⬜ | relay 013 |
-| Upstreaming | ⬜ | only with the user's OK |
-| Other distros (Arch ARM, pmOS, Debian, Kali, Ubuntu) | ⬜ | Phase 7, optional |
+| Suspend (s2idle) | 🟡 In progress | 24 cycles clean; two stalls after audio activity under investigation |
+| Long sleep | 🟡 In progress | One unexplained reboot after a long sleep: watchdog vs planned reboot |
+| Wake by power key and alarm | ✅ Working |  |
+| Wake by lid, keyboard, charger | ⬜ Not started |  |
+| 60 Hz on battery, CDSP off | 🟡 In progress | In iceland-device 0.4+; untested on the tablet |
+| Deep-sleep proof, overnight drain ≤ ~1 %/h | ⬜ Not started |  |
+
+## Sensors & camera (1/4 working)
+
+| Feature | Status | Notes |
+|---|---|---|
+| Rear flash LEDs | ✅ Working |  |
+| Accelerometer, compass, light / proximity | ⬜ Not started |  |
+| Cameras (13 MP rear, 8 MP front) | ⬜ Not started | Plan written; stock supplies, clock and resets resolved; waiting for register data |
+| Haptics, modem, NFC, fingerprint | ❌ Not planned | Not on this tablet |
+
+## Software & packaging (4/6 working)
+
+| Feature | Status | Notes |
+|---|---|---|
+| Kernel package (kernel-iceland) | ✅ Working | Test-built: 948 modules, device tree, install hooks |
+| Device package (iceland-device 0.7) | ✅ Working | Settings, battery guard, sound, Wi-Fi region; built |
+| Local update repository | ✅ Working | Checksum-verified sync; tested |
+| Full GNOME app set | ⬜ Not started | Relay 008 |
+| Stock-values audit | ⬜ Not started | Relay 013 |
+| Automated PC fix loop + cloud debugger | ✅ Working |  |
