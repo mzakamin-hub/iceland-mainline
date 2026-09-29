@@ -1,0 +1,19 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Start or stop the CDSP (the Hexagon NSP "NPU") on the OnePlus Pad 4. It is kept off unless something needs it
+# (FastRPC / QNN workloads, relay 012 C), to save power and keep it from blocking deep sleep.
+#   iceland-npu on | off | status
+set -eu
+rp=""
+for d in /sys/class/remoteproc/remoteproc*; do
+	[ -e "$d/firmware" ] || continue
+	case "$(cat "$d/firmware")" in *cdsp*) rp=$d; break ;; esac
+done
+[ -n "$rp" ] || { echo "iceland-npu: no CDSP remoteproc found" >&2; exit 1; }
+state=$(cat "$rp/state")
+case "${1:-status}" in
+on)	[ "$state" = running ] || echo start > "$rp/state"; echo "CDSP: $(cat "$rp/state")" ;;
+off)	[ "$state" != running ] || echo stop > "$rp/state"; echo "CDSP: $(cat "$rp/state")" ;;
+status)	echo "CDSP ($(basename "$rp")): $state" ;;
+*)	echo "usage: iceland-npu on|off|status" >&2; exit 2 ;;
+esac

@@ -1,0 +1,12 @@
+[Unit]
+Description=OnePlus Pad 4: 60 Hz on battery, 120 Hz on AC
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecStart=/usr/libexec/iceland/iceland-refresh
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=graphical-session.target

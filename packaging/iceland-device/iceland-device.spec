@@ -4,7 +4,7 @@
 # No firmware and no binaries: configuration files and small scripts only.
 
 Name:           iceland-device
-Version:        0.3
+Version:        0.4
 Release:        1%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later
@@ -21,10 +21,20 @@ Source7:        90-iceland-dracut.conf
 Source8:        60-iceland-wifi-powersave.conf
 Source9:        iceland-battery-guard
 Source10:       iceland-battery-guard.service
+Source11:       iceland-local.repo
+Source12:       iceland-repo-sync
+Source13:       iceland-refresh
+Source14:       iceland-refresh.service
+Source15:       refresh.conf
+Source16:       iceland-npu
+Source17:       iceland-npu-off.service
 
 Requires:       kernel-iceland
 Requires:       bluez
 Requires:       python3
+Requires:       python3-gobject
+Requires:       createrepo_c
+Requires:       curl
 Requires(posttrans): grubby
 
 %description
@@ -41,7 +51,10 @@ Settings that make Fedora 44 work safely on the OnePlus Pad 4 with the kernel-ic
 - the initramfs carries the display, touch and GPU drivers and their firmware;
 - Wi-Fi power saving is on;
 - iceland-battery-guard enforces the stock 11.A.38 charging limits as a second layer over the charger firmware
-  (temperature regions, per-region voltages and currents, USB-C connector temperature, 72/77 C power-off).
+  (temperature regions, per-region voltages and currents, USB-C connector temperature, 72/77 C power-off);
+- kernel-iceland updates come from a local dnf repository (/var/lib/iceland/repo, filled by iceland-repo-sync);
+- the panel runs 60 Hz on battery and 120 Hz on AC (iceland-refresh, /etc/iceland/refresh.conf);
+- the CDSP (NPU) stays off until `iceland-npu on`.
 
 %prep
 %build
@@ -58,6 +71,14 @@ install -Dm0644 %{SOURCE7} %{buildroot}/usr/lib/dracut/dracut.conf.d/90-iceland.
 install -Dm0644 %{SOURCE8} %{buildroot}/usr/lib/NetworkManager/conf.d/60-iceland-wifi-powersave.conf
 install -Dm0755 %{SOURCE9} %{buildroot}/usr/libexec/iceland/iceland-battery-guard
 install -Dm0644 %{SOURCE10} %{buildroot}/usr/lib/systemd/system/iceland-battery-guard.service
+install -Dm0644 %{SOURCE11} %{buildroot}/etc/yum.repos.d/iceland-local.repo
+install -Dm0755 %{SOURCE12} %{buildroot}/usr/bin/iceland-repo-sync
+install -Dm0755 %{SOURCE13} %{buildroot}/usr/libexec/iceland/iceland-refresh
+install -Dm0644 %{SOURCE14} %{buildroot}/usr/lib/systemd/user/iceland-refresh.service
+install -Dm0644 %{SOURCE15} %{buildroot}/etc/iceland/refresh.conf
+install -Dm0755 %{SOURCE16} %{buildroot}/usr/bin/iceland-npu
+install -Dm0644 %{SOURCE17} %{buildroot}/usr/lib/systemd/system/iceland-npu-off.service
+install -d %{buildroot}/var/lib/iceland/repo/aarch64
 install -d %{buildroot}/etc/iceland
 
 %posttrans
@@ -68,7 +89,10 @@ UPDATEDEFAULT=yes
 DEFAULTKERNEL=kernel-iceland
 EOT
 /usr/libexec/iceland/iceland-cmdline || :
-systemctl enable iceland-battery-guard.service >/dev/null 2>&1 || :
+systemctl enable iceland-battery-guard.service iceland-npu-off.service >/dev/null 2>&1 || :
+systemctl --global enable iceland-refresh.service >/dev/null 2>&1 || :
+# an empty local repository, so dnf doesn't complain before the first iceland-repo-sync
+[ -d /var/lib/iceland/repo/aarch64/repodata ] || createrepo_c -q /var/lib/iceland/repo/aarch64 || :
 systemctl preset iceland-bdaddr.service >/dev/null 2>&1 || systemctl enable iceland-bdaddr.service >/dev/null 2>&1 || :
 
 %triggerin -- fwupd
@@ -82,7 +106,7 @@ if [ -f "$f" ] && ! grep -q '^DisabledPlugins=.*uefi_capsule' "$f"; then
 fi
 
 %preun
-[ "$1" -eq 0 ] && systemctl disable iceland-battery-guard.service iceland-bdaddr.service >/dev/null 2>&1 || :
+[ "$1" -eq 0 ] && systemctl --global disable iceland-refresh.service >/dev/null 2>&1; [ "$1" -eq 0 ] && systemctl disable iceland-npu-off.service iceland-battery-guard.service iceland-bdaddr.service >/dev/null 2>&1 || :
 
 %files
 /usr/share/dnf5/libdnf.conf.d/80-iceland-kernel.conf
@@ -96,9 +120,21 @@ fi
 /usr/lib/NetworkManager/conf.d/60-iceland-wifi-powersave.conf
 /usr/libexec/iceland/iceland-battery-guard
 /usr/lib/systemd/system/iceland-battery-guard.service
+%config(noreplace) /etc/yum.repos.d/iceland-local.repo
+/usr/bin/iceland-repo-sync
+/usr/libexec/iceland/iceland-refresh
+/usr/lib/systemd/user/iceland-refresh.service
+%config(noreplace) /etc/iceland/refresh.conf
+/usr/bin/iceland-npu
+/usr/lib/systemd/system/iceland-npu-off.service
+%dir /var/lib/iceland
+%dir /var/lib/iceland/repo
+%dir /var/lib/iceland/repo/aarch64
 %dir /etc/iceland
 
 %changelog
+* Tue Sep 29 2026 mzak <mzak.amin@gmail.com> - 0.4-1
+- local kernel update repository + iceland-repo-sync; 60/120 Hz by power source; CDSP off unless used
 * Tue Sep 29 2026 mzak <mzak.amin@gmail.com> - 0.3-1
 - battery guard verified against stock: per-region stop/recharge voltages and charge currents, the stock
   USB-C connector rules (57/69 C, gaps, latch until unplug, cool-down), stop when the temperature is unreadable

@@ -1,0 +1,83 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# iceland-refresh (GNOME user service): lower the panel refresh rate on battery, raise it on the charger.
+# The Pad 4 panel runs 30/60/90/120/144 Hz; the refresh rate is one of the biggest screen-on power costs.
+# Defaults: 60 Hz on battery, 120 Hz on AC. Override in /etc/iceland/refresh.conf or ~/.config/iceland/refresh.conf:
+#   BATTERY_HZ=60
+#   AC_HZ=120
+#   ENABLED=1
+# It changes the mode through mutter's DisplayConfig D-Bus API as a *temporary* configuration, so the user's own
+# monitors.xml is never rewritten; the resolution, scale and layout are kept.
+import os, sys
+from gi.repository import Gio, GLib
+
+def conf():
+    c = {"BATTERY_HZ": "60", "AC_HZ": "120", "ENABLED": "1"}
+    for p in ("/etc/iceland/refresh.conf", os.path.expanduser("~/.config/iceland/refresh.conf")):
+        try:
+            for line in open(p):
+                line = line.strip()
+                if "=" in line and not line.startswith("#"):
+                    k, v = line.split("=", 1)
+                    c[k.strip()] = v.strip()
+        except OSError:
+            pass
+    return c
+
+def pick_mode(modes, cur_w, cur_h, target):
+    """modes: [(id, w, h, refresh, ...)]; same resolution, refresh closest to the target"""
+    same = [m for m in modes if m[1] == cur_w and m[2] == cur_h]
+    if not same:
+        return None
+    return min(same, key=lambda m: abs(m[3] - target))[0]
+
+class Refresh:
+    def __init__(self):
+        self.bus = Gio.bus_get_sync(Gio.BusType.SESSION)
+        self.sysbus = Gio.bus_get_sync(Gio.BusType.SYSTEM)
+        self.dc = Gio.DBusProxy.new_sync(self.bus, 0, None, "org.gnome.Mutter.DisplayConfig",
+                                         "/org/gnome/Mutter/DisplayConfig", "org.gnome.Mutter.DisplayConfig", None)
+        self.up = Gio.DBusProxy.new_sync(self.sysbus, 0, None, "org.freedesktop.UPower",
+                                         "/org/freedesktop/UPower", "org.freedesktop.UPower", None)
+        self.up.connect("g-properties-changed", lambda *a: self.apply())
+        self.dc.connect("g-signal", lambda p, s, sig, a: sig == "MonitorsChanged" and self.apply())
+
+    def apply(self):
+        c = conf()
+        if c.get("ENABLED", "1") != "1":
+            return
+        ob = self.up.get_cached_property("OnBattery")
+        on_battery = bool(ob.unpack()) if ob is not None else False
+        target = float(c["BATTERY_HZ"] if on_battery else c["AC_HZ"])
+        serial, monitors, logical, props = self.dc.call_sync("GetCurrentState", None, 0, -1, None).unpack()
+        changed, new_logical = False, []
+        for (x, y, scale, transform, primary, lmons, lprops) in logical:
+            mons = []
+            for spec in lmons:
+                mon = next(m for m in monitors if tuple(m[0]) == tuple(spec))
+                modes = mon[1]
+                cur = next((m for m in modes if m[6].get("is-current")), None)
+                if cur is None:
+                    return
+                mid = pick_mode(modes, cur[1], cur[2], target)
+                if mid and mid != cur[0]:
+                    changed = True
+                mons.append((spec[0], mid or cur[0], {}))
+            new_logical.append((x, y, scale, transform, primary, mons))
+        if not changed:
+            return
+        args = GLib.Variant("(uua(iiduba(ssa{sv}))a{sv})", (serial, 1, new_logical, {}))
+        try:
+            self.dc.call_sync("ApplyMonitorsConfig", args, 0, -1, None)
+            print("iceland-refresh: %s -> %.0f Hz" % ("battery" if on_battery else "AC", target), flush=True)
+        except GLib.Error as e:
+            print("iceland-refresh: " + e.message, file=sys.stderr, flush=True)
+
+def main():
+    r = Refresh()
+    r.apply()
+    GLib.MainLoop().run()
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,11 @@
+# iceland-device: kernel-iceland and iceland-device updates from a local repository on the tablet.
+# Filled by `iceland-repo-sync` (from the PC over USB network, a USB stick, or a directory). Root-owned local
+# files only; the rpms are checked against the repository's SHA256SUMS during the sync, so gpgcheck is off.
+[iceland-local]
+name=OnePlus Pad 4 (kernel-iceland, iceland-device), local
+baseurl=file:///var/lib/iceland/repo/aarch64
+enabled=1
+gpgcheck=0
+repo_gpgcheck=0
+skip_if_unavailable=True
+priority=10

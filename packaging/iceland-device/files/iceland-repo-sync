@@ -1,0 +1,32 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copy a kernel-iceland/iceland-device repository (made by iceland-linux packaging/repo/make-repo.sh) into
+# /var/lib/iceland/repo and refresh dnf's cache for it. Then `dnf upgrade` picks the updates up.
+#   iceland-repo-sync /run/media/USER/STICK/iceland-repo      (a directory)
+#   iceland-repo-sync http://172.16.42.2:8000/                 (the PC, e.g. `python3 -m http.server` in the repo)
+# Every rpm must match the repository's SHA256SUMS, or nothing is installed.
+set -eu
+src=${1:?usage: iceland-repo-sync DIR|URL}
+dst=/var/lib/iceland/repo
+tmp=$(mktemp -d /var/lib/iceland/.repo-sync.XXXXXX)
+trap 'rm -rf "$tmp"' EXIT
+case "$src" in
+http://*|https://*)
+	src=${src%/}
+	curl -fsS "$src/SHA256SUMS" -o "$tmp/SHA256SUMS"
+	while read -r _ f; do
+		mkdir -p "$tmp/$(dirname "$f")"
+		curl -fsS "$src/$f" -o "$tmp/$f"
+	done < "$tmp/SHA256SUMS"
+	;;
+*)
+	cp -a "$src/." "$tmp/"
+	;;
+esac
+(cd "$tmp" && sha256sum -c --quiet SHA256SUMS) || { echo "iceland-repo-sync: checksum mismatch, nothing changed" >&2; exit 1; }
+createrepo_c -q "$tmp/aarch64"
+rm -rf "$dst.old"; [ -d "$dst" ] && mv "$dst" "$dst.old"
+mv "$tmp" "$dst"; trap - EXIT
+rm -rf "$dst.old"
+dnf -q makecache --repo iceland-local
+echo "iceland-repo-sync: repository updated; run: sudo dnf upgrade"

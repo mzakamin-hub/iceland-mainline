@@ -20,11 +20,12 @@ Difficulty scale:
 - [ ] [P0] PC: relay 004 (align `phase4/INSTALL-PLAN.md` with PLAN v4; ABL `flash userdata` from docs only)
 - [ ] [P0] PC: relay 005 (recovery_a/b facts, recovery image header, LUN 0 layout)
 - [ ] [P0] PC: relay 008 part 1 (the Workstation 44 app list)
-- [ ] [P1] M: local dnf repo for `kernel-iceland` updates
+- [x] [P1] M: local dnf repo for `kernel-iceland` updates (iceland-linux `packaging/repo/make-repo.sh` + `iceland-repo-sync` in iceland-device 0.4; COPR only with the user's OK)
 - [x] [P1] M: U-Boot env for dual boot (`fedora_blkmap` by partition name): iceland-u-boot a3c7ca5 (one bootcmd for both layouts)
 - [x] [P1] M: dracut config (GPU and touch firmware in the initramfs), kernel options (`iceland-cmdline`) in iceland-device; `lsm=` to be checked on the image
 - [ ] [P1] U+PC: before writes: file-level `/data/vendor` + persist copy; GPT backup; confirm the 151-partition backup
-- [ ] [P2] M: 60 Hz on battery / 120–144 Hz on AC hook; CDSP off; power-profiles-daemon config (Wi-Fi power save done in iceland-device)
+- [x] [P2] M: 60 Hz on battery / 120 Hz on AC (`iceland-refresh`), CDSP off unless used (`iceland-npu`), in iceland-device 0.4; PC tests on the tablet
+- [ ] [P2] M: power-saver profile (tuned-ppd) with stock power-saving values (needs relay 013)
 - [x] [P2] M: after an Android OTA (dual boot), a helper to re-flash U-Boot into the new slot's recovery: `tools/dualboot/reflash-recovery.ps1` (only after 4-DB is approved)
 - [ ] [P3] Housekeeping: KNOWLEDGE §13 in sync with PLAN v4 (PC); refresh the cloud kernel tree (M)
 

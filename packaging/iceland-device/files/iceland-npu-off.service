@@ -1,0 +1,14 @@
+[Unit]
+Description=OnePlus Pad 4: keep the CDSP (NPU) off until something needs it
+After=systemd-modules-load.service systemd-udev-settle.service
+ConditionPathExists=!/etc/iceland/npu-on-at-boot
+
+[Service]
+Type=oneshot
+# the remoteproc probes (and auto-boots the CDSP) a few seconds into boot
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 30); do grep -qs cdsp /sys/class/remoteproc/*/firmware && break; sleep 1; done'
+ExecStart=/usr/libexec/iceland/iceland-npu off
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
