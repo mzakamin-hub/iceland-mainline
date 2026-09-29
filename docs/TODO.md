@@ -10,6 +10,9 @@ Difficulty scale:
 - **3 Hard:** new driver work, many devices involved or long debugging tails; days to weeks.
 - **4 Very hard:** reverse engineering or closed parts; weeks, may not be fully solvable.
 
+## Campaign (relay 019, the user 2026-09-29): one run per area, in this order
+Audio → Power & charging → Thermal → Sleep & power saving → Display & input → Connectivity → Graphics & compute → Sensors & camera → Software & packaging. **Boot & platform only after the user confirms the final installation.**
+
 ## 1 — Easy
 - [ ] [P0] PC: relay 013: audit every hardware value (sound, brightness, clocks, GPU, speaker/mic tuning, power, thermals) against Pad 4 stock (OxygenOS 11.A.38 / the user's LineageOS trees); replace placeholders
 - [x] [P0] M: relay 012 A: standing policy, so the PC runs the build → kit → judge → iterate → queue loop by itself (no tablet writes)
