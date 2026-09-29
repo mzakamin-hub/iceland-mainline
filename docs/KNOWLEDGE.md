@@ -849,9 +849,20 @@ ABL (stock, untouched)
   `GPIO_ACTIVE_HIGH` while the line is active low (pulled up, pinctrl `wake-n`), so the root port's dedicated
   wake IRQ fired at once whenever PCIe was on; with that wake disabled s2idle held for the RTC alarm (26 s) and
   everything came back - DT fix on the queue candidate (0038), verified in S2;
-  ⚠️ **sound**: no card until the ADSP runs - the DT link moves to stock's `PRIMARY_TDM_RX_0` with an Audio
-  Interface (TDM) topology (S1/S2); the ADSP firmware must be reachable after the hand-over (kit firmware bound
-  over the rootfs's `/lib/firmware`, since PID 1's chroot moves the kernel firmware loader's root).
+  ✅ suspend confirmed in pc-026 S2 with the fix: five s2idle cycles of 27-29 s each, RTC wake, with GNOME,
+  Bluetooth and Wi-Fi active; ✅ standby (the shell blanks the DSI panel: DPMS off, backlight off, and back);
+  ⚠️ **after real suspend cycles CPU 7 stalled in a deep idle state 2.5 min later** (S2: `rcu_preempt detected
+  stalls`, NMI unanswered, watchdog reset) - under test (S3: stall watch after one cycle; then the big cores'
+  deepest idle state after resume);
+  ⚠️ **sound**: the card is up on the ADSP after the hand-over (kit firmware bound over the rootfs's
+  `/lib/firmware`; the DT link on stock's `PRIMARY_TDM_RX_0`, the Audio-Interface TDM topology loaded), but
+  every graph open fails, before and after suspend (S3): **the APM never answers `APM_CMD_GET_SPF_STATE`**
+  ("CMD timeout for [1001021]", identical since pc-017) - the stock ADSP's audio framework does not talk to
+  mainline's q6apm on this unit; the topology is not the cause (linux-firmware's Kaanapali MTP topology is the
+  same template). Leads: a TrustZone-side listener during SPF init (OnePlus 15 ships `minkipc`), the stock
+  `spf-core` bring-up; topology/driver variants can be tried in-session (rebind `snd-sc8280xp`);
+  the front ends take S16 stereo only (48 kHz); mics: WCD9395 analog mics → TX macro → `TX_CODEC_DMA_TX_3`;
+  `upower` needs `PrivateUsers=no` under the chroot hand-over.
 
 **Open issues:**
 1. ✅ **Early reset - closed (pc-022): it was the kit's own `/dev/mem` display sampler, not the kernel.** History:
