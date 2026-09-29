@@ -1,7 +1,7 @@
 # Next actions (PC session, from 2026-09-29 evening)
 
-**Order from the user (2026-09-29 night), after the GPU/CPU scaling work:** (1) battery protection and thermal
-protection in place (guard live on a charger, the charge limit, skin/USB-C zones, GPU trips); (2) the mic
+**Order from the user (2026-09-29 night), after the GPU/CPU scaling work:** (1) ✅ battery protection and thermal
+protection in place (area-thermal-1/-2, 2026-09-30) (guard live on a charger, the charge limit, skin/USB-C zones, GPU trips); (2) the mic
 (noise floor); (3) Wi-Fi (5 GHz, regulatory, the "?" icon); (4) the cameras. Runs stay automated and ≤ 10 min;
 anything needing the user's eyes is deferred. RAM boot only.
 
@@ -86,7 +86,7 @@ The PC port was asked for 1.2–1.9 A (stock SDP: 500 mA), and 12 V is above the
 | Item | Next action | Needs the user |
 |---|---|---|
 | Charger tests | power.md T2–T6: DCP, PD (9 V decision, never 12 V), knobs, guard dry-run then live, firmware termination under load | Plug chargers, watch |
-| Charge limit 85 % | Add `charge_control_start/end_threshold` + setter to the OPLUS battmgr variant; test whether the SoCCP honours opcode 0x48 (charger in, near 85 %); if not, a guard-side limit via `charge_behaviour`; UPower `CHARGE_LIMIT` in iceland-device | Watch while charging |
+| Charge limit 85 % | ✅ guard-side limit works (area-thermal-2: +292 -> -7 mA); the SoCCP ignores opcode 0x48 (area-thermal-1). Next: a kernel software limit behind `charge_control_*` so GNOME's switch appears | none |
 | Battery estimate | Report STATUS from the firmware (not forced Charging); CHARGE_NOW = capacity × charge_full; debug-kernel probe of TTE/TTF/POWER_AVG and the gauge words (power.md A2–A4, C2) | none |
 | BCL | Stock PMH0101/PMIH010x BCL nodes → qcom-bcl/spmi bcl (relay 018 item 6) | none |
 | Pen charging | Research the pen wireless-charge IC (odm `mt5806_firmware.bin`) and its stock driver | later |
@@ -95,9 +95,9 @@ The PC port was asked for 1.2–1.9 A (stock SDP: 500 mA), and 12 V is above the
 
 | Item | Next action |
 |---|---|
-| Skin/XO zones | Queue relay 009 with stock's skin gear caps (relay 018 item 7) |
-| USB-C connector zones | Rebase the usb-therm candidate on HEAD (or after 009), add stock's 0x274a/0x275e channels, validate against board_therm (power.md A12/B6/B7) |
-| GPU cooling | 30-min stress log (with area-graphics); 125 °C critical → hot |
+| Skin/XO zones | ✅ branch `protect` (area-thermal-1/-2): skin 48 C loop to stock's deepest gear, 51 C gear, 70 C critical; XO stock steps. Queue with the GPU levels + CPU capacity on "queue them". Open: the start point (48 C vs stock's 50/60 C trips) after a hand-on-the-back check under load |
+| USB-C connector zones | ✅ usb-therm + stock's L/R pair (ratiometric) read plausibly; check their rise under PD charging (with the charger tests) |
+| GPU cooling | The skin loop now caps the GPU under sustained load; a 30-min GPU stress log with the skin zone; 125 C critical kept (safer than stock's none) |
 
 ## 5. Sleep & power saving
 

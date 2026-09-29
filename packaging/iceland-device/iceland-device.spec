@@ -4,7 +4,7 @@
 # No firmware and no binaries: configuration files and small scripts only.
 
 Name:           iceland-device
-Version:        0.10
+Version:        0.11
 Release:        1%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
@@ -38,6 +38,7 @@ Source21:       iceland-audio.tar.gz
 # the Pad 4 tuned profiles behind GNOME's power modes (tuned-ppd) + the script that maps tuned-ppd to them
 Source22:       iceland-tuned.tar.gz
 Source23:       iceland-power-profiles
+Source24:       battery-guard.conf
 
 Requires:       kernel-iceland
 Requires:       bluez
@@ -64,7 +65,8 @@ Settings that make Fedora 44 work safely on the OnePlus Pad 4 with the kernel-ic
 - the initramfs carries the display, touch and GPU drivers and their firmware;
 - Wi-Fi power saving is on;
 - iceland-battery-guard enforces the stock 11.A.38 charging limits as a second layer over the charger firmware
-  (temperature regions, per-region voltages and currents, USB-C connector temperature, 72/77 C power-off);
+  (temperature regions, per-region voltages and currents, the USB-C connector thermistors, 70/77 C power-off)
+  and the charge limit (85 %, resume at 80 %; /etc/iceland/battery-guard.conf);
 - kernel-iceland updates come from a local dnf repository (/var/lib/iceland/repo, filled by iceland-repo-sync);
 - the panel runs 60 Hz on battery and 120 Hz on AC (iceland-refresh, /etc/iceland/refresh.conf); after every
   refresh-rate change the display is switched off and on once, which brings back the picture a live rate change
@@ -107,6 +109,7 @@ install -Dm0755 %{SOURCE12} %{buildroot}/usr/bin/iceland-repo-sync
 install -Dm0755 %{SOURCE13} %{buildroot}/usr/libexec/iceland/iceland-refresh
 install -Dm0644 %{SOURCE14} %{buildroot}/usr/lib/systemd/user/iceland-refresh.service
 install -Dm0644 %{SOURCE15} %{buildroot}/etc/iceland/refresh.conf
+install -Dm0644 %{SOURCE24} %{buildroot}/etc/iceland/battery-guard.conf
 install -Dm0755 %{SOURCE16} %{buildroot}/usr/bin/iceland-npu
 install -Dm0644 %{SOURCE17} %{buildroot}/usr/lib/systemd/system/iceland-npu-off.service
 install -Dm0755 %{SOURCE18} %{buildroot}/usr/libexec/iceland/iceland-wifi-country
@@ -176,6 +179,7 @@ fi
 /usr/libexec/iceland/iceland-refresh
 /usr/lib/systemd/user/iceland-refresh.service
 %config(noreplace) /etc/iceland/refresh.conf
+%config(noreplace) /etc/iceland/battery-guard.conf
 /usr/bin/iceland-npu
 /usr/lib/systemd/system/iceland-npu-off.service
 /usr/libexec/iceland/iceland-wifi-country
@@ -196,6 +200,10 @@ fi
 %dir /etc/iceland
 
 %changelog
+* Wed Sep 30 2026 mzak <mzak.amin@gmail.com> - 0.11-1
+- battery guard: power off at 70 C (stock framework high-temperature shutdown, before the DT's 72 C); read the
+  USB-C connector on the usb-temp-l / usb-temp-r / usb-therm zones (the hottest valid reading; stock's protection
+  reads the L/R pair); charge limit 85 %, resume at 80 % (/etc/iceland/battery-guard.conf, CHARGE_LIMIT=100 = off)
 * Tue Sep 29 2026 mzak <mzak.amin@gmail.com> - 0.10-1
 - power profiles: GNOME's power modes (tuned-ppd) map to iceland-balanced / -balanced-battery / -powersave /
   -performance - schedutil with stock's frequency floors (614400/864000 kHz), Power Saver capped at stock's

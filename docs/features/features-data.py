@@ -6,17 +6,17 @@
 DATE = "29 Sep 2026"
 
 # One sentence after the date in FEATURES.md.
-STATUS_MD = ("area-graphics-1 and area-power-1 done (automated, under 10 min each): GPU DCVS already at the top under load, "
-             "the stock 1100 MHz level and CPU capacity data added, GNOME power modes now drive Pad 4 tuned profiles; "
-             "next (the user's order): battery + thermal protection, the mic, Wi-Fi, the cameras")
+STATUS_MD = ("area-thermal-1/-2 done (automated, under 10 min each): skin / XO / USB-C thermal zones throttle as "
+             "designed, the battery guard stops charging at 85 % and powers off at stock's 70 °C; "
+             "next (the user's order): the mic, Wi-Fi, the cameras")
 
 # The subtitle of the published page.
 STATUS_HTML = ("Everything is tested by booting from RAM; nothing is installed on the tablet yet. Status as of "
-               f"{DATE}: audio closed (mic hiss a known issue); GPU and Vulkan accelerated with the stock GPU levels; CPU "
-               "scaling knows the big and small cores; GNOME's power modes drive Pad 4 profiles; the charging-safety patch "
-               "is queued; a live refresh-rate change is worked around by a display off/on. Next: battery and thermal "
-               "protection, the mic, Wi-Fi, the cameras. Work runs area by area (relay 019); Boot & platform waits for "
-               "your go-ahead on the install.")
+               f"{DATE}: battery and thermal protection in place - the skin, XO and USB-C sensors throttle or stop "
+               "charging at stock's limits, the 85 % charge limit works through the battery guard; GPU and Vulkan "
+               "accelerated with the stock GPU levels; CPU scaling knows the big and small cores; a live refresh-rate "
+               "change is worked around by a display off/on. Next: the mic, Wi-Fi, the cameras. Boot & platform waits "
+               "for your go-ahead on the install.")
 
 G = [
 ("Boot & platform", [
@@ -73,8 +73,8 @@ G = [
  ("Battery level, voltage, current, temperature, health", "ok", "UPower and GNOME battery"),
  ("Battery time estimate", "part", "Inaccurate (your report): jumpy current reading, no charge-now value; fix in the Power area", "qcom_battmgr OPLUS: STATUS forced to Charging when USB is online; instantaneous 1 Hz current; gauge word 4 is not a charge; derive CHARGE_NOW = capacity × charge_full, probe TTE/TTF/POWER_AVG (offline-prep/power.md A2–A4)"),
  ("Charging", "part", "Stock limits patch 0053 queued (iceland-linux d36c1be): SDP input 500 mA (494 mA measured, was 1.2–1.9 A), knobs work", "Chargers with you watching (power.md T2–T6: DCP, PD 9 V never 12 V, inhibit and FCC effects below 80 %)"),
- ("Battery safety guard (stock limits)", "part", "Review fixes in (iceland-device 0.8: retries, VBUS > 11 V, rise-fast, unreadable voltage); 47 simulated cases pass; tablet test pending", "Tablet test with 0053's charge_behaviour / constant_charge_current_max (power.md T5)"),
- ("Charge limit (85 %, your request)", "todo", "battmgr OnePlus variant exposes no charge_control_* files", "Add the thresholds + setter to the OPLUS battmgr props; check the SoCCP honours opcode 0x48; UPower limit in iceland-device"),
+ ("Battery safety guard (stock limits)", "ok", "iceland-device 0.11 guard ran live on the tablet (area-thermal-1/-2): stock JEITA regions, voltages, currents, the three USB-C connector sensors (hottest valid reading), power-off at 70 °C (stock framework) / 77 °C; 70 simulated cases pass", "PD/DCP charger tests with you watching (connector sensors under charging current)"),
+ ("Charge limit (85 %, your request)", "part", "Works: iceland-battery-guard stops charging at 85 % and resumes at 80 % (/etc/iceland/battery-guard.conf); measured +292 → −7 mA (area-thermal-2). The charger firmware ignores its own limit request, so GNOME shows no switch yet", "A kernel software limit (charge_control_* through the same charge inhibit) so GNOME's Preserve Battery Health switch appears"),
  ("Low-battery current limiting (BCL)", "todo", "", "Stock PMH0101/PMIH010x BCL nodes (relay 018 item 6); qcom-bcl-hwmon / spmi bcl"),
  ("Pen charging", "todo", "New driver needed", "Pen wireless-charge IC on the pogo/magnet side: stock driver in OnePlusOSS"),
  ("Fast charging (SuperVOOC / PPS)", "out", "OnePlus-proprietary; not planned"),
@@ -82,8 +82,8 @@ G = [
 ("Thermal", [
  ("CPU frequencies and CPU limits (stock)", "ok", "Held at 105 °C under load"),
  ("Board and flash thermistors", "ok", ""),
- ("Skin and XO zones", "part", "Patch ready; skin limits to be replaced by stock values", "Relay 009 candidate; stock skin gear table (relay 018 item 7) for the caps"),
- ("USB-C connector temperature zone", "part", "Patch ready (57 °C, stock)", "Candidate reads 0x2747 but stock usbtemp uses AMUX1/AMUX5 (0x274a/0x275e); needs relay 009 first to apply (power.md A12/B6/B7)"),
+ ("Skin and XO zones", "ok", "Skin: throttles from 48 °C down to stock's deepest gear, the gear at once at 51 °C, off at 70 °C; XO: stock's 78/80/90 °C steps. Emulated and real load checked (area-thermal-1/-2). Under sustained all-core load the skin sensor (a fast hot spot) holds CPUs at ~1.3 GHz", "Your choice: keep 48 °C or start at stock's 50/60 °C trip for more sustained speed (a hand-on-the-back check); queue with the other DTS candidates"),
+ ("USB-C connector temperature zones", "ok", "usb-therm + stock's L/R connector pair (ratiometric, high-Z pins as stock): 28.8 / 28.9 / 33.9 °C next to a 32.1 °C board; the guard reads all three (area-thermal-2)", "Check the L/R rise under PD charging current (with you watching)"),
  ("GPU cooling", "part", "105 °C passive map matches stock; the GPU reaches 95–103 °C at 1.2 GHz in under a minute of Vulkan/stress, 0 throttled seconds so far (area-graphics-1)", "Turn the 125 °C critical into hot (stock has no GPU shutdown trip); a longer stress with the skin zone; sustained-load throttling behaviour"),
 ]),
 ("Sleep & power saving", [
@@ -103,7 +103,7 @@ G = [
 ]),
 ("Software & packaging", [
  ("Kernel package (kernel-iceland)", "ok", "Test-built: 948 modules, device tree, install hooks"),
- ("Device package (iceland-device 0.9)", "ok", "Settings, battery guard 0.8, sound, Wi-Fi region, 60/120 Hz by power source with the panel relight; built"),
+ ("Device package (iceland-device 0.11)", "ok", "Settings, battery guard 0.11 (70 °C, USB-C L/R, 85 % limit), sound, Wi-Fi region, 60/120 Hz with the panel relight, GNOME power modes; built"),
  ("Local update repository", "ok", "Checksum-verified sync; tested"),
  ("Full GNOME app set", "todo", "Relay 008", "Relay 008 package list in the RAM rootfs"),
  ("Stock-values audit", "todo", "Relay 013", "Relay 013 table; offline-prep/*.md stock comparisons"),
