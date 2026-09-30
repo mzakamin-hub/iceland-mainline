@@ -4,7 +4,7 @@
 # No firmware and no binaries: configuration files and small scripts only.
 
 Name:           iceland-device
-Version:        0.11
+Version:        0.12
 Release:        1%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
@@ -68,9 +68,9 @@ Settings that make Fedora 44 work safely on the OnePlus Pad 4 with the kernel-ic
   (temperature regions, per-region voltages and currents, the USB-C connector thermistors, 70/77 C power-off)
   and the charge limit (85 %, resume at 80 %; /etc/iceland/battery-guard.conf);
 - kernel-iceland updates come from a local dnf repository (/var/lib/iceland/repo, filled by iceland-repo-sync);
-- the panel runs 60 Hz on battery and 120 Hz on AC (iceland-refresh, /etc/iceland/refresh.conf); after every
-  refresh-rate change the display is switched off and on once, which brings back the picture a live rate change
-  leaves black with the current kernel (RELIGHT);
+- the panel runs 60 Hz on battery and 120 Hz on AC (iceland-refresh, /etc/iceland/refresh.conf); live
+  refresh-rate changes need kernel queue patch 0058 (RELIGHT=1 switches the display off and on after every
+  change, for older kernels only);
 - the CDSP (NPU) stays off until `iceland-npu on`;
 - the Wi-Fi regulatory country comes from /etc/iceland/wifi-country (written at install: the owner's country);
 - sound: the Pad 4 AudioReach topology (TDM speakers, stream gain capped until speaker protection exists) and the
@@ -200,6 +200,10 @@ fi
 %dir /etc/iceland
 
 %changelog
+* Wed Sep 30 2026 mzak <mzak.amin@gmail.com> - 0.12-1
+- iceland-refresh: RELIGHT off by default - kernel queue patch 0058 (drm/msm/dpu: no CTL_START in the video
+  encoder's cleanup) keeps the picture on every live refresh-rate change (area-display-7: 11 of 11 on camera);
+  RELIGHT=1 stays available for kernels without it
 * Wed Sep 30 2026 mzak <mzak.amin@gmail.com> - 0.11-1
 - battery guard: power off at 70 C (stock framework high-temperature shutdown, before the DT's 72 C); read the
   USB-C connector on the usb-temp-l / usb-temp-r / usb-therm zones (the hottest valid reading; stock's protection

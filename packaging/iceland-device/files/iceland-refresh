@@ -7,20 +7,21 @@
 #   BATTERY_HZ=60
 #   AC_HZ=120
 #   ENABLED=1
-#   RELIGHT=1
+#   RELIGHT=0
 #   RELIGHT_OFF_MS=1000
 # It changes the mode through mutter's DisplayConfig D-Bus API as a *temporary* configuration, so the user's own
 # monitors.xml is never rewritten; the resolution, scale and layout are kept.
 #
-# RELIGHT: with the current kernel a live refresh-rate change (one modeset) leaves the Pad 4 panel black until the
-# next display off/on (area-display-2). After every rate change of the built-in panel - ours or the user's in GNOME
-# Settings - the display is switched off and on once through mutter's PowerSaveMode, which brings the picture and
-# touch back. It runs even with ENABLED=0 and goes away once the kernel changes rates without a black screen.
+# RELIGHT (off by default since 0.12): kernels without queue patch 0058 leave the Pad 4 panel black after a live
+# refresh-rate change (one modeset) until the next display off/on (area-display-2). With RELIGHT=1, after every rate
+# change of the built-in panel - ours or the user's in GNOME Settings - the display is switched off and on once
+# through mutter's PowerSaveMode, which brings the picture and touch back; it runs even with ENABLED=0. 0058
+# (area-display-7: 11 of 11 live changes keep the picture) makes it unnecessary.
 import os, sys
 from gi.repository import Gio, GLib
 
 def conf():
-    c = {"BATTERY_HZ": "60", "AC_HZ": "120", "ENABLED": "1", "RELIGHT": "1", "RELIGHT_OFF_MS": "1000"}
+    c = {"BATTERY_HZ": "60", "AC_HZ": "120", "ENABLED": "1", "RELIGHT": "0", "RELIGHT_OFF_MS": "1000"}
     for p in ("/etc/iceland/refresh.conf", os.path.expanduser("~/.config/iceland/refresh.conf")):
         try:
             for line in open(p):
@@ -49,7 +50,7 @@ def builtin_rate(monitors):
 
 def relight_needed(old, new, c):
     """a refresh-rate change of the built-in panel with RELIGHT on"""
-    return c.get("RELIGHT", "1") == "1" and old is not None and new is not None and old != new
+    return c.get("RELIGHT", "0") == "1" and old is not None and new is not None and old != new
 
 class Refresh:
     def __init__(self):

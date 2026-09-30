@@ -1,7 +1,7 @@
 # Next actions (PC session, from 2026-09-29 evening)
 
 **Working order from the user (2026-09-30 morning), after "queue them" (0054-0057 queued, iceland-linux 42c348b):**
-tablet runs in this order: (1) refresh rate, (2) GNOME pink/blocky glitches, (3) sensors (auto-rotate, accelerometer),
+tablet runs in this order: (1) ✅ refresh rate (0058, area-display-7), (2) GNOME pink/blocky glitches, (3) sensors (auto-rotate, accelerometer),
 (4) GPU correctness, (5) hardware acceleration, (6) NPU (Hexagon); in parallel, prepared offline and given tablet slots
 when ready: the mic noise, Wi-Fi 5 GHz / regulatory, the cameras. Battery and thermal protection are done
 (area-thermal-1/-2). Runs stay automated and <= 10 min; the PC's webcam judges the screen during runs (the user's OK).
@@ -64,9 +64,9 @@ The PC port was asked for 1.2–1.9 A (stock SDP: 500 mA), and 12 V is above the
 
 | Item | Next action | Needs the user |
 |---|---|---|
-| Black screen after a live refresh-rate change | **Root cause found and fixed in a test kernel (area-display-4..6, webcam):** `dpu_encoder_helper_phys_cleanup()` writes CTL_START after the video timing engine is off; the next same-commit enable's flush never latches (CTL_0 0x094 = 0x80c008c0, source pipe not fetching). Skipping CTL_START for video interfaces: 5/5 rate changes keep the picture (0/3 without). Next: patch 0058 + webcam verification (many changes, off/on, suspend), then drop the relight from iceland-device. Candidate 0054 (stock sequence) dropped | none (webcam) |
+| Black screen after a live refresh-rate change | ✅ **Fixed: queue 0058** (iceland-linux 1b63d1e): no CTL_START in the video encoder's cleanup. area-display-7 (webcam): 11 of 11 live changes across 144/120/60 Hz keep the picture, two after an s2idle, no underruns; iceland-device 0.12 turns the relight off by default. Long term: seamless DFPS | none |
 | 120/60 Hz black | Every rate displays fine after an off/on; covered by the relight above | — |
-| Pink glitches | Caught on camera once (first enable after boot, overview: pink/blue checker edges, blocky dash icons; cleared by an off/on); 0 in 9 enables later (intermittent). Next: a long repeat test (many enables, overview toggles) with register dumps (`an/dm.py`) and `glitch.ps1`, then `FD_MESA_DEBUG=noubwc` A/B | none (webcam) |
+| Pink glitches | Caught on camera once (run 4: first overview after boot, cleared by an off/on); 0 of 48 frames in run 7 (the overview after login + 4 off/on cycles, 11 rate changes, a resume; run 5's 9 enables were on a white window, which hides it). Next: a long repeat run on the overview (off/on cycles, gdm restarts = new logins, overview toggles via uinput - load `uinput.ko`) with `an/dm.py` dumps at every state, then `FD_MESA_DEBUG=noubwc` A/B | none (webcam) |
 | Screenshot path | `gnome-screenshot` fails on GNOME 50 Wayland: use the Shell's D-Bus Screenshot through an allowed caller, or `xdg-desktop-portal` + `grim`-like capture | none |
 | Pen | libinput recheck with a charged pen (tip, hover, buttons, pressure) | Charge the pen, draw |
 | Backlight curve | Compare our brightness range/default with stock (panel dtsi `qcom,mdss-dsi-bl-*`, LineageOS overlay) (relay 013 item 4) | none |
@@ -114,7 +114,7 @@ The PC port was asked for 1.2–1.9 A (stock SDP: 500 mA), and 12 V is above the
 
 | Item | Next action | Needs the user |
 |---|---|---|
-| Wi-Fi 5/6 GHz | Connect to a 5/6 GHz network (`iw reg get` US) | Wi-Fi credentials typed by the user |
+| Wi-Fi 5/6 GHz | 5 GHz networks exist here (Android: 2 BSS on 5180 MHz) and Linux receives them in a 5 GHz-only scan (`iw scan freq 5180..5240`, also passive), but a full scan lists only 2.4 GHz (area-display-7). Next: band-subset scans with timing + `iw event`, NetworkManager's list; then the ath12k/WCN7860 cause. Connect test | Wi-Fi password typed by the user (connect test only) |
 | Bluetooth pairing | bluetoothctl + GNOME Settings with a device | A device to pair |
 | USB host/OTG, DP alt mode | dwc3 role switch via UCSI; qmp-combo + DP from the infiniti series | A hub / a monitor |
 

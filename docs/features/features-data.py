@@ -3,26 +3,26 @@
 # Rows: (feature, status, notes[, where to look for the fix]).
 # status: ok (working) / part (in progress) / todo (not started) / out (not planned)
 
-DATE = "29 Sep 2026"
+DATE = "30 Sep 2026"
 
 # One sentence after the date in FEATURES.md.
-STATUS_MD = ("area-thermal-1/-2 done (automated, under 10 min each): skin / XO / USB-C thermal zones throttle as "
-             "designed, the battery guard stops charging at 85 % and powers off at stock's 70 °C; "
-             "next (the user's order): the mic, Wi-Fi, the cameras")
+STATUS_MD = ("area-display-7 done (webcam-judged): live refresh-rate changes fixed in the kernel (0058, 11 of 11); "
+             "the pink glitch not reproduced this run; Linux sees the 5 GHz networks only in a 5 GHz-only scan; "
+             "next (the user's order): the glitches, sensors, GPU correctness, HW acceleration, the NPU")
 
 # The subtitle of the published page.
 STATUS_HTML = ("Everything is tested by booting from RAM; nothing is installed on the tablet yet. Status as of "
-               f"{DATE}: battery and thermal protection in place - the skin, XO and USB-C sensors throttle or stop "
-               "charging at stock's limits, the 85 % charge limit works through the battery guard; GPU and Vulkan "
-               "accelerated with the stock GPU levels; CPU scaling knows the big and small cores; a live refresh-rate "
-               "change is worked around by a display off/on. Next: the mic, Wi-Fi, the cameras. Boot & platform waits "
-               "for your go-ahead on the install.")
+               f"{DATE}: refresh-rate changes now keep the picture (kernel fix 0058, checked by the PC webcam); battery "
+               "and thermal protection in place; GPU and Vulkan accelerated with the stock GPU levels; CPU scaling knows "
+               "the big and small cores. Next: the pink glitches, sensors, GPU correctness, hardware acceleration and "
+               "the NPU; in parallel the mic noise, Wi-Fi 5 GHz and the cameras. Boot & platform waits for your "
+               "go-ahead on the install.")
 
 G = [
 ("Boot & platform", [
  ("U-Boot booted from RAM (display, USB fastboot, UFS read, EFI)", "ok", "Nothing written to the tablet; fastboot flashing compiled out"),
  ("U-Boot boot setting for single or dual boot", "ok", "Boots a “fedora” partition if present, else userdata"),
- ("Linux 7.3-rc4 through EFI", "ok", "Queue 0001–0052 + infiniti"),
+ ("Linux 7.3-rc4 through EFI", "ok", "Queue 0001–0058 + infiniti"),
  ("Fedora 44 running from RAM", "ok", "systemd as PID 1; packages through the PC"),
  ("GNOME Shell 50", "ok", "Autologin session in RAM"),
  ("Firmware extractor (tablet's own partitions, read-only)", "part", "modem/bluetooth work on the tablet; vendor/odm inside “super” proven offline from your partition backup (10 of 10 files match stock 11.A.38)", "Add the LP-metadata reader (an/lp-list.py) + read-only EROFS mount to tools/linux-ram/fw-extract.sh; test against the backup on the PC, then in a kit"),
@@ -31,9 +31,9 @@ G = [
 ]),
 ("Display & input", [
  ("Native display 3392×2400, dual DSI + DSC", "ok", "Boot splash handed over to MSM DRM"),
- ("Refresh 30 / 60 / 90 / 120 / 144 Hz", "part", "Every rate works; a live rate change blanks the panel, and iceland-device 0.9 now switches the display off/on once after every change (tested live: one relight per change, also for the 60/120 Hz power-source switch); the panel and backlight read normal in the black state, so logs can't judge it (area-display-3)", "Your 1-minute look (deferred): a rate change with the relight, and one with candidate 0054 (stock power sequence) alone; root cause in the msm single-commit modeset; long term stock-style seamless DFPS"),
+ ("Refresh 30 / 60 / 90 / 120 / 144 Hz", "ok", "Fixed in the kernel (queue 0058): live rate changes keep the picture - 11 of 11 on the PC webcam across 144/120/60 Hz, two of them after a suspend, no underruns (area-display-7). The cause was a CTL_START the display driver wrote after switching the video engine off; the display off/on workaround in iceland-device is now off by default (0.12)", "Long term: stock-style seamless rate switching (no modeset)"),
  ("Backlight", "ok", "Brightness curve still being checked against stock"),
- ("GNOME pink / blocky glitches", "part", "Back: you filmed the whole wallpaper speckled pink/cyan at 00:19 (area-power-1, kernel q21); no kernel error logged; DRAM bank bit ruled out (LPDDR5X = bit 16, as stock)", "Log the DPU's UBWC decode-error status every frame in each kit; then GNOME with FD_MESA_DEBUG=noubwc as the A/B"),
+ ("GNOME pink / blocky glitches", "part", "Intermittent: filmed by you (whole wallpaper, 00:19) and caught once by the PC webcam (run 4: the overview right after login, pink/blue checker edges and blocky dash icons, gone after a display off/on); 0 of 48 frames in run 7 (the overview after login, 4 off/on cycles, 11 rate changes, a resume); no kernel error; DRAM bank bit ruled out", "A long repeat run on the overview (many enables and session restarts) with a register dump at every state, then GNOME with FD_MESA_DEBUG=noubwc as the A/B"),
  ("Touchscreen", "ok", "Confirmed by you; keeps working through display off/on cycles and suspend (area-display-2)"),
  ("Pen", "ok", "Working per your call; not tested enough yet (area-display-1 logged 0 pen events, pen maybe not charged)", "Charged pen: tip, hover, buttons, pressure in libinput debug-events; palm rejection"),
  ("Lid switch", "ok", "SW_LID events on GPIO 98 (area-display-1)"),
@@ -62,7 +62,7 @@ G = [
 ]),
 ("Connectivity", [
  ("Wi-Fi 2.4 GHz", "ok", "Connected by you; GNOME showed “?” until NetworkManager re-checked (a fresh check says full internet)"),
- ("Wi-Fi 5 / 6 GHz", "part", "Region US; 5 GHz (28 ch) and 6 GHz (60 ch) enabled, but no 5/6 GHz network is visible where the tablet was tested: your router shows up only on 2.4 GHz (ch 1), so the connection you made was 2.4 GHz (area-display-3 scan)", "Test near a 5 GHz AP (router 5 GHz radio, or a phone hotspot on 5 GHz); iw reg get (US), ath12k board-2.bin match"),
+ ("Wi-Fi 5 / 6 GHz", "part", "Your 5 GHz networks are there (Android sees 2 on channel 36) and Linux receives them when the scan is limited to 5 GHz (2 BSS on 5180 MHz, also passive) - but a full scan returns only the 2.4 GHz ones, so NetworkManager never offers them (area-display-7). Region US; the firmware refuses country changes", "Scan band subsets with timing to find where the full scan drops 5 GHz (ath12k / WCN7860 firmware), then fix; a 5 GHz connect test needs your password"),
  ("Bluetooth, own address", "ok", ""),
  ("Bluetooth pairing in GNOME", "ok", "Confirmed by you (29 Sep 2026)"),
  ("USB device mode / USB network", "ok", ""),
@@ -103,7 +103,7 @@ G = [
 ]),
 ("Software & packaging", [
  ("Kernel package (kernel-iceland)", "ok", "Test-built: 948 modules, device tree, install hooks"),
- ("Device package (iceland-device 0.11)", "ok", "Settings, battery guard 0.11 (70 °C, USB-C L/R, 85 % limit), sound, Wi-Fi region, 60/120 Hz with the panel relight, GNOME power modes; built"),
+ ("Device package (iceland-device 0.12)", "ok", "Settings, battery guard 0.11 (70 °C, USB-C L/R, 85 % limit), sound, Wi-Fi region, 60/120 Hz by power source (relight off: kernel 0058 fixes rate changes), GNOME power modes; built"),
  ("Local update repository", "ok", "Checksum-verified sync; tested"),
  ("Full GNOME app set", "todo", "Relay 008", "Relay 008 package list in the RAM rootfs"),
  ("Stock-values audit", "todo", "Relay 013", "Relay 013 table; offline-prep/*.md stock comparisons"),
