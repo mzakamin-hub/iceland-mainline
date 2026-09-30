@@ -115,7 +115,7 @@ The PC port was asked for 1.2–1.9 A (stock SDP: 500 mA), and 12 V is above the
 
 | Item | Next action | Needs the user |
 |---|---|---|
-| Wi-Fi 5/6 GHz | 1-4-channel scans find the two 5180 MHz networks, longer scans never do: the WCN7860 firmware then scans two channels at once and delivers zero mgmt-rx frames (ath12k debug, area-sensors-3/-4); FORCE_NONDBS scan policy (DEBUG q29) no change. Next: linux-firmware vs stock firmware, scan params vs qcacld, ask upstream. `relay/results/area-wifi.md` | Wi-Fi password typed by the user (connect test only) |
+| Wi-Fi 5/6 GHz | area-wifi-2/-3 (q30 DEBUG dbg_hw_mode, module reloads): 9-ch / 24-ch / full scans find a 5 GHz BSS in every DBS-or-SBS pass (4/4, the firmware's preferred of its only two modes 0 and 5), never in the boot-time DBS ath12k forces (0/2), DBS after a reload 2/2, single / SBS / none 0/3. Every load: the firmware rejects a country request, regulatory updates time out (3 s each), regulatory.db missing in the kit. Candidate `wififix` (preferred DBS-or-SBS) not queued. Next area-wifi-4: regdb + country, reg state per pass, boot-time A/B without reloads. `relay/results/area-wifi.md` | Wi-Fi password typed by the user (connect test only) |
 | Bluetooth pairing | bluetoothctl + GNOME Settings with a device | A device to pair |
 | USB host/OTG, DP alt mode | dwc3 role switch via UCSI; qmp-combo + DP from the infiniti series | A hub / a monitor |
 

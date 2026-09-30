@@ -62,7 +62,7 @@ Totals: 40 working, 13 in progress, 16 not started, 2 not planned (71).
 | Feature | Status | Notes | Where to look for the fix |
 |---|---|---|---|
 | Wi-Fi 2.4 GHz | ✅ Working | Connected by you; GNOME showed “?” until NetworkManager re-checked (a fresh check says full internet) |  |
-| Wi-Fi 5 / 6 GHz | 🟡 In progress | Your two 5 GHz networks are found in every 1-4-channel scan but never in longer ones - which is what NetworkManager runs. The Wi-Fi chip then scans two channels at a time and passes no received frames at all to Linux; forcing single-channel scanning through the firmware's scan policy did not change it (area-sensors-3..5) | Firmware comparison (linux-firmware vs stock), scan parameters against Qualcomm's own driver, a question upstream; a 5 GHz connect test needs your password |
+| Wi-Fi 5 / 6 GHz | 🟡 In progress | Longer scans now find a 5 GHz network in some chip modes: every time in the chip's own preferred mode (4 of 4), never in the boot-time mode Linux picks (0 of 2). The chip also rejects the country setting after every start and Linux lacks its regulatory database, so the cause is not settled yet (area-wifi-2/-3) | Regulatory database + a country in the kit, then boot-time mode A/B without reloads; a 5 GHz connect needs your password |
 | Bluetooth, own address | ✅ Working |  |  |
 | Bluetooth pairing in GNOME | ✅ Working | Confirmed by you (29 Sep 2026) |  |
 | USB device mode / USB network | ✅ Working |  |  |
