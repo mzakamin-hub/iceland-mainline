@@ -1,8 +1,8 @@
 # OnePlus Pad 4 mainline: feature matrix
 
-Status 30 Sep 2026 (area-display-7 done (webcam-judged): live refresh-rate changes fixed in the kernel (0058, 11 of 11); the pink glitch not reproduced this run; Linux sees the 5 GHz networks only in a 5 GHz-only scan; next (the user's order): the glitches, sensors, GPU correctness, HW acceleration, the NPU). Everything is tested by RAM boot; nothing is installed on the tablet yet.
+Status 30 Sep 2026 (area-display-7..9 done (webcam-judged): refresh-rate changes (0058), the pink glitch (0060) and the mic hiss (0059) fixed in the kernel; Linux loses 5 GHz networks in long scans; next (the user's order): sensors, GPU correctness, HW acceleration, the NPU; in parallel Wi-Fi 5 GHz and the cameras). Everything is tested by RAM boot; nothing is installed on the tablet yet.
 Legend: ✅ working · 🟡 in progress · ⬜ not started · ❌ not planned. Sorted by functionality.
-Totals: 37 working, 14 in progress, 18 not started, 2 not planned (71).
+Totals: 38 working, 13 in progress, 18 not started, 2 not planned (71).
 
 ## Boot & platform (5/8 working)
 
@@ -10,21 +10,21 @@ Totals: 37 working, 14 in progress, 18 not started, 2 not planned (71).
 |---|---|---|---|
 | U-Boot booted from RAM (display, USB fastboot, UFS read, EFI) | ✅ Working | Nothing written to the tablet; fastboot flashing compiled out |  |
 | U-Boot boot setting for single or dual boot | ✅ Working | Boots a “fedora” partition if present, else userdata |  |
-| Linux 7.3-rc4 through EFI | ✅ Working | Queue 0001–0058 + infiniti |  |
+| Linux 7.3-rc4 through EFI | ✅ Working | Queue 0001–0060 + infiniti |  |
 | Fedora 44 running from RAM | ✅ Working | systemd as PID 1; packages through the PC |  |
 | GNOME Shell 50 | ✅ Working | Autologin session in RAM |  |
 | Firmware extractor (tablet's own partitions, read-only) | 🟡 In progress | modem/bluetooth work on the tablet; vendor/odm inside “super” proven offline from your partition backup (10 of 10 files match stock 11.A.38) | Add the LP-metadata reader (an/lp-list.py) + read-only EROFS mount to tools/linux-ram/fw-extract.sh; test against the backup on the PC, then in a kit |
 | Fedora installed on the tablet | ⬜ Not started | Final step; needs your decisions and OK | Waits for your install decision (relay 019: Boot & platform last) |
 | Dual boot with Android | ⬜ Not started | Planned; recovery re-flash helper ready | iceland-u-boot patch 0003 (fedora_blkmap); tools/dualboot/reflash-recovery.ps1 |
 
-## Display & input (7/10 working)
+## Display & input (8/10 working)
 
 | Feature | Status | Notes | Where to look for the fix |
 |---|---|---|---|
 | Native display 3392×2400, dual DSI + DSC | ✅ Working | Boot splash handed over to MSM DRM |  |
 | Refresh 30 / 60 / 90 / 120 / 144 Hz | ✅ Working | Fixed in the kernel (queue 0058): live rate changes keep the picture - 11 of 11 on the PC webcam across 144/120/60 Hz, two of them after a suspend, no underruns (area-display-7). The cause was a CTL_START the display driver wrote after switching the video engine off; the display off/on workaround in iceland-device is now off by default (0.12) | Long term: stock-style seamless rate switching (no modeset) |
 | Backlight | ✅ Working | Brightness curve still being checked against stock |  |
-| GNOME pink / blocky glitches | 🟡 In progress | Intermittent: filmed by you (whole wallpaper, 00:19) and caught once by the PC webcam (run 4: the overview right after login, pink/blue checker edges and blocky dash icons, gone after a display off/on); 0 of 48 frames in run 7 (the overview after login, 4 off/on cycles, 11 rate changes, a resume); no kernel error; DRAM bank bit ruled out | A long repeat run on the overview (many enables and session restarts) with a register dump at every state, then GNOME with FD_MESA_DEBUG=noubwc as the A/B |
+| GNOME pink / blocky glitches | ✅ Working | Fixed in the kernel (queue 0060). The PC webcam caught it at a first login (run 8) with register dumps: the display's UBWC decoder was left at its reset values (memory bank bit 13 instead of 16) because the boot-splash take-over reset the display block and programmed it before the block was out of reset; a display off/on reprogrammed it, which is why it went away. Run 9 logs the race and the corrected setup, no glitch on camera | Watch the first login of the next boots (it was intermittent before the fix) |
 | Touchscreen | ✅ Working | Confirmed by you; keeps working through display off/on cycles and suspend (area-display-2) |  |
 | Pen | ✅ Working | Working per your call; not tested enough yet (area-display-1 logged 0 pen events, pen maybe not charged) | Charged pen: tip, hover, buttons, pressure in libinput debug-events; palm rejection |
 | Lid switch | ✅ Working | SW_LID events on GPIO 98 (area-display-1) |  |
@@ -49,7 +49,7 @@ Totals: 37 working, 14 in progress, 18 not started, 2 not planned (71).
 |---|---|---|---|
 | DSP audio + sound card | ✅ Working |  |  |
 | GNOME shows speakers and microphones | ✅ Working | Fixed: stray mixer route; appears on a fresh boot |  |
-| Microphones (2) | 🟡 In progress | Known issue: a steady hiss 25–35 dB above stock, so GNOME’s meter barely moves; speech gets through | Downstream WCD939x per-rate SoundWire TX port params vs wcd939x-sdw.c / lpass-tx-macro (relay 018 9b); HIFI mode broken too |
+| Microphones (2) | 🟡 In progress | Hiss fixed in the kernel (queue 0059): the mic path's adaptive block was left at its power-on setting, which lifted the noise floor; turned off as stock does without tuning. Recording floor −47 → −63 dBFS, speech level unchanged (area-audio-6/-7); the first recording after boot settles ~5 dB higher | Compare with stock's recordings (spectrum, same room); the first-recording settling; GNOME meter check with you |
 | Speakers (top pair) | ✅ Working | You heard them (S17), raw ALSA and through GNOME/PipeWire; kernel fix only |  |
 | All six speakers in stereo | ✅ Working | You heard all six from GNOME’s Sound test, both sides correct |  |
 | Speaker volume cap | ✅ Working | −12 dB cap enforced by the kernel (queued 0051); stock value still to find |  |
@@ -62,7 +62,7 @@ Totals: 37 working, 14 in progress, 18 not started, 2 not planned (71).
 | Feature | Status | Notes | Where to look for the fix |
 |---|---|---|---|
 | Wi-Fi 2.4 GHz | ✅ Working | Connected by you; GNOME showed “?” until NetworkManager re-checked (a fresh check says full internet) |  |
-| Wi-Fi 5 / 6 GHz | 🟡 In progress | Your 5 GHz networks are there (Android sees 2 on channel 36) and Linux receives them when the scan is limited to 5 GHz (2 BSS on 5180 MHz, also passive) - but a full scan returns only the 2.4 GHz ones, so NetworkManager never offers them (area-display-7). Region US; the firmware refuses country changes | Scan band subsets with timing to find where the full scan drops 5 GHz (ath12k / WCN7860 firmware), then fix; a 5 GHz connect test needs your password |
+| Wi-Fi 5 / 6 GHz | 🟡 In progress | Linux receives your two 5 GHz networks (channel 36) every time in scans of 1–4 channels, but loses them when the scan covers all 24 5 GHz channels or all bands - which is what NetworkManager does, so GNOME never lists them (area-display-9). Reception and region (US) are fine | Bisect the scan list (DFS channels, list length), then fix in ath12k / WCN7860 firmware handling; a 5 GHz connect test needs your password |
 | Bluetooth, own address | ✅ Working |  |  |
 | Bluetooth pairing in GNOME | ✅ Working | Confirmed by you (29 Sep 2026) |  |
 | USB device mode / USB network | ✅ Working |  |  |
@@ -110,7 +110,7 @@ Totals: 37 working, 14 in progress, 18 not started, 2 not planned (71).
 |---|---|---|---|
 | Rear flash LEDs | ✅ Working |  |  |
 | Accelerometer, compass, light / proximity | ⬜ Not started |  | hexagonrpcd sensorspd + libssc (adsp_listener_get_in_bufs2 patch), persist registry |
-| Cameras (13 MP rear, 8 MP front) | ⬜ Not started | Plan written; stock supplies, clock and resets resolved; waiting for register data | CAMSS/CCI from infiniti; relay 014 register data; research/camera-bringup.md §1b supplies/MCLK/resets |
+| Cameras (13 MP rear, 8 MP front) | ⬜ Not started | SmartSens SC1320CS rear (13 MP, 4160×3120) and SC820CS front on I2C bus 9 (0x6c / 0x20, chip ids 0xc658 / 0xd154); mainline has the Kaanapali camera subsystem. Stock's register tables are in a binary parameter format whose value layout isn't decoded yet | An I2C trace of the stock camera app on LineageOS (needs your OK to open the camera), then two new sensor drivers + DT (relay 014, research/camera-bringup.md) |
 | Haptics, modem, NFC, fingerprint | ❌ Not planned | Not on this tablet |  |
 
 ## Software & packaging (4/7 working)

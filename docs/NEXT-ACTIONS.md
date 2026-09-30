@@ -1,7 +1,7 @@
 # Next actions (PC session, from 2026-09-29 evening)
 
 **Working order from the user (2026-09-30 morning), after "queue them" (0054-0057 queued, iceland-linux 42c348b):**
-tablet runs in this order: (1) ✅ refresh rate (0058, area-display-7), (2) GNOME pink/blocky glitches, (3) sensors (auto-rotate, accelerometer),
+tablet runs in this order: (1) ✅ refresh rate (0058, area-display-7), (2) ✅ GNOME pink/blocky glitches (0060, area-display-8/-9), (3) sensors (auto-rotate, accelerometer),
 (4) GPU correctness, (5) hardware acceleration, (6) NPU (Hexagon); in parallel, prepared offline and given tablet slots
 when ready: the mic noise, Wi-Fi 5 GHz / regulatory, the cameras. Battery and thermal protection are done
 (area-thermal-1/-2). Runs stay automated and <= 10 min; the PC's webcam judges the screen during runs (the user's OK).
@@ -66,7 +66,7 @@ The PC port was asked for 1.2–1.9 A (stock SDP: 500 mA), and 12 V is above the
 |---|---|---|
 | Black screen after a live refresh-rate change | ✅ **Fixed: queue 0058** (iceland-linux 1b63d1e): no CTL_START in the video encoder's cleanup. area-display-7 (webcam): 11 of 11 live changes across 144/120/60 Hz keep the picture, two after an s2idle, no underruns; iceland-device 0.12 turns the relight off by default. Long term: seamless DFPS | none |
 | 120/60 Hz black | Every rate displays fine after an off/on; covered by the relight above | — |
-| Pink glitches | Caught on camera once (run 4: first overview after boot, cleared by an off/on); 0 of 48 frames in run 7 (the overview after login + 4 off/on cycles, 11 rate changes, a resume; run 5's 9 enables were on a white window, which hides it). Next: a long repeat run on the overview (off/on cycles, gdm restarts = new logins, overview toggles via uinput - load `uinput.ko`) with `an/dm.py` dumps at every state, then `FD_MESA_DEBUG=noubwc` A/B | none (webcam) |
+| Pink glitches | ✅ **Fixed: queue 0060** (iceland-linux caac5c9): the splash take-over's MDSS reset + immediate UBWC setup (skipped while the block still read 0) left UBWC_STATIC 0x0e (bank bit 13) until the first MDSS power cycle. area-display-8 caught it with dumps; area-display-9 logged the race and 0x103e/5/1 after the fix, no glitch. Watch the first login of later boots | none (webcam) |
 | Screenshot path | `gnome-screenshot` fails on GNOME 50 Wayland: use the Shell's D-Bus Screenshot through an allowed caller, or `xdg-desktop-portal` + `grim`-like capture | none |
 | Pen | libinput recheck with a charged pen (tip, hover, buttons, pressure) | Charge the pen, draw |
 | Backlight curve | Compare our brightness range/default with stock (panel dtsi `qcom,mdss-dsi-bl-*`, LineageOS overlay) (relay 013 item 4) | none |
@@ -114,7 +114,7 @@ The PC port was asked for 1.2–1.9 A (stock SDP: 500 mA), and 12 V is above the
 
 | Item | Next action | Needs the user |
 |---|---|---|
-| Wi-Fi 5/6 GHz | 5 GHz networks exist here (Android: 2 BSS on 5180 MHz) and Linux receives them in a 5 GHz-only scan (`iw scan freq 5180..5240`, also passive), but a full scan lists only 2.4 GHz (area-display-7). Next: band-subset scans with timing + `iw event`, NetworkManager's list; then the ath12k/WCN7860 cause. Connect test | Wi-Fi password typed by the user (connect test only) |
+| Wi-Fi 5/6 GHz | Linux finds the two 5180 MHz networks in every 1- and 4-channel scan but in none of the 24-channel 5 GHz or full scans (iw event confirms 5180 was scanned; area-display-9), so NetworkManager never lists them. Next: bisect the list (DFS vs not, 8/12/16 channels), then the ath12k scan / mgmt-rx path (WCN7860) | Wi-Fi password typed by the user (connect test only) |
 | Bluetooth pairing | bluetoothctl + GNOME Settings with a device | A device to pair |
 | USB host/OTG, DP alt mode | dwc3 role switch via UCSI; qmp-combo + DP from the infiniti series | A hub / a monitor |
 
@@ -123,7 +123,7 @@ The PC port was asked for 1.2–1.9 A (stock SDP: 500 mA), and 12 V is above the
 | Item | Next action |
 |---|---|
 | Sensors | hexagonrpcd sensorspd + libssc + iio-sensor-proxy with the persist registry (the extractor provides persist, read-only) |
-| Cameras | CAMSS/CCI from infiniti; relay 014 register data; `research/camera-bringup.md` |
+| Cameras | SC1320CS (rear, 4160x3120) / SC820CS (front) on i2c9 (0x6c/0x20, ids 0xc658/0xd154), CSIPHY 4/5; mainline has `qcom,kaanapali-camss`. relay 014 C0: sensormodule.bin (Chromatix Parameter Parser V6.0.6) records carry address/type only, values sit in per-table pools (mapping not decoded; `an/smod-walk.py`). Next: an I2C trace of the stock camera app (user's OK needed), then the drivers |
 
 ## 8. Software & packaging
 
@@ -132,7 +132,7 @@ The PC port was asked for 1.2–1.9 A (stock SDP: 500 mA), and 12 V is above the
 | About page | iceland-device `/etc/machine-info` (HARDWARE_VENDOR=OnePlus, HARDWARE_MODEL=Pad 4); socinfo id 661 name in the kernel |
 | iceland-device | Pin 144 Hz until 1.x is fixed; the npu-off path; the guard fixes (0.5) |
 | Full GNOME app set, stock-values audit | Relay 008 list; relay 013 table |
-| Mic hiss (known issue) | Compare the downstream WCD939x per-rate TX port params with wcd939x-sdw.c (relay 018 9b) |
+| Mic hiss (known issue) | ✅ **Hiss fixed: queue 0059** (lpass-tx-macro: TX decimator ADPT block off on codec 2.8+, stock's no-tuning branch): floor -47 -> -63 dBFS, tone unchanged (area-audio-6/-7). Open: the first capture after boot ~5 dB higher; compare the spectrum with stock's recordings; optional stock tuning (0x41 + dtsi values, a DT binding) | GNOME meter look (optional) |
 | Open candidates | area-audio-5 0001–0002 (tfa 0x62, TDM drive): one loopback side check, then 0054/0055 |
 
 ## 9. Boot & platform (last, after the user's go-ahead)
