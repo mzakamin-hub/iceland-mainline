@@ -1,0 +1,3 @@
+hexagonrpc https://github.com/linux-msm/hexagonrpc.git 598b591ae9da6a6cfe2ca5ea78998019ca6395ea
+libssc https://codeberg.org/DylanVanAssche/libssc.git 54dd13e36d65c21263cf5b0f4a70c230a77b26bc
+iio-sensor-proxy https://gitlab.freedesktop.org/hadess/iio-sensor-proxy.git 0085ddf8ecb173a1c5fcf2344aa40e561125354f

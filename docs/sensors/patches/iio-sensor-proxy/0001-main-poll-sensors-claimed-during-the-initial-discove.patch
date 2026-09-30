@@ -1,0 +1,38 @@
+From 3fc11429d23d5b30c11115e84a72d29c3a6826bc Mon Sep 17 00:00:00 2001
+From: mzak <mzak.amin@gmail.com>
+Date: Wed, 30 Sep 2026 11:20:16 +0300
+Subject: [PATCH] main: poll sensors claimed during the initial discovery
+
+A client may claim a sensor while find_sensors() still runs (SSC discovery
+is slow and serves D-Bus meanwhile). The sensor then opens with a client
+but is never polled, and the claim never gets a reading. Start polling
+every opened sensor that already has clients, as the hotplug path does.
+
+Signed-off-by: mzak <mzak.amin@gmail.com>
+---
+ src/iio-sensor-proxy.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/src/iio-sensor-proxy.c b/src/iio-sensor-proxy.c
+index 9c7e8cd..aff7ac9 100644
+--- a/src/iio-sensor-proxy.c
++++ b/src/iio-sensor-proxy.c
+@@ -784,6 +784,15 @@ name_acquired_handler (GDBusConnection *connection,
+ 	if (!any_sensors_left (data))
+ 		goto bail;
+ 
++	/* Clients can claim a sensor while a slow discovery (SSC) still runs:
++	 * start the claimed ones now, as the hotplug path does */
++	for (i = 0; i < NUM_SENSOR_TYPES; i++) {
++		if (DEVICE_FOR_TYPE(i) && g_hash_table_size (data->clients[i]) > 0) {
++			g_debug ("Starting %s claimed during discovery", driver_type_to_str (i));
++			driver_set_polling (DEVICE_FOR_TYPE(i), TRUE);
++		}
++	}
++
+ 	send_dbus_event (data, PROP_ALL);
+ 	send_dbus_event (data, PROP_ALL_COMPASS);
+ 	return;
+-- 
+2.43.0
+

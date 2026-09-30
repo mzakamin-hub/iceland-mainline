@@ -1,0 +1,78 @@
+From 13b981a68e6253b46a665387475b8bcc7244c67b Mon Sep 17 00:00:00 2001
+From: mzak <mzak.amin@gmail.com>
+Date: Wed, 30 Sep 2026 10:53:58 +0300
+Subject: [PATCH] hexagonrpcd: serve /odm/etc/sensor from <root>/odm/sensor
+
+OnePlus devices keep the sensor configs (json_list and the per-sensor json)
+in /odm/etc/sensor/config; the sensors PD opens them from there.
+
+Signed-off-by: mzak <mzak.amin@gmail.com>
+---
+ hexagonrpcd/rpcd_builder.c | 16 ++++++++++++++--
+ 1 file changed, 14 insertions(+), 2 deletions(-)
+
+diff --git a/hexagonrpcd/rpcd_builder.c b/hexagonrpcd/rpcd_builder.c
+index d374958..65de150 100644
+--- a/hexagonrpcd/rpcd_builder.c
++++ b/hexagonrpcd/rpcd_builder.c
+@@ -32,6 +32,7 @@
+ #define SENSORS_REGISTRY	"/sensors/registry/"
+ #define SNS_REG_CONFIG		"/sensors/sns_reg.conf"
+ #define SYSFS_SOCINFO		"/socinfo/"
++#define ODM_SENSOR		"/odm/sensor/"
+ 
+ static struct hexagonfs_dirent *hfs_mkdir(const char *name, size_t n_ents, ...)
+ {
+@@ -111,7 +112,7 @@ static struct hexagonfs_dirent *hfs_map_or_empty(const char *name, const char *p
+  */
+ struct hexagonfs_dirent *construct_root_dir(const char *prefix, const char *dsp)
+ {
+-	char *acdbdata, *dsp_libs, *sns_cfg, *sns_reg, *sns_reg_config, *socinfo;
++	char *acdbdata, *dsp_libs, *sns_cfg, *sns_reg, *sns_reg_config, *socinfo, *odm_sensor;
+ 	size_t n_prefix;
+ 	struct hexagonfs_dirent *persist_dir, *vendor_dir;
+ 
+@@ -122,6 +123,7 @@ struct hexagonfs_dirent *construct_root_dir(const char *prefix, const char *dsp)
+ 	sns_reg = malloc(n_prefix + strlen(SENSORS_REGISTRY) + 1);
+ 	sns_reg_config = malloc(n_prefix + strlen(SNS_REG_CONFIG) + 1);
+ 	socinfo = malloc(n_prefix + strlen(SYSFS_SOCINFO) + 1);
++	odm_sensor = malloc(n_prefix + strlen(ODM_SENSOR) + 1);
+ 
+ 	dsp_libs = malloc(n_prefix + strlen(DSP_LIBS) + strlen(dsp) + 1);
+ 
+@@ -150,6 +152,11 @@ struct hexagonfs_dirent *construct_root_dir(const char *prefix, const char *dsp)
+ 		strcat(socinfo, SYSFS_SOCINFO);
+ 	}
+ 
++	if (odm_sensor != NULL) {
++		strcpy(odm_sensor, prefix);
++		strcat(odm_sensor, ODM_SENSOR);
++	}
++
+ 	if (dsp_libs != NULL) {
+ 		strcpy(dsp_libs, prefix);
+ 		strcat(dsp_libs, DSP_LIBS);
+@@ -182,7 +189,7 @@ struct hexagonfs_dirent *construct_root_dir(const char *prefix, const char *dsp)
+ 				)
+ 			);
+ 
+-	return hfs_mkdir("/", 6,
++	return hfs_mkdir("/", 7,
+ 			hfs_mkdir("mnt", 1,
+ 				hfs_mkdir("vendor", 1,
+ 					persist_dir
+@@ -204,6 +211,11 @@ struct hexagonfs_dirent *construct_root_dir(const char *prefix, const char *dsp)
+ 					)
+ 				)
+ 			),
++			hfs_mkdir("odm", 1,
++				hfs_mkdir("etc", 1,
++					hfs_map_or_empty("sensor", odm_sensor)
++				)
++			),
+ 			vendor_dir
+ 		);
+ }
+-- 
+2.43.0
+

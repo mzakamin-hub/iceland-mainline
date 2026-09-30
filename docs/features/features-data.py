@@ -6,23 +6,23 @@
 DATE = "30 Sep 2026"
 
 # One sentence after the date in FEATURES.md.
-STATUS_MD = ("area-display-7..9 done (webcam-judged): refresh-rate changes (0058), the pink glitch (0060) and the mic "
-             "hiss (0059) fixed in the kernel; Linux loses 5 GHz networks in long scans; next (the user's order): "
-             "sensors, GPU correctness, HW acceleration, the NPU; in parallel Wi-Fi 5 GHz and the cameras")
+STATUS_MD = ("the sensors work in RAM (accelerometer with the right orientation, light, proximity, compass through the "
+             "ADSP sensor hub; queue 0061); refresh rate, the pink glitch and the mic hiss fixed earlier today; next "
+             "(the user's order): GPU correctness, HW acceleration, the NPU; in parallel Wi-Fi 5 GHz and the cameras")
 
 # The subtitle of the published page.
 STATUS_HTML = ("Everything is tested by booting from RAM; nothing is installed on the tablet yet. Status as of "
-               f"{DATE}: refresh-rate changes keep the picture, the pink glitches and the microphone hiss are fixed in "
-               "the kernel (all checked by the PC webcam or recordings); battery and thermal protection in place; GPU "
-               "and Vulkan accelerated. Next: sensors, GPU correctness, hardware acceleration and the NPU; in parallel "
-               "Wi-Fi 5 GHz (long scans lose them) and the cameras. Boot & platform waits for your go-ahead on the "
+               f"{DATE}: the sensors work (accelerometer with the right screen orientation, light, proximity, compass); "
+               "refresh-rate changes, the pink glitches and the microphone hiss are fixed in the kernel; battery and "
+               "thermal protection in place; GPU and Vulkan accelerated. Next: GPU correctness, hardware acceleration and "
+               "the NPU; in parallel Wi-Fi 5 GHz and the cameras. Boot & platform waits for your go-ahead on the "
                "install.")
 
 G = [
 ("Boot & platform", [
  ("U-Boot booted from RAM (display, USB fastboot, UFS read, EFI)", "ok", "Nothing written to the tablet; fastboot flashing compiled out"),
  ("U-Boot boot setting for single or dual boot", "ok", "Boots a “fedora” partition if present, else userdata"),
- ("Linux 7.3-rc4 through EFI", "ok", "Queue 0001–0060 + infiniti"),
+ ("Linux 7.3-rc4 through EFI", "ok", "Queue 0001–0061 + infiniti"),
  ("Fedora 44 running from RAM", "ok", "systemd as PID 1; packages through the PC"),
  ("GNOME Shell 50", "ok", "Autologin session in RAM"),
  ("Firmware extractor (tablet's own partitions, read-only)", "part", "modem/bluetooth work on the tablet; vendor/odm inside “super” proven offline from your partition backup (10 of 10 files match stock 11.A.38)", "Add the LP-metadata reader (an/lp-list.py) + read-only EROFS mount to tools/linux-ram/fw-extract.sh; test against the backup on the PC, then in a kit"),
@@ -39,7 +39,7 @@ G = [
  ("Lid switch", "ok", "SW_LID events on GPIO 98 (area-display-1)"),
  ("Power and volume keys", "ok", "Power key also wakes from sleep"),
  ("Pogo keyboard", "todo", "Private UART protocol", "Private UART protocol: stock oplus pogo driver in OnePlusOSS; serdev + HID bridge"),
- ("Auto-rotate", "todo", "Needs the sensors", "SSC sensors: hexagonrpcd + libssc + iio-sensor-proxy, persist registry"),
+ ("Auto-rotate", "part", "The orientation reaches GNOME: iio-sensor-proxy reports \"normal\" for the tablet in its stand, as stock Android does for that pose (mount matrix derived from stock; an iio-sensor-proxy startup race fixed)", "Turn the tablet once with you watching (left / right / upside down); then the packaging above"),
 ]),
 ("Graphics & compute", [
  ("Adreno 840 GPU, GLES 3.2", "ok", "OpenGL 4.6 / ES 3.2 on Mesa 26.2.3 (Fedora 44's newest; Mesa main is 7 % slower here); glmark2 3213 offscreen / 2345 on GNOME, DCVS already at 1.2 GHz under load; the stock 1100 MHz level added (area-graphics-1)"),
@@ -62,7 +62,7 @@ G = [
 ]),
 ("Connectivity", [
  ("Wi-Fi 2.4 GHz", "ok", "Connected by you; GNOME showed “?” until NetworkManager re-checked (a fresh check says full internet)"),
- ("Wi-Fi 5 / 6 GHz", "part", "Linux receives your two 5 GHz networks (channel 36) every time in scans of 1–4 channels, but loses them when the scan covers all 24 5 GHz channels or all bands - which is what NetworkManager does, so GNOME never lists them (area-display-9). Reception and region (US) are fine", "Bisect the scan list (DFS channels, list length), then fix in ath12k / WCN7860 firmware handling; a 5 GHz connect test needs your password"),
+ ("Wi-Fi 5 / 6 GHz", "part", "Your two 5 GHz networks are found in every 1-4-channel scan but never in longer ones - which is what NetworkManager runs. The Wi-Fi chip then scans two channels at a time and passes no received frames at all to Linux; forcing single-channel scanning through the firmware's scan policy did not change it (area-sensors-3..5)", "Firmware comparison (linux-firmware vs stock), scan parameters against Qualcomm's own driver, a question upstream; a 5 GHz connect test needs your password"),
  ("Bluetooth, own address", "ok", ""),
  ("Bluetooth pairing in GNOME", "ok", "Confirmed by you (29 Sep 2026)"),
  ("USB device mode / USB network", "ok", ""),
@@ -97,7 +97,7 @@ G = [
 ]),
 ("Sensors & camera", [
  ("Rear flash LEDs", "ok", ""),
- ("Accelerometer, compass, light / proximity", "todo", "", "hexagonrpcd sensorspd + libssc (adsp_listener_get_in_bufs2 patch), persist registry"),
+ ("Accelerometer, compass, light / proximity", "ok", "Working in RAM through the ADSP sensor hub (area-sensors-4..7): BMI3x0 accelerometer, AK09919 magnetometer, STK36C01 light + proximity read live; iio-sensor-proxy (SSC build) serves them to GNOME. Needs kernel 0061, hexagonrpcd with the device's own sensor files, libssc and iio-sensor-proxy with SSC support (built here, not in Fedora)", "Package hexagonrpc / libssc / iio-sensor-proxy (SSC) + the udev rule; extract the sensor files from the tablet at install"),
  ("Cameras (13 MP rear, 8 MP front)", "todo", "SmartSens SC1320CS rear (13 MP, 4160×3120) and SC820CS front on I2C bus 9 (0x6c / 0x20, chip ids 0xc658 / 0xd154); mainline has the Kaanapali camera subsystem. Stock's register tables are in a binary parameter format whose value layout isn't decoded yet", "An I2C trace of the stock camera app on LineageOS (needs your OK to open the camera), then two new sensor drivers + DT (relay 014, research/camera-bringup.md)"),
  ("Haptics, modem, NFC, fingerprint", "out", "Not on this tablet"),
 ]),

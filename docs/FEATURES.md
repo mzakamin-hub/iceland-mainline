@@ -1,8 +1,8 @@
 # OnePlus Pad 4 mainline: feature matrix
 
-Status 30 Sep 2026 (area-display-7..9 done (webcam-judged): refresh-rate changes (0058), the pink glitch (0060) and the mic hiss (0059) fixed in the kernel; Linux loses 5 GHz networks in long scans; next (the user's order): sensors, GPU correctness, HW acceleration, the NPU; in parallel Wi-Fi 5 GHz and the cameras). Everything is tested by RAM boot; nothing is installed on the tablet yet.
+Status 30 Sep 2026 (the sensors work in RAM (accelerometer with the right orientation, light, proximity, compass through the ADSP sensor hub; queue 0061); refresh rate, the pink glitch and the mic hiss fixed earlier today; next (the user's order): GPU correctness, HW acceleration, the NPU; in parallel Wi-Fi 5 GHz and the cameras). Everything is tested by RAM boot; nothing is installed on the tablet yet.
 Legend: ✅ working · 🟡 in progress · ⬜ not started · ❌ not planned. Sorted by functionality.
-Totals: 38 working, 13 in progress, 18 not started, 2 not planned (71).
+Totals: 39 working, 14 in progress, 16 not started, 2 not planned (71).
 
 ## Boot & platform (5/8 working)
 
@@ -10,7 +10,7 @@ Totals: 38 working, 13 in progress, 18 not started, 2 not planned (71).
 |---|---|---|---|
 | U-Boot booted from RAM (display, USB fastboot, UFS read, EFI) | ✅ Working | Nothing written to the tablet; fastboot flashing compiled out |  |
 | U-Boot boot setting for single or dual boot | ✅ Working | Boots a “fedora” partition if present, else userdata |  |
-| Linux 7.3-rc4 through EFI | ✅ Working | Queue 0001–0060 + infiniti |  |
+| Linux 7.3-rc4 through EFI | ✅ Working | Queue 0001–0061 + infiniti |  |
 | Fedora 44 running from RAM | ✅ Working | systemd as PID 1; packages through the PC |  |
 | GNOME Shell 50 | ✅ Working | Autologin session in RAM |  |
 | Firmware extractor (tablet's own partitions, read-only) | 🟡 In progress | modem/bluetooth work on the tablet; vendor/odm inside “super” proven offline from your partition backup (10 of 10 files match stock 11.A.38) | Add the LP-metadata reader (an/lp-list.py) + read-only EROFS mount to tools/linux-ram/fw-extract.sh; test against the backup on the PC, then in a kit |
@@ -30,7 +30,7 @@ Totals: 38 working, 13 in progress, 18 not started, 2 not planned (71).
 | Lid switch | ✅ Working | SW_LID events on GPIO 98 (area-display-1) |  |
 | Power and volume keys | ✅ Working | Power key also wakes from sleep |  |
 | Pogo keyboard | ⬜ Not started | Private UART protocol | Private UART protocol: stock oplus pogo driver in OnePlusOSS; serdev + HID bridge |
-| Auto-rotate | ⬜ Not started | Needs the sensors | SSC sensors: hexagonrpcd + libssc + iio-sensor-proxy, persist registry |
+| Auto-rotate | 🟡 In progress | The orientation reaches GNOME: iio-sensor-proxy reports "normal" for the tablet in its stand, as stock Android does for that pose (mount matrix derived from stock; an iio-sensor-proxy startup race fixed) | Turn the tablet once with you watching (left / right / upside down); then the packaging above |
 
 ## Graphics & compute (3/6 working)
 
@@ -62,7 +62,7 @@ Totals: 38 working, 13 in progress, 18 not started, 2 not planned (71).
 | Feature | Status | Notes | Where to look for the fix |
 |---|---|---|---|
 | Wi-Fi 2.4 GHz | ✅ Working | Connected by you; GNOME showed “?” until NetworkManager re-checked (a fresh check says full internet) |  |
-| Wi-Fi 5 / 6 GHz | 🟡 In progress | Linux receives your two 5 GHz networks (channel 36) every time in scans of 1–4 channels, but loses them when the scan covers all 24 5 GHz channels or all bands - which is what NetworkManager does, so GNOME never lists them (area-display-9). Reception and region (US) are fine | Bisect the scan list (DFS channels, list length), then fix in ath12k / WCN7860 firmware handling; a 5 GHz connect test needs your password |
+| Wi-Fi 5 / 6 GHz | 🟡 In progress | Your two 5 GHz networks are found in every 1-4-channel scan but never in longer ones - which is what NetworkManager runs. The Wi-Fi chip then scans two channels at a time and passes no received frames at all to Linux; forcing single-channel scanning through the firmware's scan policy did not change it (area-sensors-3..5) | Firmware comparison (linux-firmware vs stock), scan parameters against Qualcomm's own driver, a question upstream; a 5 GHz connect test needs your password |
 | Bluetooth, own address | ✅ Working |  |  |
 | Bluetooth pairing in GNOME | ✅ Working | Confirmed by you (29 Sep 2026) |  |
 | USB device mode / USB network | ✅ Working |  |  |
@@ -104,12 +104,12 @@ Totals: 38 working, 13 in progress, 18 not started, 2 not planned (71).
 | CPU scaling and GNOME power modes | 🟡 In progress | Stock CPU capacity data (1792/1894 DMIPS/MHz) and iceland-device 0.10 tuned profiles for GNOME's power modes written; area-power-1 verification pending | Queue the two DTS candidates (GPU levels, CPU capacity); then Thermal |
 | Deep-sleep proof, overnight drain ≤ ~1 %/h | ⬜ Not started |  | qcom_stats before/after, rpmh-stats; overnight unplugged |
 
-## Sensors & camera (1/4 working)
+## Sensors & camera (2/4 working)
 
 | Feature | Status | Notes | Where to look for the fix |
 |---|---|---|---|
 | Rear flash LEDs | ✅ Working |  |  |
-| Accelerometer, compass, light / proximity | ⬜ Not started |  | hexagonrpcd sensorspd + libssc (adsp_listener_get_in_bufs2 patch), persist registry |
+| Accelerometer, compass, light / proximity | ✅ Working | Working in RAM through the ADSP sensor hub (area-sensors-4..7): BMI3x0 accelerometer, AK09919 magnetometer, STK36C01 light + proximity read live; iio-sensor-proxy (SSC build) serves them to GNOME. Needs kernel 0061, hexagonrpcd with the device's own sensor files, libssc and iio-sensor-proxy with SSC support (built here, not in Fedora) | Package hexagonrpc / libssc / iio-sensor-proxy (SSC) + the udev rule; extract the sensor files from the tablet at install |
 | Cameras (13 MP rear, 8 MP front) | ⬜ Not started | SmartSens SC1320CS rear (13 MP, 4160×3120) and SC820CS front on I2C bus 9 (0x6c / 0x20, chip ids 0xc658 / 0xd154); mainline has the Kaanapali camera subsystem. Stock's register tables are in a binary parameter format whose value layout isn't decoded yet | An I2C trace of the stock camera app on LineageOS (needs your OK to open the camera), then two new sensor drivers + DT (relay 014, research/camera-bringup.md) |
 | Haptics, modem, NFC, fingerprint | ❌ Not planned | Not on this tablet |  |
 

@@ -1,0 +1,2 @@
+libssc: built with its test and mocking subdirectories removed from meson.build (they need Python headers):
+  sed -i "/subdir('mocking')/d; /subdir('tests')/d" meson.build
