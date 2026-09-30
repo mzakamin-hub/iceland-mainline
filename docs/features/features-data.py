@@ -66,8 +66,8 @@ G = [
  ("Bluetooth, own address", "ok", ""),
  ("Bluetooth pairing in GNOME", "ok", "Confirmed by you (29 Sep 2026)"),
  ("USB device mode / USB network", "ok", ""),
- ("USB host / OTG, PD hub", "todo", "", "dwc3 role switch via pmic-glink UCSI; typec sysfs; dwc3 power_lost after resume"),
- ("DisplayPort over USB-C", "todo", "", "qmp-combo PHY + DP controller from the infiniti series; DT enable + altmode"),
+ ("USB host / OTG, PD hub", "todo", "The drivers for keyboards, mice, USB headsets, USB Ethernet and USB sticks are all there and load on demand; the Type-C port reports its roles and PD 3.0 (area-usb-1). Not tried with an accessory yet: the test kits keep the port in device mode for their link to the PC", "A kit that keeps the role switch + you plugging accessories in; UAS for fast USB SSDs"),
+ ("DisplayPort over USB-C", "part", "The DisplayPort output is enabled and comes up cleanly: the controller, its PHY and the USB-C switch load without errors and GNOME's display stack sees a DP connector (area-usb-1). Not tried with a monitor yet", "A USB-C monitor or dock from you"),
 ]),
 ("Power & charging", [
  ("Battery level, voltage, current, temperature, health", "ok", "UPower and GNOME battery"),

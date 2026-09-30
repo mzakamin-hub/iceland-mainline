@@ -2,7 +2,7 @@
 
 Status 30 Sep 2026 (the sensors work in RAM (accelerometer with the right orientation, light, proximity, compass through the ADSP sensor hub; queue 0061); refresh rate, the pink glitch and the mic hiss fixed earlier today; next (the user's order): GPU correctness, HW acceleration, the NPU; in parallel Wi-Fi 5 GHz and the cameras). Everything is tested by RAM boot; nothing is installed on the tablet yet.
 Legend: ✅ working · 🟡 in progress · ⬜ not started · ❌ not planned. Sorted by functionality.
-Totals: 40 working, 13 in progress, 16 not started, 2 not planned (71).
+Totals: 40 working, 14 in progress, 15 not started, 2 not planned (71).
 
 ## Boot & platform (5/8 working)
 
@@ -66,8 +66,8 @@ Totals: 40 working, 13 in progress, 16 not started, 2 not planned (71).
 | Bluetooth, own address | ✅ Working |  |  |
 | Bluetooth pairing in GNOME | ✅ Working | Confirmed by you (29 Sep 2026) |  |
 | USB device mode / USB network | ✅ Working |  |  |
-| USB host / OTG, PD hub | ⬜ Not started |  | dwc3 role switch via pmic-glink UCSI; typec sysfs; dwc3 power_lost after resume |
-| DisplayPort over USB-C | ⬜ Not started |  | qmp-combo PHY + DP controller from the infiniti series; DT enable + altmode |
+| USB host / OTG, PD hub | ⬜ Not started | The drivers for keyboards, mice, USB headsets, USB Ethernet and USB sticks are all there and load on demand; the Type-C port reports its roles and PD 3.0 (area-usb-1). Not tried with an accessory yet: the test kits keep the port in device mode for their link to the PC | A kit that keeps the role switch + you plugging accessories in; UAS for fast USB SSDs |
+| DisplayPort over USB-C | 🟡 In progress | The DisplayPort output is enabled and comes up cleanly: the controller, its PHY and the USB-C switch load without errors and GNOME's display stack sees a DP connector (area-usb-1). Not tried with a monitor yet | A USB-C monitor or dock from you |
 
 ## Power & charging (2/8 working)
 
