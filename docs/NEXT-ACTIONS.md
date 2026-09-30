@@ -77,7 +77,8 @@ The PC port was asked for 1.2–1.9 A (stock SDP: 500 mA), and 12 V is above the
 
 | Item | Next action |
 |---|---|
-| GPU performance | ✅ area-graphics-1 (2026-09-29): DCVS already at 1.2 GHz under load (pinning +0 %), the stock 1100 MHz level works (DTS candidate on `gpu-tune`, in q21), autotune beats forced sysmem/gmem. Left: dEQP subset, WebGL, and the heat ceiling (103 °C at 1.2 GHz in a minute → Thermal) |
+| GPU performance | ✅ area-graphics-1 (2026-09-29): DCVS already at 1.2 GHz under load (pinning +0 %), the stock 1100 MHz level works (DTS candidate on `gpu-tune`, in q21), autotune beats forced sysmem/gmem. Left: the heat ceiling (103 °C at 1.2 GHz in a minute → Thermal) |
+| GPU correctness | ✅ area-graphics-2/-3 (2026-09-30): dEQP Vulkan 34 650 cases / 2 Fail, GLES 34 950 / 53 Fail (texture formats, ASTC, copy_image), WebGL 196 conformance pages / 3 failing, stress 0 faults, 0 GPU faults anywhere: the kernel side is clean, the failures read as Mesa gaps for the Adreno 8xx. Left: a single-worker rerun of the failures (flake vs deterministic); reports upstream only with the user's OK |
 | Mesa main slower than 26.2.3 | ✅ Re-measured cooled, same session: −6.7 % GL / −1.1 % Vulkan. 26.2.3 stays; nothing to report upstream (the display-1 −42 % was heat/order) |
 | CPU scaling / GNOME power modes | Capacity data (stock 1792/1894 DMIPS/MHz, coefficients 238/588) on branch `dcvs` (q21); iceland-device 0.10 tuned profiles behind tuned-ppd (see `docs/research/dcvs-tuning.md`); verified by area-power-1 → queue both DTS candidates |
 | Video decode (Iris) | Enable the Iris node in the iceland DTS with `firmware-name = "qcom/…/vpu40_2v.mbn"` (the driver's default `vpu40_p2` is ENOENT), `CONFIG_VIDEO_QCOM_IRIS`, GStreamer v4l2 decode, CPU time |
@@ -134,6 +135,12 @@ The PC port was asked for 1.2–1.9 A (stock SDP: 500 mA), and 12 V is above the
 | Full GNOME app set, stock-values audit | Relay 008 list; relay 013 table |
 | Mic hiss (known issue) | ✅ **Hiss fixed: queue 0059** (lpass-tx-macro: TX decimator ADPT block off on codec 2.8+, stock's no-tuning branch): floor -47 -> -63 dBFS, tone unchanged (area-audio-6/-7). Open: the first capture after boot ~5 dB higher; compare the spectrum with stock's recordings; optional stock tuning (0x41 + dtsi values, a DT binding) | GNOME meter look (optional) |
 | Open candidates | area-audio-5 0001–0002 (tfa 0x62, TDM drive): one loopback side check, then 0054/0055 |
+
+## 8b. Kit runs: the ~60 s freeze (2026-09-30)
+
+| Item | Next action |
+|---|---|
+| Freeze ~60 s into Fedora | 8 runs in a row (12:23-13:27) froze: the kernel log stops at 57-75 s, the USB device disappears 19-22 s later (a watchdog reset; Android then reports PSHOLD / hard reset), in the first minute after the PC's first big copy. Before (12:06, 12:17) and after (13:44, kernel q32 with hung-task / soft+hard lockup / workqueue detectors) the same test ran fine, no detector report. Not the kit config (identical), not the ADSP (froze with it off), not PC load, stale PC processes or battery state. Next: the runs without the detectors (q30 Wi-Fi, q31 USB-C) show whether the detectors' per-CPU timers hide an idle-state freeze; if it returns: ramoops + a cpuidle-off A/B |
 
 ## 9. Boot & platform (last, after the user's go-ahead)
 
