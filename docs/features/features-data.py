@@ -98,7 +98,7 @@ G = [
 ("Sensors & camera", [
  ("Rear flash LEDs", "ok", ""),
  ("Accelerometer, compass, light / proximity", "ok", "Working in RAM through the ADSP sensor hub (area-sensors-4..7): BMI3x0 accelerometer, AK09919 magnetometer, STK36C01 light + proximity read live; iio-sensor-proxy (SSC build) serves them to GNOME. Needs kernel 0061, hexagonrpcd with the device's own sensor files, libssc and iio-sensor-proxy with SSC support (built here, not in Fedora)", "Package hexagonrpc / libssc / iio-sensor-proxy (SSC) + the udev rule; extract the sensor files from the tablet at install"),
- ("Cameras (13 MP rear, 8 MP front)", "todo", "SmartSens SC1320CS rear (13 MP, 4160×3120) and SC820CS front on I2C bus 9 (0x6c / 0x20, chip ids 0xc658 / 0xd154); mainline has the Kaanapali camera subsystem. Stock's register tables are in a binary parameter format whose value layout isn't decoded yet", "An I2C trace of the stock camera app on LineageOS (needs your OK to open the camera), then two new sensor drivers + DT (relay 014, research/camera-bringup.md)"),
+ ("Cameras (13 MP rear, 8 MP front)", "todo", "Stock camera traced on LineageOS (no photo taken): both sensors' power-up order and delays, I2C addresses (rear 0x36, front 0x10, focus motor 0x0c), 4 CSI lanes each at 1324.8 / 660 Mbps, the register tables of every mode stock uses (13 MP rear, 8 MP and 2 MP front), exposure / gain registers, black level and colour order; the focus motor behaves like an upstream-supported Dongwoon DW9719", "Device-tree nodes and two new sensor drivers from the trace, then a first test on a RAM kit (research/camera-bringup.md C1-C3)"),
  ("Haptics, modem, NFC, fingerprint", "out", "Not on this tablet"),
 ]),
 ("Software & packaging", [

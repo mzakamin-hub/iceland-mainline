@@ -1,6 +1,6 @@
 # Camera bring-up plan, OnePlus Pad 4 (from the sources we have)
 
-Status 2026-09-29: not started. Camera is the hardest item (TODO difficulty 4). Rule 13 applies: every value comes
+Status 2026-09-30: C0 done by a LineageOS trace (section 1c, `relay/results/area-camera.md`); C1-C3 next. Camera is the hardest item (TODO difficulty 4). Rule 13 applies: every value comes
 from Pad 4 stock (OxygenOS 11.A.38 captures and partitions, the user's LineageOS trees, OnePlusOSS OPD2514).
 
 ## 1. What the sources already give us
@@ -50,6 +50,10 @@ is Qualcomm's generic `cam_sensor`; the sensor **register sequences live in the 
 
 Still needed from relay 014 (C0): the power-up order and delays, the register tables, the CSI lane count and link
 frequency, the EEPROM sizes, and the actuator IC.
+
+## 1c. From the LineageOS trace (2026-09-30)
+
+The stock camera, traced read-only while Aperture opened both cameras (no photo taken), settles C0 except the EEPROM sizes: the **7-bit** addresses are rear **0x36**, front **0x10**, actuator **0x0c**, EEPROMs 0x28 / 0x2c (the DT values above are the 8-bit forms); both sensors use **4 D-PHY lanes** (rear CSIPHY4 at **1324.8 Mbps**, front CSIPHY5 at **660 Mbps**); power-up is vio → vdig → vana (→ vaf) 1 ms apart, reset high, MCLK 4-5 ms later, first I2C write after 1.5-6 ms; stock uses one rear mode (4160×3120) and two front modes (3264×2448, 1632×1224 binned); AE writes exposure 0x3e00-02, gains 0x3e07 / 0x3e09 and VTS 0x320e/f; black level 64 / 65, BGGR with stock's mirror + flip (0x3221 = 0x66); the actuator follows the DW9719 register map. The register tables are kept private (`build/camtrace/tables`) until the drivers use them.
 
 ## 2. Plan (every step RAM boot only; the PC's automated loop, relay 012, runs the kits)
 

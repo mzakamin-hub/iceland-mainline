@@ -123,7 +123,7 @@ The PC port was asked for 1.2–1.9 A (stock SDP: 500 mA), and 12 V is above the
 | Item | Next action |
 |---|---|
 | Sensors | ✅ **Working in RAM** (area-sensors-1..7): queue 0061 (ADSP FastRPC non-secure) + hexagonrpcd -s (local commit: /odm/etc/sensor) + libssc + iio-sensor-proxy 3.9 SSC (local commit: claims during discovery) + udev `81-iceland-ssc.rules` (ssc-accel ssc-proximity, ACCEL_MOUNT_MATRIX 0,1,0;-1,0,0;0,0,-1 from stock) + the private DSP tree (dsp, odm/etc/sensor, vendor sensors config, persist registry, stock socinfo values). Orientation "normal" as stock. Next: packaging (RPMs, unit, install-time extraction), the user's rotation check |
-| Cameras | SC1320CS (rear, 4160x3120) / SC820CS (front) on i2c9 (0x6c/0x20, ids 0xc658/0xd154), CSIPHY 4/5; mainline has `qcom,kaanapali-camss`. relay 014 C0: sensormodule.bin (Chromatix Parameter Parser V6.0.6) records carry address/type only, values sit in per-table pools (mapping not decoded; `an/smod-walk.py`). Next: an I2C trace of the stock camera app (user's OK needed), then the drivers |
+| Cameras | ✅ C0 done by the LineageOS trace (2026-09-30, `relay/results/area-camera.md`): SC1320CS 0x36 / SC820CS 0x10 / actuator 0x0c (7-bit), CSIPHY4/5 4-lane D-PHY at 1324.8 / 660 Mbps, stock power-up order and delays, every mode's register table (private, `build/camtrace/tables`), AE registers 0x3e00-02 / 0x3e07 / 0x3e09 / VTS 0x320e, black level 64 / 65, BGGR, actuator = DW9719 register map. Next: C1 DT nodes + C2 drivers (SC1320CS first), C3 first light on a RAM kit |
 
 ## 8. Software & packaging
 
