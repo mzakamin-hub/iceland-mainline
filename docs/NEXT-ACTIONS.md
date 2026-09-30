@@ -1,9 +1,11 @@
 # Next actions (PC session, from 2026-09-29 evening)
 
-**Order from the user (2026-09-29 night), after the GPU/CPU scaling work:** (1) ✅ battery protection and thermal
-protection in place (area-thermal-1/-2, 2026-09-30) (guard live on a charger, the charge limit, skin/USB-C zones, GPU trips); (2) the mic
-(noise floor); (3) Wi-Fi (5 GHz, regulatory, the "?" icon); (4) the cameras. Runs stay automated and ≤ 10 min;
-anything needing the user's eyes is deferred. RAM boot only.
+**Working order from the user (2026-09-30 morning), after "queue them" (0054-0057 queued, iceland-linux 42c348b):**
+tablet runs in this order: (1) refresh rate, (2) GNOME pink/blocky glitches, (3) sensors (auto-rotate, accelerometer),
+(4) GPU correctness, (5) hardware acceleration, (6) NPU (Hexagon); in parallel, prepared offline and given tablet slots
+when ready: the mic noise, Wi-Fi 5 GHz / regulatory, the cameras. Battery and thermal protection are done
+(area-thermal-1/-2). Runs stay automated and <= 10 min; the PC's webcam judges the screen during runs (the user's OK).
+RAM boot only.
 
 The PC session owns the project (relay 020).
 
@@ -62,9 +64,9 @@ The PC port was asked for 1.2–1.9 A (stock SDP: 500 mA), and 12 V is above the
 
 | Item | Next action | Needs the user |
 |---|---|---|
-| Black screen after a live refresh-rate change (area-display-2: the touch driver is ruled out; area-display-3: panel DCS, error flags, backlight ICs and DPU blocks all read normal in the black state) | **Workaround done:** iceland-device 0.9 switches the display off/on once after every rate change (tested live). **Deferred (needs a look):** one rate change on q19 with `legacy_seq=0` = candidate 0054 (stock power sequence) alone → queue 0054 if the picture stays. **Root cause:** the msm single-commit modeset (DSC/PPS order, video start vs panel init); long term stock-style seamless DFPS (120 ↔ 60 ↔ 30 Hz share one pixel clock) | A 1-minute look (deferred) |
+| Black screen after a live refresh-rate change | **Root cause found and fixed in a test kernel (area-display-4..6, webcam):** `dpu_encoder_helper_phys_cleanup()` writes CTL_START after the video timing engine is off; the next same-commit enable's flush never latches (CTL_0 0x094 = 0x80c008c0, source pipe not fetching). Skipping CTL_START for video interfaces: 5/5 rate changes keep the picture (0/3 without). Next: patch 0058 + webcam verification (many changes, off/on, suspend), then drop the relight from iceland-device. Candidate 0054 (stock sequence) dropped | none (webcam) |
 | 120/60 Hz black | Every rate displays fine after an off/on; covered by the relight above | — |
-| Pink glitches | Not reproduced. Keep the checks ready: photo + drm state, XR24 vs XR30, `FD_MESA_DEBUG=noubwc`/`notile`, SSPP UBWC error registers. Evaluate DSC 1.2 + stock 0x91/0x92 init bytes (display.md R6-1/R6-2) against the panel | A photo if it returns |
+| Pink glitches | Caught on camera once (first enable after boot, overview: pink/blue checker edges, blocky dash icons; cleared by an off/on); 0 in 9 enables later (intermittent). Next: a long repeat test (many enables, overview toggles) with register dumps (`an/dm.py`) and `glitch.ps1`, then `FD_MESA_DEBUG=noubwc` A/B | none (webcam) |
 | Screenshot path | `gnome-screenshot` fails on GNOME 50 Wayland: use the Shell's D-Bus Screenshot through an allowed caller, or `xdg-desktop-portal` + `grim`-like capture | none |
 | Pen | libinput recheck with a charged pen (tip, hover, buttons, pressure) | Charge the pen, draw |
 | Backlight curve | Compare our brightness range/default with stock (panel dtsi `qcom,mdss-dsi-bl-*`, LineageOS overlay) (relay 013 item 4) | none |
