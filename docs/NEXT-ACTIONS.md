@@ -140,7 +140,7 @@ The PC port was asked for 1.2–1.9 A (stock SDP: 500 mA), and 12 V is above the
 
 | Item | Next action |
 |---|---|
-| Freeze ~60 s into Fedora | ✅ **Found** (`relay/results/area-freeze.md`): fast PC→tablet USB traffic (≥ ~15 MB/s) + CPU power collapse → SoC hang, hard reset. Clean with the idle states off or a 2 µs CPU-latency QoS held (stock dwc3-msm `qcom,pm-qos-latency = <2>`); the rpmh-rsc clamp (q34) and timer always-on (q35) don't fix it. Kits: init holds `USB_QOS` = 2 us (verified by area-video-1). Next: dwc3-qcom CPU-latency QoS while busy, tested with `USB_QOS=` off, then queue |
+| Freeze ~60 s into Fedora | ✅ **Fixed, queued 0063** (iceland-linux ccdac5e): dwc3-qcom holds a 2 us CPU-latency request while active, as stock's dwc3-msm (`qcom,pm-qos-latency = <2>`). Cause: fast PC→tablet USB traffic (≥ ~15 MB/s) + CPU power collapse → SoC hang, hard reset (`relay/results/area-freeze.md`). area-freeze-7 with the kit QoS off: 4 × 696 MB at 36 MB/s, no power collapse, no freeze. Kits keep `USB_QOS=2` for older kernels. Left: idle power with a data cable plugged in; a busy-only vote (like stock's IRQ-rate sampling) if it costs too much |
 
 ## 9. Boot & platform (last, after the user's go-ahead)
 
