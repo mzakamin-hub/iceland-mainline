@@ -6,16 +6,18 @@
 DATE = "30 Sep 2026"
 
 # One sentence after the date in FEATURES.md.
-STATUS_MD = ("the sensors work in RAM (accelerometer with the right orientation, light, proximity, compass through the "
-             "ADSP sensor hub; queue 0061); refresh rate, the pink glitch and the mic hiss fixed earlier today; next "
-             "(the user's order): GPU correctness, HW acceleration, the NPU; in parallel Wi-Fi 5 GHz and the cameras")
+STATUS_MD = ("GPU correctness done (dEQP Vulkan + GLES, WebGL, stress: the kernel side clean, the failures are "
+             "Mesa gaps for the new GPU); USB-C DisplayPort enumerates; Wi-Fi 5 GHz narrowed to the chip mode and "
+             "its regulatory state; hardware video decoding under test; next (the user's order): hardware "
+             "acceleration, then the NPU; in parallel the cameras, Wi-Fi 5 GHz and USB accessories with the user")
 
 # The subtitle of the published page.
 STATUS_HTML = ("Everything is tested by booting from RAM; nothing is installed on the tablet yet. Status as of "
-               f"{DATE}: the sensors work (accelerometer with the right screen orientation, light, proximity, compass); "
-               "refresh-rate changes, the pink glitches and the microphone hiss are fixed in the kernel; battery and "
-               "thermal protection in place; GPU and Vulkan accelerated. Next: GPU correctness, hardware acceleration and "
-               "the NPU; in parallel Wi-Fi 5 GHz and the cameras. Boot & platform waits for your go-ahead on the "
+               f"{DATE}: the GPU passes the conformance tests (the few failures are Mesa gaps for this new GPU, "
+               "not the kernel), WebGL runs on the GPU, DisplayPort over USB-C comes up, sensors, refresh-rate "
+               "changes, the pink glitches and the microphone hiss are fixed; battery and thermal protection in "
+               "place. Now: hardware video decoding. Next: the NPU; in parallel the cameras, Wi-Fi 5 GHz and USB "
+               "accessories (those need you plugging things in). Boot & platform waits for your go-ahead on the "
                "install.")
 
 G = [
@@ -25,7 +27,8 @@ G = [
  ("Linux 7.3-rc4 through EFI", "ok", "Queue 0001–0061 + infiniti"),
  ("Fedora 44 running from RAM", "ok", "systemd as PID 1; packages through the PC"),
  ("GNOME Shell 50", "ok", "Autologin session in RAM"),
- ("Firmware extractor (tablet's own partitions, read-only)", "part", "modem/bluetooth work on the tablet; vendor/odm inside “super” proven offline from your partition backup (10 of 10 files match stock 11.A.38)", "Add the LP-metadata reader (an/lp-list.py) + read-only EROFS mount to tools/linux-ram/fw-extract.sh; test against the backup on the PC, then in a kit"),
+ ("Test sessions stable", "part", "8 test boots in a row froze about 60 s into Fedora on 30 Sep (12:23-13:27; the tablet reset itself 20 s later); every boot since (6 so far, with and without the kernel's hang detectors) ran clean and no detector reported anything. Cause unknown", "If it returns: a crash log (ramoops) and a CPU-idle on/off comparison; the hang-detector kernel is ready"),
+ ("Firmware extractor (tablet's own partitions, read-only)", "part", "modem/bluetooth work on the tablet; vendor/odm inside “super” proven offline from your partition backup (10 of 10 files match stock 11.A.38); vendor_dlkm (ext4) read offline too", "Add the LP-metadata reader (an/lp-list.py) + read-only EROFS / ext4 mounts to tools/linux-ram/fw-extract.sh; test against the backup on the PC, then in a kit"),
  ("Fedora installed on the tablet", "todo", "Final step; needs your decisions and OK", "Waits for your install decision (relay 019: Boot & platform last)"),
  ("Dual boot with Android", "todo", "Planned; recovery re-flash helper ready", "iceland-u-boot patch 0003 (fedora_blkmap); tools/dualboot/reflash-recovery.ps1"),
 ]),
@@ -33,8 +36,9 @@ G = [
  ("Native display 3392×2400, dual DSI + DSC", "ok", "Boot splash handed over to MSM DRM"),
  ("Refresh 30 / 60 / 90 / 120 / 144 Hz", "ok", "Fixed in the kernel (queue 0058): live rate changes keep the picture - 11 of 11 on the PC webcam across 144/120/60 Hz, two of them after a suspend, no underruns (area-display-7). The cause was a CTL_START the display driver wrote after switching the video engine off; the display off/on workaround in iceland-device is now off by default (0.12)", "Long term: stock-style seamless rate switching (no modeset)"),
  ("Backlight", "ok", "Brightness curve still being checked against stock"),
- ("GNOME pink / blocky glitches", "ok", "Fixed in the kernel (queue 0060). The PC webcam caught it at a first login (run 8) with register dumps: the display's UBWC decoder was left at its reset values (memory bank bit 13 instead of 16) because the boot-splash take-over reset the display block and programmed it before the block was out of reset; a display off/on reprogrammed it, which is why it went away. Run 9 logs the race and the corrected setup, no glitch on camera", "Watch the first login of the next boots (it was intermittent before the fix)"),
- ("Touchscreen", "ok", "Confirmed by you; keeps working through display off/on cycles and suspend (area-display-2)"),
+ ("GNOME pink / blocky glitches", "ok", "Fixed in the kernel (queue 0060). The PC webcam caught it at a first login (run 8) with register dumps: the display's UBWC decoder was left at its reset values (memory bank bit 13 instead of 16) because the boot-splash take-over reset the display block and programmed it before the block was out of reset; a display off/on reprogrammed it, which is why it went away. Run 9 logs the race and the corrected setup; the webcam saw no glitch again during the GPU tests (30 Sep)", "Watch the first login of the next boots (it was intermittent before the fix)"),
+ ("Smooth window moves under load", "part", "Choppy while 8 conformance-test processes ran (you, 30 Sep): the webcam showed windows drawn late, no corruption; all CPU cores were busy and the skin loop had capped the CPUs to ~1 GHz and the GPU to 342 MHz at 50 °C", "Frame timing of window drags on an idle desktop; the skin-trip choice under Thermal"),
+ ("Touchscreen", "ok", "Confirmed by you; keeps working through display off/on cycles and suspend (area-display-2). It was dead only in the boots of the 30 Sep freeze window (0 touch interrupts) and works in every boot since", "Keep an eye on the touch-interrupt count the test heartbeat now logs"),
  ("Pen", "ok", "Working per your call; not tested enough yet (area-display-1 logged 0 pen events, pen maybe not charged)", "Charged pen: tip, hover, buttons, pressure in libinput debug-events; palm rejection"),
  ("Lid switch", "ok", "SW_LID events on GPIO 98 (area-display-1)"),
  ("Power and volume keys", "ok", "Power key also wakes from sleep"),
@@ -46,8 +50,8 @@ G = [
  ("GNOME and Wayland drawn by the GPU", "ok", ""),
  ("GPU correctness, WebGL, stress", "ok", "dEQP (VK-GL-CTS 1.4.6.2 mustpass samples): Vulkan 34 650 cases, 2 Fail; GLES2/3/3.1 34 950 cases, 53 Fail (texture formats, ASTC, copy_image: Mesa gaps for the Adreno 8xx), 0 crashes, 0 timeouts; WebGL 1/2 on the GPU, pixel checks exact, 196 conformance pages, 3 failing (same format family); 90-s stress 0 faults, the skin loop throttles it; 0 GPU faults in every run (area-graphics-2/-3)", "Single-worker rerun of the 53 GLES + 3 WebGL failures; report to Mesa only with the user's OK"),
  ("Vulkan", "ok", "turnip 26.2.3: Vulkan 1.4; vkmark 19563 headless 1080p (area-graphics-1), 24562 fullscreen (display-1)"),
- ("Hardware video decoding", "todo", "Driver in the tree; firmware known", "Iris node disabled and no &iris override in the iceland DTS; set firmware-name vpu40_2v.mbn (driver default vpu40_p2 = ENOENT); CONFIG_VIDEO_QCOM_IRIS; gst v4l2h264dec, CPU time"),
- ("NPU (Hexagon on the CDSP)", "todo", "Off by default; bring-up in relay 012", "CDSP disabled in every kit's debug DTB (build.sh:69); cdsp.mbn vs split .mdt names; iceland-npu-off.service ExecStart path wrong; fastrpc + quic/fastrpc unsigned PD test"),
+ ("Hardware video decoding", "part", "Linux 7.3 supports this chip's video block (decode H.264, HEVC, VP9, AV1; encode H.264, HEVC). The Pad 4's own firmware identified on the tablet (vpu40_2v: the exact build LineageOS runs here) and its memory carve-out matches stock; the device-tree enable is built (kernel q33) and the first test is running (area-video-1)", "area-video-1: the driver and firmware start, every test stream decodes bit-exact against software, 1080p speed and CPU time; then video apps (GNOME Videos, Firefox) using it"),
+ ("NPU (Hexagon on the CDSP)", "todo", "Item 6 in your order, after video; the ADSP's FastRPC path already works (the sensors use it)", "Enable the CDSP in the kits (build.sh:69 disables it), firmware names (cdsp.mbn vs split .mdt), fastrpc on the CDSP + an unsigned-PD test program; fix the iceland-npu-off unit path"),
 ]),
 ("Audio", [
  ("DSP audio + sound card", "ok", ""),
@@ -58,14 +62,14 @@ G = [
  ("Speaker volume cap", "ok", "−12 dB cap enforced by the kernel (queued 0051); stock value still to find"),
  ("GNOME volume bar and input slider", "ok", "Measured: follows GNOME’s curve within ~1 dB (area-display-1)"),
  ("Speaker protection (NXP container)", "todo", "Closed firmware; volume stays capped", "tfa98xx.cnt from odm; TFA DSP protocol (closed); volume stays capped"),
- ("Headset over USB-C", "todo", "No 3.5 mm jack", "WCD939x USBSS mux + UCSI/typec altmode audio accessory"),
+ ("Headset over USB-C", "todo", "No 3.5 mm jack. USB headsets: the USB audio driver is there and loads on demand (area-usb-1); analog USB-C headsets need the WCD939x audio-accessory mode", "A host-mode kit + your headsets (USB and analog adapter); WCD939x USB-SS audio accessory through UCSI"),
 ]),
 ("Connectivity", [
  ("Wi-Fi 2.4 GHz", "ok", "Connected by you; GNOME showed “?” until NetworkManager re-checked (a fresh check says full internet)"),
  ("Wi-Fi 5 / 6 GHz", "part", "Longer scans now find a 5 GHz network in some chip modes: every time in the chip's own preferred mode (4 of 4), never in the boot-time mode Linux picks (0 of 2). The chip also rejects the country setting after every start and Linux lacks its regulatory database, so the cause is not settled yet (area-wifi-2/-3)", "Regulatory database + a country in the kit, then boot-time mode A/B without reloads; a 5 GHz connect needs your password"),
  ("Bluetooth, own address", "ok", ""),
  ("Bluetooth pairing in GNOME", "ok", "Confirmed by you (29 Sep 2026)"),
- ("USB device mode / USB network", "ok", ""),
+ ("USB device mode / USB network", "ok", "The kits' link to the PC; it runs at USB 2 speed (area-usb-1)", "SuperSpeed check with a USB 3 cable / port"),
  ("USB host / OTG, PD hub", "todo", "The drivers for keyboards, mice, USB headsets, USB Ethernet and USB sticks are all there and load on demand; the Type-C port reports its roles and PD 3.0 (area-usb-1). Not tried with an accessory yet: the test kits keep the port in device mode for their link to the PC", "A kit that keeps the role switch + you plugging accessories in; UAS for fast USB SSDs"),
  ("DisplayPort over USB-C", "part", "The DisplayPort output is enabled and comes up cleanly: the controller, its PHY and the USB-C switch load without errors and GNOME's display stack sees a DP connector (area-usb-1). Not tried with a monitor yet", "A USB-C monitor or dock from you"),
 ]),
@@ -82,9 +86,9 @@ G = [
 ("Thermal", [
  ("CPU frequencies and CPU limits (stock)", "ok", "Held at 105 °C under load"),
  ("Board and flash thermistors", "ok", ""),
- ("Skin and XO zones", "ok", "Skin: throttles from 48 °C down to stock's deepest gear, the gear at once at 51 °C, off at 70 °C; XO: stock's 78/80/90 °C steps. Emulated and real load checked (area-thermal-1/-2). Under sustained all-core load the skin sensor (a fast hot spot) holds CPUs at ~1.3 GHz", "Your choice: keep 48 °C or start at stock's 50/60 °C trip for more sustained speed (a hand-on-the-back check); queue with the other DTS candidates"),
+ ("Skin and XO zones", "ok", "Skin: throttles from 48 °C down to stock's deepest gear, the gear at once at 51 °C, off at 70 °C; XO: stock's 78/80/90 °C steps. Emulated and real load checked (area-thermal-1/-2). Under sustained all-core load the skin sensor (a fast hot spot) holds CPUs at ~1.3 GHz; at 50 °C during the GPU tests it held the CPUs at ~1 GHz and the GPU at 342 MHz", "Your choice: keep 48 °C or start at stock's 50/60 °C trip for more sustained speed (a hand-on-the-back check); queue with the other DTS candidates"),
  ("USB-C connector temperature zones", "ok", "usb-therm + stock's L/R connector pair (ratiometric, high-Z pins as stock): 28.8 / 28.9 / 33.9 °C next to a 32.1 °C board; the guard reads all three (area-thermal-2)", "Check the L/R rise under PD charging current (with you watching)"),
- ("GPU cooling", "part", "105 °C passive map matches stock; the GPU reaches 95–103 °C at 1.2 GHz in under a minute of Vulkan/stress, 0 throttled seconds so far (area-graphics-1)", "Turn the 125 °C critical into hot (stock has no GPU shutdown trip); a longer stress with the skin zone; sustained-load throttling behaviour"),
+ ("GPU cooling", "part", "The skin loop now caps the GPU under sustained load: 90-s stress 318 → 306 and 321 → 288 fps with the GPU at 74-79 °C, 54-60 s throttled (area-graphics-2/-3); the 105 °C passive map matches stock", "Turn the 125 °C critical into hot (stock has no GPU shutdown trip); a 30-min stress with the skin zone"),
 ]),
 ("Sleep & power saving", [
  ("Suspend (s2idle)", "part", "24 cycles clean; two stalls after audio activity under investigation", "Stalls after audio: timer-sm8850 candidates (rpmh-rsc past-wakeup clamp, arch timer always-on); ramoops + debug-hang kernel"),
@@ -98,7 +102,7 @@ G = [
 ("Sensors & camera", [
  ("Rear flash LEDs", "ok", ""),
  ("Accelerometer, compass, light / proximity", "ok", "Working in RAM through the ADSP sensor hub (area-sensors-4..7): BMI3x0 accelerometer, AK09919 magnetometer, STK36C01 light + proximity read live; iio-sensor-proxy (SSC build) serves them to GNOME. Needs kernel 0061, hexagonrpcd with the device's own sensor files, libssc and iio-sensor-proxy with SSC support (built here, not in Fedora)", "Package hexagonrpc / libssc / iio-sensor-proxy (SSC) + the udev rule; extract the sensor files from the tablet at install"),
- ("Cameras (13 MP rear, 8 MP front)", "todo", "Stock camera traced on LineageOS (no photo taken): both sensors' power-up order and delays, I2C addresses (rear 0x36, front 0x10, focus motor 0x0c), 4 CSI lanes each at 1324.8 / 660 Mbps, the register tables of every mode stock uses (13 MP rear, 8 MP and 2 MP front), exposure / gain registers, black level and colour order; the focus motor behaves like an upstream-supported Dongwoon DW9719", "Device-tree nodes and two new sensor drivers from the trace, then a first test on a RAM kit (research/camera-bringup.md C1-C3)"),
+ ("Cameras (13 MP rear, 8 MP front)", "part", "Stock camera traced on LineageOS (no photo taken): both sensors' power-up order and delays, I2C addresses (rear 0x36, front 0x10, focus motor 0x0c), 4 CSI lanes each at 1324.8 / 660 Mbps, the register tables of every mode stock uses (13 MP rear, 8 MP and 2 MP front), exposure / gain registers, black level and colour order. A driver for both SmartSens sensors and the device-tree nodes are drafted from the trace (compile-tested); the focus motor uses the upstream DW9719 driver (DW9800K variant)", "First-light kit (research/camera-bringup.md C3): camera branch + the sensor module, frames through libcamera; the register tables stay private"),
  ("Haptics, modem, NFC, fingerprint", "out", "Not on this tablet"),
 ]),
 ("Software & packaging", [

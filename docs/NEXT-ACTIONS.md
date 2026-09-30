@@ -81,7 +81,7 @@ The PC port was asked for 1.2–1.9 A (stock SDP: 500 mA), and 12 V is above the
 | GPU correctness | ✅ area-graphics-2/-3 (2026-09-30): dEQP Vulkan 34 650 cases / 2 Fail, GLES 34 950 / 53 Fail (texture formats, ASTC, copy_image), WebGL 196 conformance pages / 3 failing, stress 0 faults, 0 GPU faults anywhere: the kernel side is clean, the failures read as Mesa gaps for the Adreno 8xx. Left: a single-worker rerun of the failures (flake vs deterministic); reports upstream only with the user's OK |
 | Mesa main slower than 26.2.3 | ✅ Re-measured cooled, same session: −6.7 % GL / −1.1 % Vulkan. 26.2.3 stays; nothing to report upstream (the display-1 −42 % was heat/order) |
 | CPU scaling / GNOME power modes | Capacity data (stock 1792/1894 DMIPS/MHz, coefficients 238/588) on branch `dcvs` (q21); iceland-device 0.10 tuned profiles behind tuned-ppd (see `docs/research/dcvs-tuning.md`); verified by area-power-1 → queue both DTS candidates |
-| Video decode (Iris) | Enable the Iris node in the iceland DTS with `firmware-name = "qcom/…/vpu40_2v.mbn"` (the driver's default `vpu40_p2` is ENOENT), `CONFIG_VIDEO_QCOM_IRIS`, GStreamer v4l2 decode, CPU time |
+| Video decode (Iris) | **In progress (item 5):** kernel q33 = queue + `&iris { firmware-name = "qcom/kaanapali/iceland/vpu40_2v.mbn"; status = "okay"; }` (branch `video`, 7e9db2fc8): stock runs vpu40_2v (its rel0060 build time matches LineageOS's msm_vidc log on this tablet; vpu40_1v is rel0050, vpu40_2v_v1 another build), video_mem @0x9a600000 / 8 MiB = stock's video_region. area-video-1: probe, H.264 / HEVC / VP9 / AV1 bit-exact vs software, 1080p speed. Then queue the DT + GNOME Videos / Firefox |
 | NPU (CDSP) | Stop disabling the CDSP in the kit's debug DTB (`tools/linux-ram/build.sh:69`), fix the firmware name (`cdsp.mbn` vs split `.mdt`), fix the `iceland-npu-off.service` ExecStart path, then boot the CDSP + FastRPC test (relay 012 C) |
 
 ## 3. Power & charging (after 0.x)
@@ -100,7 +100,7 @@ The PC port was asked for 1.2–1.9 A (stock SDP: 500 mA), and 12 V is above the
 |---|---|
 | Skin/XO zones | ✅ branch `protect` (area-thermal-1/-2): skin 48 C loop to stock's deepest gear, 51 C gear, 70 C critical; XO stock steps. Queue with the GPU levels + CPU capacity on "queue them". Open: the start point (48 C vs stock's 50/60 C trips) after a hand-on-the-back check under load |
 | USB-C connector zones | ✅ usb-therm + stock's L/R pair (ratiometric) read plausibly; check their rise under PD charging (with the charger tests) |
-| GPU cooling | The skin loop now caps the GPU under sustained load; a 30-min GPU stress log with the skin zone; 125 C critical kept (safer than stock's none) |
+| GPU cooling | The skin loop caps the GPU under sustained load (area-graphics-2/-3: GPU 74-79 °C, 54-60 s throttled in 90 s); left: 125 °C critical → hot, a 30-min stress with the skin zone |
 
 ## 5. Sleep & power saving
 
@@ -140,7 +140,7 @@ The PC port was asked for 1.2–1.9 A (stock SDP: 500 mA), and 12 V is above the
 
 | Item | Next action |
 |---|---|
-| Freeze ~60 s into Fedora | 8 runs in a row (12:23-13:27) froze: the kernel log stops at 57-75 s, the USB device disappears 19-22 s later (a watchdog reset; Android then reports PSHOLD / hard reset), in the first minute after the PC's first big copy. Before (12:06, 12:17) and after (13:44, kernel q32 with hung-task / soft+hard lockup / workqueue detectors) the same test ran fine, no detector report. Not the kit config (identical), not the ADSP (froze with it off), not PC load, stale PC processes or battery state. Next: the runs without the detectors (q30 Wi-Fi, q31 USB-C) show whether the detectors' per-CPU timers hide an idle-state freeze; if it returns: ramoops + a cpuidle-off A/B |
+| Freeze ~60 s into Fedora | 8 runs in a row (12:23-13:27) froze: the kernel log stops at 57-75 s, the USB device disappears 19-22 s later (a watchdog reset; Android then reports PSHOLD / hard reset), in the first minute after the PC's first big copy. Before (12:06, 12:17) and after (13:44, kernel q32 with hung-task / soft+hard lockup / workqueue detectors) the same test ran fine, no detector report. Not the kit config (identical), not the ADSP (froze with it off), not PC load, stale PC processes or battery state. Next: the runs without the detectors (q30 Wi-Fi, q31 USB-C) show whether the detectors' per-CPU timers hide an idle-state freeze; if it returns: ramoops + a cpuidle-off A/B. **Since 13:44: 6 clean boots** (q32 with detectors, q30 x3, q31, and on), no detector report |
 
 ## 9. Boot & platform (last, after the user's go-ahead)
 
