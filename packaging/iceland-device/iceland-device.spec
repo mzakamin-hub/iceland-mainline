@@ -4,7 +4,7 @@
 # No firmware and no binaries: configuration files and small scripts only.
 
 Name:           iceland-device
-Version:        0.12
+Version:        0.13
 Release:        1%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
@@ -200,6 +200,10 @@ fi
 %dir /etc/iceland
 
 %changelog
+* Thu Oct 01 2026 mzak <mzak.amin@gmail.com> - 0.13-1
+- UCM: microphone TX decimator volume 96 (+12 dB): the mic now matches stock's recorder level for the same sound
+  (stock adds the gain in its DSP; area-combo-1..3). GNOME's input meter moves with speech
+
 * Wed Sep 30 2026 mzak <mzak.amin@gmail.com> - 0.12-1
 - iceland-refresh: RELIGHT off by default - kernel queue patch 0058 (drm/msm/dpu: no CTL_START in the video
   encoder's cleanup) keeps the picture on every live refresh-rate change (area-display-7: 11 of 11 on camera);

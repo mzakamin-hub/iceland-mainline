@@ -3,22 +3,21 @@
 # Rows: (feature, status, notes[, where to look for the fix]).
 # status: ok (working) / part (in progress) / todo (not started) / out (not planned)
 
-DATE = "30 Sep 2026"
+DATE = "1 Oct 2026"
 
 # One sentence after the date in FEATURES.md.
-STATUS_MD = ("Hardware video decoding done: bit-exact against Android's reference decoders, picked by GNOME's "
-             "player on its own, 1080p H.264 at 3 % CPU instead of 47 % (the green picture was a kernel debug option, now "
-             "off); GPU correctness done; fast USB transfers fixed in the kernel; next (the user's order): the NPU; in "
-             "parallel the cameras, Wi-Fi 5 GHz and USB accessories with the user")
+STATUS_MD = ("Microphone fixed (the test image had an old sound profile without the mic gain, and the mic now matches "
+             "stock's level); the NPU's DSP runs from the tablet's own firmware and loads its NPU runtime; hardware video "
+             "decoding done; in progress in one combined step: camera first light, Wi-Fi 5 GHz, the last video items and "
+             "the idle cost of the USB fix")
 
 # The subtitle of the published page.
 STATUS_HTML = ("Everything is tested by booting from RAM; nothing is installed on the tablet yet. Status as of "
-               f"{DATE}: hardware video decoding works (H.264, HEVC, VP9 and AV1, bit-exact against Android's "
-               "reference decoders; GNOME's video player uses it by itself and plays 1080p at 3 % CPU instead of "
-               "47 %), the GPU passes the conformance tests, fast USB transfers no longer hang the tablet, sensors, "
-               "refresh-rate changes, the pink glitches and the microphone hiss are fixed; battery and thermal "
-               "protection in place. Next: the NPU; in parallel the cameras, Wi-Fi 5 GHz and USB accessories (those "
-               "need you plugging things in). Boot & platform waits for your go-ahead on the install.")
+               f"{DATE}: the microphone is fixed (the test image carried an old sound profile without the mic gain; "
+               "the mic now matches stock's level), the NPU's processor starts from the tablet's own firmware, runs "
+               "test programs and loads its NPU runtime, hardware video decoding works and GNOME's player uses it. "
+               "In progress, as one combined step: camera first light, Wi-Fi 5 GHz, the last video items and the idle "
+               "cost of the USB fix. Boot & platform waits for your go-ahead on the install.")
 
 G = [
 ("Boot & platform", [
@@ -51,13 +50,13 @@ G = [
  ("GPU correctness, WebGL, stress", "ok", "dEQP (VK-GL-CTS 1.4.6.2 mustpass samples): Vulkan 34 650 cases, 2 Fail; GLES2/3/3.1 34 950 cases, 53 Fail (texture formats, ASTC, copy_image: Mesa gaps for the Adreno 8xx), 0 crashes, 0 timeouts; WebGL 1/2 on the GPU, pixel checks exact, 196 conformance pages, 3 failing (same format family); 90-s stress 0 faults, the skin loop throttles it; 0 GPU faults in every run (area-graphics-2/-3)", "Single-worker rerun of the 53 GLES + 3 WebGL failures; report to Mesa only with the user's OK"),
  ("Vulkan", "ok", "turnip 26.2.3: Vulkan 1.4; vkmark 19563 headless 1080p (area-graphics-1), 24562 fullscreen (display-1)"),
  ("Hardware video decoding", "ok", "Works (queue 0062 + a kernel config fix): the Pad 4's own video firmware; H.264 (High profile too), HEVC up to 4K, VP9 and AV1 decode bit-exact against Android's reference decoders (VTS vectors: 240/240, 300/300, 300/300, 167/167). 4K H.264 at 450 fps, 4K VP9 at 308 fps with a tenth of the CPU time. GNOME's player (Showtime) picks it by itself: 1080p H.264 at 3 % CPU vs 47 % in software. The picture was solid green until a kernel debug option (DMABUF_DEBUG) was turned off: it stripped the page lists the GPU needs to show foreign buffers (area-video-2..5)", "10-bit VP9 (GStreamer does not negotiate it yet); Firefox decodes in software (Fedora's FFmpeg has no V4L2 hardware path)"),
- ("Hardware video encoding", "part", "The encoder makes H.264 and HEVC; software decodes its streams. With GStreamer they don't play back on the hardware decoder: its V4L2 caps check rejects the colour description the encoder writes (valid, but not matched by GStreamer); relabelled, all frames decode", "The GStreamer fix (upstream, with your OK); a camera or screen-recorder test once the cameras work"),
- ("NPU (Hexagon on the CDSP)", "todo", "Item 6 in your order, after video; the ADSP's FastRPC path already works (the sensors use it)", "Enable the CDSP in the kits (build.sh:69 disables it), firmware names (cdsp.mbn vs split .mdt), fastrpc on the CDSP + an unsigned-PD test program; fix the iceland-npu-off unit path"),
+ ("Hardware video encoding", "ok", "The encoder makes H.264 and HEVC; with standard HD colours (BT.709) its streams decode on the hardware decoder and in software, 60 of 60 frames (area-combo-1). With SD colours (BT.601) GStreamer's hardware decoder element refuses the stream's colour description - a GStreamer limitation, the stream itself is valid", "The GStreamer fix (test a patched plugin, upstream with your OK); a camera or screen-recorder test once the cameras work"),
+ ("NPU (Hexagon on the CDSP)", "ok", "The NPU's processor (CDSP) starts from the tablet's own firmware and stays up; test programs run on it in an unsigned process (Qualcomm's open FastRPC library: calculator and multithreading tests pass), and the tablet's own NPU runtime library loads there (area-combo-1/-2). No kernel change was needed", "Running a neural network needs Qualcomm's QNN SDK for Linux (their licence: your decision); one shared-memory call of the test fails (HAP_mmap); packaging: firmware extractor for the CDSP files, the DSP file tree, a fastrpc RPM"),
 ]),
 ("Audio", [
  ("DSP audio + sound card", "ok", ""),
  ("GNOME shows speakers and microphones", "ok", "Fixed: stray mixer route; appears on a fresh boot"),
- ("Microphones (2)", "part", "Hiss fixed in the kernel (queue 0059): the mic path's adaptive block was left at its power-on setting, which lifted the noise floor; turned off as stock does without tuning. Recording floor −47 → −63 dBFS, speech level unchanged (area-audio-6/-7); the first recording after boot settles ~5 dB higher", "Compare with stock's recordings (spectrum, same room); the first-recording settling; GNOME meter check with you"),
+ ("Microphones (2)", "ok", "Fixed (1 Oct): the RAM test image carried an old sound profile without the microphone gain, so GNOME's input meter stayed flat; the kits now install the current profile at every boot. The mic was also 12-14 dB quieter than stock for the same sound (stock adds gain in its DSP); the profile now adds 12 dB and matches stock's recorder (speech -41.4 vs -41.9 dBFS). The meter reaches 30-50 % for speech at the tablet (area-combo-1..3). The hiss was fixed earlier (queue 0059)", "A look at the meter by you; compare a recording by ear with stock's"),
  ("Speakers (top pair)", "ok", "You heard them (S17), raw ALSA and through GNOME/PipeWire; kernel fix only"),
  ("All six speakers in stereo", "ok", "You heard all six from GNOME’s Sound test, both sides correct"),
  ("Speaker volume cap", "ok", "−12 dB cap enforced by the kernel (queued 0051); stock value still to find"),
@@ -67,11 +66,11 @@ G = [
 ]),
 ("Connectivity", [
  ("Wi-Fi 2.4 GHz", "ok", "Connected by you; GNOME showed “?” until NetworkManager re-checked (a fresh check says full internet)"),
- ("Wi-Fi 5 / 6 GHz", "part", "Longer scans now find a 5 GHz network in some chip modes: every time in the chip's own preferred mode (4 of 4), never in the boot-time mode Linux picks (0 of 2). The chip also rejects the country setting after every start and Linux lacks its regulatory database, so the cause is not settled yet (area-wifi-2/-3)", "Regulatory database + a country in the kit, then boot-time mode A/B without reloads; a 5 GHz connect needs your password"),
+ ("Wi-Fi 5 / 6 GHz", "part", "Not solved: full scans at boot still find no 5 GHz network (0 of 12), single-channel scans do. The regulatory database is now in the kits and the country can be set (no change); the hw-mode candidate at first load changes nothing either - the earlier good passes were all after a driver reload (area-combo-2/-3)", "Reload vs first load of the Wi-Fi driver, the firmware's dual-MAC scan configuration; a 5 GHz connect needs your password"),
  ("Bluetooth, own address", "ok", ""),
  ("Bluetooth pairing in GNOME", "ok", "Confirmed by you (29 Sep 2026)"),
  ("USB device mode / USB network", "ok", "The kits' link to the PC; it runs at USB 2 speed (area-usb-1)", "SuperSpeed check with a USB 3 cable / port"),
- ("Fast USB transfers into the tablet", "ok", "Fixed in the kernel (queue 0063): the USB driver keeps the CPUs from powering down while USB is active, as stock does, so fast transfers from a PC no longer hang the tablet: 4 x 696 MB at 36 MB/s with only the kernel's request (area-freeze-7). Tablet-to-PC runs at 40 MB/s", "Measure the idle power it costs while a data cable is plugged in; stock only holds it while USB is busy"),
+ ("Fast USB transfers into the tablet", "ok", "Fixed in the kernel (queue 0063): the USB driver keeps the CPUs from powering down while USB is active, as stock does, so fast transfers from a PC no longer hang the tablet (area-freeze-7; six more RAM sessions since without a freeze). First idle number: with a data cable in, the CPUs stay in the lightest idle state all the time", "Idle power A/B against a kernel without it; stock only holds it while USB is busy"),
  ("USB host / OTG, PD hub", "todo", "The drivers for keyboards, mice, USB headsets, USB Ethernet and USB sticks are all there and load on demand; the Type-C port reports its roles and PD 3.0 (area-usb-1). Not tried with an accessory yet: the test kits keep the port in device mode for their link to the PC", "A kit that keeps the role switch + you plugging accessories in; UAS for fast USB SSDs"),
  ("DisplayPort over USB-C", "part", "The DisplayPort output is enabled and comes up cleanly: the controller, its PHY and the USB-C switch load without errors and GNOME's display stack sees a DP connector (area-usb-1). Not tried with a monitor yet", "A USB-C monitor or dock from you"),
 ]),
@@ -104,12 +103,12 @@ G = [
 ("Sensors & camera", [
  ("Rear flash LEDs", "ok", ""),
  ("Accelerometer, compass, light / proximity", "ok", "Working in RAM through the ADSP sensor hub (area-sensors-4..7): BMI3x0 accelerometer, AK09919 magnetometer, STK36C01 light + proximity read live; iio-sensor-proxy (SSC build) serves them to GNOME. Needs kernel 0061, hexagonrpcd with the device's own sensor files, libssc and iio-sensor-proxy with SSC support (built here, not in Fedora)", "Package hexagonrpc / libssc / iio-sensor-proxy (SSC) + the udev rule; extract the sensor files from the tablet at install"),
- ("Cameras (13 MP rear, 8 MP front)", "part", "Stock camera traced on LineageOS (no photo taken): both sensors' power-up order and delays, I2C addresses (rear 0x36, front 0x10, focus motor 0x0c), 4 CSI lanes each at 1324.8 / 660 Mbps, the register tables of every mode stock uses (13 MP rear, 8 MP and 2 MP front), exposure / gain registers, black level and colour order. A driver for both SmartSens sensors and the device-tree nodes are drafted from the trace (compile-tested); the focus motor uses the upstream DW9719 driver (DW9800K variant)", "First-light kit (research/camera-bringup.md C3): camera branch + the sensor module, frames through libcamera; the register tables stay private"),
+ ("Cameras (13 MP rear, 8 MP front)", "part", "First light not reached yet (area-combo-2/-3): the camera subsystem now probes with the sensors wired through the CSI-2 PHY nodes (44 entities, both PHYs; the first wiring crashed the driver); the camera I2C bus needs the sensors' 1.8 V rail for its pull-ups; the sensors do not bind because the reset pins' pin configuration is rejected (PMIC GPIO 13 / 14). Driver and device tree from the stock trace as before; register tables private", "Read the pad type of the reset GPIOs from the tablet, fix the pin configuration, then chip IDs and raw frames"),
  ("Haptics, modem, NFC, fingerprint", "out", "Not on this tablet"),
 ]),
 ("Software & packaging", [
  ("Kernel package (kernel-iceland)", "ok", "Test-built: 948 modules, device tree, install hooks"),
- ("Device package (iceland-device 0.12)", "ok", "Settings, battery guard 0.11 (70 °C, USB-C L/R, 85 % limit), sound, Wi-Fi region, 60/120 Hz by power source (relight off: kernel 0058 fixes rate changes), GNOME power modes; built"),
+ ("Device package (iceland-device 0.13)", "ok", "Settings, battery guard 0.11 (70 °C, USB-C L/R, 85 % limit), sound, Wi-Fi region, 60/120 Hz by power source (relight off: kernel 0058 fixes rate changes), GNOME power modes; built"),
  ("Local update repository", "ok", "Checksum-verified sync; tested"),
  ("Full GNOME app set", "todo", "Relay 008", "Relay 008 package list in the RAM rootfs"),
  ("Stock-values audit", "todo", "Relay 013", "Relay 013 table; offline-prep/*.md stock comparisons"),

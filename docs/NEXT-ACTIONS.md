@@ -25,6 +25,21 @@ yet, in the order they'll be done.
 - Charge only while watched until the Power area closes.
 - Boot & platform only after the user's go-ahead.
 
+## Campaign 2 (1 Oct 2026): one combined step until green
+
+Running history: `docs/WORKLOG.md`; results: `relay/results/area-campaign2.md`.
+
+| Item | State | Next |
+|---|---|---|
+| Microphone meter | ✅ fixed: kit UCM overlay (the RAM image was stale) + `TX_DEC` 96 in the UCM (matches stock's level) | the user's look at the meter |
+| NPU (CDSP) | ✅ boots from stock firmware, FastRPC unsigned PD tests pass, `libQnnHtpV81Skel.so` loads | HAP_mmap DMA handle (0x4e); QNN SDK (user); packaging |
+| Encoder round trip | ✅ BT.709 input; BT.601 = GStreamer colorimetry list | patched v4l2 plugin test |
+| 10-bit VP9 | open: same GStreamer cause (`bt2020-10` not in the probed list) | patched v4l2 plugin test |
+| Browser on Iris | Firefox: no `h264_v4l2m2m` in Fedora's ffmpeg-free | GNOME Web test |
+| Wi-Fi 5 GHz | open: regdb + country no change, hw-mode candidate at first load no change | reload vs first load; dual-MAC scan config |
+| USB fix idle cost | first number: WFI 100 %, no deeper state with a data cable | A/B kernel, busy-only vote like stock |
+| Camera | CAMSS probes with DT v2 (CSI-2 PHY nodes); sensors blocked by the reset pins' pinconf | pad type registers, then chip IDs + frames |
+
 ## 0. Charging safety: first, before any further kit
 
 Every kit so far booted the OnePlus 15 charger policy: 3 A input, 4 A charge current, 12 V then 9 V PD request.
