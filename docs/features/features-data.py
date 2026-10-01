@@ -3,30 +3,30 @@
 # Rows: (feature, status, notes[, where to look for the fix]).
 # status: ok (working) / part (in progress) / todo (not started) / out (not planned)
 
-DATE = "1 Oct 2026"
+DATE = "2 Oct 2026"
 
 # One sentence after the date in FEATURES.md.
-STATUS_MD = ("Microphone fixed (the test image had an old sound profile without the mic gain, and the mic now matches "
-             "stock's level); the NPU's DSP runs from the tablet's own firmware and loads its NPU runtime; hardware video "
-             "decoding done; in progress in one combined step: camera first light, Wi-Fi 5 GHz, the last video items and "
-             "the idle cost of the USB fix")
+STATUS_MD = ("Wi-Fi now finds 5 GHz networks (the firmware is told not to use a radio mode this tablet cannot do); "
+             "both cameras deliver first raw pictures; hardware video is complete (10-bit too, GNOME Web uses it); the "
+             "About page shows the right model and processor; GNOME's three power modes switch tablet profiles. In "
+             "progress: battery time estimate, sleep, auto-rotate, camera exposure")
 
 # The subtitle of the published page.
 STATUS_HTML = ("Everything is tested by booting from RAM; nothing is installed on the tablet yet. Status as of "
-               f"{DATE}: the microphone is fixed (the test image carried an old sound profile without the mic gain; "
-               "the mic now matches stock's level), the NPU's processor starts from the tablet's own firmware, runs "
-               "test programs and loads its NPU runtime, hardware video decoding works and GNOME's player uses it. "
-               "In progress, as one combined step: camera first light, Wi-Fi 5 GHz, the last video items and the idle "
-               "cost of the USB fix. Boot & platform waits for your go-ahead on the install.")
+               f"{DATE}: Wi-Fi finds 5 GHz networks at boot (the firmware is now told not to use a two-radio mode this "
+               "tablet's hardware cannot do, as stock does); both cameras deliver first raw pictures; hardware video "
+               "decoding is complete, 10-bit included, and GNOME Web uses it; the About page shows \"OnePlus Pad 4\" "
+               "and the processor; GNOME's three power modes switch tablet profiles. In progress: battery time "
+               "estimate, sleep, auto-rotate, camera exposure. Boot & platform waits for your go-ahead on the install.")
 
 G = [
 ("Boot & platform", [
  ("U-Boot booted from RAM (display, USB fastboot, UFS read, EFI)", "ok", "Nothing written to the tablet; fastboot flashing compiled out"),
  ("U-Boot boot setting for single or dual boot", "ok", "Boots a “fedora” partition if present, else userdata"),
- ("Linux 7.3-rc4 through EFI", "ok", "Queue 0001–0061 + infiniti"),
+ ("Linux 7.3-rc4 through EFI", "ok", "Queue 0001–0070 + infiniti"),
  ("Fedora 44 running from RAM", "ok", "systemd as PID 1; packages through the PC"),
  ("GNOME Shell 50", "ok", "Autologin session in RAM"),
- ("Test sessions stable", "ok", "The 30 Sep freezes are found and fixed: fast transfers from the PC into the tablet over USB hung the chip while its CPUs could power down (14 sessions; 7 test runs pin it down and prove the fix, queue 0063). The test kits also hold the same limit themselves, for older kernels"),
+ ("Test sessions stable", "ok", "The 30 Sep freezes are found and fixed: fast transfers from the PC into the tablet over USB hung the chip while its CPUs could power down (14 sessions; 7 test runs pin it down and prove the fix, queue 0063). A lighter version of the fix, as stock does it (only while USB is busy, queue 0064), let one freeze through in five sessions and was taken back (queue 0065)"),
  ("Firmware extractor (tablet's own partitions, read-only)", "part", "modem/bluetooth work on the tablet; vendor/odm inside “super” proven offline from your partition backup (10 of 10 files match stock 11.A.38); vendor_dlkm (ext4) read offline too", "Add the LP-metadata reader (an/lp-list.py) + read-only EROFS / ext4 mounts to tools/linux-ram/fw-extract.sh; test against the backup on the PC, then in a kit"),
  ("Fedora installed on the tablet", "todo", "Final step; needs your decisions and OK", "Waits for your install decision (relay 019: Boot & platform last)"),
  ("Dual boot with Android", "todo", "Planned; recovery re-flash helper ready", "iceland-u-boot patch 0003 (fedora_blkmap); tools/dualboot/reflash-recovery.ps1"),
@@ -49,8 +49,8 @@ G = [
  ("GNOME and Wayland drawn by the GPU", "ok", "Buffers from other devices (video frames, shared-memory frames) are shown correctly since DMABUF_DEBUG is off (before: GPU faults and a green picture)"),
  ("GPU correctness, WebGL, stress", "ok", "dEQP (VK-GL-CTS 1.4.6.2 mustpass samples): Vulkan 34 650 cases, 2 Fail; GLES2/3/3.1 34 950 cases, 53 Fail (texture formats, ASTC, copy_image: Mesa gaps for the Adreno 8xx), 0 crashes, 0 timeouts; WebGL 1/2 on the GPU, pixel checks exact, 196 conformance pages, 3 failing (same format family); 90-s stress 0 faults, the skin loop throttles it; 0 GPU faults in every run (area-graphics-2/-3)", "Single-worker rerun of the 53 GLES + 3 WebGL failures; report to Mesa only with the user's OK"),
  ("Vulkan", "ok", "turnip 26.2.3: Vulkan 1.4; vkmark 19563 headless 1080p (area-graphics-1), 24562 fullscreen (display-1)"),
- ("Hardware video decoding", "ok", "Works (queue 0062 + a kernel config fix): the Pad 4's own video firmware; H.264 (High profile too), HEVC up to 4K, VP9 and AV1 decode bit-exact against Android's reference decoders (VTS vectors: 240/240, 300/300, 300/300, 167/167). 4K H.264 at 450 fps, 4K VP9 at 308 fps with a tenth of the CPU time. GNOME's player (Showtime) picks it by itself: 1080p H.264 at 3 % CPU vs 47 % in software. The picture was solid green until a kernel debug option (DMABUF_DEBUG) was turned off: it stripped the page lists the GPU needs to show foreign buffers (area-video-2..5)", "10-bit VP9 (GStreamer does not negotiate it yet); Firefox decodes in software (Fedora's FFmpeg has no V4L2 hardware path)"),
- ("Hardware video encoding", "ok", "The encoder makes H.264 and HEVC; with standard HD colours (BT.709) its streams decode on the hardware decoder and in software, 60 of 60 frames (area-combo-1). With SD colours (BT.601) GStreamer's hardware decoder element refuses the stream's colour description - a GStreamer limitation, the stream itself is valid", "The GStreamer fix (test a patched plugin, upstream with your OK); a camera or screen-recorder test once the cameras work"),
+ ("Hardware video decoding", "ok", "Works (queue 0062 + a kernel config fix): the Pad 4's own video firmware; H.264 (High profile too), HEVC up to 4K, VP9 and AV1 decode bit-exact against Android's reference decoders (VTS vectors: 240/240, 300/300, 300/300, 167/167). 10-bit VP9 is bit-exact too (72 of 72 frames against the software decoder, area-combo-6) once GStreamer stops rejecting the stream's colour description - a one-line fix in its V4L2 plugin, tested as a patched plugin. GNOME's player picks the hardware by itself (1080p H.264 at 3 % CPU vs 47 %), and GNOME Web decodes H.264 on it inside its normal sandbox (area-combo-7)", "The GStreamer fix as a package or upstream (your OK); Firefox decodes in software (Fedora's FFmpeg has no V4L2 hardware path)"),
+ ("Hardware video encoding", "ok", "The encoder makes H.264 and HEVC; its streams decode on the hardware decoder and in software, 60 of 60 frames, with HD colours (BT.709) and - with the GStreamer fix above - with SD colours (BT.601) too (area-combo-1, -4)", "A camera or screen-recorder test once the cameras are usable"),
  ("NPU (Hexagon on the CDSP)", "ok", "The NPU's processor (CDSP) starts from the tablet's own firmware and stays up; test programs run on it in an unsigned process (Qualcomm's open FastRPC library: calculator and multithreading tests pass), and the tablet's own NPU runtime library loads there (area-combo-1/-2). No kernel change was needed", "Running a neural network needs Qualcomm's QNN SDK for Linux (their licence: your decision); one shared-memory call of the test fails (HAP_mmap); packaging: firmware extractor for the CDSP files, the DSP file tree, a fastrpc RPM"),
 ]),
 ("Audio", [
@@ -66,11 +66,11 @@ G = [
 ]),
 ("Connectivity", [
  ("Wi-Fi 2.4 GHz", "ok", "Connected by you; GNOME showed “?” until NetworkManager re-checked (a fresh check says full internet)"),
- ("Wi-Fi 5 / 6 GHz", "part", "Not solved: full scans at boot still find no 5 GHz network (0 of 12), single-channel scans do. The regulatory database is now in the kits and the country can be set (no change); the hw-mode candidate at first load changes nothing either - the earlier good passes were all after a driver reload (area-combo-2/-3)", "Reload vs first load of the Wi-Fi driver, the firmware's dual-MAC scan configuration; a 5 GHz connect needs your password"),
+ ("Wi-Fi 5 / 6 GHz", "part", "5 GHz networks are found now (queue 0066–0068): NetworkManager lists them at boot and every scan shows them (area-combo-10). The cause: while not connected, the Wi-Fi firmware scanned the lower 5 GHz channels on its second radio, which has no 5 GHz path on this tablet; stock tells the firmware not to do that (enable_sbs=0), mainline said nothing. Proven by switching it off, on and off again in one session (area-combo-9)", "A logged connect on 5 GHz; NetworkManager is slow to connect by itself after boot; 6 GHz needs a 6 GHz access point"),
  ("Bluetooth, own address", "ok", ""),
  ("Bluetooth pairing in GNOME", "ok", "Confirmed by you (29 Sep 2026)"),
  ("USB device mode / USB network", "ok", "The kits' link to the PC; it runs at USB 2 speed (area-usb-1)", "SuperSpeed check with a USB 3 cable / port"),
- ("Fast USB transfers into the tablet", "ok", "Fixed in the kernel (queue 0063): the USB driver keeps the CPUs from powering down while USB is active, as stock does, so fast transfers from a PC no longer hang the tablet (area-freeze-7; six more RAM sessions since without a freeze). First idle number: with a data cable in, the CPUs stay in the lightest idle state all the time", "Idle power A/B against a kernel without it; stock only holds it while USB is busy"),
+ ("Fast USB transfers into the tablet", "ok", "Fixed in the kernel (queue 0063): the USB driver keeps the CPUs from powering down while a USB data link is up, so fast transfers from a PC no longer hang the tablet. Stock holds this only while USB is busy; that version (0064) idled better but froze once in five sessions, so it was taken back (0065). Cost: with a data cable to a PC the CPUs stay in their lightest idle state; on a charger or on battery nothing changes", "The real cause of the hang (stock gets away with the lighter version)"),
  ("USB host / OTG, PD hub", "todo", "The drivers for keyboards, mice, USB headsets, USB Ethernet and USB sticks are all there and load on demand; the Type-C port reports its roles and PD 3.0 (area-usb-1). Not tried with an accessory yet: the test kits keep the port in device mode for their link to the PC", "A kit that keeps the role switch + you plugging accessories in; UAS for fast USB SSDs"),
  ("DisplayPort over USB-C", "part", "The DisplayPort output is enabled and comes up cleanly: the controller, its PHY and the USB-C switch load without errors and GNOME's display stack sees a DP connector (area-usb-1). Not tried with a monitor yet", "A USB-C monitor or dock from you"),
 ]),
@@ -96,23 +96,23 @@ G = [
  ("Long sleep", "part", "One unexplained reboot after a long sleep: watchdog vs planned reboot", "Reset = PSHOLD/SYSOK: watchdog vs power key; ramoops (pc-026-s10-crashlog) + one 5-min sleep with watchdog on/off"),
  ("Wake by power key and alarm", "ok", ""),
  ("Wake by lid, keyboard, charger", "todo", "", "wakeup-source on gpio-keys lid, pmic-glink/UCSI; /sys/power/pm_wakeup_irq"),
- ("60 Hz on battery, CDSP off", "part", "In iceland-device 0.4+; untested on the tablet", "iceland-device refresh + npu-off units (fix the npu-off ExecStart path)"),
- ("CPU scaling and GNOME power modes", "part", "Stock CPU capacity data (1792/1894 DMIPS/MHz) and iceland-device 0.10 tuned profiles for GNOME's power modes written; area-power-1 verification pending", "Queue the two DTS candidates (GPU levels, CPU capacity); then Thermal"),
+ ("60 Hz on battery, CDSP off", "part", "The refresh-rate unit's logic is proven on the real display with a simulated battery state (battery 60 Hz, mains 120 Hz, back to the start rate; area-combo-11); the NPU-off unit started a program path that is not installed - fixed in iceland-device 0.14", "One unplug with you watching; NPU off / on with the CDSP running"),
+ ("CPU scaling and GNOME power modes", "ok", "Stock's CPU capacity data and GPU levels are in the kernel (queue 0054 / 0055); capacities 799 / 1024, the energy-aware scheduler runs. GNOME's three power modes switch tablet profiles as the desktop user (iceland-device 0.14): Power Saver capped at stock's efficient range, Balanced with stock's minimum speeds, Performance with the big cores' top steps enabled; a fixed load runs faster or slower accordingly (area-combo-11, 25 checks pass)", "Whether the firmware grants the two top steps (4.5 / 4.6 GHz) - the heat limiter was active during that check; your look at the menu"),
  ("Deep-sleep proof, overnight drain ≤ ~1 %/h", "todo", "", "qcom_stats before/after, rpmh-stats; overnight unplugged"),
 ]),
 ("Sensors & camera", [
  ("Rear flash LEDs", "ok", ""),
  ("Accelerometer, compass, light / proximity", "ok", "Working in RAM through the ADSP sensor hub (area-sensors-4..7): BMI3x0 accelerometer, AK09919 magnetometer, STK36C01 light + proximity read live; iio-sensor-proxy (SSC build) serves them to GNOME. Needs kernel 0061, hexagonrpcd with the device's own sensor files, libssc and iio-sensor-proxy with SSC support (built here, not in Fedora)", "Package hexagonrpc / libssc / iio-sensor-proxy (SSC) + the udev rule; extract the sensor files from the tablet at install"),
- ("Cameras (13 MP rear, 8 MP front)", "part", "First light not reached yet (area-combo-2/-3): the camera subsystem now probes with the sensors wired through the CSI-2 PHY nodes (44 entities, both PHYs; the first wiring crashed the driver); the camera I2C bus needs the sensors' 1.8 V rail for its pull-ups; the sensors do not bind because the reset pins' pin configuration is rejected (PMIC GPIO 13 / 14). Driver and device tree from the stock trace as before; register tables private", "Read the pad type of the reset GPIOs from the tablet, fix the pin configuration, then chip IDs and raw frames"),
+ ("Cameras (13 MP rear, 8 MP front)", "part", "First light (area-combo-8, -10): both sensors answer (chip IDs as stock) and deliver raw 10-bit pictures through the camera subsystem - rear 4160×3120, front 3264×2448; the front picture shows the room. The pictures are dark: exposure and gain do not act yet (their registers are not understood; no datasheet). Driver and device tree from the stock trace; register tables stay private. Focus motor off for now (it shares a supply with the sensors)", "Exposure and gain with a lit target, then libcamera (GNOME Camera), then the focus motor"),
  ("Haptics, modem, NFC, fingerprint", "out", "Not on this tablet"),
 ]),
 ("Software & packaging", [
  ("Kernel package (kernel-iceland)", "ok", "Test-built: 948 modules, device tree, install hooks"),
- ("Device package (iceland-device 0.13)", "ok", "Settings, battery guard 0.11 (70 °C, USB-C L/R, 85 % limit), sound, Wi-Fi region, 60/120 Hz by power source (relight off: kernel 0058 fixes rate changes), GNOME power modes; built"),
+ ("Device package (iceland-device 0.14)", "ok", "Settings, battery guard 0.11 (70 °C, USB-C L/R, 85 % limit), sound, Wi-Fi region, 60/120 Hz by power source (relight off: kernel 0058 fixes rate changes), GNOME power modes; built"),
  ("Local update repository", "ok", "Checksum-verified sync; tested"),
  ("Full GNOME app set", "todo", "Relay 008", "Relay 008 package list in the RAM rootfs"),
  ("Stock-values audit", "todo", "Relay 013", "Relay 013 table; offline-prep/*.md stock comparisons"),
- ("GNOME About page (model, processor)", "part", "Shows “oneplus OnePlus Pad 4” and no processor", "iceland-device /etc/machine-info (HARDWARE_VENDOR=OnePlus, HARDWARE_MODEL=Pad 4); no CPU model name in cpuinfo/lscpu: socinfo id 661 name, util-linux part 0x51/0x002"),
+ ("GNOME About page (model, processor)", "ok", "Shows “OnePlus Pad 4” and “Qualcomm Oryon × 8”, read back from the Settings page itself (area-combo-11). Model: /etc/machine-info in iceland-device 0.14. Processor: GNOME only reads the name from /proc/cpuinfo, which has none on ARM - the kernel now prints one (queue 0070, a local addition); the chip is named SM8850P (queue 0069)", "Memory reads 11.1 GiB (the boot loader's table has no memory entry); your look once"),
  ("Automated PC fix loop", "ok", "The PC session runs everything (cloud debugger handed over, relay 020)"),
 ]),
 ]

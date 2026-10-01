@@ -7,7 +7,7 @@ ConditionPathExists=!/etc/iceland/npu-on-at-boot
 Type=oneshot
 # the remoteproc probes (and auto-boots the CDSP) a few seconds into boot
 ExecStartPre=/bin/sh -c 'for i in $(seq 1 30); do grep -qs cdsp /sys/class/remoteproc/*/firmware && break; sleep 1; done'
-ExecStart=/usr/libexec/iceland/iceland-npu off
+ExecStart=/usr/bin/iceland-npu off
 RemainAfterExit=yes
 
 [Install]

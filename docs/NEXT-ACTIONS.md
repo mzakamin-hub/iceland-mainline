@@ -27,18 +27,22 @@ yet, in the order they'll be done.
 
 ## Campaign 2 (1 Oct 2026): one combined step until green
 
-Running history: `docs/WORKLOG.md`; results: `relay/results/area-campaign2.md`.
+Running history: `docs/WORKLOG.md`; results: `relay/results/area-campaign2.md`; the five parallel workflows of
+1 Oct (auto-rotate, battery estimate, sleep, CPU / power modes, About page): `docs/WORKFLOW-BRIEF.md`, their
+reports and tests in `relay/results/pc-016-020/wf/`.
 
 | Item | State | Next |
 |---|---|---|
-| Microphone meter | ✅ fixed: kit UCM overlay (the RAM image was stale) + `TX_DEC` 96 in the UCM (matches stock's level) | the user's look at the meter |
+| Microphone meter | ✅ fixed (kit UCM overlay + `TX_DEC` 96) | the user's look at the meter |
 | NPU (CDSP) | ✅ boots from stock firmware, FastRPC unsigned PD tests pass, `libQnnHtpV81Skel.so` loads | HAP_mmap DMA handle (0x4e); QNN SDK (user); packaging |
-| Encoder round trip | ✅ BT.709 input; BT.601 = GStreamer colorimetry list | patched v4l2 plugin test |
-| 10-bit VP9 | open: same GStreamer cause (`bt2020-10` not in the probed list) | patched v4l2 plugin test |
-| Browser on Iris | Firefox: no `h264_v4l2m2m` in Fedora's ffmpeg-free | GNOME Web test |
-| Wi-Fi 5 GHz | open: regdb + country no change, hw-mode candidate at first load no change | reload vs first load; dual-MAC scan config |
-| USB fix idle cost | first number: WFI 100 %, no deeper state with a data cable | A/B kernel, busy-only vote like stock |
-| Camera | CAMSS probes with DT v2 (CSI-2 PHY nodes); sensors blocked by the reset pins' pinconf | pad type registers, then chip IDs + frames |
+| Video leftovers | ✅ 10-bit VP9 bit-exact (test with `videoconvert dither=none`), BT.601 encoder stream decodes, GNOME Web uses Iris in its sandbox - all with the one-line GStreamer v4l2 fix (`gst-v4l2-coded-colorimetry.patch`) | package the plugin or send upstream (user's OK) |
+| Wi-Fi 5 GHz | ✅ scanning: queue 0066-0068 (`qcom,no-sbs`, WMI_PDEV_SET_MAC_CONFIG without ASYNC_SBS) | a logged 5 GHz connect; NetworkManager's slow autoconnect; ath12k misparses the DBS/SBS capability TLV (struct lacks `tlv_header`) |
+| USB fix idle cost | busy-only vote (0064) froze once in 5 sessions -> reverted (0065); 0063 behaviour stays | the true root cause of the hang |
+| Camera | first light: DT v4 (no `lens-focus`), raw frames from both sensors | exposure / gain registers with light, libcamera, focus motor; queue the DT |
+| About page | ✅ queue 0069-0070 + iceland-device 0.14 machine-info | - |
+| CPU / power modes | ✅ iceland-device 0.14 profiles, 25 checks | turbo steps with a cool tablet |
+| Battery estimate | candidate `battmgr-estimate.py`: status, averaged current, UPower estimate pass; CHARGE_NOW rule corrected | re-test (kernel q48), then queue |
+| Sleep, auto-rotate | workflow tests written | run area-combo-12 |
 
 ## 0. Charging safety: first, before any further kit
 

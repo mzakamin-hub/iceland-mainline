@@ -126,3 +126,164 @@ into cpu-sleep-0 / cpu-sleep-1 in 45 s. A/B against a kernel without the request
 
 Next: kernel q40 = queue + wififix candidate + camera DT v2 (building). Run 3: Wi-Fi at boot with the candidate,
 mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME Web. Then the idle A/B.
+
+### 2026-10-01 - entry 4: commit, run 3 results, run 4 crash and relaunch
+- Committed iceland-mainline 29f7c21 (mic fix: UCM TX_DEC 96 + kit overlay, iceland-device 0.13; NPU results; logs of
+  runs 1-3; matrix 46 working / 15 in progress / 12 not started / 2 not planned; page v23).
+- Run 3 (20:33, q40 = queue + ath12k hw-mode candidate + camera DT v2):
+  - Mic with TX_DEC 96 in the UCM: marker -40.3 (stock -37.5), speech loud frames -41.4 (stock -41.95). Capture keeps
+    running with Settings > Sound open. Tablet speakers as the source: peaks -5.8 dBFS, meter 32 % typical, 51 % max.
+  - Wi-Fi with the hw-mode candidate at first load: 5 GHz 0/0/0 at boot, 0/0/0 with the country -> the candidate is
+    not the fix; the earlier good passes were after driver reloads.
+  - Camera: CAMSS probes with DT v2 (44 entities, 2 PHYs). Sensors not bound: `pin_config_group_set op failed for
+    group 12 / 13` (PMH0110 "G" = SPMI 6, GPIO 13 / 14, reset pins). Stock sets power-source 2, output-high,
+    drive-strength 2 there (all 10 overlays). Mainline accepts source 2 only on pads with 3+ sources.
+- Run 4 first attempt (20:48) **crashed the tablet in my own diagnostic**: the pad readout grepped every
+  `/sys/kernel/debug/regmap/*/registers`; an MMIO regmap of an unclocked block gives a synchronous external abort
+  (three Oopses in `regmap_mmio_read32le`), the session died, the watchdog rebooted to Android. **Rule: read only the
+  SPMI PMIC's regmap, and only the needed lines (`dd bs=9 skip=<register>`); never loop over all regmaps.**
+- Stock's USB latency vote read from the OnePlus SM8850 kernel source (`dwc3-msm-core.c`): sample the controller's
+  interrupt count every 100 ms, vote 2 us at >= 200 interrupts per sample, then every 2 s keep it at >= 400.
+  Candidate patch on top of 0063 does the same (branch `usbqos2`, kernel q41 built, 0 warnings).
+- Run 4 relaunched 21:02 (same kernel q40): Wi-Fi first load vs two reloads, GStreamer patched plugin, GNOME Web,
+  then the safe pad readout last.
+- Next: run 5 = kernel q41, kit QoS off: idle residency + the freeze regression (4 fast downloads + bursts).
+
+### 2026-10-01 - entry 5: runs 4b and 5, USB busy-only vote queued as 0064
+- Run 4b (21:02, kernel q40) results:
+  - GStreamer: the patched v4l2 plugin (no colorimetry probing for coded formats) built on the tablet; with it the
+    BT.601 encoder stream decodes on Iris 60/60 frames identical to software, and 10-bit VP9 negotiates (P010).
+    The saved `.patch` file is empty (0 bytes) - regenerate the diff from `~/mainline/ext/gst/gstv4l2object.c`.
+  - Wi-Fi: first load vs two driver reloads: no 5 GHz result either way -> the reload is not the variable.
+  - GNOME Web: `bwrap: No permissions to create a new namespace` - the kit ran Fedora in a plain chroot.
+    Fix in the kit's init: `ROOTFS_MODE=pid1m` (mount --move the root file system over /, then chroot).
+  - Pad readout (safe version): PMH0110 "G" GPIO 13 / 14 are LV_VIN2 pads (subtype 0x12, two sources), so stock's
+    power-source 2 can never apply; the pads stay on source 0 as booted. DT v3 = v2 with source 0.
+- Run 5 (21:15-21:22, kernel q42 = queue + usbqos2 + camera DT v3, kit QoS off, pid1m):
+  - **USB busy-only vote passes**: idle with the cable in: cpu-sleep-0 74 %, cpu-sleep-1 25 %, WFI 1 % (was WFI
+    100 %); 4 x 696 MB at 36.1 MB/s + 8 bursts with the request at 2 us during traffic and default between; 0 PMIC /
+    stall lines, no freeze.
+  - pid1m works ("user namespaces ok"); GNOME Web starts, but no process holds /dev/video* while it plays ->
+    WebKit does not use the hardware decoder yet.
+  - Camera: both sensors answer on I2C with DT v3 (`sc820cs found (chip id 0xd154)`, `sc1320cs found (chip id
+    0xc658)`), CAMSS 46 entities. The sensors have 0 media links: the rear sensor's `lens-focus = <&vcm>` makes a
+    sub-notifier that waits for the (unloaded) focus-motor driver, so CAMSS's notifier `.complete` never runs.
+    My capture script also built a two-line entity name (both entities start with "sc1320cs"): use
+    "sc1320cs 0-0036" (rear) and "sc1320cs 0-0010" (front).
+  - Wi-Fi sub-band scans: 36-48 and 36-64 alone find the 2 BSS at 5180; any scan that mixes 5 GHz low band
+    (<= 5320) with mid / high (>= 5500) finds 0 at 5 GHz; 2412 + 5180 finds both. LineageOS sees the same 2 BSS.
+    -> the firmware loses 5 GHz results when one scan request spans its two 5 GHz sub-bands (SBS split).
+  - 10-bit VP9 on Iris with the patched plugin: 72/72 frames, P010, but 0 checksums identical to libvpx; 27.7 % of
+    the samples differ, max difference 1 (hw 0..701, sw 0..700) -> rounding somewhere, to find.
+- **Queued**: iceland-linux 5369887 = patch 0064 "usb: dwc3: qcom: request the CPU wakeup latency only while USB
+  is busy" (queue 0001-0064, kernel.pin updated, prepare.sh verified the tree f99042b3).
+- Next (kernel q43 = queue 0064 + two candidates): ath12k splits a scan request at the firmware's sub-band border
+  into two sequential scans; camera DT v4 without `lens-focus` (focus motor disabled) for first light. Run 6:
+  full Wi-Fi scans at boot, raw frames from both sensors (media-ctl links by the exact entity names), 10-bit VP9
+  difference analysis (which plane, which side rounds).
+
+### 2026-10-01 - entry 6: run 6 (kernel q43 = queue 0064 + ath12k scan split candidate + camera DT v4)
+- Built: `an/ath12k-scan-split.py` (branch `wifisplit`; module parameter `scan_split` 0 / 1 / MHz), `camdrv/dt-camera4.py`
+  (no `lens-focus`, focus motor disabled), sensor entity named after the model; q43 0 warnings. Run 21:41-21:50.
+- **10-bit VP9: exact.** With `videoconvert dither=none` Iris and libvpx give 72/72 identical frames, 0 differing
+  samples in Y / U / V. The "max difference 1" of run 5 was my test: videoconvert dithers by default when it goes
+  from P010 (16-bit container) to 10 bit. Nothing to fix in the decoder. V1 closed (needs only the GStreamer patch).
+- **GNOME Web uses the Iris decoder** when the web process can see it: without WebKit's sandbox the web process
+  creates `v4l2h264dec` and holds /dev/video0. With the sandbox nothing was decoded at all in my test (the clip was a
+  file:// path the sandbox hides) -> next: serve the clip over http://127.0.0.1 and compare again.
+- **Camera DT v4 works**: both sensors are linked (`sc1320cs 0-0036 -> msm_csiphy4`, `sc820cs 0-0010 ->
+  msm_csiphy5`), sub-device nodes exist. No frames yet: my script looked for the link line 6 lines after the entity
+  line, it is the 8th (format lines in between) -> skipped the capture. Fixed for run 7 (-A12). The TPG entities are
+  not to be touched (no Kaanapali resources -> possible NULL dereference).
+- **Wi-Fi 5 GHz, new picture.** Unsplit full scans: 0 BSS at 5 GHz while the station is NOT associated (4 of 4), 3 BSS
+  once NetworkManager had connected on 2.4 GHz (2 of 2). MGMT trace of a failing scan: the firmware delivers 6 frames
+  in the first second (2.4 GHz) and nothing after it - no host-side drop. Run 5's sub-band result (not associated):
+  low-only fine, low + mid/high loses everything. The split ran only after the connect (3 of 3, proves nothing), and
+  "auto" never split: the driver's `sbs_lower_band_end_freq` is 5 (not a frequency) - the firmware's capability
+  TLV looks misparsed (the struct has no TLV header; 5 = hw mode id DBS_OR_SBS).
+  Also seen: "Timeout while waiting for regulatory update" x3, "Failed to set the requested Country" x2; NetworkManager
+  did not try to connect for the first 5 minutes after boot (first activation at 345 s).
+- Next: kernel q44 = q43 + raw print of that TLV. Run 7: split A/B with the station held disconnected
+  (`nmcli device set autoconnect no` + disconnect; off / 5330 alternating x4, traced pair, auto), camera frames,
+  GNOME Web over http with / without sandbox.
+
+### 2026-10-01 - entry 7: runs 7-9, Wi-Fi root cause direction, camera first light, USB vote reverted (0065)
+- Run 7 (q44 = q43 + raw print of the firmware's DBS/SBS TLV), 21:56-22:07. Setup (dnf) took 490 s, the probe went on
+  after 300 s -> camera and 10-bit parts ran without their tools (no result). Results that count:
+  - **GNOME Web decodes H.264 on Iris inside its normal sandbox** (clip served over http://127.0.0.1): the web process
+    creates `v4l2h264dec` and holds /dev/video0, with and without the sandbox. Browser item closed (Firefox stays
+    impossible on Fedora's ffmpeg-free).
+  - The firmware TLV: `len 16 words 0400000c 00000005 00000000 00000000` -> every array element carries its own TLV
+    header; ath12k's `struct ath12k_wmi_dbs_or_sbs_cap_params` has none, so it reads hw_mode_id (5) as
+    `sbs_lower_band_end_freq`. The firmware's real value is 0. Upstream bug, fix = add `tlv_header` (to verify).
+  - The scan split: its second part fails to start while not associated (-110, 8 of 8) -> not the way.
+- Run 8 (same kernel; setup wait 900 s), 22:09-22:18:
+  - **Wi-Fi, firmware scan events while not associated**: `5180 5200` -> visits 5180, 5200, finds 2 BSS. `5180 5745`
+    -> visits 5745 then 5180, finds nothing. Full scan: 5 GHz mid/high interleaved with 2.4 GHz (two MACs), and the
+    low 5 GHz channels come on the 2.4 GHz MAC after its own channels - and hear nothing. 2.4 + low only: low 5 GHz on
+    the main MAC, works. So: when a request has both 5 GHz sub-bands the firmware scans them on the two MACs at once
+    (SBS) and the second MAC is deaf in 5 GHz low on this board.
+  - **Stock: `enable_sbs=0`** in the tablet's WCNSS_qcom_cfg.ini (odm), comment "hardware ... not support sbs mode".
+    The stock host sends the dual-MAC configuration (WMI_PDEV_SET_MAC_CONFIG_CMDID: the firmware's default bits, the
+    ASYNC_SBS bit only if SBS is enabled - qcacld policy_mgr_init_dbs_config / policy_mgr_init_sbs_fw_config).
+    ath12k never sends it. Reference sources fetched to `~/mainline/ref/fwapi/` (public Qualcomm code, read only).
+  - **Camera first light**: both sensors stream 5 frames through CSIPHY -> CSID -> VFE RDI (rear 4160x3120, front
+    3264x2448, packed RAW10, stream rc 0). The front preview shows the room (curtains, ceiling edge), dark at the
+    default exposure / gain; the rear looks at the desk. Previews in `C:\OnePlusPad4\camshots` (private).
+- Kernel q45 = queue 0064 + `an/ath12k-mac-config.py` (module parameter `sbs` -1 / 0 / 1, sent before the next scan)
+  + camera DT v4. Run 9 first attempt 22:35: **the tablet froze during dnf at ~101-123 s uptime** (heartbeat gaps,
+  then silence, hard reset 30 s later, "Reset by PSHOLD") - the 30 Sep freeze signature, with the busy-only USB vote
+  (0064) and the kit's own request off. 4 sessions passed before it. Decision: **0064 reverted as queue patch 0065**
+  (iceland-linux dd7ca1c, tree = tree after 0063); kits hold the request again (USB_QOS=2) until kernels are rebuilt
+  on 0065. Run 9 relaunched 23:01 with the kit request on.
+- The user asked (22:40) for parallel workflows on: auto-rotate, battery time estimate, s2idle, long sleep, CPU
+  scaling + GNOME power modes, GNOME About page. Five background workflows started (analysis + test + fix candidates
+  as files in `~/mainline/build/wf/<name>/`, brief in `docs/WORKFLOW-BRIEF.md`); they do not touch the tablet, the
+  kernel tree or the kit builds. Their tests go into one combined run when they report.
+
+### 2026-10-01 - entry 8: Wi-Fi 5 GHz fixed and queued (0066-0068), camera exposure, the five workflows reported
+- Run 9 (q45, kit request on), second attempt 23:01: dnf hung 9 min on a stalled mirror connection -> killed, setup
+  rerun through a resume probe; the runner's 900 s limit then ended the session before the log set was fetched (the
+  results are in the live kernel stream, saved as `area-combo-9/timeline.txt`).
+  **A/B/A, not associated, one boot**: firmware default: full scan no 5 GHz, `5180 5745` nothing; `sbs=0` (fw mode
+  b8000000 = default bc000000 without bit 26 ASYNC_SBS): 5180 x2 in every full scan and in `5180 5745` (3 of 3);
+  `sbs=1`: lost again (2 of 2); `sbs=0`: found again (2 of 2). Channel order without SBS: the whole 5 GHz band on
+  the first MAC, 2.4 GHz interleaved on the second.
+- Final form (`an/ath12k-no-sbs.py`): DT property `qcom,no-sbs` on the wifi node, ath12k sends
+  WMI_PDEV_SET_MAC_CONFIG (default bits without ASYNC_SBS) in `ath12k_mac_start()`. Kernel q46 = queue 0065 + these 3
+  commits + candidates (socinfo 661, cpuinfo model name, camera DT v4). **Run 10 (23:28)**: NetworkManager sees 2 BSS
+  at 5 GHz at boot; 4 of 4 full scans and 5 of 5 `5180 5745` scans find them while not associated.
+  **Queued: iceland-linux efd75d0 = 0066-0068** (queue 0001-0068, prepare.sh verified tree d414aade).
+  Open (separate): NetworkManager did not connect by itself within 60 s of `autoconnect yes` (in run 6 it connected
+  after ~5 min and waited 22 s for secrets); ath12k misparses the DBS/SBS capability TLV (upstream bug, not queued).
+- dnf now runs with its own limits (`--setopt=timeout=20 --setopt=minrate=30000`, 240 s per try, 3 tries): setup 11 s.
+- Camera (run 10): both sensors stream again; exposure max (3999 / 2999 lines) changes nothing in the picture, the
+  raw gain values 0x1f / 0x3f raise the rear sensor's noise (std 1.4 -> 4.8) but not the front's -> the exposure
+  write does not take effect (or the room is simply dark at 23:30). To do in daylight / with a lit target:
+  exposure + gain registers, then libcamera. Previews private in `C:\OnePlusPad4\camshots` (run 10's are named
+  combo9-*: fetched by the stale probe, see next line).
+- **My mistake**: the run-9 resume probe (`an/area-combo-9-resume.sh`) was still looping when run 10 booted; it
+  attached to run 10's session, fetched its logs into `area-combo-9/` and rebooted the tablet at 23:33:37, before
+  run 10's About part. Logs moved (`fix-logs-9-10.sh`); the chains now also stop `*-resume.sh` probes. Not a crash.
+- The five workflows reported (deliverables in `~/mainline/build/wf/<name>/`: REPORT.md, NEXT.md, tablet.sh, cand/):
+  - about: model row = `/etc/machine-info` (OnePlus / Pad 4 / tablet); Processor row needs a `model name` line in
+    arm64 /proc/cpuinfo (GNOME reads only that; local kernel carry = the user's call); SoC id 661 = SM8850P missing
+    in socinfo (upstreamable).
+  - battery: UPower divides charge by an instantaneous current and trusts a status that is always "Charging";
+    candidate `battmgr-estimate.py` (CHARGE_NOW = SoC x full capacity, CURRENT_NOW = 1-minute mean, STATUS from it)
+    + optional design voltages; DEBUG probe of the firmware's charge counter. The +-20 mA band and "Full at 100 %"
+    are our choices, not stock values.
+  - sleep: the "unexplained reboot after a long sleep" was the kit's own auto-reboot timer (uptime counts time
+    asleep); the watchdog does not bite in s2idle; the two "stalls after audio" were not audio (no stream reached
+    the hardware) and ran on kernels before 0063; no s2idle cycle has ever run on a kernel with the USB request.
+    Test = 20 cycles + one 240 s sleep. Lid wake is already in the DT (needs a hand test).
+  - cpupower: the DT candidates are already queued (0054 / 0055); GNOME's modes were never really switched in a
+    test (polkit "Unauthorized" from a `su` session); Balanced uses the floors of the wrong SoC revision; the big
+    cores' turbo steps (4.5 / 4.6 GHz, stock's maximum) are off in mainline until the boost switch is on;
+    `iceland-npu-off.service` points at a path that is not installed. Candidates = iceland-device 0.14 profiles.
+  - rotate: the mount matrix is right as far as data without a turn can show (Y sign inferred); run 7 did NOT show
+    GNOME receiving the orientation (the "normal" came from the test's own monitor-sensor); iio-sensor-proxy takes
+    its bus name before it finds the SSC sensors -> mutter can miss it; two candidate patches + packaging files;
+    the test injects the four orientations through a uinput accelerometer and reads mutter's transform.
+- Kernel q47 = queue 0068 + candidates (battery estimate, design voltages, DEBUG probe, socinfo, cpuinfo name,
+  camera DT v4), 0 warnings. Run 11 (23:43): cpupower, about, battery. Run 12 next: sleep, rotate.

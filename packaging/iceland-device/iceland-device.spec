@@ -4,7 +4,7 @@
 # No firmware and no binaries: configuration files and small scripts only.
 
 Name:           iceland-device
-Version:        0.13
+Version:        0.14
 Release:        1%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
@@ -39,6 +39,7 @@ Source21:       iceland-audio.tar.gz
 Source22:       iceland-tuned.tar.gz
 Source23:       iceland-power-profiles
 Source24:       battery-guard.conf
+Source25:       machine-info
 
 Requires:       kernel-iceland
 Requires:       bluez
@@ -78,6 +79,9 @@ Settings that make Fedora 44 work safely on the OnePlus Pad 4 with the kernel-ic
 - GNOME's power modes (tuned-ppd) map to Pad 4 profiles: schedutil with the frequency floors of stock's own
   schedutil fallback, Power Saver capped at stock's efficient-range edges (2.61 / 3.51 GHz) and the GPU below its
   TURBO levels, Performance with stock's higher floors and no pinning (iceland-power-profiles apply|reset|show).
+- GNOME's About page and hostnamectl name the tablet "OnePlus Pad 4": /etc/machine-info gets HARDWARE_VENDOR,
+  HARDWARE_MODEL and CHASSIS (systemd-hostnamed prefers them over the firmware's DMI strings, which U-Boot derives
+  from the device tree as "oneplus" / "OnePlus Pad 4").
 
 %prep
 %setup -q -c -T
@@ -125,6 +129,7 @@ done
 install -Dm0755 %{SOURCE23} %{buildroot}/usr/bin/iceland-power-profiles
 install -d %{buildroot}/var/lib/iceland/repo/aarch64
 install -d %{buildroot}/etc/iceland
+install -Dm0644 %{SOURCE25} %{buildroot}/usr/share/iceland/machine-info
 
 %posttrans
 # kernel-iceland is the default kernel and new kernel-iceland versions become the default
@@ -147,6 +152,15 @@ systemctl --global enable iceland-refresh.service >/dev/null 2>&1 || :
 # an empty local repository, so dnf doesn't complain before the first iceland-repo-sync
 [ -d /var/lib/iceland/repo/aarch64/repodata ] || createrepo_c -q /var/lib/iceland/repo/aarch64 || :
 systemctl preset iceland-bdaddr.service >/dev/null 2>&1 || systemctl enable iceland-bdaddr.service >/dev/null 2>&1 || :
+# the names GNOME's About page and hostnamectl show: add the Pad 4 keys to /etc/machine-info unless they are set
+# (hostnamed prefers this file over the firmware's DMI strings); every other key stays as it is
+mi=/etc/machine-info
+[ -s "$mi" ] && [ -n "$(tail -c 1 "$mi")" ] && echo >> "$mi"
+grep -v '^#' /usr/share/iceland/machine-info | while IFS= read -r kv; do
+	k=$(echo "$kv" | cut -d= -f1); [ -n "$k" ] || continue
+	grep -q "^$k=" "$mi" 2>/dev/null || echo "$kv" >> "$mi"
+done
+chmod 644 "$mi" 2>/dev/null; restorecon "$mi" >/dev/null 2>&1 || :
 
 %triggerin -- fwupd
 f=/etc/fwupd/fwupd.conf
@@ -198,8 +212,19 @@ fi
 %dir /var/lib/iceland/repo
 %dir /var/lib/iceland/repo/aarch64
 %dir /etc/iceland
+%dir /usr/share/iceland
+/usr/share/iceland/machine-info
 
 %changelog
+* Thu Oct 01 2026 mzak <mzak.amin@gmail.com> - 0.14-1
+- /etc/machine-info: HARDWARE_VENDOR=OnePlus, HARDWARE_MODEL="Pad 4", CHASSIS=tablet (the missing keys are added at
+  install from /usr/share/iceland/machine-info): GNOME's About page and hostnamectl show "OnePlus Pad 4" instead of
+  the firmware's "oneplus OnePlus Pad 4" (stock: ro.product.manufacturer OnePlus, market name OnePlus Pad 4)
+- GNOME power modes: Balanced uses stock's floors for SoC revision 2.0 (787200 / 864000 kHz), Performance turns
+  on the big cores' turbo steps (up to 4608000 kHz, stock's maximum); Power Saver unchanged (area-combo-11:
+  the three modes switch as the GNOME user and give three sets of limits)
+- iceland-npu-off.service starts /usr/bin/iceland-npu (the path the package installs)
+
 * Thu Oct 01 2026 mzak <mzak.amin@gmail.com> - 0.13-1
 - UCM: microphone TX decimator volume 96 (+12 dB): the mic now matches stock's recorder level for the same sound
   (stock adds the gain in its DSP; area-combo-1..3). GNOME's input meter moves with speech
