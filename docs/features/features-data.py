@@ -42,7 +42,7 @@ G = [
  ("Lid switch", "ok", "SW_LID events on GPIO 98 (area-display-1)"),
  ("Power and volume keys", "ok", "Power key also wakes from sleep"),
  ("Pogo keyboard", "todo", "Private UART protocol", "Private UART protocol: stock oplus pogo driver in OnePlusOSS; serdev + HID bridge"),
- ("Auto-rotate", "part", "GNOME turns the picture for all four orientations and back when they are fed through the tablet's own mount-matrix path (test accelerometer, 5 of 5 names and 5 of 5 rotations); the real sensor reads “normal” in the stand; GNOME takes the sensor after the daemon restarts (area-combo-14). Not there yet: started by the system at boot the daemon gives up before the sensors are ready, and the sensor programs are built on the tablet in each test - nothing is packaged", "A retry in the service start; packages for the three sensor programs; one turn of the tablet with you (left / right is inferred from stock's axis map)"),
+ ("Auto-rotate", "part", "GNOME turns the picture for all four orientations and back when they are fed through the tablet's own mount-matrix path (test accelerometer; area-combo-14, -17, -18); the real sensor reads “normal” in the stand; the sensor services now start by themselves once the accelerometer really answers (2.5 s). After a normal boot GNOME never asked for the sensor: a counting bug in GNOME's window manager when a tablet's sensor is already there at login. With a small change in our sensor daemon GNOME asks and turns 4 of 4 (A/B in one session, area-combo-19). The sensor programs are still built on the tablet in each test - nothing is packaged", "Packages for the three sensor programs with our two changes; the sensor hub wants its files within about two minutes of its start (a late start found no sensors once); report the GNOME bug (your OK); one turn of the tablet with you"),
 ]),
 ("Graphics & compute", [
  ("Adreno 840 GPU, GLES 3.2", "ok", "OpenGL 4.6 / ES 3.2 on Mesa 26.2.3 (Fedora 44's newest; Mesa main is 7 % slower here); glmark2 3213 offscreen / 2345 on GNOME, DCVS already at 1.2 GHz under load; the stock 1100 MHz level added (area-graphics-1)"),
@@ -108,7 +108,7 @@ G = [
 ]),
 ("Software & packaging", [
  ("Kernel package (kernel-iceland)", "ok", "Test-built: 948 modules, device tree, install hooks"),
- ("Device package (iceland-device 0.14)", "ok", "Settings, battery guard 0.11 (70 °C, USB-C L/R, 85 % limit), sound, Wi-Fi region, 60/120 Hz by power source (relight off: kernel 0058 fixes rate changes), GNOME power modes; built"),
+ ("Device package (iceland-device 0.14)", "ok", "Settings, battery guard 0.11 (70 °C, USB-C L/R, 85 % limit), sound, Wi-Fi region, 60/120 Hz by power source, GNOME power modes (stock's floors, three real steps), the About page's model name; built as an RPM on Fedora 44 on the tablet and installed there: 41 files, verify clean (area-combo-17)"),
  ("Local update repository", "ok", "Checksum-verified sync; tested"),
  ("Full GNOME app set", "todo", "Relay 008", "Relay 008 package list in the RAM rootfs"),
  ("Stock-values audit", "todo", "Relay 013", "Relay 013 table; offline-prep/*.md stock comparisons"),

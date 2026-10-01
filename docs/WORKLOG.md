@@ -357,3 +357,26 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   `wait $pid`.
 - Matrix (matrix-c2c.py): Battery time estimate -> ok; Suspend (s2idle) -> ok; Long sleep -> ok; Auto-rotate part
   (new evidence); CPU modes note (turbo not granted); Wi-Fi note (connect needs the password).
+
+### 2026-10-02 - entry 11: runs 16-19: device package RPM, auto-rotate start and the boot-order bug (mutter)
+- Run 16 (q49): pkg FAIL at `alsatplg: command not found` (Fedora: package alsa-topology-utils; spec BuildRequires
+  fixed). rotate with `Restart=always`: the daemon stayed up with ONLY the compass (accelerometer not there yet) ->
+  a retry policy is not enough.
+- Run 17 (q49): **pkg PASS**: iceland-device-0.14-1.fc44.noarch.rpm built on the tablet, 41 files, install rc 0,
+  `rpm -V` clean; RPM + SRPM in `C:\platform-tools\rpms`. **rotate PASS** with a real readiness wait
+  (`iceland-ssc-wait 30 /usr/bin/ssccli`: polls an accelerometer sample): bring-up 2.53 s by udev alone, first
+  contact W, injection 5/5. Its gdm step: the NEW gnome-shell made 0 ClaimAccelerometer calls in 12 s.
+- Run 18 (q49): `rotate3` = boot order as a functional test (test accelerometer + daemon up, then `systemctl
+  restart gdm` = new autologin session, then four orientations): 0 claims in 30 s, turns 1 of 4.
+- mutter 50.5 source read (`~/mainline/ref/mutter/`, reference only): `sync_accelerometer_claimed()` claims only
+  when `inhibited_count == 0`; `update_panel_orientation_managed()` (monitor manager) calls uninhibit when the panel
+  becomes managed (touch mode + accelerometer + built-in panel) - on the very first has-accelerometer notification
+  nothing had inhibited yet, so the count goes to -1 and no claim is ever made. Works by accident when
+  HasAccelerometer is false at proxy-ready (daemon started under a running session: blind claim first).
+- Run 19 (q49): A/B in one session: current daemon 1 of 4 turns, 0 claims; daemon with
+  `wf/rotate/cand/iio-accel-after-claim.py` (HasAccelerometer only for claimers + told at the claim): **4 of 4
+  turns**, 1 claim, 60 readings. In this run the REAL sensors never appeared (stack started 246 s after boot; in
+  the good runs at ~120 s): the sensor hub seems to stop asking for its files after a while -> hexagonrpcd has to
+  start early (it will when packaged; for tests: start it right after the hand-over).
+- Next for auto-rotate: RPMs (hexagonrpc + local patch, libssc, iio-sensor-proxy + 3fc1142 + accel-after-claim),
+  iceland-device: udev rule + drop-ins + iceland-ssc-wait; report the mutter bug (user's OK); the user's turn.

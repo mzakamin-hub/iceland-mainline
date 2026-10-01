@@ -12,6 +12,8 @@ URL:            https://github.com/mzakamin-hub/iceland-mainline
 BuildArch:      noarch
 BuildRequires:  m4
 BuildRequires:  alsa-utils
+# alsatplg (Fedora ships it apart from alsa-utils)
+BuildRequires:  alsa-topology-utils
 Source0:        80-iceland-kernel.conf
 Source1:        sleep-iceland.conf
 Source2:        journald-iceland.conf
