@@ -6,19 +6,19 @@
 DATE = "30 Sep 2026"
 
 # One sentence after the date in FEATURES.md.
-STATUS_MD = ("GPU correctness done (dEQP Vulkan + GLES, WebGL, stress: the kernel side clean, the failures are "
-             "Mesa gaps for the new GPU); USB-C DisplayPort enumerates; Wi-Fi 5 GHz narrowed to the chip mode and "
-             "its regulatory state; hardware video decoding under test; next (the user's order): hardware "
-             "acceleration, then the NPU; in parallel the cameras, Wi-Fi 5 GHz and USB accessories with the user")
+STATUS_MD = ("Hardware video decoding done: bit-exact against Android's reference decoders, picked by GNOME's "
+             "player on its own, 1080p H.264 at 3 % CPU instead of 47 % (the green picture was a kernel debug option, now "
+             "off); GPU correctness done; fast USB transfers fixed in the kernel; next (the user's order): the NPU; in "
+             "parallel the cameras, Wi-Fi 5 GHz and USB accessories with the user")
 
 # The subtitle of the published page.
 STATUS_HTML = ("Everything is tested by booting from RAM; nothing is installed on the tablet yet. Status as of "
-               f"{DATE}: the GPU passes the conformance tests (the few failures are Mesa gaps for this new GPU, "
-               "not the kernel), WebGL runs on the GPU, DisplayPort over USB-C comes up, sensors, refresh-rate "
-               "changes, the pink glitches and the microphone hiss are fixed; battery and thermal protection in "
-               "place. Now: hardware video decoding. Next: the NPU; in parallel the cameras, Wi-Fi 5 GHz and USB "
-               "accessories (those need you plugging things in). Boot & platform waits for your go-ahead on the "
-               "install.")
+               f"{DATE}: hardware video decoding works (H.264, HEVC, VP9 and AV1, bit-exact against Android's "
+               "reference decoders; GNOME's video player uses it by itself and plays 1080p at 3 % CPU instead of "
+               "47 %), the GPU passes the conformance tests, fast USB transfers no longer hang the tablet, sensors, "
+               "refresh-rate changes, the pink glitches and the microphone hiss are fixed; battery and thermal "
+               "protection in place. Next: the NPU; in parallel the cameras, Wi-Fi 5 GHz and USB accessories (those "
+               "need you plugging things in). Boot & platform waits for your go-ahead on the install.")
 
 G = [
 ("Boot & platform", [
@@ -47,10 +47,11 @@ G = [
 ]),
 ("Graphics & compute", [
  ("Adreno 840 GPU, GLES 3.2", "ok", "OpenGL 4.6 / ES 3.2 on Mesa 26.2.3 (Fedora 44's newest; Mesa main is 7 % slower here); glmark2 3213 offscreen / 2345 on GNOME, DCVS already at 1.2 GHz under load; the stock 1100 MHz level added (area-graphics-1)"),
- ("GNOME and Wayland drawn by the GPU", "ok", ""),
+ ("GNOME and Wayland drawn by the GPU", "ok", "Buffers from other devices (video frames, shared-memory frames) are shown correctly since DMABUF_DEBUG is off (before: GPU faults and a green picture)"),
  ("GPU correctness, WebGL, stress", "ok", "dEQP (VK-GL-CTS 1.4.6.2 mustpass samples): Vulkan 34 650 cases, 2 Fail; GLES2/3/3.1 34 950 cases, 53 Fail (texture formats, ASTC, copy_image: Mesa gaps for the Adreno 8xx), 0 crashes, 0 timeouts; WebGL 1/2 on the GPU, pixel checks exact, 196 conformance pages, 3 failing (same format family); 90-s stress 0 faults, the skin loop throttles it; 0 GPU faults in every run (area-graphics-2/-3)", "Single-worker rerun of the 53 GLES + 3 WebGL failures; report to Mesa only with the user's OK"),
  ("Vulkan", "ok", "turnip 26.2.3: Vulkan 1.4; vkmark 19563 headless 1080p (area-graphics-1), 24562 fullscreen (display-1)"),
- ("Hardware video decoding", "part", "Working (queue 0062, area-video-1): the Pad 4's own video firmware boots and the decoder takes H.264, HEVC, VP9 and AV1: H.264, VP9 and AV1 decode bit-exact against software (60 of 60 frames each); the encoder makes H.264 and HEVC. The hardware decoder does not yet play the streams the hardware encoder made", "Why the encoder's streams don't decode; a real speed test (1080p / 4K, CPU time); then GNOME's video player and Firefox using it"),
+ ("Hardware video decoding", "ok", "Works (queue 0062 + a kernel config fix): the Pad 4's own video firmware; H.264 (High profile too), HEVC up to 4K, VP9 and AV1 decode bit-exact against Android's reference decoders (VTS vectors: 240/240, 300/300, 300/300, 167/167). 4K H.264 at 450 fps, 4K VP9 at 308 fps with a tenth of the CPU time. GNOME's player (Showtime) picks it by itself: 1080p H.264 at 3 % CPU vs 47 % in software. The picture was solid green until a kernel debug option (DMABUF_DEBUG) was turned off: it stripped the page lists the GPU needs to show foreign buffers (area-video-2..5)", "10-bit VP9 (GStreamer does not negotiate it yet); Firefox decodes in software (Fedora's FFmpeg has no V4L2 hardware path)"),
+ ("Hardware video encoding", "part", "The encoder makes H.264 and HEVC; software decodes its streams. With GStreamer they don't play back on the hardware decoder: its V4L2 caps check rejects the colour description the encoder writes (valid, but not matched by GStreamer); relabelled, all frames decode", "The GStreamer fix (upstream, with your OK); a camera or screen-recorder test once the cameras work"),
  ("NPU (Hexagon on the CDSP)", "todo", "Item 6 in your order, after video; the ADSP's FastRPC path already works (the sensors use it)", "Enable the CDSP in the kits (build.sh:69 disables it), firmware names (cdsp.mbn vs split .mdt), fastrpc on the CDSP + an unsigned-PD test program; fix the iceland-npu-off unit path"),
 ]),
 ("Audio", [
