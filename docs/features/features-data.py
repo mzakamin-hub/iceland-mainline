@@ -6,24 +6,24 @@
 DATE = "2 Oct 2026"
 
 # One sentence after the date in FEATURES.md.
-STATUS_MD = ("Wi-Fi now finds 5 GHz networks (the firmware is told not to use a radio mode this tablet cannot do); "
-             "both cameras deliver first raw pictures; hardware video is complete (10-bit too, GNOME Web uses it); the "
-             "About page shows the right model and processor; GNOME's three power modes switch tablet profiles. In "
-             "progress: battery time estimate, sleep, auto-rotate, camera exposure")
+STATUS_MD = ("Wi-Fi finds 5 GHz networks; both cameras deliver first raw pictures; hardware video is complete; the About "
+             "page, GNOME's power modes and the battery time estimate work; sleep is clean over 37 cycles in three "
+             "sessions including a 4-minute sleep; auto-rotate turns the picture for all four orientations in a test. "
+             "In progress: camera exposure, the sensor services' start at boot, a 5 GHz connect")
 
 # The subtitle of the published page.
 STATUS_HTML = ("Everything is tested by booting from RAM; nothing is installed on the tablet yet. Status as of "
-               f"{DATE}: Wi-Fi finds 5 GHz networks at boot (the firmware is now told not to use a two-radio mode this "
-               "tablet's hardware cannot do, as stock does); both cameras deliver first raw pictures; hardware video "
-               "decoding is complete, 10-bit included, and GNOME Web uses it; the About page shows \"OnePlus Pad 4\" "
-               "and the processor; GNOME's three power modes switch tablet profiles. In progress: battery time "
-               "estimate, sleep, auto-rotate, camera exposure. Boot & platform waits for your go-ahead on the install.")
+               f"{DATE}: Wi-Fi finds 5 GHz networks at boot; both cameras deliver first raw pictures; hardware video "
+               "decoding is complete and GNOME Web uses it; the About page, GNOME's three power modes and the battery "
+               "time estimate work; sleep is clean over 37 cycles in three sessions, including a 4-minute sleep; "
+               "auto-rotate turns the picture for all four orientations in a test. In progress: camera exposure, the "
+               "sensor services' start at boot, a 5 GHz connect. Boot & platform waits for your go-ahead on the install.")
 
 G = [
 ("Boot & platform", [
  ("U-Boot booted from RAM (display, USB fastboot, UFS read, EFI)", "ok", "Nothing written to the tablet; fastboot flashing compiled out"),
  ("U-Boot boot setting for single or dual boot", "ok", "Boots a “fedora” partition if present, else userdata"),
- ("Linux 7.3-rc4 through EFI", "ok", "Queue 0001–0070 + infiniti"),
+ ("Linux 7.3-rc4 through EFI", "ok", "Queue 0001–0072 + infiniti"),
  ("Fedora 44 running from RAM", "ok", "systemd as PID 1; packages through the PC"),
  ("GNOME Shell 50", "ok", "Autologin session in RAM"),
  ("Test sessions stable", "ok", "The 30 Sep freezes are found and fixed: fast transfers from the PC into the tablet over USB hung the chip while its CPUs could power down (14 sessions; 7 test runs pin it down and prove the fix, queue 0063). A lighter version of the fix, as stock does it (only while USB is busy, queue 0064), let one freeze through in five sessions and was taken back (queue 0065)"),
@@ -42,7 +42,7 @@ G = [
  ("Lid switch", "ok", "SW_LID events on GPIO 98 (area-display-1)"),
  ("Power and volume keys", "ok", "Power key also wakes from sleep"),
  ("Pogo keyboard", "todo", "Private UART protocol", "Private UART protocol: stock oplus pogo driver in OnePlusOSS; serdev + HID bridge"),
- ("Auto-rotate", "part", "The orientation reaches GNOME: iio-sensor-proxy reports \"normal\" for the tablet in its stand, as stock Android does for that pose (mount matrix derived from stock; an iio-sensor-proxy startup race fixed)", "Turn the tablet once with you watching (left / right / upside down); then the packaging above"),
+ ("Auto-rotate", "part", "GNOME turns the picture for all four orientations and back when they are fed through the tablet's own mount-matrix path (test accelerometer, 5 of 5 names and 5 of 5 rotations); the real sensor reads “normal” in the stand; GNOME takes the sensor after the daemon restarts (area-combo-14). Not there yet: started by the system at boot the daemon gives up before the sensors are ready, and the sensor programs are built on the tablet in each test - nothing is packaged", "A retry in the service start; packages for the three sensor programs; one turn of the tablet with you (left / right is inferred from stock's axis map)"),
 ]),
 ("Graphics & compute", [
  ("Adreno 840 GPU, GLES 3.2", "ok", "OpenGL 4.6 / ES 3.2 on Mesa 26.2.3 (Fedora 44's newest; Mesa main is 7 % slower here); glmark2 3213 offscreen / 2345 on GNOME, DCVS already at 1.2 GHz under load; the stock 1100 MHz level added (area-graphics-1)"),
@@ -66,7 +66,7 @@ G = [
 ]),
 ("Connectivity", [
  ("Wi-Fi 2.4 GHz", "ok", "Connected by you; GNOME showed “?” until NetworkManager re-checked (a fresh check says full internet)"),
- ("Wi-Fi 5 / 6 GHz", "part", "5 GHz networks are found now (queue 0066–0068): NetworkManager lists them at boot and every scan shows them (area-combo-10). The cause: while not connected, the Wi-Fi firmware scanned the lower 5 GHz channels on its second radio, which has no 5 GHz path on this tablet; stock tells the firmware not to do that (enable_sbs=0), mainline said nothing. Proven by switching it off, on and off again in one session (area-combo-9)", "A logged connect on 5 GHz; NetworkManager is slow to connect by itself after boot; 6 GHz needs a 6 GHz access point"),
+ ("Wi-Fi 5 / 6 GHz", "part", "5 GHz networks are found now (queue 0066–0068): NetworkManager lists them at boot and every scan shows them (area-combo-10). The cause: while not connected, the Wi-Fi firmware scanned the lower 5 GHz channels on its second radio, which has no 5 GHz path on this tablet; stock tells the firmware not to do that (enable_sbs=0), mainline said nothing. Proven by switching it off, on and off again in one session (area-combo-9)", "A connect on 5 GHz needs your password (the test image has no saved Wi-Fi network); 6 GHz needs a 6 GHz access point"),
  ("Bluetooth, own address", "ok", ""),
  ("Bluetooth pairing in GNOME", "ok", "Confirmed by you (29 Sep 2026)"),
  ("USB device mode / USB network", "ok", "The kits' link to the PC; it runs at USB 2 speed (area-usb-1)", "SuperSpeed check with a USB 3 cable / port"),
@@ -76,7 +76,7 @@ G = [
 ]),
 ("Power & charging", [
  ("Battery level, voltage, current, temperature, health", "ok", "UPower and GNOME battery"),
- ("Battery time estimate", "part", "Inaccurate (your report): jumpy current reading, no charge-now value; fix in the Power area", "qcom_battmgr OPLUS: STATUS forced to Charging when USB is online; instantaneous 1 Hz current; gauge word 4 is not a charge; derive CHARGE_NOW = capacity × charge_full, probe TTE/TTF/POWER_AVG (offline-prep/power.md A2–A4)"),
+ ("Battery time estimate", "ok", "Fixed in the kernel (queue 0071 / 0072). GNOME's estimate jumped or vanished because the battery said “Charging” whenever a cable was in (also while a weak PC port could not hold the load), gave a noisy one-second current and no remaining charge. Now: remaining charge = percentage × full capacity (the firmware's own counter agrees), a one-minute average current, and a status that follows it (Charging / Discharging / Not charging / Full). Tested 8 minutes with a load in the middle: status and current agree in 76 of 76 samples, the estimate stays within 4 % once idle (area-combo-13)", "On a charger up to Full, and unplugged, with you; two choices of the fix are ours, not stock's (±20 mA counts as not charging; Full at 100 % with the cable in)"),
  ("Charging", "part", "Stock limits patch 0053 queued (iceland-linux d36c1be): SDP input 500 mA (494 mA measured, was 1.2–1.9 A), knobs work", "Chargers with you watching (power.md T2–T6: DCP, PD 9 V never 12 V, inhibit and FCC effects below 80 %)"),
  ("Battery safety guard (stock limits)", "ok", "iceland-device 0.11 guard ran live on the tablet (area-thermal-1/-2): stock JEITA regions, voltages, currents, the three USB-C connector sensors (hottest valid reading), power-off at 70 °C (stock framework) / 77 °C; 70 simulated cases pass", "PD/DCP charger tests with you watching (connector sensors under charging current)"),
  ("Charge limit (85 %, your request)", "part", "Works: iceland-battery-guard stops charging at 85 % and resumes at 80 % (/etc/iceland/battery-guard.conf); measured +292 → −7 mA (area-thermal-2). The charger firmware ignores its own limit request, so GNOME shows no switch yet", "A kernel software limit (charge_control_* through the same charge inhibit) so GNOME's Preserve Battery Health switch appears"),
@@ -92,12 +92,12 @@ G = [
  ("GPU cooling", "part", "The skin loop now caps the GPU under sustained load: 90-s stress 318 → 306 and 321 → 288 fps with the GPU at 74-79 °C, 54-60 s throttled (area-graphics-2/-3); the 105 °C passive map matches stock", "Turn the 125 °C critical into hot (stock has no GPU shutdown trip); a 30-min stress with the skin zone"),
 ]),
 ("Sleep & power saving", [
- ("Suspend (s2idle)", "part", "24 cycles clean; two stalls after audio activity under investigation", "Stalls after audio: timer-sm8850 candidates (rpmh-rsc past-wakeup clamp, arch timer always-on); ramoops + debug-hang kernel"),
- ("Long sleep", "part", "One unexplained reboot after a long sleep: watchdog vs planned reboot", "Reset = PSHOLD/SYSOK: watchdog vs power key; ramoops (pc-026-s10-crashlog) + one 5-min sleep with watchdog on/off"),
+ ("Suspend (s2idle)", "ok", "37 sleep cycles in three sessions on kernels with the USB fix, all woken by the clock alarm, none failed - with sound played and recorded between and during them (area-combo-12, -14, -15). The two “stalls after audio” of September ran on kernels before the USB fix and no sound had reached the hardware in them", "One recording right after a wake was cut short (once); one display warning on the way into a sleep; the sensor daemon is not restarted after a wake"),
+ ("Long sleep", "ok", "The “unexplained reboot after a long sleep” was the test kit's own reboot timer (it counts time asleep), not the watchdog, which is stopped in sleep. A 4-minute sleep wakes by the clock alarm and sound works afterwards (area-combo-15); a 22-minute sleep woke by the power key (2 Oct)", "Overnight drain and deep-sleep proof (own row)"),
  ("Wake by power key and alarm", "ok", ""),
  ("Wake by lid, keyboard, charger", "todo", "", "wakeup-source on gpio-keys lid, pmic-glink/UCSI; /sys/power/pm_wakeup_irq"),
  ("60 Hz on battery, CDSP off", "part", "The refresh-rate unit's logic is proven on the real display with a simulated battery state (battery 60 Hz, mains 120 Hz, back to the start rate; area-combo-11); the NPU-off unit started a program path that is not installed - fixed in iceland-device 0.14", "One unplug with you watching; NPU off / on with the CDSP running"),
- ("CPU scaling and GNOME power modes", "ok", "Stock's CPU capacity data and GPU levels are in the kernel (queue 0054 / 0055); capacities 799 / 1024, the energy-aware scheduler runs. GNOME's three power modes switch tablet profiles as the desktop user (iceland-device 0.14): Power Saver capped at stock's efficient range, Balanced with stock's minimum speeds, Performance with the big cores' top steps enabled; a fixed load runs faster or slower accordingly (area-combo-11, 25 checks pass)", "Whether the firmware grants the two top steps (4.5 / 4.6 GHz) - the heat limiter was active during that check; your look at the menu"),
+ ("CPU scaling and GNOME power modes", "ok", "Stock's CPU capacity data and GPU levels are in the kernel (queue 0054 / 0055); capacities 799 / 1024, the energy-aware scheduler runs. GNOME's three power modes switch tablet profiles as the desktop user (iceland-device 0.14): Power Saver capped at stock's efficient range, Balanced with stock's minimum speeds, Performance with the highest steps requested; a fixed load runs faster or slower accordingly (area-combo-11, 25 checks pass)", "The two top steps (4.5 / 4.6 GHz, stock's maximum) are accepted but the speed does not rise (area-combo-14): the firmware does not grant them yet; your look at the menu"),
  ("Deep-sleep proof, overnight drain ≤ ~1 %/h", "todo", "", "qcom_stats before/after, rpmh-stats; overnight unplugged"),
 ]),
 ("Sensors & camera", [

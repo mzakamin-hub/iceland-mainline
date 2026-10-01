@@ -40,9 +40,10 @@ reports and tests in `relay/results/pc-016-020/wf/`.
 | USB fix idle cost | busy-only vote (0064) froze once in 5 sessions -> reverted (0065); 0063 behaviour stays | the true root cause of the hang |
 | Camera | first light: DT v4 (no `lens-focus`), raw frames from both sensors | exposure / gain registers with light, libcamera, focus motor; queue the DT |
 | About page | ✅ queue 0069-0070 + iceland-device 0.14 machine-info | - |
-| CPU / power modes | ✅ iceland-device 0.14 profiles, 25 checks | turbo steps with a cool tablet |
-| Battery estimate | candidate `battmgr-estimate.py`: status, averaged current, UPower estimate pass; CHARGE_NOW rule corrected | re-test (kernel q48), then queue |
-| Sleep, auto-rotate | workflow tests written | run area-combo-12 |
+| CPU / power modes | ✅ iceland-device 0.14 profiles, 25 checks | turbo steps: boost accepted, time_in_state counts 4608000, but the fixed load is not faster (0.705 vs 0.713 s) -> not granted by the firmware; consider stock's hispeed floors for Performance instead |
+| Battery estimate | ✅ queue 0071-0072 (area-combo-13: C1-C3, C5, C6 pass; C4 only failed because the session was not idle yet) | charger to Full / unplugged with the user; stock's coulomb counter (property 69) answers on mainline - a later source for CHARGE_COUNTER |
+| Sleep | ✅ 37 s2idle cycles in 3 sessions + one 240 s sleep, RTC wake, audio between (area-combo-12 / -14 / -15) | the workflow test's own runaway in run 12 (memory -30 MB/s before its cycle 14) is not explained; a short recording after one wake; `dpu_crtc_disable` frame-done timeout once |
+| Auto-rotate | injection test 5/5 names and transforms; real sensor 'normal'; GNOME claims after restarts with the current daemon | iio-sensor-proxy exits when started by udev before the sensors are ready (retry / wait); RPMs of hexagonrpc, libssc, iio-sensor-proxy; the v2 / v3 daemon variants gave no clear gain; a turn with the user |
 
 ## 0. Charging safety: first, before any further kit
 

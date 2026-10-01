@@ -321,3 +321,39 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
 - Prepared and waiting for the tablet: run 13 (kernel q48: turbo steps cool, battery re-test, Wi-Fi link band;
   `gen-combo-13.py`), then the rotate test, then the sleep test again with the microphone step isolated and memory
   watched (first find the memory eater: run the recording step alone, without suspends, with `ps` / slabinfo samples).
+
+### 2026-10-02 - entry 10: runs 13-15: battery queued (0071-0072), sleep proven, auto-rotate by injection, turbo not granted
+- 00:27 the user pressed the power key: the RAM session of run 12 resumed (ping, ssh port) and the kit's planned
+  reboot (uptime 1800 s) took it to Android before the sleep logs could be copied. So in run 12 the tablet was
+  asleep from 00:04:47 without a wake alarm (who suspended it is unknown; touch interrupts rose from 13 to 1214 in
+  the last 30 s before) and a 22-minute sleep woke by the power key.
+- Run 13 (q48 = queue 0070 + battery v2 + design voltages + camera DT v4), 00:30-00:40:
+  - turbo: boost 1 -> policy6 max 4608000, 5 s busy loop on cpu7: schedutil stayed at <= 4396800 (cooling 0).
+  - **battery v2: C1 C2 C3 C5 C6 PASS** (CHARGE_NOW 76 of 76 samples within 1 %; status vs sign 0 off; load step
+    -510 / -1499 / -493 mA; UPower 23:50-24:50 h in idle2). C4 FAIL only in idle1: the session was still settling
+    (current moved 56 %). Judged proven -> **queued: iceland-linux 1b8aaf3 = 0071-0072**, queue 0001-0072.
+  - Wi-Fi link: not connected, and the image has NO saved Wi-Fi profile (run 15: one ethernet + loopback profile
+    only) -> the connect in run 6 was made by hand. A 5 GHz connect needs the user's password.
+  - The battery drains on the PC port during sessions: 92 % at 23:50 -> 86 % at 00:40.
+- Run 14 (q48), 00:41-00:50:
+  - turbo2 (governor performance): boost 1 requests 4608000 and time_in_state counts 1.03 s there, but the fixed
+    load takes 0.713 s vs 0.705 s at 4396800 -> the firmware does not grant the turbo steps.
+  - **rotate (workflow test)**: injection through a uinput accelerometer with the real mount matrix: names 5/5,
+    mutter transforms 0/1/2/3/0 5/5, picture back to normal; real sensor (0 -7 -6) 'normal'. FAIL (first): udev
+    started hexagonrpcd, but iio-sensor-proxy only came up on a manual start (60 s) - it looks for the sensors once
+    and exits; `iceland-ssc-wait` returned at once because QMI service 400 is on QRTR before hexagonrpcd serves the
+    registry. GNOME's claim per variant: v2 F, v2 F, cur W, v3 W(?), v2 W(?) -> the instrumentation for v2 / v3 is
+    not trustworthy; the current tree works after a restart. Next for rotate: a retry policy in the unit
+    (Restart=always, RestartSec=5) or a real readiness wait; then RPMs of the three programs.
+  - **micdiag**: the step before cycle 14 of the sleep workflow test (4 s pw-record while a 3 s tone plays) is clean
+    fresh, after 3 and after 13 more s2idle cycles (recordings 530-800 kB, memory flat, 13 / 0 suspend_stats).
+    The run-12 runaway is not this step; cause not found (not reproduced).
+- Run 15 (q49 = queue 0072 + camera DT v4), 00:54-01:04, plain sleep test `sleep2`: **10 of 10 cycles + one
+  242.87 s sleep**, all woken by irq 23 pm8xxx_rtc_alarm, suspend_stats 11 / 0, tones 5 of 5, recordings 2 of 3
+  (53 kB after C5), lowest available memory 6832 MB, one `dpu_crtc_disable: frame done wait timed out` entering the
+  long sleep. Verdict line says FAIL only for the one short recording.
+  Totals on kernels with the USB request: 37 cycles in 3 sessions, 0 failed.
+- A lesson for test scripts: a bare `wait` in a function also waits for a background sampler loop -> always
+  `wait $pid`.
+- Matrix (matrix-c2c.py): Battery time estimate -> ok; Suspend (s2idle) -> ok; Long sleep -> ok; Auto-rotate part
+  (new evidence); CPU modes note (turbo not granted); Wi-Fi note (connect needs the password).
