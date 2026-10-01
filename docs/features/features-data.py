@@ -6,24 +6,27 @@
 DATE = "2 Oct 2026"
 
 # One sentence after the date in FEATURES.md.
-STATUS_MD = ("Wi-Fi finds 5 GHz networks; both cameras deliver first raw pictures; hardware video is complete; the About "
-             "page, GNOME's power modes and the battery time estimate work; sleep is clean over 37 cycles in three "
-             "sessions including a 4-minute sleep; auto-rotate turns the picture for all four orientations in a test. "
-             "In progress: camera exposure, the sensor services' start at boot, a 5 GHz connect")
+STATUS_MD = ("Wi-Fi finds 5 GHz networks; both cameras work through libcamera (pictures at 24 fps, offered to the desktop); "
+             "hardware video is complete; the About page, GNOME's power modes and the battery time estimate work; sleep "
+             "is clean over 37 cycles including a 4-minute sleep; auto-rotate turns the picture in tests and its "
+             "after-boot failure is understood and worked around. In progress: packaging of the sensor programs, "
+             "camera auto-exposure and focus, a 5 GHz connect")
 
 # The subtitle of the published page.
 STATUS_HTML = ("Everything is tested by booting from RAM; nothing is installed on the tablet yet. Status as of "
-               f"{DATE}: Wi-Fi finds 5 GHz networks at boot; both cameras deliver first raw pictures; hardware video "
-               "decoding is complete and GNOME Web uses it; the About page, GNOME's three power modes and the battery "
-               "time estimate work; sleep is clean over 37 cycles in three sessions, including a 4-minute sleep; "
-               "auto-rotate turns the picture for all four orientations in a test. In progress: camera exposure, the "
-               "sensor services' start at boot, a 5 GHz connect. Boot & platform waits for your go-ahead on the install.")
+               f"{DATE}: Wi-Fi finds 5 GHz networks at boot; both cameras deliver pictures through libcamera at 24 fps "
+               "and are offered to the desktop; hardware video decoding is complete and GNOME Web uses it; the About "
+               "page, GNOME's three power modes and the battery time estimate work; sleep is clean over 37 cycles in "
+               "three sessions, including a 4-minute sleep; auto-rotate turns the picture for all four orientations in "
+               "tests, and why it stayed dead after a normal boot is understood and worked around. In progress: "
+               "packages for the sensor programs, camera auto-exposure and focus, a 5 GHz connect. Boot & platform "
+               "waits for your go-ahead on the install.")
 
 G = [
 ("Boot & platform", [
  ("U-Boot booted from RAM (display, USB fastboot, UFS read, EFI)", "ok", "Nothing written to the tablet; fastboot flashing compiled out"),
  ("U-Boot boot setting for single or dual boot", "ok", "Boots a “fedora” partition if present, else userdata"),
- ("Linux 7.3-rc4 through EFI", "ok", "Queue 0001–0072 + infiniti"),
+ ("Linux 7.3-rc4 through EFI", "ok", "Queue 0001–0073 + infiniti"),
  ("Fedora 44 running from RAM", "ok", "systemd as PID 1; packages through the PC"),
  ("GNOME Shell 50", "ok", "Autologin session in RAM"),
  ("Test sessions stable", "ok", "The 30 Sep freezes are found and fixed: fast transfers from the PC into the tablet over USB hung the chip while its CPUs could power down (14 sessions; 7 test runs pin it down and prove the fix, queue 0063). A lighter version of the fix, as stock does it (only while USB is busy, queue 0064), let one freeze through in five sessions and was taken back (queue 0065)"),
@@ -103,7 +106,7 @@ G = [
 ("Sensors & camera", [
  ("Rear flash LEDs", "ok", ""),
  ("Accelerometer, compass, light / proximity", "ok", "Working in RAM through the ADSP sensor hub (area-sensors-4..7): BMI3x0 accelerometer, AK09919 magnetometer, STK36C01 light + proximity read live; iio-sensor-proxy (SSC build) serves them to GNOME. Needs kernel 0061, hexagonrpcd with the device's own sensor files, libssc and iio-sensor-proxy with SSC support (built here, not in Fedora)", "Package hexagonrpc / libssc / iio-sensor-proxy (SSC) + the udev rule; extract the sensor files from the tablet at install"),
- ("Cameras (13 MP rear, 8 MP front)", "part", "First light (area-combo-8, -10): both sensors answer (chip IDs as stock) and deliver raw 10-bit pictures through the camera subsystem - rear 4160×3120, front 3264×2448; the front picture shows the room. The pictures are dark: exposure and gain do not act yet (their registers are not understood; no datasheet). Driver and device tree from the stock trace; register tables stay private. Focus motor off for now (it shares a supply with the sensors)", "Exposure and gain with a lit target, then libcamera (GNOME Camera), then the focus motor"),
+ ("Cameras (13 MP rear, 8 MP front)", "part", "Both cameras deliver pictures. The sensors answer with stock's chip IDs and stream raw 10-bit frames (rear 4160×3120, front 3264×2448; device tree queued as 0073). The rear sensor's exposure is linear and its gain steps are known - measured with the flash LEDs as the light (area-combo-20). libcamera lists “Internal back camera” and “Internal front camera” and gives processed pictures at 24 fps; PipeWire offers both to the desktop (area-combo-21, -22). The sensor driver is ours, written from a trace of stock; its register tables stay private", "Automatic exposure (libcamera needs a gain table for these sensors; the front sensor's gain coding is not known yet); the focus motor; GNOME's Camera app on screen; how to ship the private sensor driver"),
  ("Haptics, modem, NFC, fingerprint", "out", "Not on this tablet"),
 ]),
 ("Software & packaging", [

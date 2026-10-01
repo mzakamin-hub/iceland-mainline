@@ -380,3 +380,30 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   start early (it will when packaged; for tests: start it right after the hand-over).
 - Next for auto-rotate: RPMs (hexagonrpc + local patch, libssc, iio-sensor-proxy + 3fc1142 + accel-after-claim),
   iceland-device: udev rule + drop-ins + iceland-ssc-wait; report the mutter bug (user's OK); the user's turn.
+
+### 2026-10-02 - entry 12: run 20: the rear camera's exposure and gain work (torch as the light)
+- Correction to entry 8 / the matrix: "exposure does not act" was wrong. The driver's default exposure IS the
+  longest one (3999 / 2999 lines), so "exposure max" changed nothing, and the room was dark at night.
+- Run 20 (q49, 01:47): the flash LEDs as a torch (`/sys/class/leds/white:flash-1`, `yellow:flash-0`, brightness
+  1/6 of 255). Rear SC1320CS, mean of the 8 MSBs (black level 16): dark G 17; lit at exposure 3999: G 187 (max
+  255); 999: G 110 (parts saturated); 249: G 40 -> 249 vs 999 = 24 : 94 above black = 1 : 3.9: **exposure is
+  linear**. At 249: analogue gain 0x1f: G 65 (x2.0), 0x3f: G 110 (x3.9), **0x7f: black picture (not a valid
+  code)**, digital gain 0xff: G 64 (x2.0). So 0x3e09 = 0x0f / 0x1f / 0x3f is 1x / 2x / 4x and 0x3e07 0x80..0xff
+  is 1x..2x. The preview shows the fabric behind the tablet in focus-less but clear detail.
+  Front SC820CS (no light): exposure / 4 lowers the picture's maximum (35 -> 22), digital gain 0xff raises it
+  (54); analogue gain 0x3f / 0x7f change nothing -> its gain register coding is still unknown.
+- Next: libcamera (run 21: `cam -l`, a capture per camera, a JPEG through `libcamerasrc`).
+
+### 2026-10-02 - entry 13: runs 21-22: libcamera works on both cameras; queue 0073 (camera DT)
+- Run 21 (q49): Fedora's libcamera 0.7.1: `cam -l` = "Internal back camera" (camera@36), "Internal front camera"
+  (camera@10); capture 10 of 10 frames each, 1280x960 ABGR8888 from 4160x3120 BGGR10 through the software ISP,
+  23.98 fps. Warnings only: no sensor helper / properties / tuning file for sc1320cs and sc820cs. My `libcamerasrc`
+  line used `num-buffers`, which that element does not have.
+- Run 22 (q49): processed previews (`an/abgr2png.py`): rear under the torch = a clear picture of the fabric behind
+  the tablet, mean R 173 G 167 B 168, overexposed in the middle (no auto-exposure without a sensor helper); front
+  mean 40 (dark room). `libcamerasrc ! identity eos-after=13 ! jpegenc` gives JPEGs. WirePlumber: two
+  `Video/Source` nodes (`libcamera_input...camera_36` and `...camera_10`, "Built-in Front Camera").
+  Previews private in `C:\OnePlusPad4\camshots\run20` / `run22`.
+- **Queued: iceland-linux 82e192d = 0073** the cameras' device tree (= the tree tested as q49). Queue 0001-0073.
+- Camera open points: libcamera sensor helper + tuning (AE), front gain coding, focus motor, GNOME Snapshot on
+  screen (webcam / user), shipping the private sensor module.
