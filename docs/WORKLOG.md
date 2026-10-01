@@ -287,3 +287,37 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
     the test injects the four orientations through a uinput accelerometer and reads mutter's transform.
 - Kernel q47 = queue 0068 + candidates (battery estimate, design voltages, DEBUG probe, socinfo, cpuinfo name,
   camera DT v4), 0 warnings. Run 11 (23:43): cpupower, about, battery. Run 12 next: sleep, rotate.
+
+### 2026-10-02 - entry 9: runs 11-12, queue 0069-0070, iceland-device 0.14, commit B; the tablet went silent in run 12
+- Run 11 (q47, 23:43-23:55), the workflows' tests:
+  - cpupower: 25 PASS / 1 FAIL / 4 WARN. GNOME's three modes switch as the GNOME user (polkit OK from the user's
+    systemd manager) to the iceland profiles; limits per mode as designed; 1-thread load 3.56 / 3.14 / 3.10 s (power
+    saver / balanced / performance); capacities 799 / 1024; EAS runs; schedutil rate limit 45 us; refresh unit logic
+    60 / 120 Hz OK; npu-off path OK. The FAIL is the "restore" check reading thermally capped limits (skin loop
+    active after the 8-thread loads), not the profiles. Turbo steps (4512000 / 4608000) not reached while the cooling
+    was active -> open (run 13 tests them first, cool).
+  - about: all PASS. hostnamed OnePlus / Pad 4 / tablet with the machine-info candidate; soc0 machine SM8850P;
+    8 model name lines; the real Settings page read through AT-SPI: "OnePlus Pad 4", "Qualcomm Oryon x 8",
+    Memory 11.1 GiB.
+  - battery: C3-C6 PASS (status follows the current's sign in 76 of 76 samples; load step -550 -> -1096 -> -509 mA;
+    UPower time spread 11 % and 1 %), C1 / C2 FAIL: CHARGE_NOW missing or 17000 in many samples - the gauge's
+    "remaining" word reads 0 / 17 / garbage (gauge words: 300 552 4364 9204 0 5 13786 0 100 ...). The probe:
+    BATT_CHG_COUNTER (property 14) = 12688634 = state of charge x full capacity exactly; stock's property 69 answers
+    too (12054202). Candidate changed: always state of charge x full capacity. Kernel q48 built for the re-test.
+- **Queued: iceland-linux 54a64c8 = 0069 (socinfo SM8850P) + 0070 (arm64 cpuinfo model name, local carry)**; queue
+  0001-0070. **iceland-device 0.14** (`pkg-014.sh`): machine-info, tuned profiles (revision 2.0 floors, turbo steps
+  in Performance), npu-off unit path, tests (0 failures); the kits' overlay carries machine-info.
+- **Commit B: iceland-mainline 06f9f8e** (logs of runs 4-11, tools, workflows' reports under
+  `relay/results/pc-016-020/wf/`, matrix 48 working / 13 in progress / 12 not started / 2 not planned, page v24).
+- Run 12 (q47, 23:57): the sleep workflow's test. **13 of 13 s2idle cycles clean** (6 s RTC alarm each, wake irq
+  pm8xxx_rtc_alarm, no stuck CPU), including one right after a tone (C06) and one during a tone (C10). Cycle 14 is
+  the one with a microphone recording before it: it never started. From uptime 227 s one CPU was busy and available
+  memory fell by ~30-40 MB/s (6.8 GB -> 1.3 GB at 398 s); at 00:04:47 the USB device disappeared and the tablet has
+  not come back in any mode (no Android, no fastboot, no USB device). No log set (RAM). The PC-side stream extract is
+  `area-combo-12/timeline.txt`. Unknown: what ate the memory (pw-record / PipeWire / the kernel's capture path after
+  13 suspend cycles) and whether the tablet is asleep without an alarm or hung.
+  **The tablet needs the user's power key** (a press; if nothing happens, hold it about 10 s to restart into
+  Android). Nothing was written to it.
+- Prepared and waiting for the tablet: run 13 (kernel q48: turbo steps cool, battery re-test, Wi-Fi link band;
+  `gen-combo-13.py`), then the rotate test, then the sleep test again with the microphone step isolated and memory
+  watched (first find the memory eater: run the recording step alone, without suspends, with `ps` / slabinfo samples).
