@@ -1,4 +1,4 @@
-# OnePlus Pad 4 mainline Linux - hand-over (2 Oct 2026, about 21:00)
+# OnePlus Pad 4 mainline Linux - hand-over (2 Oct 2026, about 21:00; state table and workflows updated about 22:30)
 
 Written for the next model / session. Read this file, then `STATE.md`, `CLAUDE.md`, the last entries of
 `WORKLOG.md` (from entry 44 on: everything of 2 Oct afternoon / evening), the last block of
@@ -45,11 +45,11 @@ addresses and network names masked; commits as `mzak <mzak.amin@gmail.com>` with
 
 | Thing | State |
 |---|---|
-| Kernel queue (`~/mainline/gh/iceland-linux`) | `f84d0d2` = 0001-0166, verified, pushed. 0117-0124 NPU cooling (QMI TMD), 0125-0138 quick wins, 0139-0161 23 upstream fixes (authors kept), 0162 f_ncm NTB flush retry, 0163-0166 PMIC power telemetry (hwmon, lazy start). Configs: quick-wins lines, CONFIG_USB_UAS=m, CONFIG_SENSORS_QCOM_SPMI_QPT=m. `build/src` branch `iceland` = queue head "enable the power telemetry", clean |
+| Kernel queue (`~/mainline/gh/iceland-linux`) | **`a88cf03` = 0001-0174** (0167-0174 = bootfix topic B: WCN7860 supplies, ktz8869 vddio optional, VA DMIC rate, ADSP FastRPC heap, UFS MCQ, smem Glymur DRAM info backport by Konrad Dybcio + the 1000UL fix, NVT deferral message; tested as q79, run 96), verified, pushed. Before it `f84d0d2` = 0001-0166. 0117-0124 NPU cooling (QMI TMD), 0125-0138 quick wins, 0139-0161 23 upstream fixes (authors kept), 0162 f_ncm NTB flush retry, 0163-0166 PMIC power telemetry (hwmon, lazy start). Configs: quick-wins lines, CONFIG_USB_UAS=m, CONFIG_SENSORS_QCOM_SPMI_QPT=m. `build/src` branch `iceland` = queue head "Input: nt36536: do not log the panel wait deferral as an error" (0174), clean; build-q56.sh HEAD_SUBJECT set to it; base config `out-config-base-0174` |
 | Docs repo (`~/mainline/gh/iceland-mainline`) | after this commit: commit u (docs/guide + project knowledge); before it `823eb07` (commit t). Pushed |
 | Feature matrix | 61 working / 12 in progress / 5 not started / 2 not planned (80), page v41: https://claude.ai/artifact/GtN6zLRTeabVcyg3LirNBm (publish `scratchpad/feature-matrix.html` = the repo's `docs/features/feature-matrix.html`) |
-| Test kernels (`~/mainline/build`) | **`binq77` = exactly the queue head 0166** (use it for queue tests); `binq78` = 0162 plain (the install B-run kernel; its rpms are K2 / K3); private camera module per kernel `camdrv/sc1320cs-qNN.ko` (q70-q78) |
-| `out/` build tree | base configs `out-config-base-0166` (queue config of 0166); `build-q56.sh` copies `out/.config` to `out-config-before-<tag>`; restore the base before a new build (see `build-q77.sh`) |
+| Test kernels (`~/mainline/build`) | `binq79` = 0166 + bootfix B (= the queue head 0174's tree); `binq80` = 0174 + the TEST-ONLY ath12k `suspend_soc_reset` switch (l2diag, never queue) for the PCIe diagnosis; `binq77` = exactly 0166; `binq78` = 0162 plain (the install B-run kernel; its rpms are K2 / K3); private camera module per kernel `camdrv/sc1320cs-qNN.ko` (q70-q78) |
+| `out/` build tree | base configs `out-config-base-0174` (queue config of 0166); `build-q56.sh` copies `out/.config` to `out-config-before-<tag>`; restore the base before a new build (see `build-q77.sh`) |
 | Device package | repo: iceland-device 0.17. 0.18 = 0.17 + install fragment + gpuisp (hold, wireplumber >= 0.5.18) + deepsleep (npu keep running) is BUILT by `wf/install/next-k2p1u1.sh` step p1 (`wf/install/work/p1/`), proven to build and install in B runs 93 / 94; not committed to the repo yet (after R1 / R2) |
 | Tablet | in Android (LineageOS, slot b), battery about 50 %. The owner recharges it unplugged: ask before any run |
 | PC servers | rootfs server :8000 and USB proxy :3128 run as background shells of this session (restart if a kit says "rootfs server 000"); the NBD server in WSL (`rehearsal-pc.sh serve stage0 build`) may still run: `rehearsal-pc.sh stop` before R1 |
@@ -69,9 +69,9 @@ earlier agent worked in your folder: read everything in it (also `work/`) and co
 |---|---|---|---|
 | quickwins, npucool, upsync (+uas, f_ncm), telemetry, hwinv | **green**, queued (0117-0166) | - | none (telemetry v3 lazy start proven in run 92) |
 | gpuisp | **green**, finished: GPU ISP default (2.3 vs 21 ms CPU per frame), our libcamera 0.7.1 build stops the 19.8 MB-per-start leak | a13d5df432f1df418 | its 0.18 changes are in P1; the local rpms are in `C:\platform-tools\rpms\libcamera` (private) |
-| install | round 6 running: B1 ADSP/CDSP firmware on the installed initramfs, B2 the build chroot loads SELinux into the host, B3 charge-limit accept line; the docs review R1-R9 (AVB footer for u-boot-iceland.img + PC proof, the plan's undo file, rehearsal vs install U-Boot wording + a guard, unattended U-Boot, EFI boot order / efisp, guide fixes, the misc boot-recovery gotcha); the write-2 probe guide part C0; DUALBOOT-PLAN.md | a68073ae3baaf9f4b | review its round-6 report; then (owner connected!) R1 on today's golden: `rehearsal-pc.sh stop`, `commit`, `serve golden r1`, `head "enforcing=0"`, `rehearse.ps1 -Yes` + `ACCEPT_SUSPEND=0 rehearsal-probe.sh OUT accept` (TABLET_IN=wf/install/priv/run/tablet-in) |
-| r1debug (Fable model) | verifying the install agent's U-Boot fix (blkmap maxargs 2 -> 3, FAILED lines + fastboot_loop, no Mac/Amiga partition parser) in its own sandbox | ab236e1ef0aa067eb | R1 waits for its verification |
-| hwfix (bootfix + bypass) | running: B quick DT items + the NVT touch message, A PCIe L2 timeout + 14 probe deferrals, C bypass charging (in the battery guard + a GNOME Quick Settings toggle + polkit helper) and the corrected accept.sh charge-limit check | ab01e21f3f346b12e | build `TAG=q79 WF="bootfix" bash build-q56.sh` when it delivers, run its parts (coldplug), feed back |
+| install | **now an Opus agent `a997748c4c5627a37`** (the old one stopped after writing `wf/install/HANDOVER-ROUND6.md`; it re-verifies, then sends me the commands: P1 + TIN with the B1 omit_drivers fix + the pwrseq add_drivers drop-in, the B run again (must show "policy loads 0"), the notgzip U-Boot test, R1 on the new golden, parta-read / parta-check for the write-2 probe (AVB-PROOF passed on the PC: the footered U-Boot = PUBLIC_KEY_REJECTED = continue, a plain one = INVALID_METADATA = ABL stops)); round 6 so far: B1 ADSP/CDSP firmware on the installed initramfs, B2 the build chroot loads SELinux into the host, B3 charge-limit accept line; the docs review R1-R9 (AVB footer for u-boot-iceland.img + PC proof, the plan's undo file, rehearsal vs install U-Boot wording + a guard, unattended U-Boot, EFI boot order / efisp, guide fixes, the misc boot-recovery gotcha); the write-2 probe guide part C0; DUALBOOT-PLAN.md | a997748c4c5627a37 (old: a68073ae3baaf9f4b) | wait for its command list; then (owner connected!) R1 on today's golden: `rehearsal-pc.sh stop`, `commit`, `serve golden r1`, `head "enforcing=0"`, `rehearse.ps1 -Yes` + `ACCEPT_SUSPEND=0 rehearsal-probe.sh OUT accept` (TABLET_IN=wf/install/priv/run/tablet-in) |
+| r1debug (Fable model) | FINISHED: confirmed the root cause and the install agent's U-Boot fix 15 / 15 in its sandbox; proposed the busy-U-Boot probe (applied in rehearse.ps1 8453bb0c...) and the 8 KiB notgzip test head (`wf/r1debug/work/t/notgzip.img`) as the first tablet step; was verifying the install agent's U-Boot fix (blkmap maxargs 2 -> 3, FAILED lines + fastboot_loop, no Mac/Amiga partition parser) in its own sandbox | ab236e1ef0aa067eb | R1 waits for its verification |
+| hwfix (bootfix + bypass) | B GREEN and queued (0167-0174). A: diagnosis kit **run 97** (q80, part bfpcie: base / noreset / wow / nodrv s2idle variants) RUNNING at the save point - judge it and send it to the agent (root cause per the agent: ath12k's suspend-time WLAN SoC reset, the reset chip never answers PME_Turn_Off; upstream made it a 10 ms warning; stock keeps the WLAN firmware alive). C (bypass) in progress. Earlier: A PCIe L2 timeout + 14 probe deferrals, C bypass charging (in the battery guard + a GNOME Quick Settings toggle + polkit helper) and the corrected accept.sh charge-limit check | ab01e21f3f346b12e | build `TAG=q79 WF="bootfix" bash build-q56.sh` when it delivers, run its parts (coldplug), feed back |
 | docs (Opus, SME) | drafts done and committed as `docs/guide/` | a3047486eb1c0ec68 | review comments as they come; keep the docs current; review DUALBOOT-PLAN.md |
 | deepsleep | kernel parts queued (0113-0116), CX collapse 95-98 %; the overnight drain needs the owner | - | owner night test; the package fallback (CDSP keeps running) is in 0.18 |
 
@@ -93,7 +93,7 @@ asserts + `.msg` commit texts with `--- commit N (file) ---` sections, `apply-ke
 
 **The main session** owns the tablet, the kernel tree, builds, repositories. Loop per workflow:
 1. Read its NEXT.md; review every write of its test and every limit of its candidates (charging safety first).
-2. Test kernel: restore the base config (`out-config-base-0166`), `TAG=qNN WF="name ..." bash build-q56.sh`
+2. Test kernel: restore the base config (`out-config-base-0174`), `TAG=qNN WF="name ..." bash build-q56.sh`
    (expects HEAD_SUBJECT = the queue head's subject; makes `camdrv/sc1320cs-qNN.ko`). A build only when no kit is
    being prepared (prep takes the kit lock with `flock -n` and refuses if busy). Plain head builds with
    `build-q2.sh` need `camdrv/build.sh` + copy to `sc1320cs-<tag>.ko` (see `an/camdrv-q78.sh`).
@@ -156,7 +156,7 @@ lines). The prompts of this session for install round 6, hwfix and docs (in the 
   `an/area-combo-NN*.sh`, `prep-area-combo-NN.sh`, `an/chk.sh`, `an/wait-probe.sh`, `an/kmsg-errors.py`,
   `mods25/all` (the kits' early modules), scratchpad `area-combo-NN-chain.sh`, `run-chain.sh`.
 - Kernel: `build-q2.sh`, `build-q56.sh` (cases pencharge, deepsleep, pogo, uas, ncm, generic), `build-q74..78.sh`,
-  `queue-0117.sh`, `queue-0125.sh`, `queue-0139.sh`, `queue-0163.sh`, `out-config-base-0166`.
+  `queue-0117.sh`, `queue-0125.sh`, `queue-0139.sh`, `queue-0163.sh`, `out-config-base-0174`.
 - Install: `wf/install/` (next-k2p1u1.sh, genwf-install-b.py, cand/rehearsal/*, cand/u-boot/*, NEXT.md),
   `an/r1-prep.sh`, `an/b2-prep.sh`, `an/stop-r1.sh`.
 - Commit: `mk-commit-u.py` / `commit-campaign2-u.sh`, `~/mainline/research/matrix-c2s.py`.

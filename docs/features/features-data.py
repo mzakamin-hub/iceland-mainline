@@ -6,7 +6,7 @@
 DATE = "2 Oct 2026"
 
 # One sentence after the date in FEATURES.md.
-STATUS_MD = ("Kernel queue 0001-0166 with the install configuration, device package 0.17: charging, the charge limit, "
+STATUS_MD = ("Kernel queue 0001-0174 with the install configuration, device package 0.17: charging, the charge limit, "
              "low-battery limiting, thermal and GPU cooling as stock; both cameras and the Camera app; the pogo keyboard, the "
              "pen charger and the wake sources proven without hands; deep sleep reaches CX collapse. Measured battery life "
              "(53.8-56.7 Wh): light use 14-17 h, 1080p video 15-16 h, all cores busy about 7 h, screen off awake about 3.5 "
@@ -15,7 +15,7 @@ STATUS_MD = ("Kernel queue 0001-0166 with the install configuration, device pack
 
 # The subtitle of the published page.
 STATUS_HTML = ("Everything is tested by booting from RAM; nothing is installed on the tablet yet. Status as of "
-               f"{DATE}: the kernel queue has 166 Pad 4 patches on top of 138 SM8850 base patches (118 test runs with "
+               f"{DATE}: the kernel queue has 174 Pad 4 patches on top of 138 SM8850 base patches (118 test runs with "
                "77 test kernels since 28 Sep). Charging, the charge limit, low-battery limiting, thermal and GPU cooling "
                "follow stock; both cameras and GNOME Camera work; the pogo keyboard, the pen charger and every wake source "
                "are proven without hands; every value was compared with stock; deep sleep reaches CX collapse 98 % of the "
@@ -30,7 +30,8 @@ G = [
 ("Boot & platform", [
  ("U-Boot booted from RAM (display, USB fastboot, UFS read, EFI)", "ok", "Nothing written to the tablet; fastboot flashing compiled out"),
  ("U-Boot boot setting for single or dual boot", "ok", "Boots a “fedora” partition if present, else userdata"),
- ("Linux 7.3-rc4 through EFI", "ok", "Queue 0001–0166 + infiniti"),
+ ("Linux 7.3-rc4 through EFI", "ok", "Queue 0001–0174 + infiniti"),
+ ("Internal storage (UFS 4)", "ok", "The UFS 4 storage works with 4 KiB blocks; since the queue's 0171 it runs in MCQ mode (multi-queue, as the upstream SM8650 / SM8750 boards): 9 hardware queues per LUN, a read-only test read 256 MiB with O_DIRECT in 0.118 s = 2.3 GB/s (area-combo-96). The test kits never write to it; the installed Fedora's root lives here (planned)", "Nothing"),
  ("Fedora 44 running from RAM", "ok", "systemd as PID 1; packages through the PC"),
  ("GNOME Shell 50", "ok", "Autologin session in RAM"),
  ("Test sessions stable", "ok", "The 30 Sep freezes are found and fixed: fast transfers from the PC into the tablet over USB hung the chip while its CPUs could power down (14 sessions; 7 test runs pin it down and prove the fix, queue 0063). A lighter version of the fix, as stock does it (only while USB is busy, queue 0064), let one freeze through in five sessions and was taken back (queue 0065)"),

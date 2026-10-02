@@ -1,6 +1,6 @@
 # 03 - Boot chain, partitions, and what the install changes
 
-State: 2 Oct 2026. Sources: `iceland-mainline/docs/reference/pad4-hardware-boot-partitions.md` sections 2-4,
+State: 2 Oct 2026, about 22:30. Sources: `iceland-mainline/docs/reference/pad4-hardware-boot-partitions.md` sections 2-4,
 `docs/KNOWLEDGE.md` sections 4, 9, 12, `docs/tests/README.md` (U-Boot and Linux tests 1-7), `docs/INSTALL-PLAN.md`,
 `~/mainline/build/wf/install/REPORT.md` and `NEXT.md`, `iceland-u-boot` (`uboot.pin`, `tools/diag/`,
 `scripts/build.sh`), `tools/linux-ram/`. For the partition list see `02-HARDWARE.md` section 6.
@@ -61,11 +61,19 @@ public. Fastboot in ABL is the floor. That is why the boot firmware is never wri
   partition: it carries its own small vbmeta in an AVB footer at the end of the partition.
 - On a **locked** tablet any change stops the boot. On an **unlocked** tablet ABL shows the "orange" warning and
   continues after *verification* errors (a wrong hash, a key that does not match, a rollback index).
-- ABL does not continue after *invalid metadata*, such as an image without the footer a chained partition needs. This
-  is how Qualcomm's open ABL and libavb behave; OnePlus's build is closed. See `07-INSTALL-REVIEW.md` R-1: an image
-  written to `boot_b` should carry an AVB footer.
-- `fastboot boot` (a RAM boot) **skips** verification. That is why every test so far works without touching
-  `vbmeta`. It is also why no RAM boot can prove how ABL treats a written `boot_b`.
+- ABL does not continue after *invalid metadata*, such as an image without the footer a chained partition needs.
+- **Proven on the PC (2 Oct, install round 6, `AVB-PROOF: PASS`, 12 cases):** a libavb harness modelled on
+  Qualcomm's public ABL source (`VerifiedBoot.c`).
+  - A plain U-Boot image in `boot_b` gives `INVALID_METADATA`. ABL stops, marks slot b unbootable and switches slots.
+  - The same image with an AVB hash footer (AOSP test key, today's rollback index) gives `PUBLIC_KEY_REJECTED`, and
+    ABL continues. That is exactly how today's LineageOS boots: its vbmeta is signed with test keys that ABL's stored
+    key does not match.
+  - So the image written to `boot_b` **must carry the footer** (`07-INSTALL-REVIEW.md` R-1).
+  - The proof ran on the LineageOS build's images. It is repeated on today's pulled images by `parta-check.sh`.
+  - OnePlus's ABL build itself is closed. The write-2 probe (section 8) is its real test.
+- `fastboot boot` (a RAM boot) does not verify the **boot image** it is sent. It still verifies `dtbo`,
+  `vendor_boot` and `init_boot` from the slot. That is why every test so far works without touching `vbmeta`, and
+  why no RAM boot can prove how ABL treats a written `boot_b`.
 - **Never relock** the boot loader while anything but verified stock is installed.
 
 ## 4. How the project boots Linux today: RAM boot, nothing written
@@ -108,15 +116,19 @@ ABL
  -> boot_b = the INSTALL build of U-Boot (u-boot-iceland.img)
       scsi scan; a GPT partition named "fedora" wins (dual boot), else "userdata"
       blkmap: map that partition as a disk with the UFS's 4096-byte blocks (read through U-Boot, no copy)
-      bootefi bootmgr  (EFI variables are kept in RAM only: nothing is stored)
- -> shim  (\EFI\BOOT\BOOTAA64.EFI on the image's EFI System Partition)
+      one explicit boot option Boot0001 = blkmap partition 1, /EFI/fedora/shimaa64.efi (efidebug, RAM only)
+      bootefi bootmgr  (EFI variables are kept in RAM only: nothing is stored; no vendor LUN is tried)
+      if nothing boots: U-Boot's fastboot; 600 s without a PC command -> power off (U-Boot patch 0007)
+ -> shim  (EFI/fedora/shimaa64.efi on the image's EFI System Partition; shim's fallback is not used)
  -> GRUB 2.12  (Fedora's; reads the BLS entries in /boot/loader/entries)
  -> kernel-iceland (our rpm) + its device tree
       (U-Boot loads <ESP>/dtb/qcom/kaanapali-oneplus-iceland.dtb and applies ABL's memory map; with the
        per-kernel option GRUB loads /boot/dtb-<version>/... and hands it through U-Boot's EFI DT fixup protocol)
  -> dracut initramfs with the module "90iceland":
       sets every UFS block device read-only except userdata (and its LUN as a whole),
-      attaches a partitioned loop device over userdata (direct I/O, 4 KiB blocks) -> loop0p1..p3
+      attaches a partitioned loop device over userdata (direct I/O, 4 KiB blocks) -> loop0p1..p3;
+      carries the GPU microcode; leaves the root-firmware drivers (remote processors, Wi-Fi, BT, video) to the root
+      (omit_drivers), so they load after switch_root when /lib/firmware is reachable
  -> Fedora root: btrfs subvolume "root" on loop0p3, /boot (ext4) loop0p2, ESP (FAT32) loop0p1; SELinux enforcing
  -> first boot: systemd-repart grows the root partition to the whole userdata, growfs grows btrfs
 ```
@@ -178,8 +190,16 @@ PC: fastboot boot head.boot.img                   ("iceland-head": gzip of the i
   - the loop-over-userdata carrier on the real partition.
   The plan sees these first after write 1, in the tethered boots. `07-INSTALL-REVIEW.md` R-3 / R-4 propose seeing
   some of them earlier.
-- **State on 2 Oct.** Rehearsal tooling built and checked on the PC. The B run (the image built on the tablet over
-  the network disk) passed in area-combo-93 and again with device package 0.18 in area-combo-94. The first rehearsal boot R1 stopped in the rehearsal U-Boot: its
+- **State on 2 Oct, 22:30.**
+  - Rehearsal tooling built and checked on the PC (selfcheck clean, check-all 14 PASS).
+  - The B run (the image built on the tablet over the network disk) passed in area-combo-93, and again with device
+    package 0.18 in area-combo-94. Run 94's image still lacks three round-6 fixes (B1 omit_drivers, B2 no SELinux
+    load into the kit, B4 GPU microcode), so the B run is repeated before R1.
+  - The R1 U-Boot fix (blkmap `create` takes 3 words; every failure prints a FAILED line and returns to fastboot) is
+    verified 15 / 15 in an independent U-Boot sandbox (`wf/r1debug/REPORT.md`).
+  - The first tablet step is an 8 KiB "not gzip" test head. It proves the return to fastboot and the PC's recovery
+    within seconds.
+  - The exact command list is `docs/INSTALL-RERUN-COMMANDS.md`. The first rehearsal boot R1 stopped in the rehearsal U-Boot: its
   `blkmap create` subcommand table still accepted only 2 words. Fixed in round 5: every failure now returns to
   fastboot or resets, and never stops at a prompt. Re-run pending.
 
@@ -229,10 +249,25 @@ written and dry-run, never executed.
 Both are described with their checks in `docs/INSTALL-GUIDE.md`. Both run only with the owner's OK. See the review
 before either.
 
-**Order decided on 2 Oct.** The owner accepted the review's proposal (R-3): a **write-2 probe first**.
-1. U-Boot, with an AVB footer, goes into `boot_b` while Android's data is still intact.
-2. Three cold boots prove ABL, AVB, the rescue keys and the retry counter.
-3. The probe is undone with the saved `boot_b`. LineageOS returns with its data.
-4. Only then come write 1 and write 2.
+**Order decided on 2 Oct.** The owner accepted the review's proposal (R-3): a **write-2 probe first** (guide part
+"C0", text being written by the install workflow). **The owner runs every write themselves.**
+1. **Part A read.** `parta-read.ps1` pulls today's `boot_b`, `vbmeta_b`, slot flags and `misc` read-only (needs
+   "Rooted debugging").
+   - `parta-check.sh` makes `boot_b-before-install.img` (the undo file) and the footered
+     `u-boot-iceland-footered.img`.
+   - It reruns the AVB proof on today's images.
+   - It stops if `misc` holds `boot-recovery` / `boot-fastboot`.
+   - Its last line is `PARTA: READY FOR C0`.
+2. **C0.** In ABL's fastboot the owner writes the footered install U-Boot into `boot_b`, then reads the slot flags
+   before any reboot. Expected:
+   - power-on shows ABL's orange warning, then U-Boot;
+   - U-Boot maps Android's encrypted `userdata`, finds no Fedora, waits in fastboot, and powers off after 10 minutes;
+   - three untethered cold boots, each followed by a read of the slot flags in ABL: b successful, not unbootable,
+     retry count unchanged, current slot b.
+3. **Undo.** The owner writes `boot_b-before-install.img` back. LineageOS returns **with its data**. If
+   `current-slot` reads `a`, nothing else is written; ask first.
+4. **Then** write 1 and write 2 again **in the same ABL session**, with no Android boot between them (Android would
+   set `boot-recovery` in `misc` when it cannot mount `userdata`).
 
-The guide gets a new part C0 for this. **Dual boot:** not now. A separate plan is being prepared.
+**Dual boot:** not now (owner, 2 Oct). A plan with the best safety precautions is to be written
+(`wf/install/DUALBOOT-PLAN.md`, not started).

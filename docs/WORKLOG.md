@@ -1789,3 +1789,84 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   BD / MAC / GUID; write commands only inside warning blocks) -> docs/guide/; (2) project knowledge: HANDOVER.md
   rewritten (21:00), STATE.md new status block, CLAUDE.md new rules, memory resume block; (3) the kits' module list
   -> tools/linux-ram/modlist-all.txt. Commit u + the project-folder snapshot.
+- Commit u pushed: iceland-mainline **1c417e9** (docs/guide 10 files, HANDOVER, PROJECT-STATE, PROJECT-CLAUDE, modlist-all; 0 rpm / private / frames). Snapshot refreshed (save-project + fix + wf): privacy scan clean, 1080 files; workflows 521 files in 28 folders, 0 serial / address hits.
+- **r1debug (Fable) finished**: the root cause confirmed independently (the env extracted from the failed image:
+  `blkmap create rehearsal 4096`, bootcmd `fastboot usb 0`; the dispatcher returns CMD_RET_USAGE for 3 > maxargs 2;
+  fastboot_bootcmd returns inside the USB completion -> do_exit_on_complete detaches the gadget -> prompt); reproduced
+  exactly in a U-Boot sandbox; the rest of the path checked with the real head's values (644357 blocks, < 1 GiB, end
+  0x95D505000 inside the 0x8C0000000 bank, LMB, the EFI boot manager on a 4 KiB GPT/FAT16 ESP). **The install
+  agent's fix is correct: 15 / 15 in its sandbox.** Proposals: rehearse.ps1 busy detect (Fb-Count -eq 1 can be a
+  busy U-Boot -> getvar product with 5 s), sandbox-check `< /dev/null` + a real GPT/ESP; first tablet step: the
+  8 KiB notgzip head (proves fastboot_loop's USB re-registration in seconds). The dotted rectangle = unredrawn panel.
+  Sent to the install agent: apply both patches first; then (owner connected) notgzip test, then R1.
+- User: "change install tooling workflow to opus and rebase its knowledge from our document expert and r1 debugger"
+  -> the running install agent asked to finish its current edit, write wf/install/HANDOVER-ROUND6.md and stop; then a
+  new Opus install agent starts from that handover + the docs set (07-INSTALL-REVIEW, 03-BOOT-AND-PARTITIONS,
+  02-HARDWARE) + wf/r1debug/REPORT.md and its patches + BOOT-LOG-PLAN, and may ask the docs SME and the r1debug
+  agent directly.
+- **hwfix topic B test-ready** (wf/bootfix, 7 items, BF_ITEMS="wcn bl dmic fastrpc mcq smem nvt"): wcn = WCN7860 PMU
+  inputs as stock cnss-peach (vddaon L2G 1.8 V, vddcx S1J; L2G had no Linux vote; vddant stays dummy as stock),
+  bl = ktz8869 vddio optional (stock has none), dmic = qcom,dmic-sample-rate 4800000 (the driver's fallback), fastrpc
+  = stock's 12 MiB adsp_heap CMA region + vmids, mcq = UFS MCQ block 0x1da0000 + msi-parent (stock / upstream SM8650
+  / SM8750), smem = backport of Konrad Dybcio's Glymur DRAM info (872 bytes) + the 1000UL fix, nvt = dev_err_probe.
+  Left on purpose: SoundWire ports (same in every upstream dtsi since SM8550), SCMI FC (firmware refuses), PCIe
+  supplies (stock has none; the 14 deferrals = pwrctrl waiting for pci-pwrctrl-pwrseq). Test part bfdt (4 min, reads
+  only: UFS via dd of=/dev/null). Building **q79** = 0166 + bootfix; kit **96** (gen-combo-96.py: pkg2 + rotpkg start
+  + bfdt, coldplug) for the FastRPC sensor-hub check.
+- **q79** f183257aafb7 = 0166 + bootfix topic B, 0 compiler warnings, camdrv/sc1320cs-q79.ko; kit **96** generated (setup + coldplug, pkg2 0.17, rotpkg start, bfdt; AUTOREBOOT 2400) and checked. Waiting for the owner to connect the tablet.
+- **Old install agent handed over** (wf/install/HANDOVER-ROUND6.md): rehearse.ps1 ready (8453bb0c..., r1debug's busy
+  probe + 300 s wait), sandbox 13 PASS + 1 known gap (truncated gzip crashes unzip; hardening after R1); B1 / B2 / B3
+  done in source -> P1 + TIN + the B run again (must show "policy loads 0"); R-1 confirmed on the PC against
+  Qualcomm's public ABL source: a plain U-Boot on boot_b = INVALID_METADATA -> ABL stops (slot b unbootable); the
+  footered one = PUBLIC_KEY_REJECTED (= LineageOS today) -> continues; AVB-PROOF PASS 12 cases (on the LineageOS build's
+  images; rerun on today's after parta-read); R-2 confirmed; R-4 / R-5 / R-6 / R-9 misc check in the tooling;
+  parta-read.ps1 (reads only, whitelist) + parta-check.sh (PARTA: READY FOR C0) ready, not run. Not started: guide
+  C0 text, DUALBOOT-PLAN.md, R8 / R9 text.
+- **New install agent on Opus** started from that handover + the docs set (07, 03, 02, 06) + r1debug's report and
+  patches + BOOT-LOG-PLAN; may ask the docs SME and r1debug; tasks: re-verify (selfcheck, check-all), the command
+  list for me (P1 + TIN, B run, notgzip test, R1, parta-read / -check), C0 + guide / plan fixes, DUALBOOT-PLAN.md,
+  then the unzip hardening.
+- Owner: "tablet is connected proceed" (battery 52 %, 24.1 C) -> run 96 (bootfix topic B on q79) started.
+- **Run 96** (q79 = 0166 + bootfix B; coldplug, pkg2, rotpkg start, bfdt): **wcn, bl, dmic, fastrpc, mcq, audio PASS**
+  (L2G 1.8 V now voted by vddaon; Wi-Fi 5 BSS on 2.4 / 5 GHz, BT up; MCQ 9 queues, 256 MiB O_DIRECT read 2.3 GB/s;
+  FastRPC CMA 12 MiB + sensor hub fine; 6 / 6 amps, mics hear the tone); **smem FAIL** (DRAM info parsed - 3 DDR
+  frequencies, line gone - but "hbb none" vs the table's 16: semantics asked) and **nvt "absent"** (the panel-wait
+  line IS gone, touch + pen ok: the test's detection misses a built-in driver). kmsg vs run 92: the 8 targeted lines
+  gone; new only the FastRPC reserved-memory info and pkg2's SELinux policy load into the kit; 0 WARNING / Oops.
+  Sent to the hwfix agent; if smem is the test only, queue all 7 from q79's tree.
+- **bootfix topic B GREEN (9 / 9 on run 96 after two test fixes)**: smem "hbb none" = the HBB field is 0 -> -ENODATA ->
+  qcom_ubwc_config_get_data() keeps the table value 16 by design (no "Couldn't get HBB" line); the 872-byte layout
+  proven by the parsed frequency plan (and 4780.8 MHz proves the 1000UL fix); nvt: the module is nt36536_ts.ko and
+  carries the new string. q79 = exactly the 7 items (no l2diag). `queue-0167.sh` + .msg written (0167-0174: 8
+  commits incl. the smem backport with its original author); waiting for the agent to fill in the backport's Author /
+  Signed-off-by from its source, then DRY + queue.
+- **Queued 0167-0174** (iceland-linux **a88cf03**, `queue-0167.sh`, tree = q79 fb8aadfc, QUEUE-VERIFIED; 8 commits;
+  0172 = the smem backport with author Konrad Dybcio <konradybcio@kernel.org> from the mirror's From header; its
+  Signed-off-by left out rather than guessed - the mirror redacts it, lore and patchwork sit behind an Anubis bot
+  check that is not passed in an automated browser; the note says so). **bootfix topic B GREEN.**
+- **hwfix topic A ready (diagnosis)**: not the controller - without WoW ath12k's suspend_late power-down does the WLAN
+  SoC global reset; the reset WCN7860 never answers PME_Turn_Off, dw_pcie_suspend_noirq warns after 10 ms (upstream
+  made it a warning for ath12k on SM8650-HDK) and continues (PERST#, pwrctrl powers WLAN off); on resume ath12k
+  reloads its firmware (the QRTR lines). Stock keeps the WLAN firmware alive (CESTA DRV). The 14 supply pairs = the
+  pwrctrl probe deferrals until pci-pwrctrl-pwrseq binds (installed-system fix: dracut add_drivers pwrseq_qcom_wcn
+  pci_pwrctrl_pwrseq; for the install workflow). Test-only switch l2diag (ath12k suspend_soc_reset, never queued);
+  part bfpcie: base / noreset / wow / nodrv s2idle variants. Building **q80** = 0174 + l2diag.
+- **q80** 58e99054f8ce = 0174 + l2diag (ath12k pci.c only), 0 warnings; kit **97** (setup + coldplug, bfpcie; AUTOREBOOT 1800) generated + checked; waiting for the owner's go.
+- Owner: "proceed" -> run 97 (PCIe L2 diagnosis on q80) started.
+- **Opus install agent, task 1 done** (verified: selfcheck clean, check-all 14 PASS; B1 / B2 / B3 complete; NEW:
+  touch accept check fixed, **B4 the run-94 golden had no GPU firmware trio (gen80200 sqe / gmu / aqe) in its
+  initramfs** -> fw-list.tsv + 3 vendor items + accept `gpu`; the pwrseq add_drivers drop-in + accept `pcieprobe`;
+  check-b-run.sh). Its full command list is saved in **docs/INSTALL-RERUN-COMMANDS.md** (copy rehearse.ps1 +
+  parta-read.ps1, P1 + TIN, the notgzip test, the B run, R1, Part A read). **Owner decision open:** GPU firmware in
+  the image = stock (GMU v5.3.39, default) or linux-firmware (v5.3.23, the kits' since pc-024).
+- **User: "save state with our documentation expert since will need to compact"** -> HANDOVER.md state table and
+  workflows updated (22:30: queue 0174, q79 / q80, the Opus install agent, r1debug finished, run 97 running),
+  INSTALL-RERUN-COMMANDS.md, this entry, the memory resume block; the docs agent updates 01 / 03 / 06 / 07 / INDEX and
+  writes RESUME-2026-10-02.md; then a commit + the snapshot. **Run 97 (PCIe diagnosis) is RUNNING at this point:**
+  judge it from area-combo-97 and send it to the hwfix agent (ab01e21f3f346b12e).
+- User asked the difference stock vs linux-firmware GPU firmware -> answered: same features; v5.3.23 (linux-firmware)
+  carries every GPU / battery-life / deep-sleep result since pc-024, Fedora updates; v5.3.39 (stock) only proven to
+  load and power up (pc-010 / pc-011), never rendered. **Owner decision: "go with linux firmware"** -> sent to the
+  install agent (take them from Fedora's firmware package if it has v5.3.23+, else carry linux-firmware's files in
+  the device package; the zap shader stays the tablet's; accept `gpu` expects v5.3.23).
+- docs agent: the set brought to 22:30 (01 / 02 / 03 / 06 / 07 status per finding / INDEX / GLOSSARY / 04) + RESUME-2026-10-02.md; HANDOVER base config fixed to out-config-base-0174 everywhere; matrix-c2t (row Internal storage (UFS 4): MCQ, 2.3 GB/s; queue 0174; 147 runs / 88 kernels); commit v.

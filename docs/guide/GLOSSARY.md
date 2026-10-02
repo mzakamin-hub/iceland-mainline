@@ -46,7 +46,7 @@ Terms as this project uses them. "Pad 4" = OnePlus Pad 4 (OPD2514, codename icel
 | **NBD** | network block device: the rehearsal's root disk served by the PC over the USB link |
 | **pmic_glink** | the message channel to the charger firmware on the **SoCCP** (battery, USB-C / UCSI, altmode) |
 | **priv/** | the private part of a workflow folder (stock data, traces): never copied into docs or commits |
-| **queue, queue patch NNNN** | the Pad 4 kernel patch series `iceland-linux/patches/0002-iceland/NNNN-*.patch` (0001-0166 on 2 Oct) |
+| **queue, queue patch NNNN** | the Pad 4 kernel patch series `iceland-linux/patches/0002-iceland/NNNN-*.patch` (0001-0174 on 2 Oct, 22:30) |
 | **qNN, binqNN** | test kernel NN and its build output folder (`~/mainline/build/binqNN`) |
 | **RAM boot** | starting an image from RAM with `fastboot boot`; nothing is written; a reboot returns to Android |
 | **rehearsal** | the install's proof without writing: the real boot chain from RAM, with the root disk on the PC |

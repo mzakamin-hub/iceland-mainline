@@ -1,6 +1,6 @@
 # 06 - Process history: how the project got here, the method, the lessons
 
-State: 2 Oct 2026, evening. Sources:
+State: 2 Oct 2026, about 22:30. Sources:
 - `C:\Users\lucne\OnePlusPad4-Mainline\WORKLOG.md` (entries 1-44, the running history);
 - `docs/memory/iceland-resume-point.md` (dated save points 28 Sep - 2 Oct);
 - `iceland-mainline/docs/KNOWLEDGE.md` (sections 10-15), `CHANGELOG.md`, `docs/tests/README.md`;
@@ -31,12 +31,16 @@ All dates 2026. "Run N" = kit run `area-combo-N`; "qNN" = test kernel NN.
 | 2 Oct 10:00-16:00 | Runs 48-76 | Pogo and pen charger proven without accessories (0090-0097); the Camera app works (the DMA-heap rule); audit kit A / B queued (0099-0112); wake sources (0098, 0115-0116); **CX collapse 98 %** (0113-0114); device package 0.17 committed; install G13 closed (rehearsal U-Boot without UFS); apps 33 of 33; hardware inventory; measured battery life (run 69); NPU cooling (0117-0124) |
 | 2 Oct 16:00-19:50 | Runs 77-93 | quick wins (0125-0138); upstream fixes (0139-0161); **the f_ncm USB upload bug** found and fixed (0162; the tablet -> PC direction went from under 0.3 to about 40 MB/s); power telemetry (0163-0166); the GPU ISP workflow finished; **the install B run passed** (run 93) |
 | 2 Oct 19:38 | R1 | The first rehearsal boot stopped in the rehearsal U-Boot (`blkmap create` subcommand table). The owner restarted the tablet; nothing was written. Fixed in round 5; a helper ("r1debug") verifies the fix |
-| 2 Oct evening | Documentation, decisions | This document set (`wf/docs/`) and its install review. The boot-log review (`docs/BOOT-LOG-PLAN.md`). B rerun with device package 0.18 passed (run 94). Owner decisions: Fedora-only for now with a dual-boot plan to prepare; the write-2 probe first. New workflows: **bypass** (stock-like bypass charging with a Quick Settings toggle) and **bootfix** (the PCIe L2 timeout, device-tree gaps vs stock). Run 95: the owner's charging sitting with wall chargers |
+| 2 Oct about 20:00 | Documentation, boot log, decisions | This document set (`wf/docs/`) and its install review (R-1..R-12). The boot-log review (`docs/BOOT-LOG-PLAN.md`: 77 groups, no WARNING / Oops). B rerun with device package 0.18 passed (run 94). Owner decisions: Fedora-only for now, with a dual-boot plan to prepare; the write-2 probe first, run by the owner; ask before every tablet action |
+| 2 Oct about 20:30 | Charge limit, commits | Run 95 (the owner's charging sitting): "Preserve Battery Health" and "Maximize charge" confirmed by the owner, then the wall-charger part skipped. Commit t (matrix c2s, BOOT-LOG-PLAN P1-a corrected: the battery does not need the ADSP). Commit u, iceland-mainline 1c417e9: the docs drafts as `docs/guide/`, project knowledge, the kits' module list |
+| 2 Oct about 21:00 | R1 verified, install agent handed over | The r1debug helper (another model) confirmed R1's root cause and the install agent's U-Boot fix 15 / 15 in its own U-Boot sandbox. It proposed a "busy U-Boot" probe for `rehearse.ps1` and an 8 KiB "not gzip" test head as the first tablet step. The install agent wrote `wf/install/HANDOVER-ROUND6.md` and a new Opus install agent took over |
+| 2 Oct about 21:00 | AVB proven on the PC | Install round 6: a libavb harness modelled on Qualcomm's public ABL. A plain U-Boot in `boot_b` gives INVALID_METADATA (ABL stops, slot b unbootable); with an AVB footer it gives PUBLIC_KEY_REJECTED (continues, as LineageOS does today): AVB-PROOF PASS. Also: U-Boot powers off after 600 s idle (patch 0007); an explicit EFI boot option for shim; the Part A reader / checker; B1 / B2 / B3 / B4 fixes. The backup's `efisp` is all zeros |
+| 2 Oct about 21:30-22:30 | bootfix topic B queued, topic A diagnosed | Run 96 on q79: 9 of 9 PASS. Queued **0167-0174** (iceland-linux a88cf03): WCN7860 supplies, backlight vddio optional, VA DMIC rate, FastRPC heap, UFS MCQ, the smem DRAM-info backport (author kept) + overflow fix, the touch message. Topic A: the PCIe L2 timeout comes from ath12k's suspend-time chip reset; diagnosis kit **run 97** (q80, test-only switch) started. Topic C (bypass charging) in progress. `docs/INSTALL-RERUN-COMMANDS.md`: the install agent's verified next commands |
 
 Totals by 2 Oct evening:
-- 138 SM8850 base patches + 166 Pad 4 patches;
-- 93 `area-combo` runs, plus the earlier relay kits and area runs (about 143 test runs in all, matrix c2r);
-- test kernels up to q78;
+- 138 SM8850 base patches + 174 Pad 4 patches;
+- 97 `area-combo` runs, plus the earlier relay kits and area runs (about 145 test runs in all, matrix c2s);
+- test kernels up to q80;
 - feature matrix 61 / 12 / 5 / 2 of 80.
 
 ## 2. The method
@@ -87,7 +91,9 @@ Totals by 2 Oct evening:
   - round 2: bcl, charging, chargelimit, gpucool, thermal;
   - camera;
   - round 4: pencharge, pogo, deepsleep, wake, apps, audit, pkg017, install;
-  - later: hwinv, quickwins, telemetry, npucool, gpuisp, upsync, r1debug, docs.
+  - later: hwinv, quickwins, telemetry, npucool, gpuisp, upsync, r1debug, docs, hwfix (bootfix + bypass).
+  - The install workflow changed model on 2 Oct evening through a written handover
+    (`wf/install/HANDOVER-ROUND6.md`). Agents may also consult the docs agent and the r1debug agent directly.
 
 ### 2.3 The rules the work follows
 
@@ -126,7 +132,11 @@ See `01-OVERVIEW.md` section 4. In short:
 | 2 Oct | The rehearsal must be unable to touch the storage (G13) | a separate U-Boot build without UFS for rehearsals | WORKLOG 37 |
 | 2 Oct | **f_ncm drops its NTB flush when all IN requests are busy**: uploads with traffic both ways collapse | the network-disk rehearsal works (38.6 MB/s writes) | queue 0162, runs 85 / 86 / 90 |
 | 2 Oct | fwupd lists the UFS storage as updatable | a storage-firmware update is the one software path to a dead tablet: 17 plug-ins disabled | iceland-device 0.17 |
-| 2 Oct | Remote-processor firmware is not reachable from the initramfs; the kits' scripts started the ADSP late | the installed boot must order it | BOOT-LOG-PLAN P1-a |
+| 2 Oct | Remote-processor firmware is not reachable from the initramfs; the kits' scripts started the ADSP late | the installed boot must order it (dracut omit_drivers, install B1) | BOOT-LOG-PLAN P1-a |
+| 2 Oct | A plain image in a chained `boot` partition is INVALID_METADATA for ABL; a footered one is PUBLIC_KEY_REJECTED | the install U-Boot carries an AVB footer; vbmeta stays untouched | install round 6, AVB-PROOF |
+| 2 Oct | R1: U-Boot's sub-command table has its own maxargs, so a patched command was refused before it ran | every U-Boot failure path now returns to fastboot or powers off; never a prompt | r1debug REPORT |
+| 2 Oct | The first golden image's initramfs lacked the GPU microcode (MSM is built in and loads it at bind time) | the trio goes into the initramfs; the owner chose linux-firmware's set (v5.3.23, as in every kit) over stock's (v5.3.39) | install B4 |
+| 2 Oct | The PCIe L2 timeout at suspend: ath12k resets the WLAN chip at suspend, and it never answers PME_Turn_Off | diagnosis run 97; stock keeps the WLAN firmware alive | wf/bootfix topic A |
 
 ## 4. Lessons learned (the hard-won rules and their reasons)
 
@@ -157,6 +167,8 @@ From `CLAUDE.md`, `HANDOVER.md` section 6, `KNOWLEDGE.md` section 12 and the WOR
 | A log tarball fetched at the end of a session can be truncated: fetch mid-run and check with `tar -tzf` | lost log sets |
 | Webcam only during kit runs; frames stay local and are deleted after the verdict | privacy |
 | Ask the owner to connect the tablet and wait for the go before any tablet run; never leave a chain waiting on adb | the tablet is unplugged while it recharges (2 Oct) |
+| A U-Boot command can be refused by its sub-command table's maxargs even after its parser was patched; test U-Boot changes in a sandbox of the same tree before a tablet boot | R1 stopped at a prompt that only the power button could leave |
+| A boot loader path must never end at a prompt nobody can answer: every failure returns to fastboot, resets, or powers off after a timeout | R1, and the review's R-6 |
 
 ## 5. Where the evidence lives
 

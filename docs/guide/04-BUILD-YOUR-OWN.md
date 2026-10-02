@@ -1,6 +1,6 @@
 # 04 - Build your own kernel and RAM-boot it on your OnePlus Pad 4
 
-A step-by-step guide for a Linux user with their own Pad 4. State: 2 Oct 2026 (queue 0001-0166).
+A step-by-step guide for a Linux user with their own Pad 4. State: 2 Oct 2026 (queue 0001-0174).
 
 The project itself works from Windows 11 with WSL (Ubuntu 24.04) for building and PowerShell for the tablet runs.
 **Steps marked "untested here" were not run that way by the project.** The underlying commands are the same, but
@@ -101,7 +101,7 @@ What it does (read `scripts/prepare.sh`; it changes nothing outside `./src`):
    `kernel.pin` (93f51579e7df...).
 2. Applies `patches/0001-infiniti/*.patch` (138 commits of the OnePlus 15 port of the same SoC) with `git am`, so
    every patch keeps its author, date and message. It checks that the tree hash equals `TREE_AFTER_0001_infiniti`.
-3. Applies `patches/0002-iceland/*.patch` (the Pad 4 series, 0001-0166) and checks `TREE_AFTER_0002_iceland`.
+3. Applies `patches/0002-iceland/*.patch` (the Pad 4 series, 0001-0174) and checks `TREE_AFTER_0002_iceland`.
 4. Prints `source ready: ./src (<commit>)`. A tree-hash mismatch stops it: your tree would not be the tested one.
 
 If the GitHub clone stalls (it did twice for the project), clone `v7.3-rc4` by hand into `./src` and run the script

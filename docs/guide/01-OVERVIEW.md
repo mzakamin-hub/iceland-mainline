@@ -1,6 +1,6 @@
 # 01 - Overview: mainline Linux and Fedora on the OnePlus Pad 4
 
-State: 2 Oct 2026 (evening). Sources: `iceland-mainline/docs/FEATURES.md` (generated from
+State: 2 Oct 2026, about 22:30. Sources: `iceland-mainline/docs/FEATURES.md` (generated from
 `docs/features/features-data.py`), `WORKLOG.md` entries 1-44, `docs/INSTALL-PLAN.md`, the workflow reports in
 `~/mainline/build/wf/`. Every "proven" below names the test run that showed it (`area-combo-NN` = kit run NN; the log
 sets are in `iceland-mainline/docs/tests/` and `~/mainline/build/area-combo-NN/`).
@@ -13,10 +13,10 @@ The project brings an upstream Linux kernel and a normal desktop distribution to
 |---|---|
 | Device | OnePlus Pad 4, model OPD2514, board codename **iceland** |
 | SoC | Qualcomm Snapdragon **SM8850P**: "Kaanapali" in mainline Linux, "canoe" in Android and ABL |
-| Kernel | Linux **7.3-rc4** + 138 SM8850 base patches (the OnePlus 15 "infiniti" port, same SoC) + **166 Pad 4 patches** (`iceland-linux`, `patches/0002-iceland/0001-0166`) |
+| Kernel | Linux **7.3-rc4** + 138 SM8850 base patches (the OnePlus 15 "infiniti" port, same SoC) + **174 Pad 4 patches** (`iceland-linux` a88cf03, `patches/0002-iceland/0001-0174`) |
 | Boot loader for Linux | **U-Boot** v2026.10-rc5 + patches (`iceland-u-boot`), started by the tablet's own boot loader (ABL) |
 | Distribution | **Fedora 44 Workstation (GNOME 50)**, aarch64. The owner chose it on 28 Sep 2026 |
-| Device package | `iceland-device` 0.17 (0.18 with the install parts is built and tested in RAM) |
+| Device package | `iceland-device` 0.17 in the repository. 0.18 adds the install parts, the GPU-ISP hold and "keep the CDSP running"; it is built on the tablet in the rehearsal's build runs (93, 94), and not committed yet |
 | How it is tested | **RAM boot only.** The PC sends a boot image over USB (`fastboot boot`). The tablet runs Linux from memory and returns to Android at the end. Nothing has ever been written to the tablet's storage by this project |
 | Planned | A permanent install into the tablet's `userdata` partition. It is designed to be unbrickable and restorable, and runs only with the owner's explicit OK for each write (see `03-BOOT-AND-PARTITIONS.md` and `07-INSTALL-REVIEW.md`) |
 
@@ -37,14 +37,15 @@ iio-sensor-proxy 3.9 (patched) <- libssc <- hexagonrpcd   | UPower (charge thres
 Mesa 26.x: freedreno (OpenGL / ES), turnip (Vulkan)        | GStreamer v4l2 (Iris video; one colorimetry patch)
 iceland-device: udev rules, ALSA UCM + AudioReach topology, battery guard, thermal policy, systemd drop-ins, update rules
 Fedora 44 user space (systemd, dnf5, SELinux targeted)
-Linux 7.3-rc4 + infiniti (138) + Pad 4 queue (166): DRM/MSM, ath12k, qcom_battmgr, remoteproc, Iris, CAMSS, ...
+Linux 7.3-rc4 + infiniti (138) + Pad 4 queue (174): DRM/MSM, ath12k, qcom_battmgr, remoteproc, Iris, CAMSS, ...
 U-Boot (EFI) <- ABL <- XBL / firmware (stock, untouched)
 Tablet firmware (GPU zap, video, ADSP / CDSP, Wi-Fi, BT, touch, sensor-hub files): extracted from the tablet, private
 ```
 
 ## 2. What works today
 
-The feature matrix has **80 rows: 61 working, 12 in progress, 5 not started, 2 not planned** (FEATURES.md, 2 Oct).
+The feature matrix has **80 rows: 61 working, 12 in progress, 5 not started, 2 not planned** (FEATURES.md, page
+v41, 2 Oct; about 145 test runs since 28 Sep).
 
 | Area | Working / rows | Highlights (run that proves it) |
 |---|---|---|
@@ -53,7 +54,7 @@ The feature matrix has **80 rows: 61 working, 12 in progress, 5 not started, 2 n
 | Graphics & compute | 7 / 7 | Adreno 840 with Mesa (OpenGL ES 3.2, Vulkan 1.4), hardware video decode bit-exact (H.264, HEVC, VP9 incl. 10-bit, AV1) and encode, the NPU's processor (CDSP) runs unsigned test programs (area-combo-1/-2) |
 | Audio | 7 / 9 | six speakers in stereo, two microphones at stock's level (area-combo-1..3), GNOME volume and input sliders |
 | Connectivity | 5 / 8 | Wi-Fi 2.4 GHz connected; 5 GHz networks found (queue 0066-0068); Bluetooth with its own address; USB device mode |
-| Power & charging | 5 / 8 | battery data and time estimate, a battery safety guard with stock's limits, a charge limit (80 / 85 %), low-battery current limiting as stock (area-combo-35/-37) |
+| Power & charging | 5 / 8 | battery data and time estimate, a battery safety guard with stock's limits, a charge limit (80 / 85 %: GNOME's "Preserve Battery Health" and "Maximize charge" confirmed by the owner in run 95), low-battery current limiting as stock (area-combo-35/-37) |
 | Thermal | 6 / 7 | CPU, GPU, skin, XO, PMIC-alarm and NPU cooling with stock's trips and maps (area-combo-38..41, -75) |
 | Sleep & power saving | 5 / 8 | s2idle suspend (37 cycles, area-combo-12/-14/-15), CX collapse in 95-98 % of a sleep (area-combo-64, -92), per-rail power telemetry |
 | Sensors & camera | 3 / 4 | accelerometer, compass, light / proximity through the ADSP sensor hub; both cameras at 30 fps with GNOME Camera (area-combo-52), rear flash as torch |
@@ -68,12 +69,14 @@ all cores busy 8.1 W falling to 7.7 W (about 7 h); screen off but awake 0.64 W (
 
 | Item | State | Why / what is missing |
 |---|---|---|
-| Fedora installed on the tablet | not started | needs the owner's OK for each write. The rehearsal's build run passed (area-combo-93, rerun -94 with device package 0.18). The first rehearsal boot (R1) stopped in the rehearsal U-Boot; the fix is ready, the re-run is pending. Owner decision (2 Oct): first a "write-2 probe" (U-Boot into `boot_b` while Android's data is intact, then undone), once its preconditions are green |
+| Fedora installed on the tablet | not started | the owner runs every write. The rehearsal's build run passed (area-combo-93, rerun -94 with device package 0.18); one more B run carries the round-6 fixes. R1 stopped in the rehearsal U-Boot; the fix is verified 15 / 15 in a U-Boot sandbox; next on the tablet: a "not gzip" test head, the B run, R1 (`docs/INSTALL-RERUN-COMMANDS.md`). AVB proven on the PC: the U-Boot for `boot_b` needs an AVB footer and has one. Owner decision: first a "write-2 probe" (U-Boot into `boot_b` while Android's data is intact, then undone) |
 | Dual boot with Android | not started | owner decision (2 Oct): Fedora-only for now; a dual-boot plan with the best safety precautions is being prepared (`wf/install/DUALBOOT-PLAN.md`) |
 | Speaker protection | not started | NXP's TFA protection runs in a closed protocol. The volume stays capped at -12 dB |
 | Headset over USB-C | not started | USB headsets use the normal USB audio driver. Analog headsets need the codec's audio-accessory mode. USB audio offload is not possible on mainline for this chip |
 | USB host / OTG | not started (untested) | the roles switch by themselves (dual-role controller, UCSI). Every test kit uses the port for the PC link, so no accessory has been tried |
 | Wi-Fi 5 GHz connect, 6 GHz | in progress | 5 GHz networks are found; connecting needs the owner's password; the regulatory country is not set ("Failed to set the requested Country regulatory setting") |
+| PCIe link at suspend | diagnosis running | "Timeout waiting for L2 entry" at every suspend. The hwfix workflow found the cause: ath12k resets the Wi-Fi chip at suspend, and the reset chip never answers the PCIe power-down handshake. Diagnosis kit run 97 (test-only switch) is running |
+| Bypass charging | in progress | stock-like "charging off, input kept" inside the battery guard, with a GNOME Quick Settings toggle (hwfix workflow, topic C) |
 | Pogo keyboard, pen charging, wake by cover / charger | in progress | drivers queued and proven without the accessory; one short session with the owner's hands remains |
 | Deep sleep (AOSS sleep) | in progress | CX collapse is reached. The deepest SoC state is out of reach on mainline: the always-on processor names the secure processor, which has no mainline driver |
 | Skin temperature policy | in progress | the policy daemon exists (device package 0.17). Moving the kernel's skin loop from 48 C to stock's 60 / 61 C is the owner's choice |

@@ -1,13 +1,13 @@
 # 07 - Independent review of the installation process
 
-Reviewer: the documentation / SME workflow ("docs"), 2 Oct 2026, evening. PC-only review: nothing was run on the
+Reviewer: the documentation / SME workflow ("docs"), 2 Oct 2026, evening; status updated about 22:30 (section 0). PC-only review: nothing was run on the
 tablet, nothing was built, no file outside `~/mainline/build/wf/docs/` was changed.
 
 **Status of the install on the day of this review:** nothing has been written to the tablet. The PC-side tooling is
 built and checked. The rehearsal's build run passed twice: B run `area-combo-93` on kernel q78 (queue 0001-0162),
 and its rerun `area-combo-94` with the full device package 0.18. The first rehearsal boot (R1) stopped in the
-rehearsal U-Boot at a `blkmap create` argument error (19:38). It was fixed in round 5 of the install workflow; the
-re-run waits for the r1debug helper's verification. The owner restarted the tablet by hand. Nothing was written.
+rehearsal U-Boot at a `blkmap create` argument error (19:38). It was fixed in round 5 of the install workflow, and the
+r1debug helper verified the fix 15 / 15 in its own U-Boot sandbox. The re-run is next (section 0). The owner restarted the tablet by hand. Nothing was written.
 
 **Owner decisions taken after the first findings (WORKLOG, 2 Oct evening):**
 - R-3: "yes lets test". The write-2 probe comes first, once its preconditions are green: the AVB footer, the PC
@@ -15,6 +15,31 @@ re-run waits for the r1debug helper's verification. The owner restarted the tabl
 - R-5: "no dual boot for now but prepare a plan for it with the best safety precautions". The install stays
   Fedora-only. The install workflow writes `wf/install/DUALBOOT-PLAN.md`, which this workflow reviews when it
   exists.
+
+## 0. Status of every finding (2 Oct, about 22:30)
+
+Sources: `wf/install/HANDOVER-ROUND6.md` (the install workflow's round-6 record), `wf/r1debug/REPORT.md`,
+`docs/INSTALL-RERUN-COMMANDS.md`, WORKLOG after entry 44. The install workflow numbers the coordinator's items
+R1-R9: R1 = R-1, R2 = R-2, R3 = R-3, R4 = R-4, R5 = R-6, R6 = R-7, R7 = R-5, R8 = R-8, R9 = R-9, B1 / B2 = R-11,
+B3 = R-12 (charge limit).
+
+| Finding | Status | Evidence / what is left |
+|---|---|---|
+| R-1 AVB footer for `boot_b` | **fixed in the tooling, proven on the PC** | `cand/avb/`: a libavb harness modelled on Qualcomm's public ABL (`ResultShouldContinue()`, `HandleActiveSlotUnbootable`). A plain U-Boot = INVALID_METADATA (stop, slot b unbootable); footered = PUBLIC_KEY_REJECTED (continue, the same as LineageOS today); AVB-PROOF PASS, 12 cases, on the LineageOS build's images. **Left:** rerun on today's pulled images (`parta-check.sh` after `parta-read.ps1`); OnePlus's own ABL is first seen in the write-2 probe (C0) |
+| R-2 undo file from the pre-LineageOS backup | **confirmed; enforced in the tooling** | the backup's `vbmeta_b` is stock (flags 0, OnePlus key); the LineageOS build's is flags 1 with a test key. `parta-check.sh` makes `boot_b-before-install.img` from today's pull. **Left:** INSTALL-PLAN sections 2, 5.2, 8 text |
+| R-3 write order | **decided: the write-2 probe first, run by the owner** | tooling done (`parta-read.ps1` reads only, a whitelist with 32 refused commands; `parta-check.sh` ends `PARTA: READY FOR C0`). **Left:** guide part C0 text (design in HANDOVER-ROUND6 section 4); Part A read on the tablet (command 6) |
+| R-4 rehearsal build vs install build | **guard done; texts open** | `check-header.py --install-only` refuses the rehearsal build. **Left:** plan sections 2 / 5.2, guide Part B item 5 / Part D step 1 |
+| R-5 dual boot | **decided: Fedora-only now; plan to be written** | `wf/install/DUALBOOT-PLAN.md` not started (brief: image file in userdata, userdata shrink / `fedora` partition, another LUN, boot selection; FBE, OTA, undo per step, rehearsals). This workflow reviews it |
+| R-6 unattended U-Boot waits for ever | **fixed (sandbox-proven)** | U-Boot patch 0007: fastboot leaves after 600 s idle; `fastboot_loop` then powers off (also after 10 sessions). **Left:** guide section 9 rows; no hardware watchdog in U-Boot |
+| R-7 boot order over all LUNs; `efisp` | **fixed** | env `fedora_bootopt`: one explicit Boot0001 (blkmap partition 1, `/EFI/fedora/shimaa64.efi`). No vendor LUN, no `EFI/BOOT` fallback, no shim fallback. The backup's `efisp` is all zeros (no file system) |
+| R-8 guide behind plan and tooling | **open** | proposed texts to come from the install workflow (`proposed/` in its folder); the main session edits `docs/` |
+| R-9 recovery rows, the `misc` trap | **check done; rows open** | ABL acts on `misc` only for `boot-recovery` / `boot-fastboot`; `parta-check.sh` stops on them. AOSP writes `bootonce-bootloader` at `adb reboot bootloader`, which ABL ignores. **Left:** the rows in guide section 9 |
+| R-10 device tree via GRUB vs U-Boot | **open, decided by R1** | R1's `dt` acceptance line; `PER_KERNEL_DT=0` is the fallback |
+| R-11 initramfs and firmware timing | **fixed in source; not yet in an image** | B1: dracut `omit_drivers` for the root-firmware drivers; the pwrseq `add_drivers` drop-in (`pcieprobe` line). B2: the build chroot gets its own sysfs and a read-only tmpfs over `selinuxfs` (each part reports "kit kernel policy loads N"; run 94 had 16). B4 (new): the GPU microcode trio was missing from run 94's initramfs; now in `fw-list.tsv` (26 items, 0 differ from stock) with a `gpu` line. The battery does **not** depend on the ADSP (BOOT-LOG-PLAN corrected). **Left:** P1 + TIN, then the B run must show "policy loads 0" and "root-firmware drivers 0", then R1's `adsp` / `cdsp` / `fwload` / `gpu` lines |
+| R-12 smaller points | **partly fixed** | charge-limit check fixed (B3: `chargethreshold` + `chargelimit` on `qcom-battmgr-bat`). Still open: return to stock never executed; slot a after it; `adb root` pre-check; the plan's kernel numbers; `uboot.pin` comment; iceland-u-boot README |
+| New: `unzip` has no length bound | **known gap, not reachable in practice** | a truncated gzip head crashed the sandbox; the head's sha256 is checked before sending. Hardening (`unzip ... ${headmax}`) after R1, then a rebuild and a new footer |
+| New: GPU firmware in the image | **decided by the owner: linux-firmware (v5.3.23)** | what every kit since pc-024 used (the stock set is GMU v5.3.39). The install agent adapts B4 (three lines); the firmware count expected in the B run changes with it |
+| New: R1 fix | **verified** | r1debug: root cause reproduced exactly; the install agent's fix 15 / 15 in an independent sandbox; `rehearse.ps1` got the busy-U-Boot probe. First tablet step: the 8 KiB notgzip head (command 3) |
 
 ## 1. Scope and sources
 
@@ -319,7 +344,7 @@ instruction, or an unattended failure mode; **Low** = wording, stale numbers.
 - If `adb pull` refuses the block device, the read-only fallback is `adb exec-out "dd if=/dev/block/by-name/boot_b
   bs=4M"` through `cmd /c ... >`, like the tar line. The size check stays the same.
 - **The plan's package table is stale.** Section 3 says kernel-iceland is "7.3-rc4 + queue 0001-0108". The current
-  K2 is built from q78 = queue 0001-0162; the queue head is 0166.
+  K2 is built from q78 = queue 0001-0162; the queue head is 0174.
 - **`uboot.pin` comment.** It says the boot header OS version / patch level "must match stock (anti-rollback)". The
   install REPORT found that today's `boot_b` header carries zero values (GKI keeps them in the AVB footer). Align the
   comment, and put the values into the footer (R-1).
@@ -339,7 +364,7 @@ instruction, or an unattended failure mode; **Low** = wording, stale numbers.
 | Decisions | 10 | 4 | - | brief: dual boot wanted | **no (R-5, R-8)** |
 | Device tree to Linux | GRUB loads per-kernel DT (step 4, *) | - | `GRUB_DEVICETREE` switchable, F7 | iceland-linux plug-in: no GRUB line | **two designs (R-10)** |
 | Firmware path names | - | - | `qcom/kaanapali/iceland/...` (= board DT `firmware-name`) | `firmware/manifest.tsv` and the reference doc: `qcom/kaanapali/OnePlus/iceland/...` | **no** (manifest stale; the DT is authoritative) |
-| Kernel queue in the image | 0001-0108 | - | q78 = 0001-0162 | head 0166 | stale numbers |
+| Kernel queue in the image | 0001-0108 | - | q78 = 0001-0162 | head 0174 | stale numbers |
 | Return to LineageOS | - | - | - | `22-Flash-LineageOS.ps1` (pre-install assumptions) | **missing (R-5)** |
 
 ## 5. What is done well (keep it)

@@ -1,16 +1,17 @@
 # OnePlus Pad 4 mainline: feature matrix
 
-Status 2 Oct 2026 (Kernel queue 0001-0166 with the install configuration, device package 0.17: charging, the charge limit, low-battery limiting, thermal and GPU cooling as stock; both cameras and the Camera app; the pogo keyboard, the pen charger and the wake sources proven without hands; deep sleep reaches CX collapse. Measured battery life (53.8-56.7 Wh): light use 14-17 h, 1080p video 15-16 h, all cores busy about 7 h, screen off awake about 3.5 days. Estimate for a full install with dual boot: about 65 % of the way, about two chances in three that it works as planned (Fedora only: about four in five)). Everything is tested by RAM boot; nothing is installed on the tablet yet.
+Status 2 Oct 2026 (Kernel queue 0001-0174 with the install configuration, device package 0.17: charging, the charge limit, low-battery limiting, thermal and GPU cooling as stock; both cameras and the Camera app; the pogo keyboard, the pen charger and the wake sources proven without hands; deep sleep reaches CX collapse. Measured battery life (53.8-56.7 Wh): light use 14-17 h, 1080p video 15-16 h, all cores busy about 7 h, screen off awake about 3.5 days. Estimate for a full install with dual boot: about 65 % of the way, about two chances in three that it works as planned (Fedora only: about four in five)). Everything is tested by RAM boot; nothing is installed on the tablet yet.
 Legend: ✅ working · 🟡 in progress · ⬜ not started · ❌ not planned. Sorted by functionality.
-Totals: 61 working, 12 in progress, 5 not started, 2 not planned (80).
+Totals: 62 working, 12 in progress, 5 not started, 2 not planned (81).
 
-## Boot & platform (6/9 working)
+## Boot & platform (7/10 working)
 
 | Feature | Status | Notes | Where to look for the fix |
 |---|---|---|---|
 | U-Boot booted from RAM (display, USB fastboot, UFS read, EFI) | ✅ Working | Nothing written to the tablet; fastboot flashing compiled out |  |
 | U-Boot boot setting for single or dual boot | ✅ Working | Boots a “fedora” partition if present, else userdata |  |
-| Linux 7.3-rc4 through EFI | ✅ Working | Queue 0001–0166 + infiniti |  |
+| Linux 7.3-rc4 through EFI | ✅ Working | Queue 0001–0174 + infiniti |  |
+| Internal storage (UFS 4) | ✅ Working | The UFS 4 storage works with 4 KiB blocks; since the queue's 0171 it runs in MCQ mode (multi-queue, as the upstream SM8650 / SM8750 boards): 9 hardware queues per LUN, a read-only test read 256 MiB with O_DIRECT in 0.118 s = 2.3 GB/s (area-combo-96). The test kits never write to it; the installed Fedora's root lives here (planned) | Nothing |
 | Fedora 44 running from RAM | ✅ Working | systemd as PID 1; packages through the PC |  |
 | GNOME Shell 50 | ✅ Working | Autologin session in RAM |  |
 | Test sessions stable | ✅ Working | The 30 Sep freezes are found and fixed: fast transfers from the PC into the tablet over USB hung the chip while its CPUs could power down (14 sessions; 7 test runs pin it down and prove the fix, queue 0063). A lighter version of the fix, as stock does it (only while USB is busy, queue 0064), let one freeze through in five sessions and was taken back (queue 0065) |  |
