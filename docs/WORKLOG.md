@@ -651,3 +651,129 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   table (first cap at 33 C shell temperature) or shifted like Performance; may stock's fitting coefficients be
   committed to the private repo. GPU: an optional 30-minute soak. Earlier ones: one turn of the tablet, Wi-Fi
   password for a 5 GHz connect, reporting the mutter bug, wall-charger sitting, microphone meter look.
+
+### 2026-10-02 - entry 21: resumed; run 38 (thermal baseline, gpucool); stuck CPU limits found; camera workflow started
+
+- User: "resume", then mid-turn "finalize camera as well in seperate workflow". Brief written
+  (`docs/WORKFLOW-BRIEF-3-camera.md`: driver robustness, focus motor, picture quality with the software ISP, the
+  apps, flash, shipping the private driver, the bus switch) and the workflow started as a background agent; its
+  folder is `build/wf/camera/` (`priv/` for anything that quotes the private driver or stock tuning data).
+- **Run 38** (kit q51 = queue 0073 + 8 mA; first try stopped at the kit build: a quote character in the kit
+  description, fixed in `gen-combo-38.py` / `gen-combo-39.py`):
+  - `thermal` run A ("before", kernel zones only): 3 PASS / 0 FAIL / 1 WARN. 70 zones; walk PASS at 48 / 51 C
+    (gear 998400 / 883200 kHz + 342 MHz at once, released in 0.75 s); no PMIC maps, no daemon (expected).
+    60 s all-core load: skin 39.5 -> 52.0 C in 5 s (2.5 C/s), peak 52.7 C, hottest CPU sensor 106 C; from 30 s
+    on the caps are 1.35 / 1.29 GHz and GPU 472 MHz; work 202032 chunks (6711 /s in the first 5 s, 3131 /s in the
+    last 30 s) = the baseline for run B. WARN: 90 s after the load the CPU cooling states are still 14 / 14.
+  - `gpucool`: 7 PASS, 2 FAIL, 2 SKIP. The read-only checks pass (18 levels, 11 GPU zones with 105 C loop and
+    125 C shutdown, skin + XO maps, governors, no faults). SKIP emul + FAIL restore: the CPU cooling states were
+    still 14 / 14 three minutes after the thermal load (skin 39 C). FAIL limits: the test's own stop limit (GPU
+    sensor 100 C) was reached 7 s into the first free run (43 -> 103.8 C at 1200 MHz); nothing was judged.
+- **Finding: CPU limits stay stuck at state 14 after a heavy load** (1.9 / 2.67 GHz instead of 3.6 / 4.4 GHz, until
+  a CPU sensor interrupt happens to come). Cause as read from the source (to be proven in run 39):
+  `gov_step_wise.c` gives an instance whose trip is NOT exceeded its `lower` state when its zone sees a falling
+  temperature while the cooling device's current state is above `lower` - the state of the shared cooling device,
+  which another zone (the skin loop at 18-22) holds up. The CPU zones' 112 C maps (queue 0023) have lower = 14;
+  a tsens zone is not polled once it has left its passive state, so the stale 14 stays. GPU maps have no such
+  lower bound: the GPU is released (0), as seen.
+- Changes for run 39 (`an/edit-gen39.py`): order charging -> gpucool -> thermal -> new part `stuck`
+  (`an/combo39-parts.sh`: reads the states after the load, releases them with a falling emulated temperature on
+  the CPU / LLC zones, then reproduces the fault with emulation only: skin above its gear trip, one CPU zone per
+  cluster 90 -> 80 C, skin off; expects 14 / 14 on this kernel). gpucool test: free runs 5 s instead of 10 s, GPU
+  stop limit 104 C instead of 100 C (still below stock's first GPU threshold, 105 C).
+- Charge-limit hwdb entry (run 37: "did not take effect"): cause found in the logs: `systemd-hwdb query` already
+  answered 80,85, but udev kept the old database for the re-trigger. `udevadm control --reload` added to the test
+  and to the package's %posttrans.
+- iceland-device 0.16 prepared in the repo, not yet built or tested (`build/pkg-016.py`): `iceland-ssc-hold.service`
+  + `Wants=` in iio-sensor-proxy's drop-in, `61-iceland-battery.hwdb` (80 / 85 %). Unit test: 12 PASS.
+- Charging candidates rebased onto queue 0076 (`an/rebase-charging.py` -> `wf/charging/cand/rebased/`; 0074 had
+  moved the anchors of candidates 1 and 2); all five and the three thermal device tree candidates apply on the
+  queue head (`an/cand-apply-check3.sh`). Without the skin change the inputs + PMIC maps also apply alone
+  (`an/cand-apply-check4.sh`): the skin loop's move to 60 / 61 C waits for the user's decision.
+- Run 39 started (kit q53: charging B, gpucool, thermal "after" with the private model in RAM, stuck).
+
+### 2026-10-02 - entry 22: run 39 (kernel q53): charging B and thermal B pass; two kernel faults found and fixed in q54
+
+- **Run 39** (kit q53 = queue 0073 + charging candidates 1 2 4 5 + probe + thermal DT candidates), order charging,
+  gpucool, thermal, stuck:
+  - `charging` run B: **PASS**. Kernel line as the workflow's criterion: "charger: type 1, input limit 500000 uA,
+    charge limit 600000 uA, ... AICL 500000 of 500000 uA, VBUS 4959 mV"; no "charger type changed", no "rejected
+    by the charger firmware"; every OnePlus SET answers result 0 (12, 5, 70). Input 497 of 500 mA, inhibit ok
+    (0 uA "Not charging", then +91 mA "Charging"). Probe: float voltage 4480000 uV; the firmware's own charge
+    limit reads back 2500000 uA while the driver's limit for a PC port is 600000 uA; "charge-current knob: not
+    decidable" again (only 91 mA of charge current on the PC port) -> stays with the wall-charger sitting.
+  - `thermal` run B ("after": policy daemon + private model in RAM): **7 PASS / 0 FAIL / 0 WARN**. 72 zones;
+    wlan-thermal 34.2 C and chg-cp-thermal 33.9 C read plausibly (board 32.6 C); stock's shell estimate at idle
+    34.4 C (gear 3); walk PASS at 60 / 61 C; policy 20 of 20 steps as stock's table, handed back on SIGTERM;
+    load with the daemon: skin 39.2 -> 56.0 C (1.3 C/s at first, peak 56.0 C, limit 65 C), hottest CPU sensor
+    89 C, caps from 30 s on 2.00 / 1.63 GHz, GPU not limited, gear 7, shell 40.8 C; work 281872 chunks (run A:
+    202032, +40 %), last 30 s 4446 chunks/s (run A: 3131, +42 %); restore PASS. "pmic no maps" although the
+    candidate was in the device tree -> fault 2 below.
+  - `gpucool`: 13 PASS, 3 FAIL, 1 SKIP. New passes: walkup (105.0 .. 106.6 C: states 1 .. 17), walkdown, hot,
+    release, skin, XO, restore. FAIL maps = this kernel has the skin trips at 60 / 61 C (the test looks for 48 /
+    51). FAIL pmic = fault 2. FAIL limits: the third load run stopped at the skin stop limit (51.4 C; the three
+    runs follow each other without a pause). Numbers so far: 393 fps free, 174 fps at 342 MHz. Test changed:
+    it now waits until the skin sensor is back at 45 C (at most 45 s) before the last free run
+    (`an/edit-gpucool2.py`).
+  - `stuck`: **reproduced with emulation only**: skin emulated above its gear trip -> states 22 / 27; one CPU zone
+    per cluster emulated 90 -> 80 C; skin emulation off -> states 14 / 14 (1900800 / 2668800 kHz) and they stay;
+    a falling emulated temperature on every CPU / LLC zone releases them (0 / 0).
+- **Fault 1, generic kernel (gov_step_wise)**: confirmed as described in entry 21. Upstream changed the governor
+  in 2024 to "go straight to instance->lower when mitigation is over" (lkml 2406.2/09576); it still decides from
+  the cooling DEVICE's current state, which another zone can hold up. Fix `an/stepwise-release.py`: a trip that
+  needs no mitigation drops its request at once (THERMAL_NO_TARGET).
+- **Fault 2, generic kernel (qcom-spmi-temp-alarm)**: for the "gen2 rev2" and "lite" alarm variants the driver
+  stores its own stage index in `trip->priv`; thermal_of keeps the trip's device tree node there and matches every
+  cooling map against it, so no cooling map of such a PMIC zone can bind (DTB of q53 has the maps, sysfs has no
+  binding). Fix `an/tempalarm-trip-priv.py`: the driver remembers `trip->priv` per stage and looks the stage up.
+- Kernel **q54** (`build-q54.sh`) = queue 0076 + the two fixes + charging 4, 1, 2 (rebased) + thermal DT inputs +
+  PMIC maps; no test-only code; the skin loop stays at 48 / 51 C (the move to 60 / 61 C needs the user's decision
+  and the policy daemon). This is the tree meant for the queue.
+- Next: run 40 on q54 (`gen-combo-40.py`: charging, chargelimit with the hwdb entry, gpucool, thermal kernel-only,
+  stuck = must not reproduce, bcl); then queue; run 41 (`gen-combo-41.py`, part `pkg16` in
+  `an/combo41-parts.sh`): iceland-device 0.16 built and installed, holder unit and hwdb from the package.
+
+### 2026-10-02 - entry 23: run 40 (kernel q54) passes -> queue 0077-0083; camera workflow delivered; run 41 started
+
+- **Run 40** (kit q54 = queue 0076 + governor fix + temp-alarm fix + charging 4 1 2 + thermal DT inputs + PMIC
+  maps; the tree meant for the queue):
+  - `charging`: PASS (497 of 500 mA, "AICL 500000 of 500000 uA, VBUS 4968 mV", inhibit ok; no "rejected", no
+    "type changed" line).
+  - `chargelimit` with the hwdb entry and `udevadm control --reload`: udev CHARGE_LIMIT 80,85; UPower thresholds
+    80 / 85; enabling as the desktop user -> sysfs start 80 end 85, disabling -> 0 / 100; hold PASS (end 82 at
+    83 %: "Not charging", 120833 -> 0 uA in 5 s), release PASS (+106 mA after 5 s); GNOME group shown.
+    Seen again: right after the boot UPower says "not supported" until it is restarted - it started within a
+    second of the system manager, before udev had processed the battery, and reads the property only once.
+  - `gpucool`: 19 PASS, 1 FAIL. pmic PASS (PMH0110 F at 95.5 C -> GPU state 5 = 826 MHz, released), limits PASS
+    (GPU 98.4 C, skin 49.8 C), cap PASS (never above 342 MHz, 175 fps), effect PASS (392 -> 175 fps), recover
+    PASS (388 fps). FAIL ramp = the test's own check (asked for 4 samples, the shortened free run gives 3: "at
+    the limit in 3 of 3 samples"); check corrected (`an/edit-gpucool3.py`), repeated in run 41.
+  - `thermal` (kernel zones only): 6 PASS / 1 FAIL. pmic PASS (96 C emulated: f 0/0/5, g 27/0/0, i 0/28/0,
+    released) = the temp-alarm fix works; restore PASS: cooling states 0 / 0 / 0 after 4.25 s (before the governor
+    fix: 14 / 14 for minutes); load: caps 1.26 / 1.18 GHz from 30 s on, work 188221 chunks. FAIL zones = the
+    test's expected count (70 + inputs): this kernel has 79 = 72 + the 7 BCL zones; not a fault.
+  - `stuck`: NOT reproduced (gear 22 / 27, released to 0 / 0).
+  - `bcl`: PASS (alarms as stock's table, 6 interrupts, 7 of 7 zones limited and released).
+  - no WARNING / BUG line in the kernel log.
+- **Queue 0077-0083** (`queue-0077.sh`, dry run first: the seven commits give exactly the tree of q54; src branch
+  `iceland` is at 0083): 0077 gov_step_wise release, 0078 rejected OnePlus request is an error, 0079 limits
+  follow the charger type, 0080 input current in stock's steps, 0081 temp-alarm keeps trip->priv, 0082 WLAN and
+  charge-pump thermistors, 0083 PMH0110 F / G / I cooling maps. The verification's kernel clone from GitHub
+  stalled (124K in ten minutes) and was stopped; `queue-0077-finish.sh` repeats verify + commit + push.
+- **Camera workflow delivered** (`build/wf/camera/`: REPORT.md, NEXT.md saved by the main session, tablet.sh,
+  candidates per work package, private parts under `priv/`). Main finding: the camera I2C lines run through two
+  level shifters inside the PMH0101 whose enable is an RPMh resource (LS1B_E0 / LS2B_E0); the vendor tree keeps
+  both always on, mainline has no entry, so they are on only while the sensor hub votes. Candidate: regulators
+  ls1-ls4 in the RPMh regulator driver + ls1 / ls2 always-on. Also: the driver patcher (silent bus at probe is a
+  warning, re-init at every stream start, frame timing corrected to stock's 30 fps, a binned rear mode), the
+  focus motor = mainline dw9719 (DW9800K protocol, 0x0c, needs the L2F supply; libcamera 0.7.1's simple
+  pipeline has no lens control, so focus stays manual), black level tuning files, private colour matrices,
+  tests for GNOME Camera and a browser, a kmod spec for the private module.
+- Patched private sensor module built for q54 (`an/cam-build-r.sh` -> `camdrv/sc1320cs-q54r.ko`; the old driver
+  is kept as `camdrv/sc1320cs.c.q54`).
+- iceland-device 0.16 gained a UPower drop-in (`pkg-016b.py`: UPower after systemd-udev-settle; cannot be proven
+  in a RAM session, where UPower starts before the package is installed - to check at the install rehearsal).
+- Prepared: run 41 (`gen-combo-41.py`: gpucool again, pkg2 = RPMs incl. iceland-device 0.16, rotpkg start, pkg16 =
+  holder + hwdb + UPower drop-in, chargelimit from the package's thresholds) - started 08:28; run 42
+  (`gen-combo-42.py`: camera run A + C with the patched module); `build-q55.sh` (queue head + level shifters +
+  focus) for camera run B - to be RUN only after run 42 has shown LS1B_E0 / LS2B_E0 in the command DB.

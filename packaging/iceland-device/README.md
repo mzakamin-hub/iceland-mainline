@@ -18,6 +18,9 @@ binaries. `./build-rpm.sh OUT` builds `iceland-device-*.noarch.rpm` (rpmbuild; t
 | `81-iceland-ssc.rules` | `/usr/lib/udev/rules.d/` | the sensors behind the ADSP for iio-sensor-proxy: accelerometer + proximity enabled, the mount matrix (stock: Android frame, natural portrait, panel native at ROTATION_90), hexagonrpcd and iio-sensor-proxy started when `/dev/fastrpc-adsp` appears |
 | `hexagonrpcd-adsp-sensorspd-iceland.conf` | `/usr/lib/systemd/system/hexagonrpcd-adsp-sensorspd.service.d/iceland.conf` | hexagonrpcd (sensors PD) with the tablet's own DSP file tree (`/usr/share/qcom/kaanapali/OnePlus/iceland`, extracted at install time, never shipped) |
 | `iio-sensor-proxy-iceland.conf`, `iceland-ssc-wait` | `/usr/lib/systemd/system/iio-sensor-proxy.service.d/iceland.conf`, `/usr/libexec/iceland/` | iio-sensor-proxy after hexagonrpcd and only once the accelerometer delivers a sample (it looks for its sensors once) |
+| `iceland-ssc-hold.service` | systemd unit (pulled in by iio-sensor-proxy's drop-in) | keeps the accelerometer streaming (`monitor-sensor --accel`): both cameras only answer on their control bus while a sensor of the hub streams |
+| `61-iceland-battery.hwdb` | `/usr/lib/udev/hwdb.d/` | `CHARGE_LIMIT=80,85` for the battery: the thresholds UPower writes when GNOME's "Preserve Battery Health" is selected (UPower's default would be 75 / 80) |
+| `upower-iceland.conf` | `/usr/lib/systemd/system/upower.service.d/iceland.conf` | UPower starts after udev's first device scan: it reads the charge-limit thresholds only once |
 | `iceland-ssc-resume.service` | systemd unit | hexagonrpcd's unit stops for a suspend; this starts it again after the resume |
 | (%posttrans) | `/etc/sysconfig/kernel` | `DEFAULTKERNEL=kernel-iceland`, `UPDATEDEFAULT=yes` |
 | (%triggerin fwupd) | `/etc/fwupd/fwupd.conf` | `DisabledPlugins=uefi_capsule` |

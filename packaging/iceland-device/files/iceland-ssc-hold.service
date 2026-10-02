@@ -1,0 +1,20 @@
+# iceland-device: keep one sensor of the ADSP's sensor hub running while the system is awake.
+# The camera sensors' I2C bus is only connected to the SoC while a sensor of the hub is streaming (area-combo-24..34:
+# with the hub configured and idle both camera sensors are silent; the switch is on the board and is driven from the
+# hub's side, Linux can neither see nor set it). GNOME reads the accelerometer for auto-rotate while the screen is on,
+# but not with the orientation lock set or without a desktop session; this unit holds the accelerometer itself.
+# monitor-sensor is part of iio-sensor-proxy; root, because claiming a sensor needs an active session otherwise.
+[Unit]
+Description=OnePlus Pad 4: keep a sensor-hub sensor running (the cameras' bus needs it)
+After=iio-sensor-proxy.service
+BindsTo=iio-sensor-proxy.service
+ConditionPathIsDirectory=/usr/share/qcom/kaanapali/OnePlus/iceland/sensors/registry
+
+[Service]
+ExecStart=/usr/bin/monitor-sensor --accel
+StandardOutput=null
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=iio-sensor-proxy.service

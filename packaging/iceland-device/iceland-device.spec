@@ -4,7 +4,7 @@
 # No firmware and no binaries: configuration files and small scripts only.
 
 Name:           iceland-device
-Version:        0.15
+Version:        0.16
 Release:        1%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
@@ -49,6 +49,12 @@ Source27:       iio-sensor-proxy-iceland.conf
 Source28:       hexagonrpcd-adsp-sensorspd-iceland.conf
 Source29:       iceland-ssc-wait
 Source30:       iceland-ssc-resume.service
+# keeps one sensor-hub sensor running: the cameras' control bus is only connected while the hub streams
+Source31:       iceland-ssc-hold.service
+# the thresholds UPower writes for "Preserve Battery Health" (charge limit, kernel-iceland's qcom_battmgr)
+Source32:       61-iceland-battery.hwdb
+# UPower after udev's device scan (it reads the thresholds only once)
+Source33:       upower-iceland.conf
 
 Requires:       kernel-iceland
 Requires:       bluez
@@ -153,6 +159,9 @@ install -Dm0644 %{SOURCE27} %{buildroot}/usr/lib/systemd/system/iio-sensor-proxy
 install -Dm0644 %{SOURCE28} %{buildroot}/usr/lib/systemd/system/hexagonrpcd-adsp-sensorspd.service.d/iceland.conf
 install -Dm0755 %{SOURCE29} %{buildroot}/usr/libexec/iceland/iceland-ssc-wait
 install -Dm0644 %{SOURCE30} %{buildroot}/usr/lib/systemd/system/iceland-ssc-resume.service
+install -Dm0644 %{SOURCE31} %{buildroot}/usr/lib/systemd/system/iceland-ssc-hold.service
+install -Dm0644 %{SOURCE32} %{buildroot}/usr/lib/udev/hwdb.d/61-iceland-battery.hwdb
+install -Dm0644 %{SOURCE33} %{buildroot}/usr/lib/systemd/system/upower.service.d/iceland.conf
 
 %posttrans
 # kernel-iceland is the default kernel and new kernel-iceland versions become the default
@@ -169,6 +178,9 @@ if [ ! -e /var/lib/iceland/.asound-state-reset ]; then
 	mkdir -p /var/lib/iceland && touch /var/lib/iceland/.asound-state-reset
 fi
 systemctl enable iceland-battery-guard.service iceland-npu-off.service iceland-wifi-country.service iceland-ssc-resume.service >/dev/null 2>&1 || :
+# the charge-limit thresholds: rebuild the hardware database and let udev and UPower read it again
+systemd-hwdb update >/dev/null 2>&1 || :
+if [ -d /run/systemd/system ]; then udevadm control --reload >/dev/null 2>&1 || :; udevadm trigger -s power_supply >/dev/null 2>&1 || :; systemctl try-restart upower.service >/dev/null 2>&1 || :; fi
 systemctl --global enable iceland-refresh.service >/dev/null 2>&1 || :
 # GNOME's power modes -> the Pad 4 tuned profiles (edits tuned-ppd's mapping between marker lines)
 /usr/bin/iceland-power-profiles apply >/dev/null 2>&1 || :
@@ -244,8 +256,21 @@ fi
 /usr/lib/systemd/system/hexagonrpcd-adsp-sensorspd.service.d/iceland.conf
 /usr/libexec/iceland/iceland-ssc-wait
 /usr/lib/systemd/system/iceland-ssc-resume.service
+/usr/lib/systemd/system/iceland-ssc-hold.service
+/usr/lib/udev/hwdb.d/61-iceland-battery.hwdb
+%dir /usr/lib/systemd/system/upower.service.d
+/usr/lib/systemd/system/upower.service.d/iceland.conf
 
 %changelog
+* Fri Oct 02 2026 mzak <mzak.amin@gmail.com> - 0.16-1
+- cameras: iceland-ssc-hold.service keeps the accelerometer of the sensor hub streaming whenever iio-sensor-proxy
+  runs (bound to it, pulled in by its drop-in): the control bus of both cameras is only connected to the SoC
+  while a sensor of the hub streams (area-combo-24..35)
+- charge limit: 61-iceland-battery.hwdb gives UPower the thresholds 80 / 85 % for "Preserve Battery Health"
+  (the kernel side is the qcom_battmgr charge limit of kernel-iceland); the database is rebuilt and udev reloaded
+  after the installation; a drop-in starts UPower after udev's first device scan, because UPower reads the
+  thresholds only once (not yet proven at a real boot: the RAM sessions start UPower before the package is there)
+
 * Fri Oct 02 2026 mzak <mzak.amin@gmail.com> - 0.15-1
 - sensors / auto-rotate: 81-iceland-ssc.rules (the SSC accelerometer and proximity sensor for iio-sensor-proxy, the
   mount matrix "0, 1, 0; -1, 0, 0; 0, 0, -1" derived from stock, both services started by udev when
