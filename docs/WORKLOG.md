@@ -1643,3 +1643,36 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
 - Workflow state: quickwins, npucool, upsync (+uas, f_ncm), telemetry, hwinv GREEN and queued / done; gpuisp green in
   substance (b's check, the 0.18 patcher, the local rpms pending with the agent); install: B run 93 on q78 running;
   deepsleep: the night test is the owner's, its package fallback goes into 0.18.
+- **Commit r** pushed: iceland-mainline **b48a179** (runs 77-92, results part Q, matrix c2q: 61 working / 12 in
+  progress / 5 / 2; new row "Upstream fixes for this chip's drivers", telemetry ok, cameras / deep sleep / USB host /
+  DP / install updated); 0 rpm and 0 private paths in the commit (the new '*.rpm' exclusions + guard). Matrix page v39.
+- **Run 93 = the install rehearsal's B run on q78: ALL PASS.** rr gate: +down 7.57 MB/s up / 31.8 down, max 127 ms;
+  devrpm iceland-device-0.18 built on the tablet (87 files, storage rule, dracut module, 2 trial units); build1a nbd
+  read 31.3 / **write 38.6 MB/s**, 10 packages removed, firmware 23 ok / 0 failed (= stock 11.A.38), bdaddr placed,
+  84 s; build1b Fedora additions 33 s; build2a device package 0.18 + our rpms + grub.cfg 73 s; build2b SELinux labels,
+  initramfs with iceland-carrier / nbd.ko / storage rule / zap, kernel 7.3.0-rc4-iceland-00300-g0b261bcba556
+  confirmed, 29 s; every part released the disk. (Run 76 before the fix: writes < 0.3 MB/s, nothing finished.)
+  Next per the plan: rehearsal-pc.sh stop, commit (golden), serve golden r1, head "enforcing=0", R1 (rehearse.ps1,
+  fastboot boot only) + rehearsal-probe.sh accept.
+- **gpuisp workflow FINISHED (green)**: part b's check fixed (build.log apply lines + markers in the built library;
+  run 91 replays PASS); 0.18 patcher `pkg-gpuisp.py TREE hold wp0518` (wireplumber >= 0.5.18, libcamera* in the hold;
+  10 / 10 package tests); local rpms: only libcamera + libcamera-ipa, kept in C:\platform-tools\rpms\libcamera
+  (stash-rpms.sh, SHA256SUMS), tin / make-repo / the apps package list take them; hold and rpms go together; rebuild
+  only for a newer libcamera / a soname change / F45. To do: fold into the final 0.18 (with the deepsleep fallback).
+- G13 was closed in entry 37 (rehearsal U-Boot without SCSI/UFS, initramfs UFS read-only, nbd-only carrier); work-list
+  item 6 done today -> **R1** (work-list item 7, RAM only): rehearsal-pc.sh stop / commit (golden = stage0 + 152941
+  overlay blocks) / serve golden r1 / head "enforcing=0" (470 MB, rehearsal_max 540 s); rehearse.ps1 -Yes (fastboot
+  only devices / getvar / boot / reboot / oem console) + `ACCEPT_SUSPEND=0 rehearsal-probe.sh area-r1 accept`.
+- **R1 stopped in the rehearsal U-Boot** (19:38): after "head sent in 19 s" the screen shows U-Boot's blkmap usage
+  text (webcam frames at the owner's request, local only: "...mem <addr> [preserve|reserve] - memory mapping",
+  "...linear <interface> <dev> <blk#> - device mapping", "...create device (block size of memory maps, default 512)")
+  = a blkmap call in the head-unpack path got arguments our patched blkmap does not accept; U-Boot then stays at the
+  error: no fastboot, no adb (19:44). Nothing written (this U-Boot has no SCSI / UFS). Needs the owner to hold the
+  power button to restart into Android. Sent to the install agent (round 5: the failing command, every failure path
+  back to `fastboot usb 0` or `reset` so no failure needs hands, rehearse.ps1 detects it, the rerun steps).
+- Owner restarted the tablet (power button): Android back, battery 50 % (charging). R1 left nothing: ov-r1 empty
+  (cow 0 B); probe, NBD server, relay and leftover PowerShell processes stopped. Webcam frames cam/r1, cam/r1b kept
+  locally until the install agent's round 5 has used them, then deleted (webcam rule).
+- Sent to the install agent: fold gpuisp (`pkg-gpuisp.py hold wp0518` + the local libcamera rpms in tin / make-repo /
+  the package list) and deepsleep (`npu-keep-running.py`) into P1's 0.18, so the R1 rerun runs the real package; then
+  next-k2p1u1 (p1 + tin), B again (~4 min), R1.
