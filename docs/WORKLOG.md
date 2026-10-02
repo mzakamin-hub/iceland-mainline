@@ -1784,3 +1784,8 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   (plan vs guide, firmware path OnePlus/iceland vs iceland, 90-iceland-dtb.install vs the GRUB devicetree line,
   iceland-u-boot README / uboot.pin, FEATURES stale bits, volume key mapping, stale HANDOVER / STATE / PROJECT
   blocks). Drafts to be reviewed, then committed under docs/guide/.
+- User: "what else can be committed?" -> listed; "yes do 1-3 and skip this charge testing" -> run 95 stopped (log set
+  fetched, tablet rebooted to Android, runner killed); (1) the docs drafts reviewed (privacy scan clean: no serial /
+  BD / MAC / GUID; write commands only inside warning blocks) -> docs/guide/; (2) project knowledge: HANDOVER.md
+  rewritten (21:00), STATE.md new status block, CLAUDE.md new rules, memory resume block; (3) the kits' module list
+  -> tools/linux-ram/modlist-all.txt. Commit u + the project-folder snapshot.

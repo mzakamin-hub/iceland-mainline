@@ -1,202 +1,176 @@
-# OnePlus Pad 4 mainline Linux - hand-over (2 Oct 2026, about 10:00)
+# OnePlus Pad 4 mainline Linux - hand-over (2 Oct 2026, about 21:00)
 
 Written for the next model / session. Read this file, then `STATE.md`, `CLAUDE.md`, the last entries of
-`WORKLOG.md` (21-27) and the last block of `docs/memory/iceland-resume-point.md`. Everything below is the state at
-the moment the previous session stopped. Nothing is running: no kit run, no build, no agent.
+`WORKLOG.md` (from entry 44 on: everything of 2 Oct afternoon / evening), the last block of
+`docs/memory/iceland-resume-point.md`, and `docs/BOOT-LOG-PLAN.md`. The draft documentation set (overview,
+hardware, boot and partitions, build-your-own, porting, history, install review) is in the docs repo under
+`docs/guide/` (source: WSL `~/mainline/build/wf/docs/`).
 
-## 1. What the user has ordered (in force, verbatim)
+## 1. What the owner has ordered (in force)
 
-1. Standing order: "combine 1,2,3 in as a singular step and also include mic input meter as still not fixed, tablet is
-   connected and on lineageos, Test and debug till 1,2,3 and mic input are completed and totally green update as
-   well constantly feature matrix and a work log to make sure your current work and previous and next actions are
-   logged to prevent repeating."
-2. "in seperate workflows work on : 1)Low-battery current limiting (BCL) 2)Charging 3)Charge limits 4)GPU Cooling
-   5)Improved thermals. Also prepare a full plan for full install ..." (done: the five are green, plan =
-   `docs/INSTALL-PLAN.md`).
-3. "finalize camera as well in seperate workflow" (in progress, see the table).
-4. "Start workflows to address below not started items , test run and fix till resolution and use autonomous agents
-   till they are working(Display&input,Power&charging, Sleep&powersaving, Software&packaging)" (in progress).
-5. "continue till all workflows are completed and green".
-6. "once all working flows are green , update accordingly the project knowledge and make sure the repos are updated,
-   Meanwhile write a complete guide for flashing this on my tablet and make sure it follows the safety measures set
-   before" (guide written: `docs/INSTALL-GUIDE.md`; the final update is still owed).
-7. "save everything because im changing models , i need my next model to be able to resume exactly and run the
-   agentic workflows as we were" (this file).
+Earlier orders (still in force; full text in the 10:00 version of this file in git history and in WORKLOG):
+"Test and debug ... until completed and totally green, update constantly the feature matrix and a work log";
+"continue till all workflows are completed and green"; "once all working flows are green, update accordingly the
+project knowledge and make sure the repos are updated"; keep iterating without asking for confirmation where the
+owner said so (quick wins, telemetry, NPU cooling).
+
+Orders of 2 Oct afternoon / evening (verbatim):
+- "update feature matrix with everything commited" (several times: after every proven result, rebuild + publish).
+- "add another workflow to list all hardware that has no drivers or not working on the tablet" (done: wf/hwinv).
+- "start combined workflows for items from 1 till 9, keep iterating without asking for my confirmation" (done:
+  quick wins, queued 0125-0138).
+- "proceed with 1 and 3" (UAS in the queue configs; the USB-C upstream fixes): done.
+- "check all errors in kmsg during booting and put a plan to resolve": done, `docs/BOOT-LOG-PLAN.md`.
+- "no dual boot for now but prepare a plan for it with the best safety precautions" -> the install stays
+  Fedora-only; the install agent writes `wf/install/DUALBOOT-PLAN.md` (plan only).
+- "also fix pcie timeout and device tree gaps" + "spin a different agent specifically for pcie timeout, device
+  tree gaps and bypass charging" -> the "hwfix" agent (wf/bootfix + wf/bypass).
+- "yes lets test" = the write-2 probe FIRST (U-Boot into boot_b while Android's data is intact; undo =
+  boot_b-before-install.img). Only after the AVB footer proof; **the owner runs every write themselves**.
+- "remember that tablet will be disconnected while it recharges so make sure to tell me to connect it before
+  testing anything" -> before ANY tablet action ask the owner to connect it and wait for their go; never leave a
+  run chain waiting on `adb devices` in the background.
+- "battery charge settings working fine (preserve, maximize charge) please commit" (done, commit t).
+- "yes do 1-3 and skip this charge testing" (the wall-charger sitting is skipped for now; 1-3 = this commit:
+  docs set, project knowledge, the kit module list).
 
 Hard rules (full list in `STATE.md` and `CLAUDE.md`): RAM boot only - never flash, unlock, wipe, switch slots or
-install; tests fully automated, at most 10 minutes each, anything that needs the user is deferred and listed; every
-hardware value from Pad 4 stock sources; charging safety first; private data never committed (firmware, `fwsuper`
-carves, camera driver and traces, stock tuning / model data, the user's backup, frames, recordings); serial, MAC /
-BD addresses and network names masked; never print `adb devices` raw (count lines); commits as
-`mzak <mzak.amin@gmail.com>` with `Signed-off-by` and `Co-Authored-By` trailers; `git pull --rebase` before push;
-never `wsl --shutdown`; "hold the tablet" = stop all tablet actions at once.
+install; the owner alone runs any write; tests fully automated, at most 10 minutes each; every hardware value from
+Pad 4 stock sources; charging safety first (never raise a limit); private data never committed; serial, MAC / BD
+addresses and network names masked; commits as `mzak <mzak.amin@gmail.com>` with `Signed-off-by` and
+`Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`; `git pull --rebase` before push; never
+`wsl --shutdown`; "hold the tablet" = stop all tablet actions at once. Use they/them for the owner.
 
 ## 2. Exact state
 
 | Thing | State |
 |---|---|
-| Kernel queue (`~/mainline/gh/iceland-linux`) | `c52d6ee`, patches 0001-0089, verified, pushed. Branch `iceland` in `~/mainline/build/src` = queue head, clean |
-| Docs repo (`~/mainline/gh/iceland-mainline`) | `81cca68` "campaign 2 (k): hand-over ..." (a small follow-up commit with the final facts may sit on top: `git log -2`), pushed |
-| Feature matrix | 55 working / 9 in progress / 10 not started / 2 not planned (76), page version 32; https://claude.ai/artifact/GtN6zLRTeabVcyg3LirNBm (publish the rebuilt `scratchpad/feature-matrix.html` to this URL) |
-| Test kernels in `~/mainline/build` | `binq55` = tree of the queue head (use this kit kernel for tests of the queue); `binq56` = queue head + pen charging candidates; private camera module per kernel: `camdrv/sc1320cs-q55.ko`, `-q56.ko` (the patched driver; old one `sc1320cs.c.q54`) |
-| `out/` build tree | configured for q56 (`CONFIG_CHARGER_MT5806_PEN=m`); copy of the config before: `out-config-before-q56` |
-| Device package | iceland-device 0.16 in the repo (built + installed in run 41). 0.17 is being assembled (pkg017 + the camera fragment) |
-| Tablet | in Android (LineageOS, slot b), battery about 80 % (drains about 1 % per test run on the PC port; pause below 40 %) |
-| PC servers | rootfs server on :8000 and the USB proxy on :3128 were running as background shells of the old session; if a kit run says "rootfs server 000", start them again: `python -m http.server 8000 --bind 0.0.0.0 --directory C:\platform-tools\rootfs-serve` and `python C:\platform-tools\usb-proxy.py 0.0.0.0 3128` (PowerShell, background) |
+| Kernel queue (`~/mainline/gh/iceland-linux`) | `f84d0d2` = 0001-0166, verified, pushed. 0117-0124 NPU cooling (QMI TMD), 0125-0138 quick wins, 0139-0161 23 upstream fixes (authors kept), 0162 f_ncm NTB flush retry, 0163-0166 PMIC power telemetry (hwmon, lazy start). Configs: quick-wins lines, CONFIG_USB_UAS=m, CONFIG_SENSORS_QCOM_SPMI_QPT=m. `build/src` branch `iceland` = queue head "enable the power telemetry", clean |
+| Docs repo (`~/mainline/gh/iceland-mainline`) | after this commit: commit u (docs/guide + project knowledge); before it `823eb07` (commit t). Pushed |
+| Feature matrix | 61 working / 12 in progress / 5 not started / 2 not planned (80), page v41: https://claude.ai/artifact/GtN6zLRTeabVcyg3LirNBm (publish `scratchpad/feature-matrix.html` = the repo's `docs/features/feature-matrix.html`) |
+| Test kernels (`~/mainline/build`) | **`binq77` = exactly the queue head 0166** (use it for queue tests); `binq78` = 0162 plain (the install B-run kernel; its rpms are K2 / K3); private camera module per kernel `camdrv/sc1320cs-qNN.ko` (q70-q78) |
+| `out/` build tree | base configs `out-config-base-0166` (queue config of 0166); `build-q56.sh` copies `out/.config` to `out-config-before-<tag>`; restore the base before a new build (see `build-q77.sh`) |
+| Device package | repo: iceland-device 0.17. 0.18 = 0.17 + install fragment + gpuisp (hold, wireplumber >= 0.5.18) + deepsleep (npu keep running) is BUILT by `wf/install/next-k2p1u1.sh` step p1 (`wf/install/work/p1/`), proven to build and install in B runs 93 / 94; not committed to the repo yet (after R1 / R2) |
+| Tablet | in Android (LineageOS, slot b), battery about 50 %. The owner recharges it unplugged: ask before any run |
+| PC servers | rootfs server :8000 and USB proxy :3128 run as background shells of this session (restart if a kit says "rootfs server 000"); the NBD server in WSL (`rehearsal-pc.sh serve stage0 build`) may still run: `rehearsal-pc.sh stop` before R1 |
 
-Runs of this session: 38-47 (`~/mainline/build/area-combo-NN/`, probe logs `area-combo-NN-probe.log`). Run 45 = all
-six older workflows green on the queue head. WORKLOG entries 21-27 have every result.
+Runs of 2 Oct: up to area-combo-95 (95 = the owner's charging sitting, skipped after the charge-limit check; its
+log set is in `area-combo-95/`, not committed). Next free numbers: kit run 96, test kernel q79, queue patch 0167,
+matrix script `matrix-c2t.py`, commit script `commit-campaign2-v.sh` (make it with `mk-commit-v.py` from
+`commit-campaign2-u.sh`).
 
 ## 3. Workflows: where each stands and what to do next
 
-Folders: `~/mainline/build/wf/<name>/` (WSL). "Agent id" = the background agent of the old session; try
-`SendMessage` to that id first ("continue and deliver; the main session was changed"). If the id is unknown in the
-new session, start a NEW agent with the prompt template of section 5 and add: "An earlier agent already worked in
-your folder: read everything in it (also `work/`) and continue from there instead of starting over."
+Folders: `~/mainline/build/wf/<name>/` (WSL). "Agent id" = the background agent of this session; try
+`SendMessage` to it first; if unknown in a new session, start a new agent with the template of section 5 and "an
+earlier agent worked in your folder: read everything in it (also `work/`) and continue from there".
 
-| Workflow | Matrix row | Agent id | In the folder | State | Next action |
-|---|---|---|---|---|---|
-| bcl, chargelimit, charging, gpucool | (queued 0074-0080, GPU cooling) | - | complete | **green** on the queue head (run 45) | user items only (wall chargers, a look at Settings) |
-| thermal | Skin and XO zones; Skin temperature policy | - | complete; PRIVATE: `priv/`, `tablet-in/thermal-model.json`, `cand/mk-thermal-model.py` | kernel parts green (run 45: 7 PASS); policy daemon proven in RAM (run 39) but not packaged | packaged by pkg017; the skin loop's move to 60 / 61 C stays the user's choice |
-| camera | Cameras | `a3b3533c41c6d6b08` | REPORT, NEXT, tablet.sh, cand/, priv/ | bus fix + focus queued (0084-0089); run 46: focus, fixfocus, quality, browser PASS; **app still CHECK** (no preview, 0 of 2 photos even with the permission set) | send the agent run 46's app result (`area-combo-46/combo/camera/app/`), run its next delivery (`gen-combo-46.py` shows the run); then iceland-device camera changes (`cand/wp4-apps/pkg-017-camera.py`: holder unit out, tuning files, WirePlumber rule, fixed-focus helper) |
-| pencharge | Pen charging | `a410fb5800fadd638` | REPORT, NEXT, tablet.sh, cand/ (3 patchers + driver) | run 47 on q56: driver up, IC 0x5806 fw 0x20022, 7000 mV confirmed, idle, inhibit ok; 2 rebind checks FAIL (empty pin readings after unbind), note "IC reads 5017 mV" | the agent got the results and three questions (WORKLOG entry 27) but was paused before answering: resend, rebuild if the candidates change, rerun (`gen-combo-47.py`), then queue 4 commits + config line; pen itself = user |
-| pogo | Pogo keyboard | `a53da1519c5319e23` | REPORT, NEXT, tablet.sh, `cand/kernel/pogo-kernel.py` + driver + binding | delivered, NOT built, NOT run | add a `pogo)` case to `build-q56.sh` (lines in `wf/pogo/NEXT.md` run A; `--enable KEYBOARD_ONEPLUS_POGO`), build q57 = queue head + pencharge + pogo, run `wf_pogo` (no keyboard needed), send `$X/pogo/` back |
-| deepsleep | Deep-sleep proof | `a78a7b8bcac860a75` | REPORT, NEXT, tablet.sh, `tablet-night.sh`, `pc-side.sh`, tablet-in/ | delivered just before the pause, NOT read, NOT run | read NEXT.md, review the writes, run it |
-| wake | Wake by lid, keyboard, charger | `a6be96dffe3eab71a` | tablet.sh, tablet-in/, cand/kernel/ (no REPORT / NEXT yet) | paused while writing its documents | resume the agent; then run |
-| apps | Full GNOME app set | `a15f21638a769c7c1` | tablet.sh, cand/ (package list, comps file, dnf hold files, sizes) | paused before REPORT / NEXT | resume; then run (installs in slices into RAM) |
-| audit | Stock-values audit | `a9cfcdbd7afd6ab6e` | AUDIT-TABLE.md, audit-dt.py, cand/01..10+ fix patchers with messages | paused before REPORT / NEXT | resume; review each fix (regulator voltages first), build, test, queue |
-| pkg017 | Device package 0.17 | `a93f7eb7566f701cc` | `pkg-017.py`, `check.sh`, cand/ (merged guard, conf, thermal daemon + service + conf) | paused during its tests | resume; apply the generator, build + install in a run (part `pkg2` with 0.16 -> 0.17 in the script), run `wf_pkg017` |
-| install | (Fedora installed on the tablet; guide Part B) | `a68073ae3baaf9f4b` | only `work/` so far | paused early | resume or restart; it builds the RAM-rehearsal tooling; no script of it may write to the tablet |
+| Workflow | State | Agent id | Next action |
+|---|---|---|---|
+| quickwins, npucool, upsync (+uas, f_ncm), telemetry, hwinv | **green**, queued (0117-0166) | - | none (telemetry v3 lazy start proven in run 92) |
+| gpuisp | **green**, finished: GPU ISP default (2.3 vs 21 ms CPU per frame), our libcamera 0.7.1 build stops the 19.8 MB-per-start leak | a13d5df432f1df418 | its 0.18 changes are in P1; the local rpms are in `C:\platform-tools\rpms\libcamera` (private) |
+| install | round 6 running: B1 ADSP/CDSP firmware on the installed initramfs, B2 the build chroot loads SELinux into the host, B3 charge-limit accept line; the docs review R1-R9 (AVB footer for u-boot-iceland.img + PC proof, the plan's undo file, rehearsal vs install U-Boot wording + a guard, unattended U-Boot, EFI boot order / efisp, guide fixes, the misc boot-recovery gotcha); the write-2 probe guide part C0; DUALBOOT-PLAN.md | a68073ae3baaf9f4b | review its round-6 report; then (owner connected!) R1 on today's golden: `rehearsal-pc.sh stop`, `commit`, `serve golden r1`, `head "enforcing=0"`, `rehearse.ps1 -Yes` + `ACCEPT_SUSPEND=0 rehearsal-probe.sh OUT accept` (TABLET_IN=wf/install/priv/run/tablet-in) |
+| r1debug (Fable model) | verifying the install agent's U-Boot fix (blkmap maxargs 2 -> 3, FAILED lines + fastboot_loop, no Mac/Amiga partition parser) in its own sandbox | ab236e1ef0aa067eb | R1 waits for its verification |
+| hwfix (bootfix + bypass) | running: B quick DT items + the NVT touch message, A PCIe L2 timeout + 14 probe deferrals, C bypass charging (in the battery guard + a GNOME Quick Settings toggle + polkit helper) and the corrected accept.sh charge-limit check | ab01e21f3f346b12e | build `TAG=q79 WF="bootfix" bash build-q56.sh` when it delivers, run its parts (coldplug), feed back |
+| docs (Opus, SME) | drafts done and committed as `docs/guide/` | a3047486eb1c0ec68 | review comments as they come; keep the docs current; review DUALBOOT-PLAN.md |
+| deepsleep | kernel parts queued (0113-0116), CX collapse 95-98 %; the overnight drain needs the owner | - | owner night test; the package fallback (CDSP keeps running) is in 0.18 |
 
-When every row is green: matrix + WORKLOG + commit, then the user's final request (order 6): update the project
-knowledge (this folder's STATE.md, CLAUDE.md, HANDOVER.md, memory, snapshot) and make sure both repositories are
-pushed.
-
-Decisions still waiting for the user (none blocks the work above): install (Fedora only or dual boot; `boot_b` or
-`recovery_b`; do open gates block; camera driver in the image); charge limit on by default / hold or charge to the
-limit; keep awake on a charger (default taken: yes, as stock, one config line); thermal: skin loop at 60 / 61 C
-with the policy (recommended) or 48 C as today, Balanced table, may stock's model data be committed; wall-charger
-sitting; colours and sharpness by eye; publish the camera driver or not; mutter bug report; 5 GHz password.
+Decisions / owner items still open: the write-2 probe itself (after the AVB proof; the owner runs it); docs
+agent's questions (a read-only RAM boot of the exact install U-Boot before write 1? unattended U-Boot behaviour;
+"back to LineageOS" path; brightness maximum 4095 vs stock 3542; skin limit 48 C or stock 60/61 C; camera driver in
+the image; INSTALL-PLAN section 9 items 5-10); owner tests: DP monitor, USB accessories (role switch is automatic),
+pen, pogo typing, wake windows, overnight drain, apps by finger, USB headset, wall chargers (sitting kit
+`gen-combo-95.py` exists), bypass with a wall charger.
 
 ## 4. How the work is done (the method to keep)
 
 **A workflow** = one background agent per topic. It only analyses and prepares on the PC and delivers files into
-`~/mainline/build/wf/<name>/`: `REPORT.md`, `NEXT.md` (what to build and run, pass criteria, what to send back),
-`tablet.sh` (one function `wf_<name>`, one `sayk` summary line, marker `$X/<NAME>-DONE`), candidates under `cand/`
-(kernel patches as Python patchers with exact-string asserts, never applied by the agent), private material under
-`priv/`. Briefs: `docs/WORKFLOW-BRIEF-2.md` (general rules), `-3-camera.md`, `-4.md` (round 4).
+`~/mainline/build/wf/<name>/`: `REPORT.md`, `NEXT.md`, `tablet.sh` (functions `wf_<name>...`, one `sayk` summary
+line, a marker `$X/<NAME>-DONE`), candidates under `cand/` (kernel patches as Python patchers with exact-string
+asserts + `.msg` commit texts with `--- commit N (file) ---` sections, `apply-kernel.sh` + `kernel.config` for
+`build-q56.sh`'s generic case), a parts module for `an/genwf.py` (see `wf/telemetry/cand/telemetry_parts.py`,
+`wf/upsync/cand/upsync_parts.py`), private material under `priv/`.
 
 **The main session** owns the tablet, the kernel tree, builds, repositories. Loop per workflow:
 1. Read its NEXT.md; review every write of its test and every limit of its candidates (charging safety first).
-2. Kernel candidates: a test kernel `build-qNN.sh` (branch `candNN` from `iceland`, one CANDIDATE commit,
-   `build-q2.sh`, private camera module, `mk-modfull.sh`). `build-q56.sh` is the current generic one
-   (`TAG=q57 WF="pencharge pogo" bash build-q56.sh`; add a case per workflow).
-3. A kit run: a small `gen-combo-N.py` that calls `an/genwf.py` (see `gen-combo-46.py`, `gen-combo-47.py`): it
-   derives `an/area-combo-N.sh` (tablet side), `an/area-combo-N-probe.sh` (PC side) and `prep-area-combo-N.sh`
-   from run 44. Check with `bash an/chk.sh N`. Chain scripts `area-combo-N-chain.sh` are in the session scratchpad
-   (copies in `scripts/pc-chains/` of this folder; made from the run-38 chain with sed). Start runs in the
-   BACKGROUND: `bash scratchpad/run-chain.sh N [N2 ...] "grep-pattern"` and let the completion notice continue the
-   work. Never wait in the foreground (the user backgrounds it).
-4. Judge from `area-combo-N-probe.log` (summary lines) and `area-combo-N/combo/<name>/`. Send the summary line and
-   the folder path back to the agent with `SendMessage`, with precise questions. Repeat until green or until only
-   the user's hands are missing.
-5. Queue what passed: `queue-00NN.sh` (see `queue-0077.sh`, `queue-0084.sh`): commits one per logical change with
-   real messages on a branch, the tree must equal the tested `binqNN` tree, dry run first (`DRY=1`), fast-forward
-   `iceland`, format-patch into iceland-linux, `kernel.pin`, verification with `scripts/prepare.sh` from the LOCAL
-   base (the GitHub clone stalled twice), commit, push.
-6. After each proven result: WORKLOG entry, a `research/matrix-c2X.py` script (each runs the previous one;
-   newest: `matrix-c2i.py`), a commit script made by `mk-commit-X.py` from the previous one (newest:
-   `commit-campaign2-j.sh`; usage `MATRIX=matrix-c2i.py MSG=commit-campaign2-j.msg bash commit-campaign2-j.sh 44`),
-   which copies the masked log sets, tools and public workflow deliverables and has the privacy guards; then
-   republish the matrix page.
+2. Test kernel: restore the base config (`out-config-base-0166`), `TAG=qNN WF="name ..." bash build-q56.sh`
+   (expects HEAD_SUBJECT = the queue head's subject; makes `camdrv/sc1320cs-qNN.ko`). A build only when no kit is
+   being prepared (prep takes the kit lock with `flock -n` and refuses if busy). Plain head builds with
+   `build-q2.sh` need `camdrv/build.sh` + copy to `sc1320cs-<tag>.ko` (see `an/camdrv-q78.sh`).
+3. A kit run: `gen-combo-N.py` with `genwf.gen(..., modtree=True, coldplug=True)` (coldplug = udev loads the modules
+   of driverless devices as an installed boot does; without it e.g. the sound card waits forever for the DP audio
+   codec); `bash an/chk.sh N`; a chain script in the scratchpad (`sed -e 's/47/N/g' area-combo-47-chain.sh`, longer
+   runs `-Wait 2500/4000`); start in the BACKGROUND with `MAXN=... bash scratchpad/run-chain.sh N [N2 ...]
+   "pattern"` (it has a battery gate: below 40 % it waits in Android until 45 %) - **only after the owner has
+   connected the tablet and said go**. `an/wait-probe.sh N` notifies when one run ends.
+4. Judge from `area-combo-N-probe.log` and `area-combo-N/combo/<name>/`; boot errors with
+   `python3 an/kmsg-errors.py N [M]`. Send results back with `SendMessage` (first line = what it is, the summary
+   line, the log path, numbered questions).
+5. Queue what passed: `queue-0NNN.sh` (see `queue-0125.sh` for patcher sections, `queue-0139.sh` for `git am` of
+   upstream patches with authors kept + our trailers, `queue-0163.sh`): the tree must equal the tested `binqNN`
+   tree, `DRY=1` first, verification with `scripts/prepare.sh` from the local base, commit, push; then update
+   `build-q56.sh`'s HEAD_SUBJECT and the base config.
+6. After each proven result: WORKLOG entry, `research/matrix-c2X.py` (each runs the previous one; newest
+   `matrix-c2s.py`), a commit script made by `mk-commit-X.py` from the previous one (newest
+   `commit-campaign2-u.sh`); it copies masked log sets, tools and public workflow deliverables with the privacy
+   guards (no rpm, no frames, no priv/work); republish the matrix page.
 
-Package runs: part `pkg2` builds the sensor RPMs + iceland-device on the tablet and installs them; `rotpkg start`
-brings the sensor hub up (camera bus / driver tests need the hub CONFIGURED: run them after these two parts).
+Install rehearsal (wf/install): the B run (`genwf-install-b.py N q78 "rr dev b1a b1b b2a b2b" 4300 qos=2` with the
+NBD server `rehearsal-pc.sh serve stage0 build` on a fresh `ov-build`, the relay `tcp-relay.py --listen=0.0.0.0
+--target=wsl:10810 --allow=172.16.42.1` and `linktest-server.py`), then R1 as in section 3. `rehearse.ps1` only
+allows fastboot devices / getvar / boot / reboot / `oem console` and adb devices / get-state / reboot bootloader /
+shell getprop.
 
 ## 5. Prompt template for a workflow agent
 
-Use the `Agent` tool (general-purpose, background). Template (fill NAME, ITEM, the item text of the brief):
-
-> You are the workflow "NAME" of a hardware bring-up project: mainline Linux (7.3-rc4 + a patch queue) with Fedora 44
-> GNOME on the OnePlus Pad 4 tablet ("iceland", Qualcomm SM8850 / Kaanapali), RAM boot only. The owner asked for
-> autonomous workflows that take the not-started items of the feature matrix to "working". Your item: ITEM. Another
-> session (the main session) owns the tablet, the kernel tree and all builds; you work on the PC only and deliver
-> files; the main session runs your test on the tablet and sends you the results, and you then fix and deliver
-> again until it works.
-> Read first: `C:\Users\lucne\OnePlusPad4-Mainline\docs\WORKFLOW-BRIEF-4.md` (your item), `docs\WORKFLOW-BRIEF-2.md`
-> (general rules), `CLAUDE.md`, `STATE.md`, the end of `WORKLOG.md`.
-> Absolute rules: NO tablet actions of any kind (no adb, fastboot, ssh to 172.16.42.1, relay scripts, webcam; do not
-> even run `adb devices`). NO kernel builds, NO kit builds, nothing that takes `~/mainline/build/.kit-build.lock`.
-> Never check out, commit, stash or edit in `~/mainline/build/src` (read with `git -C ~/mainline/build/src show
-> iceland:PATH`); the only compile allowed is a check of a driver COPY as an external module inside your `work/`
-> folder. No git commit / push. Write only inside `~/mainline/build/wf/NAME/`. Every hardware value from Pad 4 stock
-> sources with file and line. Nothing private in public deliverables (bulk copies from fwsuper, firmware, serials,
-> addresses go under `priv/`). The test: automated, no user, at most 10 minutes, RAM session only, writes only what
-> is reversible and says exactly what it writes; never read every `/sys/kernel/debug/regmap/*/registers`; never
-> touch TLMM pad registers through /dev/mem.
-> Practical: run WSL commands from Git Bash as `MSYS_NO_PATHCONV=1 wsl.exe -d Ubuntu-24.04 --cd DIR -- bash
-> SCRIPT.sh`; anything with shell variables or backslashes goes into a script file written with the Write tool
-> (LF line ends); WSL /tmp is cleaned between invocations (use `work/`); never use pkill -f / pgrep -f with a
-> pattern that is in your own command line; REPORT.md and NEXT.md are requested by the owner - if a tool refuses
-> those names, write them through a Bash script.
-> Deliver REPORT.md, tablet.sh (function wf_NAME), candidates under cand/, NEXT.md. Final message: the findings in
-> a few plain sentences and the list of files.
-
-Topic-specific additions that were given: pencharge - "CHARGING SAFETY COMES FIRST: every current, voltage, power
-and temperature limit is stock's value or lower; a test never enables the transmitter unless stock's own conditions
-hold"; deepsleep - "the tablet hangs on a PC port (500 mA): say what the fuel gauge can and cannot show; a
-candidate that switches a rail, clock or subsystem off must say why that is safe"; apps - "nothing on the tablet's
-storage, install in slices that fit into RAM, never pull in kernel / grub / shim / firmware packages"; audit -
-"safety order: battery and charger, regulator voltages, thermal trips, display, speaker gains, pins, clocks,
-radios"; pkg017 - "work on a copy of packaging/iceland-device, deliver a generator `pkg-017.py`, never raise a
-limit, keep the camera parts alone, stock's thermal model stays private and outside the package"; install - "no
-script may contain `fastboot flash / erase / format / set_active / -w / flashing`; rehearsals use `fastboot boot`
-only; do not download the Fedora image yourself (deliver a fetch + verify script)"; camera - see
-`docs/WORKFLOW-BRIEF-3-camera.md`.
-
-Feedback message pattern (SendMessage): first line = what this is; then the exact summary line, where the log set
-is (`~/mainline/build/area-combo-N/combo/<name>/`, `common/dmesg.txt`, `common/journal.txt`), numbered questions,
-"keep the test under N minutes; I run it again as soon as you deliver".
+Use the `Agent` tool (general-purpose, background). Give: the project in two sentences; the topic and what is known
+(with file paths); the hard rules (PC only, no tablet actions, no kit / kernel builds except a compile check in
+the agent's own worktree / O= dir, no commits, write only in its own `wf/<name>/`, stock values with sources,
+private data, charging safety, never `wsl --shutdown`, script files for WSL commands, no `pkill -f` with its own
+pattern); the deliverables (REPORT, NEXT, tablet.sh, cand/, parts module, at most 10 minutes per tablet part); how
+to report (SendMessage to "main" for intermediate results; final answer with findings, files, build / test
+lines). The prompts of this session for install round 6, hwfix and docs (in the transcript / WORKLOG) are models.
 
 ## 6. Lessons that cost time (do not repeat)
 
-- `wsl.exe -d Ubuntu-24.04 -- bash -c '...'` from Git Bash: the outer layer expands `$var` and loop variables and
-  eats backslashes. Put everything with variables, loops or backslashes into a script file (Write tool) and run
-  the file. Generators with `\n` in strings: write them with the Write / Edit tools, never through a heredoc.
-- `pkill -f` / `pgrep -f` with a pattern that also appears in the calling command line kills the caller: use a
-  script file whose name does not match.
-- Kit descriptions (`KIT_DESC`) must not contain a quote character.
-- The queue's `prepare.sh` clones the kernel from GitHub and can stall: verify from the local repository as
-  `queue-0084.sh` does (pin commit and tree are still checked).
-- A camera bus / driver test only means something when the sensor hub is configured (run `pkg2` + `rotpkg start`
-  first); "2 of 2 with the hub idle" in a boot without the sensor stack is the boot state.
-- The hwdb entry needs `udevadm control --reload` before the re-trigger; UPower reads the thresholds once at start.
-- Never read TLMM pad registers through /dev/mem (run 30 reset the tablet); never read all regmap debug files.
-- Foreground `sleep` waits are backgrounded by the user: use background jobs and their completion notices.
-- A test that greps "WARNING|BUG|Oops" case-insensitively matches "ramoops" and "debug:": look at the lines.
+- `wsl.exe -d Ubuntu-24.04 -- bash -c '...'` from Git Bash loses `$var`, loops and backslashes: script files.
+  Long Python or shell texts with quotes: write them with the Write tool, not a heredoc.
+- `pkill -f` / `pgrep -f` with a pattern that is in the calling command line kills the caller (use `[x]` brackets).
+- Never edit a script that a running bash is still reading (run-chain.sh got a "syntax error" that way).
+- Kits load only their early module list (`build/mods25/all`); a device whose module is not on it stays without
+  driver: use `coldplug=True`; the DP audio codec is now on the list.
+- A kit's log checks must ignore the kit's own `iceland-combo` lines in kmsg (sayk writes summaries there).
+- Kit preps take the kit lock with `flock -n`: no kernel build / queue script while a chain may prep.
+- The USB gadget (f_ncm) used to collapse with traffic in both directions: fixed in 0162; uploads need it.
+- U-Boot subcommand tables have their own maxargs: a patched command can still be refused before it runs.
+- Kit descriptions must not contain a quote character; queue verification from the local repository.
+- Camera bus / driver tests need the sensor hub configured (`pkg2` + `rotpkg start`).
+- Never read TLMM pad registers through /dev/mem; never read all regmap debug files.
+- Foreground waits are backgrounded by the owner: background jobs + their completion notices.
+- The owner recharges the tablet unplugged: ask before every tablet action.
+- Use they/them for the owner (never assume pronouns).
 
 ## 7. Files that matter (WSL `~/mainline/build` unless said)
 
-- Run pipeline: `an/genwf.py`, `gen-combo-NN.py`, `an/area-combo-NN.sh`, `an/area-combo-NN-probe.sh`,
-  `prep-area-combo-NN.sh`, `an/chk.sh`, `an/idle-check.sh`, `an/wf-status.sh` (delivery state of the workflows),
-  scratchpad `area-combo-NN-chain.sh`, `run-chain.sh`.
-- Kernel: `build-q2.sh`, `build-q54.sh`, `build-q55.sh`, `build-q56.sh`, `queue-0077.sh`, `queue-0077-finish.sh`,
-  `queue-0084.sh`, `an/stepwise-release.py`, `an/tempalarm-trip-priv.py`, `an/rebase-charging.py`.
-- Package: `pkg-016.py`, `pkg-016b.py`, `wf/pkg017/pkg-017.py` (not applied), `wf/camera/cand/wp4-apps/pkg-017-camera.py`.
-- Commit: `mk-commit-j.py` / `commit-campaign2-j.sh`, `~/mainline/research/matrix-c2i.py`, `an/commit-check.sh`.
-- Snapshot of all this in the project folder: `build/save-project.sh` + `save-project-fix.sh` + `save-project-wf.sh`
-  (the last one copies the workflows' public parts to `workflows/` and the newest scripts to `scripts/`; the
-  `priv/` and `work/` folders and the whole thermal workflow stay in WSL only).
-- Guides: `docs/INSTALL-PLAN.md`, `docs/INSTALL-GUIDE.md` (Parts C / D locked until the rehearsal exists).
+- Run pipeline: `an/genwf.py` (coldplug option), `gen-combo-NN.py` (newest 83, 87, 89b, 92, 95),
+  `an/area-combo-NN*.sh`, `prep-area-combo-NN.sh`, `an/chk.sh`, `an/wait-probe.sh`, `an/kmsg-errors.py`,
+  `mods25/all` (the kits' early modules), scratchpad `area-combo-NN-chain.sh`, `run-chain.sh`.
+- Kernel: `build-q2.sh`, `build-q56.sh` (cases pencharge, deepsleep, pogo, uas, ncm, generic), `build-q74..78.sh`,
+  `queue-0117.sh`, `queue-0125.sh`, `queue-0139.sh`, `queue-0163.sh`, `out-config-base-0166`.
+- Install: `wf/install/` (next-k2p1u1.sh, genwf-install-b.py, cand/rehearsal/*, cand/u-boot/*, NEXT.md),
+  `an/r1-prep.sh`, `an/b2-prep.sh`, `an/stop-r1.sh`.
+- Commit: `mk-commit-u.py` / `commit-campaign2-u.sh`, `~/mainline/research/matrix-c2s.py`.
+- Snapshot of all this in the project folder: `build/save-project.sh` + `save-project-fix.sh` +
+  `save-project-wf.sh`.
+- Guides: `docs/INSTALL-PLAN.md`, `docs/INSTALL-GUIDE.md` (being updated by the install agent), `docs/BOOT-LOG-PLAN.md`,
+  `docs/guide/` in the docs repo.
 
 ## 8. First ten minutes of the next session
 
-1. `bash ~/mainline/build/an/idle-check.sh` (nothing running, repos clean) and `adb devices` by line count.
-2. `bash ~/mainline/build/an/wf-status.sh` (what each workflow has delivered).
-3. Resume the paused agents (section 3), camera first (send run 46's app result), then pencharge, wake, apps,
-   audit, pkg017, install.
-4. Meanwhile on the tablet: read `wf/deepsleep/NEXT.md` and run it; build q57 (pencharge + pogo) and run
-   `wf_pogo` + `wf_pencharge`.
-5. Log every run in `WORKLOG.md` (next entry: 29), keep the matrix and the repositories current.
-6. Next free numbers: kit run 48, test kernel q57, queue patch 0090, matrix script `matrix-c2k.py`, commit script
-   `commit-campaign2-l.sh` (make it with a `mk-commit-l.py` from `mk-commit-k.py`), device package 0.17.
+1. `bash ~/mainline/build/an/idle-check.sh` (nothing running, repos clean); `adb devices` by line count only after
+   asking the owner whether the tablet is connected.
+2. Read the round-6 report of the install agent, the r1debug verification and the hwfix deliveries (resume the
+   agents by id, section 3).
+3. With the owner's go: R1 (section 3), then the hwfix kernel (q79) and its kit, then the write-2 probe preparation
+   with the owner.
+4. Log every step in `WORKLOG.md`, keep the matrix and both repositories current.
