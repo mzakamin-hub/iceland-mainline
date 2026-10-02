@@ -4,7 +4,7 @@
 # No firmware and no binaries: configuration files and small scripts only.
 
 Name:           iceland-device
-Version:        0.16
+Version:        0.17
 Release:        1%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
@@ -15,6 +15,10 @@ BuildRequires:  alsa-utils
 # alsatplg (Fedora ships it apart from alsa-utils)
 BuildRequires:  alsa-topology-utils
 Source0:        80-iceland-kernel.conf
+# Fedora's repositories: GRUB, shim, firmware and the sensor programs held; the release pinned (dnf5 repository
+# overrides; an empty file of the same name in /etc/dnf/repos.override.d masks either)
+Source60:       50-iceland-fedora-hold.repo
+Source61:       51-iceland-fedora-44-pin.repo
 Source1:        sleep-iceland.conf
 Source2:        journald-iceland.conf
 Source3:        49-iceland-no-system-upgrade.rules
@@ -49,12 +53,28 @@ Source27:       iio-sensor-proxy-iceland.conf
 Source28:       hexagonrpcd-adsp-sensorspd-iceland.conf
 Source29:       iceland-ssc-wait
 Source30:       iceland-ssc-resume.service
-# keeps one sensor-hub sensor running: the cameras' control bus is only connected while the hub streams
-Source31:       iceland-ssc-hold.service
+# cameras: libcamera software-ISP tuning of the two sensors (the file name is the sensor model)
+Source31:       sc1320cs.yaml
 # the thresholds UPower writes for "Preserve Battery Health" (charge limit, kernel-iceland's qcom_battmgr)
 Source32:       61-iceland-battery.hwdb
 # UPower after udev's device scan (it reads the thresholds only once)
 Source33:       upower-iceland.conf
+Source34:       sc820cs.yaml
+# cameras: hide the raw video nodes of the camera subsystem from the desktop's device list
+Source35:       51-iceland-camera.conf
+# cameras: a fixed focus position of the rear camera while it streams (no autofocus in libcamera's simple pipeline)
+Source36:       iceland-camera-focus
+Source37:       iceland-camera-focus.service
+Source38:       camera-focus.conf
+# cameras: the CMA dma-heaps for root only (libcamera's software ISP then allocates from the system heap)
+Source39:       71-iceland-dma-heap.rules
+# the skin temperature policy (stock's temperature gears): the daemon, its unit, its settings (the sources from 50 on
+# belong to the guard / thermal part of 0.17, the camera part numbers below 50)
+Source50:       iceland-thermal
+Source51:       iceland-thermal.service
+Source52:       thermal.conf
+# what logind does when the cover closes: suspend on battery, lock (screen off, awake) with a charger in
+Source53:       logind-iceland.conf
 
 Requires:       kernel-iceland
 Requires:       bluez
@@ -69,6 +89,14 @@ Requires:       tuned-ppd
 Requires:       hexagonrpc
 Requires:       libssc
 Requires:       iio-sensor-proxy >= 3.9-10
+# the desktop's way to the cameras: libcamera's software ISP, PipeWire's libcamera plug-in, the portal that asks
+# for the camera permission (GNOME backend) and the document portal's FUSE helper
+Requires:       libcamera-ipa
+Requires:       pipewire-plugin-libcamera
+Requires:       xdg-desktop-portal-gnome
+Requires:       fuse3
+Recommends:     snapshot
+Recommends:     pipewire-gstreamer
 Requires(posttrans): grubby
 
 %description
@@ -76,6 +104,9 @@ Settings that make Fedora 44 work safely on the OnePlus Pad 4 with the kernel-ic
 - Fedora's own kernel packages are excluded from dnf (they have no Pad 4 support);
   kernel-iceland is the default kernel;
 - suspend uses s2idle (the only sleep state on this SoC);
+- the cover: closing it suspends the tablet on battery and opening it wakes it; with a charger in, closing it
+  locks the session and turns the screen off but the tablet stays awake, so that the charging guard keeps
+  watching (logind drop-in);
 - the journal is capped;
 - Fedora version upgrades are blocked until they are tested with kernel-iceland;
 - fwupd never uses the UEFI capsule path (U-Boot is not a firmware target);
@@ -86,7 +117,14 @@ Settings that make Fedora 44 work safely on the OnePlus Pad 4 with the kernel-ic
 - Wi-Fi power saving is on;
 - iceland-battery-guard enforces the stock 11.A.38 charging limits as a second layer over the charger firmware
   (temperature regions, per-region voltages and currents, the USB-C connector thermistors, 70/77 C power-off)
-  and the charge limit (85 %, resume at 80 %; /etc/iceland/battery-guard.conf);
+  and the charge limit: it follows the kernel's thresholds (GNOME's "Preserve Battery Health", 85 % / 80 %,
+  switched on at the first installation) or, on a kernel without them, /etc/iceland/battery-guard.conf; it keeps
+  the tablet awake while a charger is in (as stock does), writes what was plugged in to the journal, and takes
+  the charge-current cap of iceland-thermal when that is lower than its own;
+- iceland-thermal applies stock's skin temperature policy (20 temperature gears: CPU, GPU, brightness and
+  charging limits per gear, GNOME's power modes as stock's mode offsets; /etc/iceland/thermal.conf). It only
+  ever lowers limits; the kernel's thermal zones stay underneath. The shell temperature model is a private local
+  file (/etc/iceland/thermal-model.json, never shipped); without it the battery temperature + 2 C stands in;
 - kernel-iceland updates come from a local dnf repository (/var/lib/iceland/repo, filled by iceland-repo-sync);
 - the panel runs 60 Hz on battery and 120 Hz on AC (iceland-refresh, /etc/iceland/refresh.conf); live
   refresh-rate changes need kernel queue patch 0058 (RELIGHT=1 switches the display off and on after every
@@ -122,6 +160,8 @@ grep -q 'max "2056"' audioreach-topology/OnePlus-Pad4.conf
 
 %install
 install -Dm0644 %{SOURCE0} %{buildroot}/usr/share/dnf5/libdnf.conf.d/80-iceland-kernel.conf
+install -Dm0644 %{SOURCE60} %{buildroot}/usr/share/dnf5/repos.override.d/50-iceland-fedora-hold.repo
+install -Dm0644 %{SOURCE61} %{buildroot}/usr/share/dnf5/repos.override.d/51-iceland-fedora-44-pin.repo
 install -Dm0644 %{SOURCE1} %{buildroot}/usr/lib/systemd/sleep.conf.d/60-iceland.conf
 install -Dm0644 %{SOURCE2} %{buildroot}/usr/lib/systemd/journald.conf.d/60-iceland.conf
 install -Dm0644 %{SOURCE3} %{buildroot}/usr/share/polkit-1/rules.d/49-iceland-no-system-upgrade.rules
@@ -159,9 +199,19 @@ install -Dm0644 %{SOURCE27} %{buildroot}/usr/lib/systemd/system/iio-sensor-proxy
 install -Dm0644 %{SOURCE28} %{buildroot}/usr/lib/systemd/system/hexagonrpcd-adsp-sensorspd.service.d/iceland.conf
 install -Dm0755 %{SOURCE29} %{buildroot}/usr/libexec/iceland/iceland-ssc-wait
 install -Dm0644 %{SOURCE30} %{buildroot}/usr/lib/systemd/system/iceland-ssc-resume.service
-install -Dm0644 %{SOURCE31} %{buildroot}/usr/lib/systemd/system/iceland-ssc-hold.service
+install -Dm0644 %{SOURCE31} %{buildroot}/usr/share/libcamera/ipa/simple/sc1320cs.yaml
+install -Dm0644 %{SOURCE34} %{buildroot}/usr/share/libcamera/ipa/simple/sc820cs.yaml
+install -Dm0644 %{SOURCE35} %{buildroot}/usr/share/wireplumber/wireplumber.conf.d/51-iceland-camera.conf
+install -Dm0755 %{SOURCE36} %{buildroot}/usr/libexec/iceland/iceland-camera-focus
+install -Dm0644 %{SOURCE37} %{buildroot}/usr/lib/systemd/system/iceland-camera-focus.service
+install -Dm0644 %{SOURCE38} %{buildroot}/etc/iceland/camera-focus.conf
+install -Dm0644 %{SOURCE39} %{buildroot}/usr/lib/udev/rules.d/71-iceland-dma-heap.rules
 install -Dm0644 %{SOURCE32} %{buildroot}/usr/lib/udev/hwdb.d/61-iceland-battery.hwdb
 install -Dm0644 %{SOURCE33} %{buildroot}/usr/lib/systemd/system/upower.service.d/iceland.conf
+install -Dm0755 %{SOURCE50} %{buildroot}/usr/libexec/iceland/iceland-thermal
+install -Dm0644 %{SOURCE51} %{buildroot}/usr/lib/systemd/system/iceland-thermal.service
+install -Dm0644 %{SOURCE52} %{buildroot}/etc/iceland/thermal.conf
+install -Dm0644 %{SOURCE53} %{buildroot}/usr/lib/systemd/logind.conf.d/60-iceland.conf
 
 %posttrans
 # kernel-iceland is the default kernel and new kernel-iceland versions become the default
@@ -177,10 +227,28 @@ if [ ! -e /var/lib/iceland/.asound-state-reset ]; then
 	rm -f /var/lib/alsa/asound.state
 	mkdir -p /var/lib/iceland && touch /var/lib/iceland/.asound-state-reset
 fi
-systemctl enable iceland-battery-guard.service iceland-npu-off.service iceland-wifi-country.service iceland-ssc-resume.service >/dev/null 2>&1 || :
+systemctl enable iceland-battery-guard.service iceland-npu-off.service iceland-wifi-country.service iceland-ssc-resume.service iceland-camera-focus.service >/dev/null 2>&1 || :
+# 0.16 had a unit that kept a sensor-hub sensor streaming for the cameras; the kernel keeps their bus connected now
+systemctl stop iceland-ssc-hold.service >/dev/null 2>&1 || :
+# the DMA heap permissions (71-iceland-dma-heap.rules) at once; a running WirePlumber keeps the heap it has open
+# until the user's next login
+if [ -d /run/systemd/system ]; then udevadm control --reload >/dev/null 2>&1 || :; udevadm trigger --action=add -s dma_heap >/dev/null 2>&1 || :; fi
+# the skin temperature policy starts at boot, like the guard
+systemctl enable iceland-thermal.service >/dev/null 2>&1 || :
+# logind reads the cover settings again (a reload, not a restart: a restart would end the sessions)
+if [ -d /run/systemd/system ]; then systemctl kill -s HUP systemd-logind.service >/dev/null 2>&1 || :; fi
+# the charge limit starts switched on ("Preserve Battery Health": before 0.17 the guard's 85 % limit was always on).
+# UPower's switch is seeded once; afterwards the file is UPower's own (GNOME Settings > Power). Exactly "1".
+if [ ! -e /var/lib/upower/charging-threshold-status ]; then
+	mkdir -p /var/lib/upower && printf 1 > /var/lib/upower/charging-threshold-status
+	restorecon /var/lib/upower/charging-threshold-status >/dev/null 2>&1 || :
+fi
 # the charge-limit thresholds: rebuild the hardware database and let udev and UPower read it again
 systemd-hwdb update >/dev/null 2>&1 || :
-if [ -d /run/systemd/system ]; then udevadm control --reload >/dev/null 2>&1 || :; udevadm trigger -s power_supply >/dev/null 2>&1 || :; systemctl try-restart upower.service >/dev/null 2>&1 || :; fi
+if [ -d /run/systemd/system ]; then udevadm control --reload >/dev/null 2>&1 || :; udevadm trigger -s power_supply >/dev/null 2>&1 || :; udevadm settle --timeout=5 >/dev/null 2>&1 || :; systemctl try-restart upower.service >/dev/null 2>&1 || :; fi
+# a running guard or thermal policy takes the new version at once (both start at boot; an installation alone
+# does not start them)
+if [ -d /run/systemd/system ]; then systemctl daemon-reload >/dev/null 2>&1 || :; systemctl try-restart iceland-battery-guard.service iceland-thermal.service >/dev/null 2>&1 || :; fi
 systemctl --global enable iceland-refresh.service >/dev/null 2>&1 || :
 # GNOME's power modes -> the Pad 4 tuned profiles (edits tuned-ppd's mapping between marker lines)
 /usr/bin/iceland-power-profiles apply >/dev/null 2>&1 || :
@@ -198,21 +266,31 @@ done
 chmod 644 "$mi" 2>/dev/null; restorecon "$mi" >/dev/null 2>&1 || :
 
 %triggerin -- fwupd
+# fwupd plug-ins that could write boot code, EFI variables, the storage's own firmware (UFS = scsi) or GPIOs: off
 f=/etc/fwupd/fwupd.conf
-if [ -f "$f" ] && ! grep -q '^DisabledPlugins=.*uefi_capsule' "$f"; then
+dis="uefi_capsule;uefi_dbx;uefi_db;uefi_kek;uefi_pk;uefi_mok;uefi_sbat;uefi_recovery;uefi_esrt;android_boot;scsi;emmc;mtd;nvme;gpio;vbe;bootupd"
+if [ -f "$f" ]; then
 	if grep -q '^DisabledPlugins=' "$f"; then
-		sed -i 's/^DisabledPlugins=\(.*\)$/DisabledPlugins=\1;uefi_capsule/; s/=;/=/' "$f"
+		cur=$(sed -n 's/^DisabledPlugins=//p' "$f" | head -n 1); new=$cur
+		for p in $(echo "$dis" | tr ';' ' '); do case ";$new;" in *";$p;"*) ;; *) new="${new:+$new;}$p" ;; esac; done
+		[ "$new" = "$cur" ] || sed -i "s/^DisabledPlugins=.*/DisabledPlugins=$new/" "$f"
 	else
-		sed -i '0,/^\[fwupd\]/s//[fwupd]\nDisabledPlugins=uefi_capsule/' "$f"
+		sed -i "0,/^\[fwupd\]/s//[fwupd]\nDisabledPlugins=$dis/" "$f"
 	fi
+	# the daemon reads its configuration only when it starts (a running fwupd kept the old list in RAM run area-combo-55)
+	systemctl try-restart fwupd.service >/dev/null 2>&1 || :
 fi
 
 %preun
-[ "$1" -eq 0 ] && systemctl --global disable iceland-refresh.service >/dev/null 2>&1; [ "$1" -eq 0 ] && systemctl disable iceland-ssc-resume.service iceland-wifi-country.service iceland-npu-off.service iceland-battery-guard.service iceland-bdaddr.service >/dev/null 2>&1 || :
+[ "$1" -eq 0 ] && systemctl --global disable iceland-refresh.service >/dev/null 2>&1; [ "$1" -eq 0 ] && systemctl disable iceland-camera-focus.service iceland-ssc-resume.service iceland-wifi-country.service iceland-npu-off.service iceland-battery-guard.service iceland-bdaddr.service >/dev/null 2>&1 || :
+# the thermal policy hands its limits back when it stops
+[ "$1" -eq 0 ] && systemctl disable --now iceland-thermal.service >/dev/null 2>&1 || :
 [ "$1" -eq 0 ] && /usr/bin/iceland-power-profiles reset >/dev/null 2>&1 || :
 
 %files
 /usr/share/dnf5/libdnf.conf.d/80-iceland-kernel.conf
+/usr/share/dnf5/repos.override.d/50-iceland-fedora-hold.repo
+/usr/share/dnf5/repos.override.d/51-iceland-fedora-44-pin.repo
 /usr/lib/systemd/sleep.conf.d/60-iceland.conf
 /usr/lib/systemd/journald.conf.d/60-iceland.conf
 /usr/share/polkit-1/rules.d/49-iceland-no-system-upgrade.rules
@@ -256,12 +334,71 @@ fi
 /usr/lib/systemd/system/hexagonrpcd-adsp-sensorspd.service.d/iceland.conf
 /usr/libexec/iceland/iceland-ssc-wait
 /usr/lib/systemd/system/iceland-ssc-resume.service
-/usr/lib/systemd/system/iceland-ssc-hold.service
+/usr/share/libcamera/ipa/simple/sc1320cs.yaml
+/usr/share/libcamera/ipa/simple/sc820cs.yaml
+/usr/share/wireplumber/wireplumber.conf.d/51-iceland-camera.conf
+/usr/libexec/iceland/iceland-camera-focus
+/usr/lib/systemd/system/iceland-camera-focus.service
+%config(noreplace) /etc/iceland/camera-focus.conf
+/usr/lib/udev/rules.d/71-iceland-dma-heap.rules
 /usr/lib/udev/hwdb.d/61-iceland-battery.hwdb
 %dir /usr/lib/systemd/system/upower.service.d
 /usr/lib/systemd/system/upower.service.d/iceland.conf
+/usr/libexec/iceland/iceland-thermal
+/usr/lib/systemd/system/iceland-thermal.service
+%config(noreplace) /etc/iceland/thermal.conf
+/usr/lib/systemd/logind.conf.d/60-iceland.conf
 
 %changelog
+* Fri Oct 02 2026 mzak <mzak.amin@gmail.com> - 0.17-1
+- cameras: iceland-ssc-hold.service and its Wants= line are gone: the kernel keeps the level shifters of the
+  camera bus on (queue 0084-0086; area-combo-44: both sensors answer with the sensor hub configured and idle)
+- cameras: libcamera tuning files for the two sensors (black level 64 / 65 of 1023 from the stock camera
+  characteristics) in /usr/share/libcamera/ipa/simple/
+- cameras: a WirePlumber rule hides the raw video nodes of the camera subsystem (the two libcamera sources stay)
+- cameras: iceland-camera-focus puts the rear camera's lens at a fixed position while it streams
+  (/etc/iceland/camera-focus.conf, default 450 = stock's start position); needs the focus motor of queue 0087-0089
+- cameras: 71-iceland-dma-heap.rules gives the CMA dma-heaps to root only, so that libcamera's software ISP in
+  the desktop session allocates from the system heap: the 32 MiB CMA area does not hold GNOME Camera's four
+  1080p buffers (area-combo-46: "dma-heap allocation failure", PipeWire "Format negotiation failed")
+- Requires libcamera-ipa, pipewire-plugin-libcamera, xdg-desktop-portal-gnome, fuse3; Recommends snapshot,
+  pipewire-gstreamer
+- battery guard, one program from three candidates (the stock limits of 0.16 are unchanged, nothing is raised):
+  the charge limit follows the kernel's charge_control thresholds when the kernel has them (GNOME's "Preserve
+  Battery Health" decides; the config file's CHARGE_LIMIT / CHARGE_RESUME only on a kernel without; LIMIT_SOURCE);
+  the install scriptlet switches "Preserve Battery Health" on once, so the 85 % limit stays on by default
+- battery guard: awake while a charger is in, as on stock (a logind block on sleep, KEEP_AWAKE; "systemctl
+  suspend -i" still suspends); the block covers the lid switch too unless logind only locks a closing cover with
+  a charger in (BLOCK_LID_SWITCH=auto; "yes" = always); a journal line at plug-in, 10 s later, every 10 minutes
+  and at unplug
+  (type, VBUS, input current of its limit, battery, cap); charging stops until unplug when the measured input
+  current stays above its limit (15 % + 50 mA, three readings)
+- battery guard: takes the charge-current cap of iceland-thermal (/run/iceland/thermal-fcc-ma) when it is lower
+  than its own; a cap file older than 60 s is ignored (THERMAL_CAP)
+- iceland-thermal (new, enabled like the guard): stock's skin temperature gears as a daemon: CPU, GPU, brightness
+  and charging limits per gear, GNOME's power modes as stock's mode offsets (/etc/iceland/thermal.conf). Without
+  the private model file it runs on the battery temperature + 2 C. Shipped with OFFSET_BALANCED=-4 (nothing
+  changes at idle while the kernel's skin loop is at 48 / 51 C) and CHARGE_SHIFT=0 (the charging cool-down never
+  takes a negative offset). It writes only user space's frequency maxima, the backlight and its two files under
+  /run/iceland: the kernel's cooling devices keep their own requests, so it cannot lift a kernel limit
+- the cover (logind drop-in logind.conf.d/60-iceland.conf, wf/wake): closing it suspends on battery, with a charger
+  in it locks the session and the screen goes dark but the tablet stays awake (the guard keeps watching the
+  charge), with an external display it does nothing; logind reads it again at the installation (SIGHUP)
+- install scriptlet: udev settles before UPower is restarted; a running guard / thermal policy is restarted on
+  an update
+- tests: test_battery_guard.py extended (thermal cap); new: test_guard_kernel_limit.py, test_guard_awake.py,
+  test_thermal.py, test_spec.py, test_logind.py (wf/wake)
+- dnf (workflow apps): excludes for every Fedora kernel flavour, dracut's rescue / generic images, akmods /
+  dkms, fwupd's EFI binaries, bootupd, sdubby, systemd-boot and U-Boot images (append lists in libdnf5: other
+  configuration files keep their own); protected: iceland-device, grub2-efi-aa64, shim-aa64; kernel-iceland is
+  install-only (three versions kept)
+- dnf: GRUB, shim, linux-firmware / *-firmware, iio-sensor-proxy, hexagonrpc and libssc are held against Fedora's
+  repositories (repos.override.d/50-iceland-fedora-hold.repo)
+- dnf: Fedora's repositories pinned to release 44 (repos.override.d/51-iceland-fedora-44-pin.repo): GNOME
+  Software 50 upgrades through dnf5daemon, whose polkit actions do not tell a version upgrade from an update,
+  so the PackageKit rule alone no longer blocks it
+- fwupd: every plug-in that can write boot code, EFI variables, storage firmware or GPIOs is disabled
+
 * Fri Oct 02 2026 mzak <mzak.amin@gmail.com> - 0.16-1
 - cameras: iceland-ssc-hold.service keeps the accelerometer of the sensor hub streaming whenever iio-sensor-proxy
   runs (bound to it, pulled in by its drop-in): the control bus of both cameras is only connected to the SoC

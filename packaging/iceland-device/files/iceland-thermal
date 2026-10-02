@@ -1,0 +1,487 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# iceland-thermal: the stock skin-temperature policy of the OnePlus Pad 4 under mainline Linux.
+#
+# On stock the kernel's thermal trips are only the backstop. The policy is in userspace: the "horae" service
+# estimates the temperature of the shell (front, frame, back) from several board thermistors and the battery, turns
+# it into a "temperature gear" (0..19), and the thermal control service applies a table per gear: CPU frequency caps
+# per cluster, a GPU cap, a brightness cap, a charging cool-down level. Mainline cannot express a weighted
+# multi-sensor zone in the device tree, so this service does the same in userspace. The kernel zones (CPU junction
+# 105 / 112 / 114 C, XO 78 / 80 / 90 C, the hot-spot thermistor's own loop) stay as they are, underneath.
+#
+# Every number is the Pad 4's stock 11.A.38 value (KNOWLEDGE rule 13), unless marked OURS. Sources (files of the
+# user's own partition carve, B = ~/mainline/build/fwsuper):
+#  gear thresholds   B/x-system_ext/etc/horae/horae.conf (decoded) thermal_status_model, lines 5-7:
+#                    temp_threshold 25 27 29 31 33 35 37 39 40 41 43 45 47 49 51 53 55 57 59 61 63 (C, entering),
+#                    temp_threshold_down 23 25 ... 61 (leaving), thermal_status -1 0 1 .. 19 (the gear)
+#  shell estimate    B/x-odm/etc/horae/horae_target.conf (decoded), project 25978, shell_temp_fitting_model: five
+#                    models (front, front_1, frame, back, back_1) over sys-therm-2, sys-therm-4, board_temp, battery
+#                    and chg_cp_therm, four coefficient rows each (the present sample and the three before it, one
+#                    every 5 s) plus a constant; until four samples exist stock uses the battery temperature plus
+#                    bat_bias (2.0 C). The coefficients are NOT in this file and NOT in the package: they are
+#                    read from /etc/iceland/thermal-model.json, a private file made locally from the owner's own
+#                    backup. Without that file the battery fallback is used all the time.
+#  CPU levels        B/x-odm/etc/temperature_profile/sys_thermal_control_config.xml:24-37 (thermal_cpulevel:
+#                    maxCpuFreq "cluster 0, cluster 1" in kHz; levels 10 and 13 also take the two big cores away,
+#                    maxCpuCore "-1,0" - mainline has no CPU pause, the frequency cap alone is applied)
+#  GPU levels        same file :40-46 (thermal_gpulevel, maxGpuFreq in Hz)
+#  per-gear table    same file :53-72 (globalPolicy: cpu, gpu, brightness, charge per tempGear); every other
+#                    section (default, apps, scenes) starts from this table (Battery.apk: the policy of a gear is
+#                    the globalPolicy entry of that gear, overridden by the attributes the section names)
+#  benchmark table   same file :715-723 (the benchmark app list: no CPU cap up to gear 12, level 12 at 13-14,
+#                    level 13 from 15; GPU level 6 from gear 13)
+#  mode offsets      same file :10-12 racing_mode_item -4, normal_mode_item 0, powersave_mode_item 1 (added to
+#                    the gear), :17 high_temp_safety_level_item 15
+#  brightness        B/x-system_ext/etc/display_brightness_config_common.xml:2777-2800 temperature_limit_nit
+#                    (level -> nits) and B/x-my_product/vendor/etc/display_brightness_config_P_D.xml (nits -> the
+#                    12-bit backlight level, the same scale as the mainline KTZ8869 driver, max 4095):
+#                    800 nits = 3744 (:3758), 700 = 3500 (:3514), 600 = 3241 (:3255), 500 = 2963 (:2977),
+#                    450 = 2817 (:2831), 400 = 2662 (:2676), 350 = 2498 (:2512), 300 = 2323 (:2337),
+#                    250 = 2133 (:2147), 200 = 1925 (:1939), 150 = 1685 (:1699), 100 = 1402 (:1416)
+#  charge cool-down  B/dtbo/dt00.dts:4220-4223 cool_down_pdqc_vol_mv 5000 5000 5000 9000 with cool_down_pdqc_curr_ma
+#                    1200 1500 2000 1500, cool_down_normal_curr_ma 1200 1500 2000 (level 1, 2, 3, 4)
+# OURS (not stock values):
+#  - the caps are written to cpufreq's and devfreq's own maximum (scaling_max_freq, max_freq), the smaller of the
+#    power mode's value (read from the active tuned profile) and the thermal cap; written again every period,
+#    because the kernel offers no way to read the requested maximum back;
+#  - GNOME's power modes take stock's mode offsets: Power Saver +1, Balanced 0, Performance -4 (thermal.conf);
+#    from gear 15 (stock's high-temperature safety level) a negative offset no longer applies;
+#  - the charging cool-down is passed to iceland-battery-guard as a battery-current cap in
+#    /run/iceland/thermal-fcc-ma: levels 1-3 as stock's input currents (1200 / 1500 / 2000 mA, never more than
+#    stock's 5 V input can deliver), level 4 and above as 3000 mA (stock: 9 V x 1.5 A input = 13.5 W; 13.5 W /
+#    4.5 V float voltage = 3.0 A, the least that input can mean for the battery);
+#  - a fitted shell temperature outside -30..100 C is ignored; the lag order of the four coefficient rows (first
+#    row = newest sample) is read from the row weights, not proven in stock's code (it only changes the estimate
+#    while temperatures move);
+#  - brightness is capped by lowering the backlight when it is above the cap and putting the user's value back
+#    when the cap is gone;
+#  - CHARGE_SHIFT=0 (thermal.conf): a negative mode offset (Performance, or a shifted Balanced) does not relax
+#    the charging cool-down: the charge cap is taken from the gear itself, as in stock's normal mode. Stock
+#    shifts it with the mode (CHARGE_SHIFT=1).
+# The kernel's own loop on the skin thermistor (queue head: 48 / 51 C; stock's 60 / 61 C trips are the owner's
+# choice) is not touched and cannot be lifted from here: this service writes only user space's maxima
+# (cpufreq scaling_max_freq and devfreq max_freq, one frequency QoS request each, never above the power mode's
+# value), the kernel's cooling devices hold their own requests and the lowest request wins. It never writes a
+# thermal zone, a trip or a cooling device. So it only ever adds lower limits and takes its own back.
+import glob, json, os, signal, sys, syslog, time
+
+E = os.environ.get
+THERMAL = E("ICELAND_THERMAL_SYS", "/sys/class/thermal")
+CPUFREQ = E("ICELAND_CPUFREQ", "/sys/devices/system/cpu/cpufreq")
+GPU = E("ICELAND_GPU", "/sys/class/devfreq/3d00000.gpu")
+BACKLIGHT = E("ICELAND_BACKLIGHT", "")                    # default: the first /sys/class/backlight/* device
+BAT = E("ICELAND_BAT", "/sys/class/power_supply/qcom-battmgr-bat")
+CONF = E("ICELAND_THERMAL_CONF", "/etc/iceland/thermal.conf")
+MODEL = E("ICELAND_THERMAL_MODEL", "/etc/iceland/thermal-model.json")
+RUN = E("ICELAND_THERMAL_RUN", "/run/iceland")
+TUNED_ACTIVE = E("ICELAND_TUNED_ACTIVE", "/etc/tuned/active_profile")
+TUNED_DIRS = E("ICELAND_TUNED_DIRS", "/etc/tuned/profiles:/etc/tuned:/usr/lib/tuned/profiles:/usr/lib/tuned").split(":")
+FAKE = E("ICELAND_THERMAL_FAKE", "")                      # tests: a file with the shell temperature in m C
+MODE = E("ICELAND_THERMAL_MODE", "")                      # tests: power-saver | balanced | performance
+DRYRUN = E("ICELAND_THERMAL_DRYRUN") == "1"               # compute and log, write nothing but the state file
+ONESHOT = E("ICELAND_THERMAL_ONESHOT") == "1"
+
+# stock tables (sources in the header)
+UP = [25, 27, 29, 31, 33, 35, 37, 39, 40, 41, 43, 45, 47, 49, 51, 53, 55, 57, 59, 61, 63]
+DOWN = [23, 25, 27, 29, 31, 33, 35, 37, 39, 40, 41, 43, 45, 47, 49, 51, 53, 55, 57, 59, 61]
+STATUS = [-1] + list(range(20))
+CPU_LEVEL = {0: (3033600, 3398400), 1: (2899200, 2880000), 2: (2745600, 2438400), 3: (2361600, 1862400),
+             4: (2361600, 1632000), 5: (2227200, 1632000), 6: (1996800, 1632000), 7: (1785600, 1497600),
+             8: (1555200, 1267200), 9: (1324800, 1382400), 10: (1555200, 883200), 11: (1324800, 1017600),
+             12: (1113600, 1017600), 13: (998400, 883200)}
+GPU_LEVEL = {1: 826000000, 2: 779000000, 3: 726000000, 4: 578000000, 5: 422000000, 6: 342000000}
+BRIGHT_LEVEL = {1: 3500, 2: 3241, 3: 2963, 4: 2817, 5: 2662, 6: 2498, 7: 2323, 8: 2133, 9: 1925, 10: 1685,
+                11: 1402, 12: 3744}
+# globalPolicy, gear 0..19: (cpu level, gpu level, brightness level, charge level); -1 / 0 = no limit
+GLOBAL = [(-1, -1, 0, 0), (-1, -1, 0, 0), (-1, -1, 0, 16), (3, -1, 0, 14), (4, -1, 12, 13), (5, -1, 12, 12),
+          (6, -1, 2, 11), (6, -1, 3, 10), (7, -1, 3, 8), (8, 1, 4, 7), (9, 2, 6, 6), (11, 3, 8, 6),
+          (12, 3, 11, 5), (13, 4, 11, 3), (13, 5, 11, 3)] + [(13, 6, 11, 3)] * 5
+# the benchmark list: CPU and GPU as that list says, brightness and charge as globalPolicy
+BENCH = [(-1 if g <= 12 else 12 if g <= 14 else 13,
+          GLOBAL[g][1] if g in (9, 10) else -1 if g <= 12 else 6, GLOBAL[g][2], GLOBAL[g][3]) for g in range(20)]
+SAFETY_GEAR = 15
+CHARGE_MA = {1: 1200, 2: 1500, 3: 2000}
+BAT_BIAS = 2000                                           # m C, stock bat_bias
+ZONES = ("skin-thermal", "wlan-thermal", "board-thermal", "qcom-battmgr-bat", "chg-cp-thermal")
+BATTERY = "qcom-battmgr-bat"
+VALID = (-30000, 100000)                                  # OURS
+
+DEFAULTS = {"ENABLE": "1", "PERIOD": "5", "OFFSET_POWERSAVE": "1", "OFFSET_BALANCED": "0",
+            "OFFSET_PERFORMANCE": "-4", "POLICY_PERFORMANCE": "global", "CPU": "1", "GPU": "1", "BRIGHTNESS": "1",
+            "CHARGE": "1", "CHARGE_MA_HIGH": "3000", "CHARGE_SHIFT": "0"}
+
+def rd(path, default=None):
+    try:
+        with open(path) as f:
+            return f.read().strip()
+    except OSError:
+        return default
+
+def rdint(path):
+    v = rd(path)
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return None
+
+def wr(path, value):
+    if DRYRUN:
+        return True
+    try:
+        with open(path, "w") as f:
+            f.write(str(value))
+        return True
+    except OSError:
+        return False
+
+# started by systemd with stdout in the journal (both variables are set for a service, not for a shell)
+UNDER_SYSTEMD = bool(os.environ.get("INVOCATION_ID") and os.environ.get("JOURNAL_STREAM"))
+
+def log(msg, prio=syslog.LOG_NOTICE):
+    syslog.syslog(prio, msg)
+    if not UNDER_SYSTEMD:      # a unit's stdout goes to the journal too: the syslog line is enough there
+        print(msg, flush=True)
+
+def read_conf():
+    c = dict(DEFAULTS)
+    for line in (rd(CONF, "") or "").splitlines():
+        line = line.split("#", 1)[0]
+        if "=" in line:
+            k, v = line.split("=", 1)
+            c[k.strip()] = v.strip()
+    return c
+
+def cint(c, key):
+    try:
+        return int(c[key])
+    except (KeyError, ValueError):
+        return int(DEFAULTS[key])
+
+def zone_paths():
+    """{type: path} of the thermal zones the estimate needs"""
+    zs = {}
+    for z in glob.glob(THERMAL + "/thermal_zone*"):
+        t = rd(z + "/type", "")
+        if t in ZONES:
+            zs[t] = z
+    return zs
+
+def level_step(idx, temp_c):
+    """stock's gear walk: up while the next entry threshold is reached, down while below the leave threshold"""
+    while idx + 1 < len(UP) and temp_c >= UP[idx + 1]:
+        idx += 1
+    while idx >= 0 and temp_c < DOWN[idx]:
+        idx -= 1
+    return idx
+
+def tuned_profile():
+    return (rd(TUNED_ACTIVE, "") or "").strip()
+
+def tuned_sysfs(name, seen=None):
+    """the [sysfs] entries of a tuned profile, included profiles first"""
+    seen = seen if seen is not None else set()
+    if not name or name in seen:
+        return {}
+    seen.add(name)
+    for d in TUNED_DIRS:
+        text = rd(os.path.join(d, name, "tuned.conf"))
+        if text is None:
+            continue
+        own, inc, sec = {}, None, None
+        for line in text.splitlines():
+            line = line.strip()
+            if not line or line[0] in "#;":
+                continue
+            if line.startswith("[") and line.endswith("]"):
+                sec = line[1:-1]
+                continue
+            if "=" not in line:
+                continue
+            k, v = (x.strip() for x in line.split("=", 1))
+            if sec == "main" and k == "include":
+                inc = v
+            elif sec == "sysfs":
+                own[k] = v
+        out = tuned_sysfs(inc, seen) if inc else {}
+        out.update(own)
+        return out
+    return {}
+
+def mode_of(profile):
+    if MODE:
+        return MODE
+    if "powersave" in profile or "power-saver" in profile:
+        return "power-saver"
+    if "performance" in profile:
+        return "performance"
+    return "balanced"
+
+def backlight():
+    if BACKLIGHT:
+        return BACKLIGHT
+    for b in sorted(glob.glob("/sys/class/backlight/*")):
+        return b
+    return None
+
+class Thermal:
+    def __init__(self):
+        self.idx = -1              # index into UP / DOWN / STATUS; -1 = below the first threshold
+        self.hist = []             # newest first: {zone: m C or None}
+        self.hist_t = None
+        self.zones = {}
+        self.model = None
+        self.model_mtime = None
+        self.capped = {}           # sysfs path -> True while a cap of ours is in place
+        self.bl_saved = None       # the user's brightness while we hold it down
+        self.bl_wrote = None
+        self.last = None           # (raw gear, effective gear, mode) of the last log line
+        self.warned = set()
+
+    def warn_once(self, key, msg):
+        if key not in self.warned:
+            self.warned.add(key)
+            log("iceland-thermal: " + msg, syslog.LOG_WARNING)
+
+    def load_model(self):
+        try:
+            m = os.stat(MODEL).st_mtime
+        except OSError:
+            if self.model is not None or "model" not in self.warned:
+                self.warn_once("model", "no %s: the battery temperature + %.1f C stands in for the shell estimate"
+                               % (MODEL, BAT_BIAS / 1000.0))
+            self.model, self.model_mtime = None, None
+            return
+        if m == self.model_mtime:
+            return
+        try:
+            with open(MODEL) as f:
+                j = json.load(f)
+            models = [x for x in j["models"] if x.get("rows") and len(x["zones"]) == len(x["rows"][0])]
+            self.model, self.model_mtime = models, m
+            self.warned.discard("model")
+            g = j.get("gears") or {}
+            if g.get("up") and len(g["up"]) == len(g.get("down", [])) == len(g.get("status", [])) and \
+               (g["up"], g["down"], g["status"]) != (UP, DOWN, STATUS):
+                log("iceland-thermal: the model file's gear thresholds differ from the built-in ones: using the file's")
+                UP[:], DOWN[:], STATUS[:] = g["up"], g["down"], g["status"]
+            log("iceland-thermal: shell model %s: %s" % (j.get("version", "?"), ", ".join(x["name"] for x in models)))
+        except (OSError, ValueError, KeyError, IndexError) as e:
+            self.model, self.model_mtime = None, m
+            log("iceland-thermal: %s unusable (%s): battery fallback" % (MODEL, e), syslog.LOG_WARNING)
+
+    def sample(self, period):
+        if len(self.zones) < len(ZONES):
+            self.zones = zone_paths()
+        t = {}
+        for z in ZONES:
+            p = self.zones.get(z)
+            v = rdint(p + "/temp") if p else None
+            if v is None and z == BATTERY:
+                b = rdint(BAT + "/temp")            # tenths of a degree C
+                v = b * 100 if b is not None else None
+            t[z] = v
+        now = time.monotonic()
+        if self.hist_t is not None and now - self.hist_t > 3 * period:
+            self.hist = []                          # as stock: a gap in the samples empties the history
+        self.hist.insert(0, t)
+        del self.hist[4:]
+        self.hist_t = now
+        return t
+
+    def shell(self):
+        """(shell temperature in m C or None, {model: m C}, source)"""
+        vals = {}
+        for m in self.model or []:
+            rows = m["rows"]
+            if len(self.hist) < len(rows):
+                break
+            s, ok = float(m.get("const", 0.0)), True
+            for k, row in enumerate(rows):
+                for z, c in zip(m["zones"], row):
+                    v = self.hist[k].get(z)
+                    if v is None:
+                        ok = False
+                        break
+                    s += c * v
+                if not ok:
+                    break
+            if ok and VALID[0] < s < VALID[1]:
+                vals[m["name"]] = int(s)
+        if vals:
+            return max(vals.values()), vals, "model"
+        bat = self.hist[0].get(BATTERY) if self.hist else None
+        if bat is not None:
+            return bat + BAT_BIAS, {}, "battery"
+        rest = [v for v in (self.hist[0].values() if self.hist else []) if v is not None]
+        return (max(rest) if rest else None), {}, "hottest"
+
+    def set_max(self, path, base, cap):
+        """cpufreq / devfreq maximum: the smaller of the mode's value and the thermal cap"""
+        if not os.path.exists(path):
+            return None
+        if cap is None:
+            if self.capped.pop(path, None) and base:
+                wr(path, base)                       # the cap is gone: the mode's value again, once
+            return base
+        want = min(base, cap) if base else cap
+        wr(path, want)                               # every period: the request cannot be read back
+        self.capped[path] = True
+        return want
+
+    def set_brightness(self, cap):
+        b = backlight()
+        if not b:
+            return None
+        cur = rdint(b + "/brightness")
+        if cur is None:
+            return None
+        if self.bl_saved is not None and cur != self.bl_wrote:
+            self.bl_saved = None                     # somebody set another brightness: that one stands
+        if cap is not None and cur > cap:
+            if self.bl_saved is None:
+                self.bl_saved = cur
+            if wr(b + "/brightness", cap):
+                self.bl_wrote = cap
+            return cap
+        if self.bl_saved is not None:
+            want = self.bl_saved if cap is None else min(self.bl_saved, cap)
+            if want > cur and wr(b + "/brightness", want):
+                self.bl_wrote = want
+            if want == self.bl_saved:
+                self.bl_saved = None
+            return want
+        return cur
+
+    def set_charge(self, ma):
+        p = os.path.join(RUN, "thermal-fcc-ma")
+        if DRYRUN:
+            return
+        try:
+            if ma:
+                os.makedirs(RUN, exist_ok=True)
+                with open(p + ".tmp", "w") as f:
+                    f.write("%d\n" % ma)
+                os.replace(p + ".tmp", p)            # a fresh file every period: the guard ignores a stale one
+            elif os.path.exists(p):
+                os.unlink(p)
+        except OSError:
+            pass
+
+    def restore(self):
+        prof = tuned_sysfs(tuned_profile())
+        for path in list(self.capped):
+            base = self.base_of(path, prof)
+            if base:
+                wr(path, base)
+        self.capped = {}
+        self.set_brightness(None)
+        self.set_charge(None)
+        try:
+            os.unlink(os.path.join(RUN, "thermal-state"))
+        except OSError:
+            pass
+
+    def base_of(self, path, prof):
+        """the maximum the power mode wants for this knob: from the tuned profile, else the hardware's"""
+        tail = "/".join(path.split("/")[-2:])
+        for k, v in prof.items():
+            if k.endswith(tail) and v.isdigit():
+                return int(v)
+        d = os.path.dirname(path)
+        if path.endswith("scaling_max_freq"):
+            return rdint(d + "/cpuinfo_max_freq")
+        fr = [int(x) for x in (rd(d + "/available_frequencies", "") or "").split() if x.isdigit()]
+        return max(fr) if fr else None
+
+    def step(self, c):
+        period = max(1, cint(c, "PERIOD"))
+        self.load_model()
+        temps = self.sample(period)
+        shell, parts, src = self.shell()
+        fake = rdint(FAKE) if FAKE else None
+        if fake is not None:
+            shell, src = fake, "fake"
+        if shell is None:
+            self.warn_once("blind", "no temperature can be read: the last gear stays")
+        else:
+            self.warned.discard("blind")
+            self.idx = level_step(self.idx, shell / 1000.0)
+        raw = STATUS[self.idx] if self.idx >= 0 else -2
+        profile = tuned_profile()
+        mode = mode_of(profile)
+        bench = mode == "performance" and c.get("POLICY_PERFORMANCE") == "benchmark"
+        off = 0 if bench else cint(c, {"power-saver": "OFFSET_POWERSAVE", "performance": "OFFSET_PERFORMANCE"}.get(mode, "OFFSET_BALANCED"))
+        eff = raw + off
+        if raw >= SAFETY_GEAR:
+            eff = max(eff, raw)
+        eff = min(eff, 19)
+        cpu_l, gpu_l, br_l, ch_l = (BENCH if bench else GLOBAL)[eff] if eff >= 0 else (-1, -1, 0, 0)
+        if raw > eff and c.get("CHARGE_SHIFT") != "1":      # OURS: the charging cool-down ignores a negative offset
+            ch_l = GLOBAL[min(raw, 19)][3] if raw >= 0 else 0
+        prof = tuned_sysfs(profile)
+        caps = CPU_LEVEL.get(cpu_l) if c.get("CPU") == "1" else None
+        out = []
+        for i, pol in enumerate(("policy0", "policy6")):
+            path = os.path.join(CPUFREQ, pol, "scaling_max_freq")
+            out.append(self.set_max(path, self.base_of(path, prof), caps[i] if caps else None))
+        gpath = os.path.join(GPU, "max_freq")
+        gout = self.set_max(gpath, self.base_of(gpath, prof), GPU_LEVEL.get(gpu_l) if c.get("GPU") == "1" else None)
+        bl = None
+        if not DRYRUN:
+            bl = self.set_brightness(BRIGHT_LEVEL.get(br_l) if c.get("BRIGHTNESS") == "1" else None)
+        ma = None
+        if c.get("CHARGE") == "1" and ch_l > 0:
+            ma = CHARGE_MA.get(ch_l, cint(c, "CHARGE_MA_HIGH"))
+        self.set_charge(ma)
+        state = "shell=%s src=%s gear=%d eff=%d mode=%s%s cpu=%s,%s gpu=%s bl=%s blcap=%s fcc=%s hist=%d %s %s" % (
+            shell, src, raw, eff, mode, "(benchmark)" if bench else "", out[0], out[1], gout, bl,
+            BRIGHT_LEVEL.get(br_l, 0) if c.get("BRIGHTNESS") == "1" else 0, ma or 0, len(self.hist),
+            " ".join("%s=%s" % (k, v) for k, v in sorted(parts.items())),
+            " ".join("%s=%s" % (k.replace("-thermal", "").replace("qcom-battmgr-bat", "battery"), v) for k, v in temps.items()))
+        try:
+            os.makedirs(RUN, exist_ok=True)
+            with open(os.path.join(RUN, "thermal-state.tmp"), "w") as f:
+                f.write(state + "\n")
+            os.replace(os.path.join(RUN, "thermal-state.tmp"), os.path.join(RUN, "thermal-state"))
+        except OSError:
+            pass
+        if (raw, eff, mode) != self.last:
+            log("iceland-thermal: " + state)
+            self.last = (raw, eff, mode)
+        elif DRYRUN:
+            print(state, flush=True)
+        return period
+
+def main():
+    syslog.openlog("iceland-thermal")
+    t = Thermal()
+    stop = []
+    for s in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(s, lambda *_: stop.append(1))
+    was_on = True
+    while not stop:
+        c = read_conf()
+        period = max(1, cint(c, "PERIOD"))
+        try:
+            if c.get("ENABLE") == "1":
+                period = t.step(c)
+                was_on = True
+            elif was_on:
+                t.restore()
+                was_on = False
+                log("iceland-thermal: switched off in %s" % CONF)
+        except Exception as e:                           # the kernel zones stay underneath whatever happens here
+            log("iceland-thermal: step failed: %r" % (e,), syslog.LOG_ERR)
+        if ONESHOT:
+            return 0
+        end = time.monotonic() + period
+        while not stop and time.monotonic() < end:
+            time.sleep(min(0.5, period))
+    if not DRYRUN:
+        t.restore()
+    log("iceland-thermal: stopped, limits handed back")
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())

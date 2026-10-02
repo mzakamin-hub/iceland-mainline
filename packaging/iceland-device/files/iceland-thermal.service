@@ -1,0 +1,13 @@
+[Unit]
+Description=OnePlus Pad 4 skin temperature policy (stock gears: CPU, GPU, brightness and charging limits)
+After=sysinit.target tuned.service
+ConditionPathExists=/sys/class/thermal
+
+[Service]
+ExecStart=/usr/libexec/iceland/iceland-thermal
+Restart=always
+RestartSec=5
+Nice=-5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,13 @@
+# /usr/lib/udev/rules.d/71-iceland-dma-heap.rules (iceland-device)
+#
+# Keep the desktop's programs off the CMA dma-heaps; they keep the system heap.
+#
+# The CMA area of kernel-iceland is 32 MiB (stock's linux,cma is 36 MiB), exported as the heaps "reserved" and
+# "default_cma_region". libcamera's software ISP allocates its output buffers from the first heap it can open and
+# tries the CMA heaps before the system heap. Four 1920x1080 RGBA buffers (4 x 8.3 MB) do not fit: GNOME Camera's
+# stream fails ("dma-heap allocation failure for frame-3", then PipeWire "Format negotiation failed",
+# area-combo-46). The system heap needs no contiguous memory and the GPU and PipeWire take its buffers as well.
+#
+# Fedora's 70-libcamera.rules gives every dma_heap node to the group "video" (0660); this rule runs after it and
+# takes the CMA heaps back to root. Programs running as root (and the kernel's own users of CMA) are not affected.
+SUBSYSTEM=="dma_heap", KERNEL!="system", GROUP="root", MODE="0600"

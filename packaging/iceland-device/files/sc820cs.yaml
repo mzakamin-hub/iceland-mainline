@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: CC0-1.0
+# libcamera software ISP tuning for the front camera of the OnePlus Pad 4 (SmartSens SC820CS).
+# Installed as /usr/share/libcamera/ipa/simple/sc820cs.yaml. The black level is the value of the stock camera
+# characteristics: 65 of white level 1023 (10 bit), in the 16-bit scale libcamera expects (65 << 6). No colour matrix
+# here: the one taken from the stock tuning data is private and lives outside the repository.
+%YAML 1.1
+---
+version: 1
+algorithms:
+  - BlackLevel:
+      blackLevel: 4160
+  - Awb:
+  - Adjust:
+  - Agc:
+...

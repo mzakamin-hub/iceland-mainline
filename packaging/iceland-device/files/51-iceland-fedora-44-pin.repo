@@ -1,0 +1,23 @@
+# iceland-device: Fedora's repositories stay on release 44, whatever $releasever a tool asks for.
+# Why: GNOME Software 50 on Fedora 44 installs and upgrades through dnf5daemon, whose polkit actions
+# (org.rpm.dnf.v0.rpm.execute_transaction / execute_trusted_transaction) are the same for a normal update and for a
+# version upgrade (dnf5daemon-server Rpm::system_upgrade checks POLKIT_EXECUTE_RPM_TRANSACTION). The polkit rule of
+# iceland-device 0.16 names PackageKit's actions, which this Software no longer uses. With this file a version
+# upgrade (GNOME Software's banner, "dnf system-upgrade --releasever=45", "dnf --releasever=45 distro-sync") resolves
+# against release 44 and finds nothing to do. Remove it (a new iceland-device) only after release 45 has passed the
+# RAM rehearsal with kernel-iceland. A dnf5 repository override (/usr/share/dnf5/repos.override.d).
+[fedora]
+metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-44&arch=$basearch
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-$basearch
+
+[updates]
+metalink=https://mirrors.fedoraproject.org/metalink?repo=updates-released-f44&arch=$basearch
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-$basearch
+
+[updates-testing]
+metalink=https://mirrors.fedoraproject.org/metalink?repo=updates-testing-f44&arch=$basearch
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-$basearch
+
+[fedora-cisco-openh264]
+metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-cisco-openh264-44&arch=$basearch
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-$basearch

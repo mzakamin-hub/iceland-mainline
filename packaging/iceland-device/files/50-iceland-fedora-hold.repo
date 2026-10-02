@@ -1,0 +1,22 @@
+# iceland-device: packages that are installed on the OnePlus Pad 4 but must not be replaced by Fedora's updates.
+# A dnf5 repository override (read from /usr/share/dnf5/repos.override.d): it only adds to the three Fedora
+# repositories, so the same packages can still come from our local repository (iceland-local) after a new version
+# has passed a RAM rehearsal.
+#
+# - grub2-*, shim-*: the files U-Boot starts from the EFI partition (BOOTAA64.EFI = shim, grubaa64.efi = GRUB). A
+#   broken update of either stops the boot before GRUB's menu, where the kernel fallback cannot help. All grub2
+#   sub-packages move together (they require each other by exact version).
+# - linux-firmware*, *-firmware: the tablet's own firmware lies in /usr/lib/firmware/updates, which the kernel
+#   searches first, so Fedora's files cannot replace it. But the kernel also loads files the tablet does not bring
+#   itself from Fedora's packages (today the GPU microcode gen80200_sqe / gmu / aqe): a firmware change that reaches
+#   the hardware must be rehearsed first, like a kernel.
+# - iio-sensor-proxy, hexagonrpc, libssc: our builds with the sensor-hub support (packaging/sensors); Fedora's
+#   iio-sensor-proxy has none, an update to it would end auto-rotate.
+[fedora]
+excludepkgs=grub2-*,shim-*,linux-firmware*,*-firmware,iio-sensor-proxy*,hexagonrpc*,libssc*
+
+[updates]
+excludepkgs=grub2-*,shim-*,linux-firmware*,*-firmware,iio-sensor-proxy*,hexagonrpc*,libssc*
+
+[updates-testing]
+excludepkgs=grub2-*,shim-*,linux-firmware*,*-firmware,iio-sensor-proxy*,hexagonrpc*,libssc*

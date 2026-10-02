@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: CC0-1.0
+# libcamera software ISP tuning for the rear camera of the OnePlus Pad 4 (SmartSens SC1320CS).
+# Installed as /usr/share/libcamera/ipa/simple/sc1320cs.yaml (the file name is the sensor model libcamera reads from
+# the media entity name). The black level is the value of the stock camera characteristics: 64 of white level 1023
+# (10 bit), written in the 16-bit scale libcamera expects (64 << 6). No colour matrix here: the one taken from the
+# stock tuning data is private and lives outside the repository.
+%YAML 1.1
+---
+version: 1
+algorithms:
+  - BlackLevel:
+      blackLevel: 4096
+  - Awb:
+  - Adjust:
+  - Agc:
+...

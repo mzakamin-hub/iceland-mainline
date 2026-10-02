@@ -31,14 +31,49 @@
 #                      cool_down_pdqc_curr_ma level 1); recover below 48 / 60 C and gap below 6 / 15 C.
 #              rise fast: the connector warming by rise_fast_temp 3 C -> stop (latched like the other USB stops).
 #  VBUS over-voltage: stock's charger OV is 11000 mV -> stop (latched until unplugged).
-#  OURS (not stock values): the 45 C floor for the gap rules (stop and cool-down) (as in the OnePlus usbtemp code; PC verifies it in the
+#  Awake while a charger is in: stock's charging driver holds a wakelock from plug-in to
+#              unplug (oplus_chg_wired.c:1872 oplus_wired_set_awake(chip, true), :1968 false), so on stock the
+#              kernel side of charging never sleeps. Under mainline a suspend freezes this guard and the kernel's
+#              5 s attach poll, and the charger firmware goes on alone with the last limits: no temperature
+#              regions, no USB-C connector rules, no 85 % limit. So the guard holds a logind block on "sleep"
+#              while a charger is in (KEEP_AWAKE=0 in the conf file turns that off). The screen still blanks;
+#              "systemctl suspend -i" still suspends.
+#  The cover (wf/wake): logind's lid action ignores "sleep" blocks (LidSwitchIgnoreInhibited=yes, its default),
+#              so the block covers the lid switch as well UNLESS logind only locks (or ignores) a closing cover with
+#              a charger in: HandleLidSwitchExternalPower and HandleLidSwitchDocked both "lock" or "ignore", as the
+#              package's logind drop-in (logind.conf.d/60-iceland.conf) sets them. Then a closing cover locks the
+#              session and the screen goes dark, the tablet stays awake (stock turns the screen off and keeps its
+#              kernel awake), and at the unplug logind looks at the closed cover again and suspends. logind counts
+#              the charger as external power by the same online attribute the guard reads (on_ac_power(): any
+#              non-battery supply online; a USB one unless its USB-C port is a source). If logind would sleep on a
+#              closing cover, or its setting can't be read (logind not up yet), the lid switch is blocked too and
+#              the cover does nothing: the careful side. Read again every LID_RECHECK_S while a charger is in;
+#              BLOCK_LID_SWITCH=yes in the conf file blocks the lid switch always (the cover then does nothing on
+#              a charger).
+#  OURS (not stock values): the input-current check: three readings in a row with the
+#  measured input current more than 15 % + 50 mA above the limit the firmware reports -> stop charging until the
+#  charger is unplugged (before patch 0053 the tablet drew 1.2-1.9 A from a PC port); a status line in the journal
+#  at plug-in, 10 s later, every 10 minutes and at unplug;
+#  the 45 C floor for the gap rules (stop and cool-down) (as in the OnePlus usbtemp code; PC verifies it in the
 #  OnePlusOSS source, relay 013), 2 C temperature hysteresis on region changes, 3 consecutive low-voltage readings
 #  before a power-off (load dips), "no charging while the battery temperature or voltage can't be read", the
 #  rise-fast window (one 5 s sample; stock counts over 20-30 samples), a failed stop being retried every step
 #  with the warning repeated every 5 minutes, connector readings outside -30..125 C treated as a broken channel,
 #  and the charge limit (CHARGE_LIMIT / CHARGE_RESUME in /etc/iceland/battery-guard.conf, the user's 85 %): at
 #  or above the limit charging stops, and it starts again at or below the resume level.
-import glob, os, subprocess, sys, syslog, time
+#  With a kernel that has the charge limit itself (charge_control_end_threshold on the battery: qcom_battmgr's
+#  software limit, written by UPower when GNOME's "Preserve Battery Health" is on) the guard follows the kernel's
+#  two thresholds instead of the config file, with the kernel's rule: stop at or above the end threshold, start
+#  again below the start threshold. The kernel keeps the charger off while the guard's charge_behaviour OR its own
+#  limit says so, so the two layers cannot work against each other; the guard is the second one.
+#  (LIMIT_SOURCE=conf in the conf file: always the config file's two numbers, as before 0.17.)
+#  Thermal cap: iceland-thermal (the skin temperature policy) publishes the charge-current cap of the present
+#  temperature gear in /run/iceland/thermal-fcc-ma (stock's charging cool-down levels: cool_down_pdqc_curr_ma and
+#  cool_down_normal_curr_ma 1200 1500 2000 mA, stock overlay dt00.dts:4220-4223). The guard takes the smaller of
+#  that cap and its own (temperature region, USB-C connector cool-down), so its own stock limits are never raised.
+#  OURS: a cap file older than 60 s is ignored (iceland-thermal rewrites it every 5 s): if that service stops, the
+#  guard goes on with its own limits. THERMAL_CAP=0 in the conf file: the cap file is not read.
+import glob, os, signal, subprocess, sys, syslog, time
 
 BAT = os.environ.get("ICELAND_BAT", "/sys/class/power_supply/qcom-battmgr-bat")
 USB = os.environ.get("ICELAND_USB", "/sys/class/power_supply/qcom-battmgr-usb")
@@ -72,6 +107,15 @@ REWARN_S = 300                            # OURS: repeat a "can't stop charging"
 USB_ZONES = ("usb-temp-l-thermal", "usb-temp-r-thermal", "usb-therm-thermal", "usb-therm")
 USB_VALID = (-30.0, 125.0)                # OURS: outside = a broken channel, not a temperature
 LIMIT_MIN = 50                            # OURS: a CHARGE_LIMIT below this is ignored
+THERMAL_CAP = os.environ.get("ICELAND_THERMAL_CAP", "/run/iceland/thermal-fcc-ma")
+THERMAL_CAP_AGE = 60                      # OURS: an older cap file is stale (iceland-thermal rewrites it every 5 s)
+ICL_OVER_FACTOR, ICL_OVER_UA = 1.15, 50000   # OURS: measured input current above limit x 1.15 + 50 mA ...
+ICL_OVER_COUNT = 3                        # OURS: ... in this many readings in a row -> stop until unplugged
+STATUS_S = 600                            # OURS: a status line every 10 min while a charger is in
+INHIBIT_ARGS = ["--who=iceland-battery-guard", "--why=a charger is connected: the charging guard has to stay awake (as on stock)",
+                "--mode=block", "sleep", "infinity"]   # after "systemd-inhibit --what=..." (awake_what())
+LID_SAFE = ("lock", "ignore")             # logind lid actions with a charger in that keep the tablet awake
+LID_RECHECK_S = 60                        # OURS: logind's lid setting is read again this often while a charger is in
 
 def rd(path, default=None):
     try:
@@ -90,9 +134,13 @@ def wr(path, value):
     except OSError:
         return False
 
+# started by systemd with stdout in the journal (both variables are set for a service, not for a shell)
+UNDER_SYSTEMD = bool(os.environ.get("INVOCATION_ID") and os.environ.get("JOURNAL_STREAM"))
+
 def log(msg, prio=syslog.LOG_WARNING):
     syslog.syslog(prio, msg)
-    print(msg, flush=True)
+    if not UNDER_SYSTEMD:      # a unit's stdout goes to the journal too: the syslog line is enough there
+        print(msg, flush=True)
 
 def run(cmd):
     if DRYRUN:
@@ -118,14 +166,91 @@ def usb_therm():
             vals.append(int(t) / 1000.0)
     return max(vals) if vals else None
 
-def charge_limit():
-    """(limit, resume) in percent from CONF, or None when off (CHARGE_LIMIT 0/100/absent or unusable)"""
+def conf():
+    """the settings in CONF as a dict (read at every use: no restart needed)"""
     c = {}
     for line in (rd(CONF, "") or "").splitlines():
         line = line.split("#", 1)[0]
         if "=" in line:
             k, v = line.split("=", 1)
             c[k.strip()] = v.strip()
+    return c
+
+def num(text):
+    """an integer sysfs value, or None"""
+    return int(text) if text and text.lstrip("-").isdigit() else None
+
+def selected(text):
+    """the selected word of a sysfs choice ("Unknown [SDP] DCP" -> "SDP")"""
+    if text and "[" in text and "]" in text:
+        return text[text.index("[") + 1:text.index("]")]
+    return text or "?"
+
+def kernel_limit():
+    """the kernel's own charge limit, (end, start) in percent as charge_control_end_threshold and
+    charge_control_start_threshold read (end 100 = off); None when the kernel has none or it can't be read"""
+    e = rd(BAT + "/charge_control_end_threshold")
+    s = rd(BAT + "/charge_control_start_threshold", "0")
+    if e is None or not e.isdigit() or not s.isdigit():
+        return None
+    return int(e), int(s)
+
+def limit_from_kernel():
+    """the kernel's thresholds if the guard is to follow them, else None (LIMIT_SOURCE=conf in CONF: never)"""
+    if conf().get("LIMIT_SOURCE", "kernel") == "conf":
+        return None
+    return kernel_limit()
+
+def logind_lid_actions():
+    """logind's HandleLidSwitchExternalPower and HandleLidSwitchDocked now, or None if they can't be read"""
+    v = os.environ.get("ICELAND_LID_ACTIONS")          # tests: "lock ignore", or "" for "can't be read"
+    if v is not None:
+        return v.split() or None
+    try:
+        r = subprocess.run(["busctl", "get-property", "org.freedesktop.login1", "/org/freedesktop/login1",
+                            "org.freedesktop.login1.Manager", "HandleLidSwitchExternalPower", "HandleLidSwitchDocked"],
+                           stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    acts = [l.split()[1].strip('"') for l in r.stdout.splitlines() if len(l.split()) == 2 and l.split()[0] == "s"]
+    return acts if r.returncode == 0 and len(acts) == 2 else None
+
+def awake_what():
+    """(what the guard's block covers, why): "sleep" when logind only locks or ignores a closing cover with a
+    charger in, else "sleep:handle-lid-switch" (logind would sleep, can't be read, or BLOCK_LID_SWITCH=yes)"""
+    if conf().get("BLOCK_LID_SWITCH", "auto") == "yes":
+        return "sleep:handle-lid-switch", "BLOCK_LID_SWITCH=yes"
+    acts = logind_lid_actions()
+    if acts and all(a in LID_SAFE for a in acts):
+        return "sleep", "logind: a closing cover with a charger in = %s" % acts[0]
+    return "sleep:handle-lid-switch", ("logind would %s on a closing cover with a charger in" % "/".join(acts)
+                                        if acts else "logind's lid setting can't be read")
+
+def thermal_cap():
+    """the charge-current cap (mA) of the present skin temperature gear from iceland-thermal, or None"""
+    if conf().get("THERMAL_CAP", "1") == "0":
+        return None
+    try:
+        if time.time() - os.stat(THERMAL_CAP).st_mtime > THERMAL_CAP_AGE:
+            return None
+        v = int(rd(THERMAL_CAP, "0"))
+    except (OSError, ValueError):
+        return None
+    return v if v > 0 else None
+
+def charge_limit():
+    """(limit, resume) in percent: charging stops at or above limit and starts again at or below resume; None when
+    off. From the kernel's thresholds if it has them (the kernel starts again BELOW its start threshold), else from
+    CONF (off: CHARGE_LIMIT 0/100/absent or unusable); LIMIT_SOURCE=conf: always from CONF"""
+    k = limit_from_kernel()
+    if k is not None:
+        end, start = k
+        if not 0 < end < 100:
+            return None
+        if not 0 < start < end:
+            start = max(end - 5, 1)        # the kernel's own default distance
+        return end, start - 1
+    c = conf()
     try:
         lim = int(c.get("CHARGE_LIMIT", "0"))
         res = int(c.get("CHARGE_RESUME", str(lim - 5)))
@@ -192,6 +317,105 @@ class Guard:
         self.missing_at = None     # when a missing input was last reported while plugged
         self.v_stop = False        # stopped for voltage: resume only below the stock recharge voltage
         self.limit_hold = None     # charge limit: True = held at the limit until the resume level
+        self.awake = None          # the logind block held while a charger is in (a child process)
+        self.awake_fail_at = None  # when taking the block last failed
+        self.what = None           # what the block covers ("sleep" or "sleep:handle-lid-switch")
+        self.what_at = None        # when logind's lid setting was last read for it
+        self.icl_over = 0          # readings in a row with the input current above its limit
+        self.was_plugged = None    # the charger state of the previous step (status line)
+        self.status_at = None      # when the status line was last written
+
+    def keep_awake(self, on, quiet=False):
+        """stock keeps the kernel awake while a charger is in; here: a logind block on sleep, and on the lid switch
+        unless logind only locks the session when the cover closes with a charger in (awake_what)"""
+        if on and conf().get("KEEP_AWAKE", "1") == "0":
+            on = False
+        if self.awake is not None and self.awake is not True and self.awake.poll() is not None:
+            self.awake = None      # the child is gone (logind restarted?)
+        now = time.monotonic()
+        if on and self.awake is not None and (self.what_at is None or now - self.what_at >= LID_RECHECK_S):
+            self.what_at = now
+            what, why = awake_what()
+            if what != self.what:  # logind's lid setting or BLOCK_LID_SWITCH changed: take the block again
+                log("iceland-battery-guard: the block changes from %s to %s (%s)" % (self.what, what, why), syslog.LOG_NOTICE)
+                self.keep_awake(False, quiet=True)
+        if on == (self.awake is not None):
+            return
+        if not on:
+            if self.awake is not True:
+                self.awake.terminate()
+                self.awake.wait()
+            self.awake = None
+            if DRYRUN:
+                print("DRYRUN: keep awake off", flush=True)
+            if not quiet:
+                log("iceland-battery-guard: no charger (or KEEP_AWAKE=0): the tablet may sleep again", syslog.LOG_NOTICE)
+            return
+        if self.awake_fail_at is not None and now - self.awake_fail_at < REWARN_S:
+            return
+        what, why = awake_what()
+        self.what, self.what_at = what, now
+        if DRYRUN:
+            print("DRYRUN: keep awake on (%s)" % what, flush=True)
+            self.awake = True
+        else:
+            try:
+                self.awake = subprocess.Popen(["systemd-inhibit", "--what=" + what] + INHIBIT_ARGS, stdin=subprocess.DEVNULL,
+                                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                time.sleep(0.2)
+                if self.awake.poll() is not None:
+                    self.awake = None
+            except OSError:
+                self.awake = None
+        if self.awake is None:
+            self.awake_fail_at = now
+            log("iceland-battery-guard: can't block sleep while the charger is in (systemd-inhibit failed): "
+                "a suspend now leaves charging to the firmware alone")
+            return
+        self.awake_fail_at = None
+        if what == "sleep":
+            log("iceland-battery-guard: a charger is in: sleep is blocked, the cover only locks the screen (%s; "
+                "KEEP_AWAKE=0 turns this off)" % why, syslog.LOG_NOTICE)
+        else:
+            log("iceland-battery-guard: a charger is in: sleep and the lid switch are blocked (%s; KEEP_AWAKE=0 "
+                "turns this off)" % why, syslog.LOG_NOTICE)
+
+    def status_line(self, plugged, temp, volt, soc, vbus):
+        """the journal's record of what was plugged in and how it charged (plug-in, 10 s later, every 10 min, unplug)"""
+        now = time.monotonic()
+        changed = plugged != self.was_plugged
+        first = self.was_plugged is None
+        self.was_plugged = plugged
+        if changed and not plugged:
+            self.status_at = None
+            if not first:
+                log("iceland-battery-guard: charger unplugged at %s %%" % ("?" if soc is None else soc),
+                    syslog.LOG_NOTICE)
+            return
+        if not plugged or (not changed and self.status_at is not None and now - self.status_at < STATUS_S):
+            return
+        # after the plug-in line the next one comes 10 s later (the kernel's setup has finished by then)
+        self.status_at = now - STATUS_S + 10 if changed else now
+        lim = num(rd(USB + "/input_current_limit")); cur = num(rd(USB + "/current_now"))
+        ib = num(rd(BAT + "/current_now")); cap = num(rd(BAT + "/constant_charge_current_max"))
+        ma = lambda v: "?" if v is None else "%d" % round(v / 1000.0)
+        log("iceland-battery-guard: charger in: type %s, VBUS %s V, input %s of %s mA; battery %s %%, %s V, %s C, "
+            "%s mA, %s; charge cap %s mA, %s" % (
+                selected(rd(USB + "/usb_type")), "?" if vbus is None else "%.2f" % vbus, ma(cur), ma(lim),
+                "?" if soc is None else soc, "?" if volt is None else "%.3f" % volt,
+                "?" if temp is None else "%.1f" % temp, ma(ib), rd(BAT + "/status", "?"), ma(cap),
+                selected(rd(BAT + "/charge_behaviour"))), syslog.LOG_NOTICE)
+
+    def input_over(self, plugged):
+        """OURS: the measured input current is above the limit the firmware reports, several readings in a row"""
+        lim = num(rd(USB + "/input_current_limit")); cur = num(rd(USB + "/current_now"))
+        if plugged and lim and cur is not None and cur > lim * ICL_OVER_FACTOR + ICL_OVER_UA:
+            self.icl_over += 1
+        else:
+            self.icl_over = 0
+        if self.icl_over >= ICL_OVER_COUNT:
+            return "input current %d mA above its limit %d mA" % (round(cur / 1000.0), round(lim / 1000.0))
+        return None
 
     def report_inputs(self):
         """log once at start which inputs and knobs exist (a missing one disables its rules)"""
@@ -204,10 +428,16 @@ class Guard:
         missing = [k for k, ok in have.items() if not ok]
         log("iceland-battery-guard: inputs " + ", ".join("%s %s" % (k, "ok" if ok else "MISSING") for k, ok in have.items()),
             syslog.LOG_WARNING if missing else syslog.LOG_NOTICE)
-        lim = charge_limit()
-        log("iceland-battery-guard: USB-C zones %s; charge limit %s" % (
+        lim = charge_limit(); tcap = thermal_cap()
+        log("iceland-battery-guard: USB-C zones %s; charge limit %s%s; awake while a charger is in: %s; "
+            "thermal charge cap %s" % (
             " ".join(sorted(zones)) or "none",
-            "%d %% (resume at %d %%)" % lim if lim else "off"), syslog.LOG_NOTICE)
+            "%d %% (resume at %d %%)" % lim if lim else "off",
+            ", from the kernel's thresholds" if limit_from_kernel() is not None else "",
+            "off (KEEP_AWAKE=0)" if conf().get("KEEP_AWAKE", "1") == "0" else "on",
+            "off (THERMAL_CAP=0)" if conf().get("THERMAL_CAP", "1") == "0" else
+            "%d mA" % tcap if tcap else "none now (%s)" % THERMAL_CAP), syslog.LOG_NOTICE)
+        log("iceland-battery-guard: with a charger in the block covers %s (%s)" % awake_what(), syslog.LOG_NOTICE)
         return missing
 
     def limit_stop(self, soc):
@@ -264,6 +494,7 @@ class Guard:
         c = rd(BAT + "/capacity")
         soc = int(c) if c and c.isdigit() else None
         ut = usb_therm()
+        self.keep_awake(plugged)
         if plugged and ut is None:
             now = time.monotonic()
             if self.missing_at is None or now - self.missing_at >= REWARN_S:
@@ -295,6 +526,9 @@ class Guard:
             why = "USB connector rose %.1f C in one step (%.1f C)" % (ut - self.prev_ut, ut)
         if not why and plugged and vbus is not None and vbus > VBUS_OV:
             why = "VBUS %.2f V above %.1f V" % (vbus, VBUS_OV)
+        over = self.input_over(plugged)
+        if not why and over:
+            why = over
         if plugged:
             self.prev_ut = ut
         if why:
@@ -334,8 +568,12 @@ class Guard:
             cap = FCC_MA[self.region]
             if self.cooling:
                 cap = min(cap, USB_COOL_MA)
+            tcap = thermal_cap()
+            if tcap:
+                cap = min(cap, tcap)
             if cap:
                 self.set_fcc(cap)
+        self.status_line(plugged, temp, volt, soc, vbus)
         return plugged
 
 def main():
@@ -344,12 +582,16 @@ def main():
         log("no %s, nothing to guard" % BAT)
         return 0
     g = Guard()
+    signal.signal(signal.SIGTERM, lambda *a: sys.exit(0))   # so that the sleep block is given back
     g.report_inputs()
-    while True:
-        plugged = g.step()
-        if ONESHOT:
-            return 0
-        time.sleep(5 if plugged else 15)
+    try:
+        while True:
+            plugged = g.step()
+            if ONESHOT:
+                return 0
+            time.sleep(5 if plugged else 15)
+    finally:
+        g.keep_awake(False, quiet=True)   # the guard stops: give the block back
 
 if __name__ == "__main__":
     sys.exit(main())
