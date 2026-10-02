@@ -1676,3 +1676,111 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
 - Sent to the install agent: fold gpuisp (`pkg-gpuisp.py hold wp0518` + the local libcamera rpms in tin / make-repo /
   the package list) and deepsleep (`npu-keep-running.py`) into P1's 0.18, so the R1 rerun runs the real package; then
   next-k2p1u1 (p1 + tin), B again (~4 min), R1.
+- User: "update feature matrix with everything commited" -> matrix-c2r.py (install row: B run passed in ~4 min, R1 stopped in the rehearsal U-Boot, nothing written; camera row: the GPU ISP workflow finished; 143 test runs), results part R; commit s pushed as iceland-mainline **cc21f47** (0 rpm / private / frame files); page v40.
+- User: "spin a fable agent to help debug and assist the install agent" -> a Fable-model helper ("r1debug") started:
+  PC only, writes only in wf/r1debug/, wf/install read-only, may build its own U-Boot sandbox copy to reproduce the
+  blkmap failure; tasks: the exact failing command and why, recovery without hands (back to fastboot or reset) + a
+  test, REPORT.md + fix patches in its folder, findings sent to the install agent (who was told) and to me.
+- **R1 root cause (install agent)**: cmd/blkmap.c's subcommand table kept `U_BOOT_SUBCMD_MKENT(create, 2, 1, ...)`
+  (maxargs 2), so "blkmap create rehearsal 4096" (3 args) was refused with the usage text before do_blkmap_create ran
+  (patch 0004 changed the parser and help, not the table entry); fastboot_head's && chain stopped, fastboot_bootcmd
+  returned inside the USB completion, the fastboot loop ended, bootcmd (`fastboot usb 0`) was done -> U-Boot at its
+  prompt, no fastboot. Fix in progress: maxargs 3; every failure path prints "FAILED: <step> - back to fastboot";
+  bootcmd = run fastboot_loop (10 fastboot sessions, then reset) in both builds; a U-Boot sandbox check of the same
+  tree. Forwarded to the r1debug helper to verify (the remaining steps, the fix, the recovery paths) instead of
+  duplicating.
+- User: spin an Opus documentation expert / SME -> "docs" agent started (Opus): read-only everywhere, writes only in
+  wf/docs/, no tablet actions / builds / commits, privacy + copyright rules. Deliverables: PLAN.md (outline sent to me
+  first), 01-OVERVIEW, 02-HARDWARE (SM8850 / Pad 4 blocks, RAM, UFS, partitions generic, firmware, efisp),
+  03-BOOT-AND-PARTITIONS, 04-BUILD-YOUR-OWN (general-user guide), 05-PORTING-TO-OTHER-DISTROS (Debian first),
+  06-PROCESS-HISTORY, 07-INSTALL-REVIEW (findings sent to me, not to the busy install agent), GLOSSARY, INDEX.
+  The main session reviews and commits the docs (iceland-mainline docs/guide/ planned); the agent stays as SME.
+- docs agent: PLAN.md written (wf/docs/); writing INDEX, 01-07, GLOSSARY; facts marked proven (run) / PC-checked / planned / untested; no device-unique values; commands only inside warning blocks.
+- **install round 5 delivered**: R1 cause = patch 0004 left `U_BOOT_SUBCMD_MKENT(create, 2, 1, ...)` (fixed: 3),
+  reproduced in a U-Boot sandbox of the same tree (cand/u-boot/sandbox-check.sh); the sandbox also found "Stack
+  smashing detected in part_test_mac" (the Mac partition parser on 4096-byte blocks) -> no Mac / Amiga parser, checked.
+  Every fastboot_head failure prints "=== ... FAILED: <step> - back to fastboot ===", both builds end in `run
+  fastboot_loop` (10 sessions, then reset). mk-uboot.sh 37 PASS (sandbox 6 PASS incl. not-gzip, not-a-boot-image,
+  the loop -> RESET). rehearse.ps1: U-Boot back -> uboot-console-2.txt, FAILED line, fastboot reboot, exit 2; no device
+  at all -> asks the owner for the power button. New U-Boot images 19:57 (rehearsal 9d76918a..., install ae1f533d...).
+  P1 now 0.17 + install fragment + gpuisp (hold, wp0518) + deepsleep (npu-keep-running); tin + our libcamera rpms;
+  accept.sh `camstack`. User asked what rehearse.ps1 whitelists: fastboot devices / getvar / boot / reboot /
+  `oem console` (exact); adb devices / get-state / reboot bootloader / shell getprop <[A-Za-z0-9._]+>; else abort.
+- R1 rerun, PC steps: rpms stashed (C:\platform-tools\rpms\libcamera + SHA256SUMS); next-k2p1u1 STEPS="p1 tin": 2 PASS
+  (iceland-pkg-0.18.tgz 5d00a340... = 0.17 @ cc21f47 + fragment + gpuisp + npu; check-device 16 PASS; README tests 10;
+  tablet-in 16 files incl. libcamera + -ipa). ov-build (run 93's data, merged into golden) and ov-r1 (empty) deleted;
+  serve stage0 build; relay + linktest (tablet only); **run 94 = B rerun** started (battery 51 %). R1 waits for the
+  r1debug helper's verification of the U-Boot fix.
+- User: "seems like audio isn't working again" (run 94 = B rerun kit, no coldplug): read live: no sound card,
+  devices_deferred "sound snd-sc8280xp: DisplayPort0 Playback: codec dai not found", hdmi-audio-codec device present,
+  snd_soc_hdmi_codec not loaded, PipeWire only "Dummy Output" = run 83's kit artifact. `modprobe snd_soc_hdmi_codec` in
+  the running session -> card OnePlus-Pad4 back, sink "Built-in Audio Speakers". Permanent kit fix: snd-soc-hdmi-codec
+  added to the kits' early module list mods25/all before snd-soc-sc8280xp (backup all.before-hdmi): every kit type
+  now loads it at boot as udev does on an installed system.
+- User: "check all errors in kmsg during booting and put a plan to resolve" -> an/kmsg-errors.py on runs 92 (q77 =
+  queue 0166, coldplug) + 93 (q78): 77 groups, 0 WARNING / BUG / Oops. Plan in docs/BOOT-LOG-PLAN.md: P1-a ADSP/CDSP
+  firmware -2 at 19 s (pas probes in the initramfs; installed system has nothing that starts it later), P1-b the build
+  chroot loads SELinux policy into the kit kernel, P1-c ath12k country setting fails (world domain), P1-d PCIe L2
+  timeout at suspend; P2 DT gaps vs stock (PCIe / WCN / backlight supplies, VA macro DMIC rate, SoundWire ports,
+  FastRPC memory, UFS MCQ, smem DDR info, SCMI FC); P3 cosmetic / harmless.
+- User: "isn't it better to move most of the hardware to kernel?" -> answer in BOOT-LOG-PLAN.md: built in only what
+  must work before root (clocks, power domains, RPMh, interconnects, pinctrl, regulators, SMMU, UFS, watchdog; USB
+  gadget + NBD for the rehearsal); firmware-dependent drivers stay modules (built in they fail like P1-a).
+- User: "no setting for charge limit in power setting; can we add a bypass charger mode with a setting in power?" ->
+  run 94's session has no device package (install kit): UPower 1.91.4 CHARGE_LIMIT=75,80 but no threshold support
+  shown -> GNOME hides the switch (proven with the package in runs 40 / 41). New **bypass** workflow agent (stock's
+  bypass, charge_behaviour inhibit-charge as the mechanism, one state machine with the limit / guard / BCL, a Quick
+  Settings toggle vs a patched Power panel, a kit test, the charge-limit acceptance check).
+- docs agent's install review (8 findings + a gotcha): HIGH no AVB footer on u-boot-iceland.img for a chained boot
+  partition (ABL would not continue, slot switch); HIGH the plan's undo uses the pre-LineageOS backup; HIGH plan/guide
+  still say the install U-Boot is RAM-booted in rehearsals; MEDIUM U-Boot waits forever installed; MEDIUM EFI boot
+  order tries every UFS LUN first (efisp never inspected); MEDIUM dual boot not planned (write 1 erases Android's
+  data); guide stale. Forwarded with the boot-log P1-a / P1-b / charge-limit acceptance to the install agent (round 6).
+  Owner decisions to ask: write order (probe write 2 first) and dual boot.
+- **Run 94 = B rerun with the full 0.18 (fragment + gpuisp + deepsleep, our libcamera rpms in tin): ALL PASS** - rr
+  +down 8.26 MB/s / 31.7, max 110 ms; devrpm 0.18 (87 files) 20 s; build1a 82 s (nbd write 36.1 MB/s, firmware 23 ok);
+  build1b 40 s; build2a 75 s (0.18 + our rpms + grub.cfg); build2b 29 s (labels, initramfs, kernel confirmed). Relay +
+  linktest stopped; NBD server (stage0 build) still up for the golden commit. R1 on this golden waits for the r1debug
+  verification; it also answers B1 (ADSP on the installed initramfs) with evidence.
+- **Owner decisions**: "no dual boot for now but prepare a plan for it with the best safety precautions" -> install
+  stays Fedora-only; the install agent writes wf/install/DUALBOOT-PLAN.md (plan only: options incl. Fedora as an image
+  file in Android's userdata, userdata shrink, another LUN, boot selection; FBE / metadata encryption; undo per step;
+  L0-L5 levels; RAM rehearsals first); the docs agent reviews it. Write order (R3) still open.
+  "also fix pcie timeout and device tree gaps using our debugger" -> the Fable debug helper takes it after its R1
+  verification: new folder wf/bootfix/ (PCIe L2 timeout + the 14 probe deferrals + supplies, WCN / backlight
+  supplies, VA macro DMIC rate, SoundWire ports, FastRPC memory, UFS MCQ, smem DDR info, SCMI FC, the NVT touch
+  message); stock values from wf/audit (read only, private); candidates + tablet test parts + parts module.
+- **Owner decision R3: "yes lets test"** = the write-2 probe first (U-Boot in boot_b while Android's data is intact;
+  undo = boot_b-before-install.img). Preconditions sent to the install agent: the AVB hash footer + the PC proof with
+  today's vbmeta_b (PUBLIC_KEY_REJECTED, not INVALID_METADATA), today's images pulled read-only by a reads-only script,
+  a new guide part C0 (the single owner command, what he sees, retry counter, undo), the plan / guide order updated.
+  Nothing is written until all is green; the owner runs the write themselves.
+- User: "perhaps you can boot it and i can test charging?" -> kit **95** = the owner's charging sitting (wf/charging):
+  q77 (= queue 0166), coldplug, pkg2 (device package 0.17: guard + the charge-limit switch), the 20-minute logger
+  with notifications and stock's safety stops, the result lines (gen-combo-95.py; AUTOREBOOT 2700). Started, then
+  STOPPED before the reboot when the user said: "remember that tablet will be disconnected while it recharges so make
+  sure to tell me to connect it before testing anything" -> new rule (memory iceland-ask-before-tablet-runs): ask the
+  owner to connect and wait for their go before any tablet action; no chain left waiting on adb.
+- bypass agent handed over (REPORT.md DRAFT - HANDOVER): run 94's missing switch = UPower read the battery's udev
+  properties at 44.94 s, before udev's coldplug set CHARGE_LIMIT (0.17's start-order drop-in prevents it); accept.sh's
+  charge-limit check reads /sys/class/power_supply/battery (wrong name; qcom-battmgr-bat). Stock bypass =
+  oplus_chg_plc (`oplus,plc_charge`): charging off with the input kept (= our inhibit-charge), holds the level within
+  ~1 %, ends after 5 min unless refreshed and at unplug; threshold picker from 20 %, a Quick Settings tile. Design:
+  bypass as one more "charging off" reason inside the battery guard (the only writer of charge_behaviour), a GNOME
+  Quick Settings toggle + a polkit-checked helper. Not started: NEXT, tablet.sh, patcher, toggle, tests.
+- User: "spin a different agent specifically for pcie timeout, device tree gaps and bypass charging" -> the Fable
+  debugger's queued bootfix task cancelled (it only finishes the R1 verification); the first bypass agent handed over
+  and stopped; a NEW dedicated agent owns all three: wf/bootfix (A: PCIe L2 timeout + 14 probe deferrals + supplies;
+  B: DT gaps vs stock + the NVT touch message) and wf/bypass (C: bypass in the battery guard + a Quick Settings toggle
+  + polkit helper, the corrected accept.sh charge-limit check). Order: B quick items, A, C; it reports per topic with
+  the build line (WF="bootfix") and a parts module.
+- Run 95 (the owner's charging sitting) is generated and waits for the owner to connect the tablet and say go.
+- Owner: "tablet connected" (battery 52 %, 25.2 C) -> run 95 (charging sitting) started.
+- **Owner: "battery charge settings working fine (preserve, maximize charge) please commit"** (run 95, device package
+  0.17 on q77 = queue 0166) -> charge-limit row confirmed by the owner; matrix-c2s (also: the headset row's sentence
+  repeated 5x by matrix-c2p - c2p made idempotent -, the EFI row's queue range 0089 -> 0166, 145 test runs);
+  BOOT-LOG-PLAN P1-a corrected (battery data via the SoCCP's pmic_glink, works without the ADSP - docs review); commit t.
+- docs agent finished the drafts (wf/docs: PLAN, 01-07, GLOSSARY, INDEX; privacy check clean) + inconsistencies list
+  (plan vs guide, firmware path OnePlus/iceland vs iceland, 90-iceland-dtb.install vs the GRUB devicetree line,
+  iceland-u-boot README / uboot.pin, FEATURES stale bits, volume key mapping, stale HANDOVER / STATE / PROJECT
+  blocks). Drafts to be reviewed, then committed under docs/guide/.
