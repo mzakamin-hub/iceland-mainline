@@ -1198,3 +1198,93 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
     smaller userdata 0.95 -> Fedora only about 0.90 x 0.88 = 0.79 (four in five); with dual boot about 0.64 (two in
     three). Not counted as failure: a higher sleep drain than stock (CX collapse reached, AOSS open), autofocus, the
     owner's hand tests still to do.
+
+### 2026-10-02 - entry 39: run 65 (K1 regression PASS, committed), run 66 (CDSP stop loses CX collapse), hwinv workflow, battery estimate
+
+- **Run 65** (q65 = queue head 0116 + install.config): charging, chargelimit, gpucool 20 / 20, stuck, bcl PASS; thermal
+  6 / 7 (the restore check saw only the screen brightness changed by GNOME's idle dim; CPU / GPU limits equal). K1
+  check: "SELinux: Initializing" 1, policy lines 0, avc 0, lsm list has selinux. **Committed** iceland-linux
+  **15ff5a8** "configs: SELinux as the default LSM, compressed firmware (install plan K1)" (`commit-k1.sh`).
+  The gsd-power "dim kbd backlight" / "max > min" journal lines are NOT from the pogo driver (they are in every run
+  since run 15; the pogo agent checked) - known user-space noise.
+- **Run 66** (q64 tree, deepsleep round 6 with the CDSP started from cdsp-fw.tar): with the CDSP running CX collapse
+  stays (97 %); after a clean CDSP stop CX collapse is LOST for the rest of the session (cdspoff / long at level 0).
+  Sent to the deepsleep agent (what the stop leaves voted; matters for the NPU). AOSS sleep: out of reach on mainline
+  (the secure processor has no mainline driver; AOP names it) - the row's proof becomes CX collapse + the night.
+- User: "add another workflow to list all hardware that has no drivers or not working on the tablet ... run dmsg or any
+  tools ... also let me know an estimate of the battery life on fedora" -> new agent **hwinv** (wf/hwinv/: INVENTORY.md
+  from stock vs mainline, a read-only tablet test of unbound / deferred / failed / undescribed devices, REPORT, NEXT);
+  the deepsleep agent gets a `wf_powerprofile` test (draw per state: screen on at 30 / 50 / 100 % and 60 / 120 Hz,
+  video, CPU load, screen off, s2idle). **First estimate** from the data in hand: battery 13786 mAh full (design
+  13380, 5 cycles, 4.5 V cell) = about 52 Wh; measured on the PC port (input 2.47 W x 0.9 + battery power): screen on
+  at 50 % brightness with the GNOME session and tests about 6.5 W (run 65), screen off awake about 2.3 W (run 65
+  chargelimit baseline), heavy (package build) about 8.9 W (run 61), asleep at CX collapse 0.1-0.5 W (+- 0.3 W, runs
+  62 / 64). Battery life: light use 8-10 h, heavy 5-6 h, screen off awake about 22 h, standby roughly 4-20 days (the
+  night unplugged decides).
+
+### 2026-10-02 - entry 40: install PC builds, run 67 (power profile noisy, candidate 7 fails), run 68 (install B1 / B2)
+
+- Deepsleep round 6 answer: after a CDSP stop the CDSP's own voter (12) keeps CX level 3 / DDR; AOSS sleep is out of
+  reach on mainline (COMPUTE never left the AOP list in any state). Important: iceland-device's iceland-npu-off.service
+  stops the CDSP a few seconds into every boot = exactly that start-then-stop -> an installed system would lose CX
+  collapse. Candidate 7 (DDR vote around the stop) and a package fallback (keep the CDSP running idle).
+- User: "will candidate 7 give better battery life then package fallback for cx collapse" -> if it works, slightly
+  (the idle CDSP sits in its own sleep 117 % of the time; retention leakage only, milliwatts), below what the PC-port
+  gauge can resolve; the night decides; recommendation: test 7, else the fallback.
+- **Install PC builds** (`wf/install/next-k2p1u1.sh`): 5 PASS - K2 kernel-iceland rpm of q65 (22 MB, 13 checks), K3 the
+  same tree with release ...g685ce87b2aa2.1 (update rehearsal), P1 iceland-pkg-0.18.tgz (16 checks; the rpm is built on
+  the tablet), U1 install + rehearsal U-Boot (29 checks), tablet-in (14 files). `rehearsal-pc.sh prepare`: stage0 =
+  the official image re-laid for 4 KiB (13.7 GB body, 4.4 GB on disk, virtual size = userdata), 419 ESP files and
+  /boot / root identical.
+- **Kernel q66** = head 0116 + candidate 7 (`build-q56.sh` deepsleep case now = candidate 7). **Run 67** (setup with
+  qcom_iris): power profile DONE but inconsistent (sd up to 1.8 W; screen off 4.9 W > video 2.9 W; 120 Hz 7.3 W vs
+  144 Hz 3.8 W; GNOME's idle dim changed the brightness inside states). Steady states only: idle 30 % 60 Hz 2.34 W,
+  idle 50 % 144 Hz 3.85 W, video 2.89 W; battery energy 53.8-56.9 Wh. Deepsleep round 7: candidate 7 does NOT keep CX
+  collapse after the stop (cdspoff L0), a restart brings it back (cdspre L1, long 98 %). Both sent back to the
+  deepsleep agent (fix the profile method; drop 7 if no other stock step is found -> the package fallback).
+- **Run 68** (q65, install: devrpm 0.18 + build1 + build2 on the network disk) started; PC side: `rehearsal-pc.sh serve
+  stage0 build` (WSL 127.0.0.1:10810) + `tcp-relay.py --listen=auto --allow=172.16.42.1` (Windows :10809). After the
+  run: stop the relay, look for REFUSED in C:\platform-tools\tcp-relay.log, `rehearsal-pc.sh stop`.
+
+### 2026-10-02 - entry 41: hardware inventory delivered, install B1 failed on an NBD timeout, quick-wins workflow
+
+- **hwinv** delivered (wf/hwinv/: INVENTORY.md 109 blocks: 52 working, 13 bound not proven, 4 described not bound,
+  2 disabled in our DT, 12 not described, 12 no mainline driver, 13 not on this tablet; read-only tablet test,
+  `cand/gen-combo-hwinv.py`). Run 70 (setup, hwinv, cam-a, hwinv2) generated. Top finding: boot votes held by
+  fw_devlink because the GPU's GMU node never gets a driver -> install agent: `CONFIG_FW_DEVLINK_SYNC_STATE_TIMEOUT=y`
+  (kit test first); the late drivers (QCE, Iris, CAMSS, qcom_stats) should load by udev coldplug on an installed
+  system; new `syncstate` check in accept.sh (F17).
+- **Run 68** (install): devrpm PASS (iceland-device 0.18 built on the tablet, 87 files); build1 FAIL - the tablet's
+  nbd client timed out ~10.5 min in ("Connection timed out ... Dead connection"), writes failed, btrfs on the network
+  disk went read-only; build2 refused correctly ("build1 is not complete"). nbd read 31.5 MB/s (F4 ok). Relay: 0
+  REFUSED. The tablet's storage untouched. Sent to the install agent (server write path, client timeout /
+  connections, slow-request log). Server and relay stopped.
+- **Run 69** (q65, power profile v2: 60 s settle + 20 s counted, charge counter, idle dim off) started.
+- User: "start combined workflows for items from 1 till 9, keep iterating without asking for my confirmation or
+  testing for items 8,9 since i will test them later" -> new agent **quickwins** (wf/quickwins/): 1 fw_devlink
+  sync_state timeout, 2 bwmon5, 3 PMIH0108 temp alarm lite, 4 autoload of QCE / CAMSS / qcom_stats (udev coldplug),
+  5 camera EEPROMs read-only, 6 charger ulog, 7 IMEM (CONFIG_SRAM), 8 DisplayPort (bind only; the owner tests later),
+  9 USB audio offload + DP audio (bind only; owner later). Iterate without asking the owner.
+- **Run 69** (q65, power profile v2): consistent (sd <= 0.07 W except the CPU heat-up; repeat of the first state
+  within 1 %; the charge counter agrees within 5 %): idle screen on 50 % 60 Hz **3.37 W** (16.0-16.8 h), 120 Hz
+  **4.08 W** (13.2-13.9 h), 1080p H.264 hardware video **3.58 W** (15.0-15.8 h), all cores busy **8.14 W**
+  (6.6-7.0 h), screen off awake **0.64 W** (84-88 h); light use mix 3.85 W = 14.0-14.7 h; battery 53.8-56.7 Wh.
+  Standby asleep not measured on the PC port (below 0.64 W; the night decides). The only FAIL: the brightness
+  put-back (1256 instead of 2047 after the last state) - sent back. **Run 70** (hwinv) started.
+
+### 2026-10-02 - entry 42: feature matrix with the battery life and the recomputed completion estimate
+
+- User: "update feature matrix with the battery life numbers and our current percentage of completion" ->
+  `matrix-c2o.py`: rows Battery time estimate (the measured table of run 69), 60 Hz on battery / CDSP off (120 Hz
+  +0.7 W; never stop the CDSP), NPU (idle CDSP sleeps by itself; the stop bug), Deep-sleep proof (CX collapse 98 %,
+  AOSS out of reach on mainline, screen off awake 0.64 W); page subtitle and FEATURES.md status line with the
+  battery life and the estimate. Counts since 28 Sep: 118 kit runs, 77 test kernels.
+- **Completion estimate recomputed: about 65 %** (entry 38's model, same weights):
+  - features 50 %: unchanged 57 / 12 / 5 / 2 -> (57 + 6) / 74 = 85 % -> 42.6 points;
+  - single install path 30 %: running from RAM 100 % (w .25); packaging 90 % (kernel-iceland rpm 13 / 13 + the K3
+    version, iceland-device 0.18 built on the tablet, K1 config queued; w .20); rehearsal tooling 85 % (both U-Boot
+    builds, stage0 prepared, the tablet-only relay, the network disk reads 31.5 MB/s; the write path timed out once;
+    w .20); tablet rehearsal 10 % (R0 + devrpm; B1 failed; w .20); writes 0 % (w .15) -> 62 % -> 18.6 points;
+  - dual boot 20 %: unchanged 20 % -> 4 points;
+  - total 65.2 % -> about 65 %. Chances unchanged: Fedora only about 0.79, with dual boot about 0.64 (the network-disk
+    timeout is a tooling fault of the rehearsal, not a risk of the install itself).
