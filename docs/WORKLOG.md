@@ -934,3 +934,8 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
 - Open results to act on first: run 46's Camera app CHECK (to the camera agent), run 47's two pencharge checks,
   pogo run A (needs kernel q57), deepsleep (read NEXT.md, run).
 - Next WORKLOG entry: 29.
+- Hand-over commit: iceland-mainline **81cca68** (403 files: runs 45-47, results part J, HANDOVER.md, INSTALL-GUIDE.md,
+  briefs 4 / 5, pencharge / pogo / deepsleep deliverables, tools; no private names). Matrix (`matrix-c2j.py`):
+  **55 working / 9 in progress / 10 not started / 2 not planned** (pen charging moved to "in progress"); page v32.
+  All three repositories level with their remotes. Snapshot refreshed (`save-project*.sh`, new
+  `save-project-wf.sh`: `workflows/` = public parts of every workflow, 270 files; privacy scan clean).

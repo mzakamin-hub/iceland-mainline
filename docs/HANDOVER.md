@@ -36,8 +36,8 @@ never `wsl --shutdown`; "hold the tablet" = stop all tablet actions at once.
 | Thing | State |
 |---|---|
 | Kernel queue (`~/mainline/gh/iceland-linux`) | `c52d6ee`, patches 0001-0089, verified, pushed. Branch `iceland` in `~/mainline/build/src` = queue head, clean |
-| Docs repo (`~/mainline/gh/iceland-mainline`) | last commit "campaign 2 (k): hand-over ..." (`git log -1`), pushed; before it `cbecbd0` |
-| Feature matrix | 55 working / 8 in progress / 11 not started / 2 not planned (76); page https://claude.ai/artifact/GtN6zLRTeabVcyg3LirNBm (publish the rebuilt `scratchpad/feature-matrix.html` to this URL) |
+| Docs repo (`~/mainline/gh/iceland-mainline`) | `81cca68` "campaign 2 (k): hand-over ..." (a small follow-up commit with the final facts may sit on top: `git log -2`), pushed |
+| Feature matrix | 55 working / 9 in progress / 10 not started / 2 not planned (76), page version 32; https://claude.ai/artifact/GtN6zLRTeabVcyg3LirNBm (publish the rebuilt `scratchpad/feature-matrix.html` to this URL) |
 | Test kernels in `~/mainline/build` | `binq55` = tree of the queue head (use this kit kernel for tests of the queue); `binq56` = queue head + pen charging candidates; private camera module per kernel: `camdrv/sc1320cs-q55.ko`, `-q56.ko` (the patched driver; old one `sc1320cs.c.q54`) |
 | `out/` build tree | configured for q56 (`CONFIG_CHARGER_MT5806_PEN=m`); copy of the config before: `out-config-before-q56` |
 | Device package | iceland-device 0.16 in the repo (built + installed in run 41). 0.17 is being assembled (pkg017 + the camera fragment) |
@@ -184,7 +184,9 @@ is (`~/mainline/build/area-combo-N/combo/<name>/`, `common/dmesg.txt`, `common/j
   `queue-0084.sh`, `an/stepwise-release.py`, `an/tempalarm-trip-priv.py`, `an/rebase-charging.py`.
 - Package: `pkg-016.py`, `pkg-016b.py`, `wf/pkg017/pkg-017.py` (not applied), `wf/camera/cand/wp4-apps/pkg-017-camera.py`.
 - Commit: `mk-commit-j.py` / `commit-campaign2-j.sh`, `~/mainline/research/matrix-c2i.py`, `an/commit-check.sh`.
-- Snapshot of all this in the project folder: `build/save-project.sh` + `save-project-fix.sh`.
+- Snapshot of all this in the project folder: `build/save-project.sh` + `save-project-fix.sh` + `save-project-wf.sh`
+  (the last one copies the workflows' public parts to `workflows/` and the newest scripts to `scripts/`; the
+  `priv/` and `work/` folders and the whole thermal workflow stay in WSL only).
 - Guides: `docs/INSTALL-PLAN.md`, `docs/INSTALL-GUIDE.md` (Parts C / D locked until the rehearsal exists).
 
 ## 8. First ten minutes of the next session
@@ -196,3 +198,5 @@ is (`~/mainline/build/area-combo-N/combo/<name>/`, `common/dmesg.txt`, `common/j
 4. Meanwhile on the tablet: read `wf/deepsleep/NEXT.md` and run it; build q57 (pencharge + pogo) and run
    `wf_pogo` + `wf_pencharge`.
 5. Log every run in `WORKLOG.md` (next entry: 29), keep the matrix and the repositories current.
+6. Next free numbers: kit run 48, test kernel q57, queue patch 0090, matrix script `matrix-c2k.py`, commit script
+   `commit-campaign2-l.sh` (make it with a `mk-commit-l.py` from `mk-commit-k.py`), device package 0.17.
