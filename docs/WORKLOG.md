@@ -1127,3 +1127,34 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   in section 4, decisions 5-10, the work list with states, new section 11 (unbrickable / restorable L0-L5 with a
   day-0 snapshot and home copies / permanent). The next commit script must copy `docs/INSTALL-PLAN.md` from the
   project folder (commit L did not).
+- User: "update feature matrix" -> `matrix-c2l.py` (runs 52-59): **56 working / 13 in progress / 5 not started /
+  2 not planned**; Stock-values audit -> working (0099-0112 queued); Full GNOME app set -> in progress; Pogo, Wake,
+  Deep sleep, Cameras, Firmware extractor, Fedora installed: texts updated. **Commit M** pushed (iceland-mainline
+  **424f289**: runs 52-59, results part L, the updated INSTALL-PLAN.md, pkg017 / install public parts). Page v34.
+
+### 2026-10-02 - entry 37: apps run D, iceland-device 0.17 committed, install G13, deepsleep round 4 (CX 98 %)
+
+- **Run 60** (apps run D): GNOME Connections opens (the earlier failure was the test's launcher; 33 of 33 apps over
+  runs A-D); fwupd: the 17 plug-ins off after a restart, 0 of 13 devices left (the UFS storage was listed as
+  updatable before); the release pin holds and an empty file in /etc/dnf/repos.override.d lifts it. Apps workflow:
+  automated part done; the owner's 30-minute look remains.
+- **Run 61** (q61 = queue head 0112, iceland-device 0.17 rerun after the test fixes): **pkg017 PASS, 28 checks**
+  (guard + thermal daemon active, limit 80 / 85, sleep block on the cable, thermal cap lowers the current, cover
+  drop-in in effect, suspend). The 600 mA cap is the kernel's SDP limit (stock's). Guard tables re-checked
+  byte-identical to 0.16. **Committed** iceland-mainline **4bd8e0e** "iceland-device 0.17 ..." (`commit-pkg017.sh`:
+  check.sh ALL PASS first, the three patchers on the real tree, tree = the tested copy, privacy guards).
+- **Install G13 answered**: a real gap found - the rehearsal would have booted the install U-Boot, which maps
+  userdata first (read only on today's tablet, nothing would have been written, but not acceptable). Now every
+  rehearsal boots `u-boot-iceland-rehearsal.img`: no SCSI / UFS in the build, env without the userdata lines,
+  bootcmd `fastboot usb 0`; the EFI write guard stays; the initramfs sets every UFS device read-only before
+  anything opens it and accepts only /dev/nbd* as carrier; self-check rules A-C, P. The relay accepts only
+  172.16.42.1 (test_relay 8 / 8; rehearse.ps1 starts / stops it). INSTALL-PC-CHECKS 9 PASS.
+- **Run 62** (q63 = head 0112 + deepsleep 5 + 6 v2 + wake's L1B always-on): **CX collapse 98 % of a 150 s sleep**
+  (cxsd +41), PCIe link down in every sleep, Wi-Fi back, display AHB clock released, rough draw asleep ~0.1 W; aosd
+  still +0. The Lid interrupt STILL fired once per sleep with L1B held: the supply is not the cause. Sent to the
+  deepsleep and wake agents (GPIO 98 / PDC in CX collapse).
+- User asked: "after final install will the kernel be upgradable?" -> yes: kernel-iceland from our repository,
+  RAM-tested first, installed by dnf / GNOME Software, trial boot, three kept, never touches boot_b; caveats:
+  Fedora's kernels stay blocked, each new Linux release means a rebase of the queue, the private camera module per
+  kernel version.
+- **Run 63** (q61, install R0 facts, without the network disk) started.
