@@ -1,6 +1,6 @@
 # 03 - Boot chain, partitions, and what the install changes
 
-State: 2 Oct 2026, about 22:30. Sources: `iceland-mainline/docs/reference/pad4-hardware-boot-partitions.md` sections 2-4,
+State: 2 Oct 2026, about 23:00. Sources: `iceland-mainline/docs/reference/pad4-hardware-boot-partitions.md` sections 2-4,
 `docs/KNOWLEDGE.md` sections 4, 9, 12, `docs/tests/README.md` (U-Boot and Linux tests 1-7), `docs/INSTALL-PLAN.md`,
 `~/mainline/build/wf/install/REPORT.md` and `NEXT.md`, `iceland-u-boot` (`uboot.pin`, `tools/diag/`,
 `scripts/build.sh`), `tools/linux-ram/`. For the partition list see `02-HARDWARE.md` section 6.
@@ -30,7 +30,7 @@ What ABL does that matters for Linux:
   the real memory map: on the OnePlus 15 a zero-size memory node led to the emergency-download mode.
 - It leaves the display running (a 3392x2400 framebuffer at 0xfc800000, MDP at 650 MHz) and some rails and power
   domains on. Linux must hold them until its own display driver takes over (queue 0022, 0026-0027).
-- **Keys:** Volume Down + Power from off enters ABL's fastboot. Power + Volume Up starts `recovery_<slot>`.
+- **Keys:** Volume Down + Power from off enters ABL's fastboot. Power + Volume Up starts `recovery_<slot>` in Qualcomm's open ABL; not yet seen on this tablet (the dual-boot probe DB-P1 confirms it).
 - **A reboot from Linux is a PS_HOLD hard reset** (DDR is re-initialised), so pstore / ramoops do not survive.
   Android's `/proc/bootloader_log` shows the reset reason afterwards.
 
@@ -44,10 +44,29 @@ public. Fastboot in ABL is the floor. That is why the boot firmware is never wri
 ## 2. A/B slots and anti-rollback
 
 - Every firmware and boot partition exists twice (`_a`, `_b`). ABL boots the **active** slot. Per slot it keeps
-  `slot-successful`, `slot-retry-count` (5 on this tablet) and `slot-unbootable`.
-  - While a slot is not marked successful, each boot attempt counts down. Android marks it successful after a good
-    boot.
-  - If the active slot fails, ABL may mark it unbootable and switch to the other slot.
+  `slot-successful`, `slot-retry-count` (6 read on this tablet on 2 Oct, Part A) and `slot-unbootable`.
+- **How the flags move.** This is from Qualcomm's open ABL source (CodeLinaro edk2, read in the install workflow's
+  round 6). OnePlus's build is closed: the write-2 probe C0 measures whether it behaves the same.
+  - **Flashing a slot's boot partition resets that slot's flags.** In ABL's fastboot, `HandleRawImgFlash` calls
+    `FastbootUpdateAttr("_b")`: *successful* and *unbootable* are cleared, *priority* and *retry count* are set to
+    their maximum. The undo flash does the same. Only names starting with "boot" trigger this, on flash and on
+    erase (`FastbootCmds.c`); a `recovery_b` flash leaves slot b's flags alone.
+  - **Every normal boot of a slot that is not "successful" counts its retry count down by one.** Recovery,
+    fastboot and charger boots do not count (`LinuxLoader.c` `IsABRetryCountUpdateRequired`,
+    `PartitionTableUpdate.c` `FindBootableSlot`).
+  - **At 0, `HandleActiveSlotUnbootable` marks the slot unbootable.** If the other slot is bootable and successful,
+    ABL switches to it and resets. On this tablet slot a has no Android system, so the next boot fails there
+    ("case B"). Otherwise ABL stops in its fastboot ("case A").
+  - **Only Android marks a slot successful** (its boot-control HAL / update_verifier, which writes the flags into the
+    boot partitions' GPT entries). U-Boot and Fedora never do; writing those GPT attributes from Linux would be a
+    partition-table write, which the plan forbids.
+  - **Consequence:** a permanent U-Boot in `boot_b` would run out after the maximum number of normal power-ons,
+    unless OnePlus's ABL differs. C0 measures exactly that, with a hard stop at a retry count of 3 or less (guide Part C0.6). Part A on 2 Oct read slot b's retry count as 6 and slot a as successful but UNBOOTABLE, so today an exhausted slot b ends in ABL's fastboot (case A), not on slot a.
+  - **The fallback** (not decided; the owner decides after C0): U-Boot in `recovery_b`. Recovery boots never count
+    down, and writing it does not reset the slot. `adb reboot recovery`, LineageOS's "Restart to recovery" and
+    `fastboot reboot recovery` reach it. Power + Volume Up would too in the open ABL, but that key is unverified on
+    this tablet. Optionally, the boot-control block in `misc` ("boot-recovery") could
+    make Fedora the default, which would be a third write (`misc` is on today's never-write list).
 - The test tablet runs **LineageOS on slot b**. The LineageOS install on 28 Sep flashed its boot images to slot a,
   sideloaded the OTA to slot b and switched to it. Its `copy-partitions` step made both slots' firmware identical
   (11.A.38). Slot a's Android system was removed from `super` by that sideload.
@@ -71,6 +90,11 @@ public. Fastboot in ABL is the floor. That is why the boot firmware is never wri
   - So the image written to `boot_b` **must carry the footer** (`07-INSTALL-REVIEW.md` R-1).
   - The proof ran on the LineageOS build's images. It is repeated on today's pulled images by `parta-check.sh`.
   - OnePlus's ABL build itself is closed. The write-2 probe (section 8) is its real test.
+- **The footer also feeds the TEE.** ABL's `GetOsVerAndSecPactchLevel` hands the trusted environment the
+  `os_version` **and** `security_patch` of the boot image's AVB footer, or the boot header's values when the footer
+  has none. Round 6's first footer carried only `os_version`, so the TEE would have been given U-Boot's header values
+  (16.0.0 / 2026-08) instead of LineageOS's (17 / 2026-09-01). Fixed: `mk-footer.sh` copies both from today's
+  `boot_b` and refuses to work without both; `avb-proof.sh` has a check that the values handed to the TEE are equal.
 - `fastboot boot` (a RAM boot) does not verify the **boot image** it is sent. It still verifies `dtbo`,
   `vendor_boot` and `init_boot` from the slot. That is why every test so far works without touching `vbmeta`, and
   why no RAM boot can prove how ABL treats a written `boot_b`.
@@ -119,6 +143,7 @@ ABL
       one explicit boot option Boot0001 = blkmap partition 1, /EFI/fedora/shimaa64.efi (efidebug, RAM only)
       bootefi bootmgr  (EFI variables are kept in RAM only: nothing is stored; no vendor LUN is tried)
       if nothing boots: U-Boot's fastboot; 600 s without a PC command -> power off (U-Boot patch 0007)
+      (boot_b vs recovery_b as the permanent place: an open owner decision pending C0, see section 2)
  -> shim  (EFI/fedora/shimaa64.efi on the image's EFI System Partition; shim's fallback is not used)
  -> GRUB 2.12  (Fedora's; reads the BLS entries in /boot/loader/entries)
  -> kernel-iceland (our rpm) + its device tree
@@ -243,7 +268,8 @@ written and dry-run, never executed.
 - **Write 1:** the rehearsed sparse image into `userdata`, from ABL's fastboot. It erases Android's data. Until
   write 2, a plain power-on still starts Android, which reports damaged data: never confirm its factory reset.
   Undo: write it again, or return to stock.
-- **Write 2:** the install U-Boot into `boot_b`. A plain power-on then starts Fedora. Undo: write back the `boot_b`
+- **Write 2:** the install U-Boot into `boot_b` (or `recovery_b`, if C0 shows that ABL counts down boots of
+  `boot_b`: an open owner decision). A plain power-on then starts Fedora (with `recovery_b`: Power + Volume Up). Undo: write back the `boot_b`
   image saved from the tablet in Part A of the guide. **Not** the backup's `boot_b`: the backup predates LineageOS.
 
 Both are described with their checks in `docs/INSTALL-GUIDE.md`. Both run only with the owner's OK. See the review
@@ -259,13 +285,18 @@ before either.
    - It stops if `misc` holds `boot-recovery` / `boot-fastboot`.
    - Its last line is `PARTA: READY FOR C0`.
 2. **C0.** In ABL's fastboot the owner writes the footered install U-Boot into `boot_b`, then reads the slot flags
-   before any reboot. Expected:
-   - power-on shows ABL's orange warning, then U-Boot;
-   - U-Boot maps Android's encrypted `userdata`, finds no Fedora, waits in fastboot, and powers off after 10 minutes;
-   - three untethered cold boots, each followed by a read of the slot flags in ABL: b successful, not unbootable,
-     retry count unchanged, current slot b.
-3. **Undo.** The owner writes `boot_b-before-install.img` back. LineageOS returns **with its data**. If
-   `current-slot` reads `a`, nothing else is written; ask first.
+   before any reboot.
+   - Expected right after the flash (from the open ABL source, section 2): b **not** successful, not unbootable,
+     retry count at its maximum, current slot b.
+   - Each power-on shows ABL's orange warning, then U-Boot. U-Boot maps Android's encrypted `userdata`, finds no
+     Fedora, waits in fastboot, and powers off after 10 minutes.
+   - Three untethered cold boots, each followed by a read of the slot flags in ABL. The retry count is expected to
+     go down by one per normal boot. **Hard stop at a retry count of 2 or less:** undo at once.
+   - If the count does not move, OnePlus's ABL differs from the open source and `boot_b` can stay. If it counts down,
+     the permanent place becomes `recovery_b` (owner's decision).
+3. **Undo.** The owner writes `boot_b-before-install.img` back. The flash resets slot b's flags again; LineageOS
+   boots and marks the slot successful itself. LineageOS returns **with its data**. If `current-slot` reads `a`,
+   nothing else is written; ask first.
 4. **Then** write 1 and write 2 again **in the same ABL session**, with no Android boot between them (Android would
    set `boot-recovery` in `misc` when it cannot mount `userdata`).
 

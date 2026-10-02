@@ -136,7 +136,9 @@ See `01-OVERVIEW.md` section 4. In short:
 | 2 Oct | A plain image in a chained `boot` partition is INVALID_METADATA for ABL; a footered one is PUBLIC_KEY_REJECTED | the install U-Boot carries an AVB footer; vbmeta stays untouched | install round 6, AVB-PROOF |
 | 2 Oct | R1: U-Boot's sub-command table has its own maxargs, so a patched command was refused before it ran | every U-Boot failure path now returns to fastboot or powers off; never a prompt | r1debug REPORT |
 | 2 Oct | The first golden image's initramfs lacked the GPU microcode (MSM is built in and loads it at bind time) | the trio goes into the initramfs; the owner chose linux-firmware's set (v5.3.23, as in every kit) over stock's (v5.3.39) | install B4 |
-| 2 Oct | The PCIe L2 timeout at suspend: ath12k resets the WLAN chip at suspend, and it never answers PME_Turn_Off | diagnosis run 97; stock keeps the WLAN firmware alive | wf/bootfix topic A |
+| 2 Oct | The PCIe L2 timeout at suspend: ath12k resets the WLAN chip at suspend, and it never answers PME_Turn_Off | diagnosis run 97 (it reset the tablet ~150 s into its suspend cycles, logs lost; a split re-run follows); stock keeps the WLAN firmware alive | wf/bootfix topic A |
+| 2 Oct night | Open ABL source: flashing `boot_b` resets its A/B flags (retry count to max, *successful* cleared); every normal boot of a non-successful slot counts down; only Android marks a slot successful | a permanent U-Boot in `boot_b` may run out of boots; C0 measures it; `recovery_b` is the fallback (owner's decision) | install round 6/7, CodeLinaro edk2 |
+| 2 Oct night | ABL hands the TEE the footer's `os_version` and `security_patch` | the footer copies both from today's `boot_b` | install round 6/7 |
 
 ## 4. Lessons learned (the hard-won rules and their reasons)
 

@@ -29,7 +29,11 @@ B3 = R-12 (charge limit).
 | R-2 undo file from the pre-LineageOS backup | **confirmed; enforced in the tooling** | the backup's `vbmeta_b` is stock (flags 0, OnePlus key); the LineageOS build's is flags 1 with a test key. `parta-check.sh` makes `boot_b-before-install.img` from today's pull. **Left:** INSTALL-PLAN sections 2, 5.2, 8 text |
 | R-3 write order | **decided: the write-2 probe first, run by the owner** | tooling done (`parta-read.ps1` reads only, a whitelist with 32 refused commands; `parta-check.sh` ends `PARTA: READY FOR C0`). **Left:** guide part C0 text (design in HANDOVER-ROUND6 section 4); Part A read on the tablet (command 6) |
 | R-4 rehearsal build vs install build | **guard done; texts open** | `check-header.py --install-only` refuses the rehearsal build. **Left:** plan sections 2 / 5.2, guide Part B item 5 / Part D step 1 |
-| R-5 dual boot | **decided: Fedora-only now; plan to be written** | `wf/install/DUALBOOT-PLAN.md` not started (brief: image file in userdata, userdata shrink / `fedora` partition, another LUN, boot selection; FBE, OTA, undo per step, rehearsals). This workflow reviews it |
+| R-5 dual boot | **decided: Fedora-only now; plan written and reviewed** | `wf/install/DUALBOOT-PLAN.md` (round 7). It recommends a `fedora` partition carved from `userdata` (one LUN 0 partition-table write; Android's data lost once) plus U-Boot in `recovery_<slot>` (LineageOS stays the default; recovery boots do not count down), with the probe DB-P1 first. It rejects the image file inside `userdata` (FBE v2 + metadata encryption with hardware-wrapped keys; raw-extent mapping risks silent loss of Android's data). Review (2 Oct night): no factual error in D1-D10. All four review points are in the plan (sha 76e4fcbd...):
+  - Power + Volume Up -> recovery is marked unverified, to be confirmed in DB-P1. The certain paths are `adb reboot recovery`, "Restart to recovery" and `fastboot reboot recovery`.
+  - The flag reset applies only to partitions named `boot*` (open ABL `FastbootCmds.c`, flash and erase), so DB-P1 expects slot b's flags unchanged after a `recovery_b` flash.
+  - Between W2 and W3: back into ABL's fastboot, never Android, then a size read.
+  - The owner box carries the "decide before write 1" deadline. |
 | R-6 unattended U-Boot waits for ever | **fixed (sandbox-proven)** | U-Boot patch 0007: fastboot leaves after 600 s idle; `fastboot_loop` then powers off (also after 10 sessions). **Left:** guide section 9 rows; no hardware watchdog in U-Boot |
 | R-7 boot order over all LUNs; `efisp` | **fixed** | env `fedora_bootopt`: one explicit Boot0001 (blkmap partition 1, `/EFI/fedora/shimaa64.efi`). No vendor LUN, no `EFI/BOOT` fallback, no shim fallback. The backup's `efisp` is all zeros (no file system) |
 | R-8 guide behind plan and tooling | **open** | proposed texts to come from the install workflow (`proposed/` in its folder); the main session edits `docs/` |
@@ -38,7 +42,9 @@ B3 = R-12 (charge limit).
 | R-11 initramfs and firmware timing | **fixed in source; not yet in an image** | B1: dracut `omit_drivers` for the root-firmware drivers; the pwrseq `add_drivers` drop-in (`pcieprobe` line). B2: the build chroot gets its own sysfs and a read-only tmpfs over `selinuxfs` (each part reports "kit kernel policy loads N"; run 94 had 16). B4 (new): the GPU microcode trio was missing from run 94's initramfs; now in `fw-list.tsv` (26 items, 0 differ from stock) with a `gpu` line. The battery does **not** depend on the ADSP (BOOT-LOG-PLAN corrected). **Left:** P1 + TIN, then the B run must show "policy loads 0" and "root-firmware drivers 0", then R1's `adsp` / `cdsp` / `fwload` / `gpu` lines |
 | R-12 smaller points | **partly fixed** | charge-limit check fixed (B3: `chargethreshold` + `chargelimit` on `qcom-battmgr-bat`). Still open: return to stock never executed; slot a after it; `adb root` pre-check; the plan's kernel numbers; `uboot.pin` comment; iceland-u-boot README |
 | New: `unzip` has no length bound | **known gap, not reachable in practice** | a truncated gzip head crashed the sandbox; the head's sha256 is checked before sending. Hardening (`unzip ... ${headmax}`) after R1, then a rebuild and a new footer |
-| New: GPU firmware in the image | **decided by the owner: linux-firmware (v5.3.23)** | what every kit since pc-024 used (the stock set is GMU v5.3.39). The install agent adapts B4 (three lines); the firmware count expected in the B run changes with it |
+| New: GPU firmware in the image | **decided by the owner: linux-firmware (v5.3.23)** | what every kit since pc-024 used (the stock set is GMU v5.3.39). Fedora 44's own `qcom-firmware` already carries the identical trio; the device package's dracut conf takes it from `/usr/lib/firmware/qcom/*.xz`. The zap and touch firmware stay the tablet's own. The firmware package is held and enters an initramfs only with the next kernel-iceland install |
+| New: A/B flags reset by the flash, and the countdown | **open owner decision pending C0: `boot_b` or `recovery_b`** | open ABL source: flashing `boot_b` clears *successful* / *unbootable* and sets *retry count* to max; every normal boot of a slot that is not successful counts down; at 0 the slot is marked unbootable (case A or B). Only Android marks a slot successful. A permanent U-Boot in `boot_b` would run out after the maximum number of power-ons unless OnePlus's ABL differs. C0 measures it (hard stop at a retry count of 2 or less). Fallback: `recovery_b` (recovery boots never count), optionally `misc` "boot-recovery" as the default, which would be a third write |
+| New: footer values handed to the TEE | **fixed** | ABL passes the footer's `os_version` and `security_patch` to the TEE (else the header's). `mk-footer.sh` copies both from today's `boot_b` and refuses without both; `avb-proof.sh` checks they are equal |
 | New: R1 fix | **verified** | r1debug: root cause reproduced exactly; the install agent's fix 15 / 15 in an independent sandbox; `rehearse.ps1` got the busy-U-Boot probe. First tablet step: the 8 KiB notgzip head (command 3) |
 
 ## 1. Scope and sources
@@ -157,7 +163,9 @@ instruction, or an unattended failure mode; **Low** = wording, stale numbers.
   1. "Write 2 as a probe" first: the footered install U-Boot into `boot_b`, with Android's data still in
      `userdata`.
   2. Cold-boot it untethered three times.
-     - ABL must start U-Boot, and the retry count must not drop.
+     - ABL must start U-Boot. The retry count is expected to drop by one per boot (the flash resets slot b's flags,
+       and only Android marks a slot successful): hard stop at 2 or less. Whether it drops decides `boot_b` vs
+       `recovery_b` (section 0).
      - U-Boot maps `userdata` read-only and finds no EFI system (Android's encrypted data). It ends in its fastboot
        loop. This path was seen on 28 Sep in a RAM boot: `uboot-run4/uboot-console-D.txt`, "Loading Boot0006
        'blkmap 0' failed", then fastboot.
@@ -291,7 +299,9 @@ instruction, or an unattended failure mode; **Low** = wording, stale numbers.
 | U-Boot text, then nothing, the screen stays on (no PC attached) | U-Boot found no Fedora and waits in its fastboot (R-6) | connect the PC: `fastboot devices` shows U-Boot. `fastboot oem console` (read-only) saves its log. Then RAM-boot the rescue kit through it, or hold Power 15 s |
 | A black screen with a `grub>` prompt or a GRUB error | GRUB found no configuration (damaged `/boot`) | hold Power 15 s; RAM-boot the rescue kit (L3) and repair `/boot` |
 | ABL shows a verified-boot error (instead of its usual unlocked warning) and stops after write 2 | ABL refused `boot_b` (R-1) | Volume Down + Power into ABL fastboot; undo write 2; record the slot flags; do not use `set_active` |
-| `getvar current-slot` reads `a` after write 2 | ABL marked slot b unbootable and switched (R-1 case B) | do not write anything else; undo write 2; ask before the one-time `set_active b` or run the full return to stock |
+| `getvar slot-successful:b` reads `no` right after writing `boot_b` | expected: the flash itself clears the flag and sets the retry count to its maximum (open ABL source) | nothing; note the retry count |
+| `slot-retry-count:b` is lower after each power-on | ABL counts boots of a slot that is not successful; U-Boot and Fedora never mark it successful | at 2 or less: stop and undo write 2 at once (the flash resets the count); the permanent place is then `recovery_b` (owner's decision) |
+| `getvar current-slot` reads `a` after write 2 | ABL marked slot b unbootable and switched (R-1 case B, or the retry count ran out) | do not write anything else; undo write 2; ask before the one-time `set_active b` or run the full return to stock |
 | The tablet was switched off and plugged into a charger, and it boots Fedora | ABL starts the boot partition in charger mode; with U-Boot there that is Fedora (plan 11.1.6) | expected; no action |
 
 ### R-10 (Medium) - device tree delivery is decided in two places

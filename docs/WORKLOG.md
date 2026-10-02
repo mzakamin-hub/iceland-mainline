@@ -1870,3 +1870,256 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   install agent (take them from Fedora's firmware package if it has v5.3.23+, else carry linux-firmware's files in
   the device package; the zap shader stays the tablet's; accept `gpu` expects v5.3.23).
 - docs agent: the set brought to 22:30 (01 / 02 / 03 / 06 / 07 status per finding / INDEX / GLOSSARY / 04) + RESUME-2026-10-02.md; HANDOVER base config fixed to out-config-base-0174 everywhere; matrix-c2t (row Internal storage (UFS 4): MCQ, 2.3 GB/s; queue 0174; 147 runs / 88 kernels); commit v.
+- Commit v pushed: iceland-mainline **26f71db** (docs/guide at 22:30 + RESUME-2026-10-02.md, INSTALL-RERUN-COMMANDS.md,
+  HANDOVER / PROJECT-STATE / PROJECT-CLAUDE, run 96, queue-0167; 0 private files); matrix **v42** (62 / 12 / 5 / 2 of
+  81, new row Internal storage (UFS 4)); snapshot refreshed (privacy clean).
+- **hwfix topic C (bypass) test-ready**: run `bash ~/mainline/build/wf/bypass/apply-pkg.sh` once (refreshes
+  wf/bypass/tablet-in), then `python3 ~/mainline/build/wf/bypass/cand/gen-combo-bypass.py N qNN` (setup, bypass,
+  close) or bypass_parts.LINE["bypass"] (PT 600) after pkg2; any current kernel. Design: the battery guard (the only
+  writer of charge_behaviour) gets bypass as one more STOP reason checked after the stock stops and the charge limit;
+  holds the level with inhibit-charge (= stock oplus_chg_plc output_suspend), 1 % top-up, threshold from 20 %, ends
+  at unplug / a 5-min lease not renewed / BYPASS=0 / a bad file, never restored after reboot; iceland-bypassd
+  (D-Bus org.iceland.Bypass, polkit org.iceland.bypass.set for the active session); a GNOME Shell 50 QuickMenuToggle
+  "Bypass Charging" (hold from 20-90 %), enabled by a gschema override; packaged as 0.19 on a copy of 0.18
+  (cand/bypass-pkg.py, work/p19); PC tests: spec 147, units 22, guard 115 + 27 + 29, new guard-bypass 38, bypassd 25.
+  Part `bypass` (~6 min): install, unit tests on the tablet, base, enable (screen-off PASS: battery <= +30 mA, input
+  >= 100 mA), refresh, lease (20 s drop-in), limit (kernel end threshold lowered to SOC-2 for ~20 s, then restored -
+  lowering only), disable, shell (gdm restart, extension ACTIVE, renews itself), restore. Owner tests with a wall
+  charger: hold 30 min while gaming, unplug ends it, reboot does not restore, threshold above SOC charges then holds,
+  screen lock ends it after 5 min, the toggle's look.
+
+### 2 Oct 2026, about 23:30 - run 97 reset the tablet; bypass safety review; install steps 1-2
+
+- **Run 97 (q80 = 0174 + test-only l2diag, part bfpcie): the tablet reset about 150 s into the PCIe s2idle
+  cycles; no evidence reached the PC.** Setup was fine (kernel check ok, tools rc 0, coldplug 34 / 15). bfpcie
+  started 21:13:34; the follow loop printed nothing after "== bfpcie" (the part writes its timeline line only at its
+  end); SSH timed out; the tablet came back in LineageOS by itself (Android kernel start 21:16:26, boot reason only
+  "bootloader"; battery 52 %, 23.4 C). So the reset was about 21:16:00-21:16:15 = roughly cycle 6-9 (base probably done,
+  noreset or early wow running) - not proven. The same s2idle method (echo freeze + RTC alarm, qcom_stats,
+  pm_debug_messages) passed in run 92 on 0166-level kernels; new in 97: the q80 kernel, a Wi-Fi scan between cycles,
+  and the noreset / wow / nodrv variants. Chain stopped (TaskStop + the WSL probe killed by PID; TaskStop alone left
+  the WSL probe running).
+  **Lesson:** a diagnosis part that suspends or resets must write one timeline line per step and stay awake long enough
+  for the probe to pull it, and risky variants go into separate parts with a log fetch in between - otherwise a reset
+  loses everything. Also: the follow loop's timeout counts only its sleeps, so with SSH down PT=600 lasts about 40 min.
+- Sent to hwfix (resumed): split bfpcie into one part per variant with a fetch between, a timeline line per cycle +
+  about 15 s awake, check the stock DT for a ramoops / pstore region usable in a TEST-ONLY kit DT, and from the code
+  which variant can plausibly reset the SoC. l2diag stays test-only.
+- hwfix's final report (topics A / B / C): B queued (0167-0174); A = the diagnosis above; C bypass ready. Its notes: the
+  14 vdda / vddpe-3v3 pairs need pwrseq_qcom_wcn + pci_pwrctrl_pwrseq in the initramfs (the install agent's 91 dracut
+  drop-in already does this); the smem SoB address stays unverified (left out, as logged).
+- **Owner: "spin another opus agent to verify battery bypassing making sure its safe for power and heat on the tablet
+  before testing it on the device"** -> a new Opus safety reviewer (wf/bypasssafe, REVIEW.md): 7 items (only limits /
+  the battmgr inhibit path / persistence after a crash or reboot / heat vs normal charging / drain at the 500 mA port /
+  the test's floors, ceilings and restore traps / lease and polkit), a GO / NO-GO for the first PC-port test. **The
+  bypass kit waits for its GO.** No tablet actions, no builds, no commits; it does not edit wf/bypass.
+- Install agent: B4 now uses Fedora's own qcom-firmware trio (20260309-1.fc44 / 20260916-1.fc44 carry
+  gen80200_{sqe.fw,gmu.bin,aqe.fw}.xz, byte-identical to build/fw-gpu = linux-firmware, GMU v5.3.23); the 90 dracut conf's
+  install_items point at /usr/lib/firmware/qcom/*.xz (the updates/ paths never existed = run 94's dracut-install
+  ERROR); fw-list.tsv back to 23; zap + touch stay the tablet's own. **C0 safety fix:** ABL gives the TEE the
+  footer's os_version AND security_patch (else the boot header's) - the round-6 footer had only os_version, so the TEE
+  would have seen U-Boot's 16.0.0 / 2026-08; mk-footer.sh now copies both from today's boot_b, avb-proof.sh checks
+  `rot-equal`. INSTALL-RERUN-COMMANDS.md corrected (hashes, 23 items, gpu PASS text, rot-equal).
+- **Install steps 1-2 done (PC only):** rehearse.ps1 8453BB0C + parta-read.ps1 836EBA64 copied to C:\platform-tools
+  after a scan (only whitelisted reads: getprop, bootctl get / is-*, blockdev, pull / dd if=, getvar, reboot);
+  old rehearse.ps1 kept as rehearse.ps1.old-1be32e60. Step 2: NEXT-K2P1U1 2 PASS 0 FAIL, 91 conf 2, 90 conf gmu.xz 1,
+  accept.sh 7b828177...3881.
+- **Install agent finding (ABL source): the A/B retry counter.** Flashing boot_b resets slot b (successful 0, retry
+  MAX); every normal boot of a not-successful slot counts down (not recovery / fastboot / charger boots); at 0 ABL
+  marks b unbootable and goes to slot a (case B) or fastboot (case A); only Android marks a slot successful. So a
+  permanent U-Boot in boot_b would run out after MAX power-ons unless OnePlus's ABL differs. C0 measures it (hard stop
+  at retry <= 2, then the undo; LineageOS marks b successful again). Fallback (OWNER DECISION later): U-Boot in
+  recovery_b (never counts down), optionally misc BCB "boot-recovery" to make Fedora the default; a GPT attribute
+  write on LUN 4 is rejected (no EDL loader). Routed to the docs SME (03-BOOT-AND-PARTITIONS, R-9).
+- **Install step 3 PASS (owner: "yes"), 21:35-21:36:** notgzip U-Boot test via rehearse.ps1 8453BB0C, NBD stage0
+  read-only. ABL (canoe, unlocked, slot b, 3922 mV) -> U-Boot 2026.10-rc5-00021 fastboot in 3 s -> head 7e73dd63
+  sent -> "=== rehearsal head FAILED: the head is not gzip - back to f[astboot]" (the console line is cut at the
+  64-byte fastboot INFO limit) -> fastboot reboot -> Android back after 20 s; relay refused 0; exit code 2; nothing
+  written. Results in wf/install/work/t/rehearsal-*-213537 (sent to the install agent). NBD server stopped.
+- **Install step 4 = run 98 started about 21:40 (owner: "yes")**: `genwf-install-b.py 98 q78 "rr dev b1a b1b b2a b2b"
+  4300 qos=2`, NBD `serve stage0 build` (ov-build removed first), tcp-relay + linktest-server on Windows (auto ->
+  0.0.0.0), chain area-combo-98-chain.sh (= 94's, -Wait 4000), run-chain MAXN=480. Agents asked to keep WSL light.
+  Afterwards: check-b-run.sh area-combo-98, REFUSED in tcp-relay.log, stop the relay, rehearsal-pc.sh stop.
+- **hwfix: bfpcie re-run ready** (wf/bootfix only): parts bfpcie-base / -noreset / -nodrv / -wow (markers
+  BFPCIE-<V>-DONE, PT 600, a log fetch after each part), one sayk timeline line per cycle, then awake until the USB
+  gadget is configured again (max 45 s; Windows needs about 27 s per resume) + 15 s; 3 cycles (wow 2); the generator
+  raises AUTOREBOOT_AT to 3600 for several parts. Kernel q80 reused. Its code reading: l2diag at default 1 = 0174
+  exactly; suspects in order wow (MHI M3 with MSI live while PERST# / PHY / GDSC go off: an MSI into an unclocked DBI =
+  bus hang -> watchdog), then the topic B items exercised in s2idle for the first time (UFS MCQ ESI vectors re-enabled
+  before the UFS clocks on resume; L2G / S1J switched by pwrseq), then noreset, then nodrv. Test-only bisect items in
+  reserve (only if base resets): nomcq (t1-nomcq.py), wcnold (t2-wcnold.py). Run 99 after run 98, with the owner's go.
+- **pstore lesson:** the kits already stream kmsg into pmsg (ramoops@affe00000, PMSG_ANDROID=1); after a WARM reset
+  LineageOS shows it as /sys/fs/pstore/pmsg-ramoops-0 (adb root = Rooted debugging) - read it with
+  /proc/bootloader_log BEFORE anything reboots the tablet. Run 97's zone was lost when the step-3 test rebooted at
+  21:35. Limits: the copier is frozen during suspend; a watchdog / TZ hard reset cold-boots DDR (empty). Test-only
+  idea kept in reserve: one console zone (printk writes it), no_console_suspend, panic=5 panic_on_oops=1.
+- **DUALBOOT-PLAN.md (plan only; owner: no dual boot for now) reviewed by the docs SME, closed:** recommends a
+  `fedora` partition carved from userdata + U-Boot in recovery_<slot>, probe DB-P1 first. The install agent took in
+  the 4 review points (sha 76e4fcbd...): only `boot*` flashes / erases reset a slot's flags (open ABL FastbootCmds.c),
+  so a recovery_b flash leaves slot b alone; Power + Volume Up -> recovery unverified until DB-P1 (certain: adb reboot
+  recovery, LineageOS "Restart to recovery", fastboot reboot recovery); a size check in ABL between the GPT write and
+  the wipe; an owner box with the "decide before write 1" deadline. To adopt into docs/ at the next save:
+  wf/install/proposed/INSTALL-GUIDE.md + INSTALL-PLAN.md, DUALBOOT-PLAN.md, wf/docs -> docs/guide.
+- **Install agent round 7 texts ready (to adopt into docs/ at the next save):** proposed/INSTALL-GUIDE.md (98a0760e...:
+  0.5 the slot counter; Part C0 = C0.0 optional read-only RAM probe of the install U-Boot, C0.1-C0.8 with the flags read
+  after the flash and each boot, hard stop at `slot-retry-count:b` <= 3 or slot a / unbootable / a verified-boot error,
+  undo, parta-read again; Part D only if C0 showed no countdown), proposed/INSTALL-PLAN.md (384f33bd...: 23 edits -
+  R-1..R-4, 5.0 C0, 5.2 the counter + recovery_b fallback as the owner's choice, G13 closed, G15 / G16 new),
+  DUALBOOT-PLAN.md (76e4fcbd...). New read-only tool cand/rehearsal/uboot-ram-probe.ps1 (6196f472..., whitelist test 23
+  PASS; `-WaitPowerOff` needs the owner present). iceland-mainline's 90-iceland-dracut.conf needs the .xz trio paths
+  when 0.18 is committed. Waits for: run 98's check-b-run.sh, then R1, then "WSL free" for the unzip hardening.
+- **Run 98 (install step 4, B run) = B-RUN: 18 PASS, 1 FAIL** (21:42-21:48; the probe then rebooted the tablet to
+  Android as planned - the owner saw that reboot; it was not a crash). PASS: rr gate (+down slowest 156 ms), devrpm
+  (0.18 rpm built in 19 s), 91 conf omits the root-firmware drivers, build1a / 1b / 2a / 2b each "policy loads 0" +
+  "disk released", firmware 23 ok / 0 differ, bdaddr yes, NBD 31 / 38 MB/s, no dracut-install error, initramfs with
+  Fedora's GPU trio + zap + touch + PCIe power control and no root-firmware driver. **FAIL: 16 SELinux policy lines in
+  the kit's kernel log at 18:42:44 tablet time = inside the dev / devrpm part** (after rr 18:42:27, before devrpm's line
+  18:42:49): the B2 fix covers the build parts' chroot but not devrpm's tools install. Sent to the install agent: fix
+  devrpm, say whether run 98's golden is usable for R1 or the B run must be repeated. Servers stopped (NBD, tcp-relay,
+  linktest; REFUSED 0).
+- After the run: `adb root` works (Rooted debugging is ON); /sys/fs/pstore empty; /proc/bootloader_log "Reset by
+  PSHOLD / Hard Reset / ddr_init cold boot" - the same as any reboot from Linux, so it cannot tell a panic from a
+  planned reboot.
+- **Owner: "do the read only backups then run99".** Part A (install step 6, parta-read.ps1 836EBA64, 21:51-21:55,
+  Rooted debugging ON): **PARTA: NOT READY (1 STOP)**, nothing written. STOP = check-header.py: the install U-Boot's
+  boot header still carries the old uboot.pin values while today's boot_b header is 17.0.0 / 2026-09 -> rebuild with
+  the stock values (folded into task 4, the unzip hardening, one hash change). PASS: AVB-PROOF all cases + rot-equal
+  (footer 17.0.0 / 2026-09-01), candidate for today's boot_b (rollback index 1788220800), ABL unlocked, slot b current /
+  successful / not unbootable, boot_b 100663296 bytes, misc 'bootonce-bootloader', vbmeta_b chains boot (location 4),
+  rehearsal build refused for boot_b. **New slot facts:** slot b retry count 6 (docs said 5); **slot a successful yes,
+  UNBOOTABLE yes**, retry 6 -> if slot b ever runs out, ABL finds slot a unbootable and stops in fastboot (case A),
+  not a switch to slot a (case B). Sent to the install agent (+ the run 98 questions, + the owner's boot_a question).
+- Owner asked what is in boot_a / what if U-Boot went there. Read on the tablet (root, reads only): boot_a and boot_b
+  carry the identical LineageOS GKI kernel 6.12.81-android16-6 (kernel sha 4d3ec9fd736d), header v4 17 / 2026-09; they
+  differ only in the AVB footer (boot_a security_patch 2026-08-01 = the 28 Sep install build; boot_b 2026-09-01 = the
+  29 Sep OTA); all of slot a's boot set differs from slot b's. From the open ABL source: a boot_a flash resets only slot
+  a's flags (name-derived suffix), stays dormant without set_active a (which also switches the UFS boot LUN), counts
+  down on slot a, falls back to slot b's LineageOS at 0; LineageOS OTAs would overwrite it.
+- **Run 99 started about 21:57** (q80, parts setup, bfpcie-base, -noreset, -nodrv, -wow, close; AUTOREBOOT_AT 3600,
+  runner -Wait 3300, run-chain MAXN=420).
+- **Install agent: devrpm SELinux leak fixed (PC-proven); repeat the B run before R1.** Cause (run 98's devrpm/dnf.txt):
+  devrpm installs rpm-build into the kit's OWN root; the transaction pulled policycoreutils + rpm-plugin-selinux +
+  selinux-policy-targeted 44.10, whose scriptlet loaded the policy at 18:42:44. Fix in tablet.sh (4dce3b15...): nosel()
+  = own mount namespace with an empty read-only tmpfs over /sys/fs/selinux (fails closed rc 125 without unshare); devrpm's
+  dnf, its rpm build and the kit-root nbd install go through it; devrpm now reports "policy loads N". test_nosel.sh 9
+  PASS (in check-all, 15 PASS); check-b-run.sh c5819fd4... also requires devrpm policy loads 0. Run 98's golden is
+  probably fine functionally but failed the clean-build criterion -> B re-run (~7 min, parts "dev b1a b1b b2a b2b").
+- Header pin: mk-uboot.sh now takes the header OS version / patch level from today's boot_b pull (same source as the
+  footer), falls back to uboot.pin; folded with the unzip headmax bound into work/r7/stage-unzip-headmax.py.
+  **TODO at the next commit: update iceland-u-boot's uboot.pin (17.0.0 / 2026-09 + comment).**
+- Order after run 99 (WSL free): PC: stage-unzip-headmax + mk-patches + `STEPS="u1 tin" next-k2p1u1.sh` (2 PASS, header
+  "17.0.0 / 2026-09"), parta-check.sh on the 21:51 pull (READY FOR C0), selfcheck + check-all. Tablet (owner's go each):
+  B re-run, R1 (new rehearsal U-Boot), Part A again on the C0 day, C0.0 (optional), C0 (owner's write).
+- Slot facts in the proposed guide / plan (guide 7fb75056..., plan be042a98..., DUALBOOT-PLAN 9a383a09...): slot a
+  successful + unbootable -> exhaustion of slot b ends in ABL fastboot (case A); case B cannot happen today; C0 stop
+  rule (retry <= 3) kept as margin. boot_a added to DUALBOOT-PLAN 2.2 as row (d3'), rejected (Fedora expires after a
+  few power-ons; set_active from the PC each time), not decided.
+- **Run 99 (q80, split bfpcie): base 3 / 3 fine, noreset RESET the tablet in cycle 2; nodrv / wow did not run.** Base
+  (switch Y): L2 timeout every cycle (LTSSM 0x12), cx collapsed 2 / 3, Wi-Fi back 3 / 3 (5 / 3 / 3 networks), qrtr 2,
+  hard 0, noirq suspend ~46 ms / resume ~318 ms, fw-reload 3 per cycle; boot: 13 probe attempts, link up 45.08 s =
+  pwrseq / pwrctrl insmod. -> **the q80 = 0174 kernel incl. the topic B items (MCQ, WCN supplies) survives s2idle**.
+  noreset-1: no L2 timeout but wall 26.6 s (irq 272), noirq resume 1077 ms, Wi-Fi scan 0, **9 hard lines**; then the
+  reset (Android kernel 22:02:42; bootloader_log "Reset by PSHOLD / Hard Reset / PON by RTC + SYSOK", cold boot; pstore
+  empty although read first). noreset is no fix candidate. Base log set fetched (area-combo-99/combo/bootfix/pcie);
+  chain + WSL probe stopped. Sent to hwfix: are nodrv / wow worth a run (no reset without a clear question), else the
+  write-up for keeping upstream's 10 ms warning.
+- **hwfix topic A verdict (from run 99): keep upstream's behaviour - green, no kernel change; nodrv / wow not run.**
+  noreset proved the root cause: without the WLAN SoC reset the WCN7860 DOES acknowledge PME_Turn_Off (0 timeouts),
+  with it (base) it never does (3 / 3, LTSSM 0x12) -> the warning comes from ath12k's own power-down in suspend_late
+  (upstream design for suspend without WoW, same as SM8650-HDK). Dropping the reset breaks the next resume (noreset-1:
+  noirq resume 1077 ms = the whole dw_pcie link-wait budget + power-up, i.e. no link; wake by the root port's WAKE#
+  GPIO, irq 272 = msmgpio 104) and then hung the bus (PSHOLD reset; likely the AON rail kept up by Bluetooth so the
+  un-reset chip does not link-train) - not proven, the 9 lines are lost. Costs of the kept path: 10 ms L2 poll in a
+  45.5 ms noirq suspend; noirq resume ~318 ms (D3cold spec waits); early resume ~609 ms (one firmware reload - the
+  counter's "3" were three lines of ONE reload); "suspend exit" ~2.2 s after the wake; Wi-Fi back every cycle. l2diag
+  stays test-only (or dropped). wow only if the owner wants Wi-Fi kept connected in sleep (needs credentials + the
+  ramoops evidence kit). Matrix: "PCIe L2 warning at suspend: expected, upstream behaviour".
+- New observation for the pencharge / sleep topic (not bootfix): base-1's s2idle was aborted by "PM: Triggering wakeup
+  from IRQ 316" (cx +0, wall 4.5 s) and that first suspend's "suspend of devices" took 2250 ms ending with the mt5806
+  pen charger's "transmitter looking for a pen" -> identify IRQ 316, check mt5806's suspend on the first suspend after
+  boot. Cosmetic upstream nits left: QRTR "failed to announce" in 2 / 3 resumes; "hwmon: parent phy0 should not be
+  sleeping" after each resume. The 13 probe deferrals = initramfs order (install workflow's 91 drop-in).
+- **Install round 7b PC steps (after run 99, WSL free): NEXT-K2P1U1 1 PASS 1 FAIL (U1).** Both U-Boot builds compiled
+  (headmax 0xc0000000, header values from today's boot_b), but the u-boot check failed 1: the sandbox's new
+  truncated-gzip case (inflate() -3, then "Address not mapped: 0x11401000 / 0x13400000" instead of the FAILED line and
+  fastboot); the other 12 sandbox cases PASS. TIN PASS; parta-check on parta-20261002-2154 still STOP on check-header
+  (no new install image), rot-equal + AVB proof PASS; selfcheck clean (117), check-all 15 PASS. Sent to the install
+  agent: sandbox setup or a real bug in the bounded-unzip path?
+
+### 2 Oct 2026, late - Windows on ARM: plan written (planning only, a separate session)
+
+- **Owner: "create a proper plan for porting windows on arm to the pad 4, you can use similar devices as a
+  reference".** Result: `docs/WINDOWS-PLAN.md`. PC reading and web research only; no tablet action, no build, no
+  commit, nothing sent upstream.
+- Facts found (web, 2 Oct): Mu-Silicium has `KaanapaliPkg` + `infinitiPkg` (OnePlus 15) since v3.3 (March 2026): UEFI
+  display / UFS / buttons / USB device ok, USB host and PD no, Linux boot yes, **Windows boot no**; its ACPI line is
+  commented out and Silicium-ACPI has no tables for Kaanapali, Pakala (SM8750) or Lanai (SM8650). No 8 Elite /
+  8 Elite Gen 5 device boots Windows; 8 Gen 3 phones reach Windows PE only. The only relative with Windows drivers
+  is the X2 Elite (Glymur, SC8480XP; Windows 11 26H1 build 28000). No Windows driver set for SM8850 is public.
+- The plan: W0 facts on the PC (UEFI driver set from the backup, memory map, a write-path audit of the UEFI build,
+  the X2 Elite driver / ACPI mapping), W1 UEFI from RAM (`icelandPkg`, no mass storage, UFS read-only, variables in
+  RAM, a session watchdog), W2 Windows PE to a prompt (ACPI from our device tree, kernel debugger over USB as the log
+  stream), W3 Windows' generic drivers, W4 X2 Elite driver experiments with stop rules, W5 install not planned.
+  Estimates: UEFI 85 %, Windows PE prompt 50 %, storage 35 %, touch 15 %, a usable Windows under 5 %.
+- Open owner decisions (plan section 11): start W0 now or after the install work; OK to ask the Mu-Silicium
+  maintainers; a private repository; Wine + FEX on Fedora as its own workflow. Next step if "go": three PC-only
+  workflows `winuefi`, `winacpi`, `winkit`. The file is in the project folder only: copy it to WSL / the docs repo
+  at the next save.
+- Install agent: the U1 failure was its sandbox bound (headmax 0x8000000 let the runaway inflate overwrite the
+  sandbox's own U-Boot data at ~0x9bb9c90), not the tablet path (bound [0x8C0000000, fbaddr 0x980000000), U-Boot's data
+  at ~0xAEF000000+). Fixed: sandbox headmax 0x4000000 + a guard test (sandbox-check.sh 1967ed2f...).
+- **Round 7c PC steps green (22:10-22:16):** U1 PASS (u-boot check 41 PASS; header "17.0.0 / 2026-09 (uboot.pin is
+  overridden)"; sandbox 0 failures incl. the truncated-gzip case); parta-check on parta-20261002-2154 **PARTA: READY FOR
+  C0** (check-header PASS, rot-equal PASS, new footered sha); selfcheck clean; INSTALL-PC-CHECKS 15 PASS.
+- **Owner: "yes run the build run after the rebuild"** -> run 100 started about 22:18: `genwf-install-b.py 100 q78
+  "dev b1a b1b b2a b2b" 4300 qos=2`, fresh ov-build, tcp-relay; tablet-in tablet.sh 4dce3b15 (nosel).
+- **Run 100 (B re-run, 22:18-22:25) = B-RUN: 20 PASS, 0 FAIL** - the clean golden. devrpm "policy loads 0 (its tools
+  went in through nosel)", every build part policy loads 0 + disk released, firmware / bdaddr / uuids, no dracut-install
+  error, initramfs with Fedora's GPU trio + zap + touch + PCIe power control and no root-firmware driver, **no SELinux
+  policy load in the whole session**. The probe rebooted the tablet to Android as planned. NBD + relay stopped,
+  REFUSED 0. Next: R1 on this golden (owner's go).
+- **Bypass safety review (Opus, wf/bypasssafe/REVIEW.md): feature SAFE; NO-GO for wf/bypass/tablet.sh, GO with
+  cand/tablet.sh.** The original test could RAISE the charge limit (at 90 % with 80 / 85 it wrote end 88 / start 83),
+  had no battery floor / temperature ceiling / restore on interrupt, a GetState that could hang to the kit's
+  auto-reboot, could leave charging inhibited (sim: 18 of 62 FAIL; fixed 62 / 62 x3). Fixed test G1-G6: start at >= 30 %,
+  battery 5.0-44.9 C, USB-C < 54 C, charger online; abort + restore < 20 %, 45 C, USB-C 54 C, input over limit +15 % +50 mA
+  x3; traps + watchdog + timeouts; limit step lowers the end threshold only, never writes start; charge_behaviour back
+  as found. Guard gaps (S1-S3, guard_safety_patch.py, test 12 / 12): release a bypass-only hold when the guard stops;
+  bypass faults contained; request read as bytes, finite lease only. inhibit-charge = the stock bypass firmware command;
+  any reboot clears it. Main session read the corrected test's writes (lower-only end threshold, restore to found).
+- **Owner decision: "leave bypass out for now as a feature mark it as to be added later".** Bypass charging is
+  DEFERRED: no kit run, no 0.19 package, not in the installed image (the install workflow stays on 0.18). Kept for
+  later, unchanged: wf/bypass (the feature, 0.19 patcher, tests) and wf/bypasssafe (REVIEW.md, the corrected
+  cand/tablet.sh, guard_safety_patch.py + its test, the simulation). When it is picked up again: adopt the review's
+  section 5 (corrected test + S1-S3 guard fix) first, then the PC-port test with the owner's go, then the wall-charger
+  checks W1-W8. Matrix: bypass = to be added later.
+- Owner: "but would we need to fix the guard even if we didn't add bypass?" -> the review's S1-S3 are bypass-only (the
+  0.18 guard has no bypass code); one PRE-EXISTING gap applies to normal charging: at a USB-C connector-temperature or
+  input over-limit stop the guard can only inhibit charging, the system load still flows through the hot connector,
+  while stock opens CC / suspends the input / discharges VBUS (oplus_mms_wired.c:2701-2741). **Owner: "yes spin a
+  fable agent to tackle both follow ups"** -> new Fable agent "chgsafe" (wf/chgsafe): (1) a desktop notification at
+  guard USB-C / input stops, (2) a stock-exact input-suspend lever in qcom_battmgr used by the guard (limit-only,
+  USB-data impact, low battery, reboot / unplug / guard-death fail-safes), kernel + package candidates, a RAM kit test.
+- Docs adopted into the project folder (for commit w): docs/INSTALL-GUIDE.md (7fb75056), docs/INSTALL-PLAN.md
+  (be042a98), docs/DUALBOOT-PLAN.md (9a383a09) from the install agent (old ones in the scratchpad's docs-before-w);
+  wf/docs/03: hard stop "3 or less" (was 2), the slot facts of Part A (b retry 6; a successful + unbootable -> case A),
+  Power + Volume Up "open ABL, not yet seen on this tablet".
+- **Owner: "yes go ahead and r1"** -> R1b started about 22:33: run 100's build overlay committed into the golden
+  (156844 blocks), `serve golden r1` (fresh overlay), head "enforcing=0" (head-20261002-223228); run 100's leftover kit
+  runner stopped; rehearse.ps1 -Yes (log C:\platform-tools\r1b-rehearse.log) + rehearsal-probe.sh accept
+  (area-install-r1b, ACCEPT_SUSPEND=0) side by side. Battery 52 %.
+- **R1b: booted, then HUNG - the USB link dropped 5 s after the NBD root connected; nothing written.** rehearse.ps1:
+  22:34:13 U-Boot fastboot, 22:34:32 head (470 MB) sent in 19 s, 22:34:49 "the rehearsal system answers on
+  172.16.42.1 after 36 s". relay.log: 22:36:42 NBD connect from 172.16.42.1, 22:36:47 closed after 5 s
+  (ConnectionAbortedError "aborted by the local system" = the Windows NCM interface went away), no reconnect. Then
+  Windows' UsbNcm adapter Up again with only 169.254.15.70 (APIPA) and reset counters = the gadget re-enumerated without
+  the tablet's IP. Owner saw Fedora's boot splash spinning, then frozen. The tablet rebooted itself (Android kernel
+  22:39:29; "Reset by PSHOLD / Hard Reset / SYSOK", cold boot = hung_task_panic + panic=10), pstore empty. Probe + NBD
+  stopped. Sent to the install agent: find what resets the USB gadget ~5 s after nbd-client connects (role-switch /
+  typec / ucsi / pmic_glink modules in the golden's initramfs?) and the 2-min gap before the connect; next R1 with
+  evidence (netconsole to the PC from the initramfs and/or a head without plymouth / quiet + the webcam). Lesson: on
+  this tablet every Linux-initiated reboot is a PS_HOLD hard reset (cold DDR) - pstore is no tool for kit crashes.
+- **Owner: "take the help of a fable agent as well to review the install agent and work on fixes basis on logs"** ->
+  r1debug (Fable, resumed) reviews the rehearsal design (carrier, dracut confs, nbd resilience, the golden's initramfs
+  modules vs the kit's mods25 order) and the R1b logs, proposes fixes + the evidence kit as candidates in wf/r1debug;
+  the install agent stays the owner of wf/install and also reports independently (two views).

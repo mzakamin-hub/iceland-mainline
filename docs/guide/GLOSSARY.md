@@ -4,7 +4,7 @@ Terms as this project uses them. "Pad 4" = OnePlus Pad 4 (OPD2514, codename icel
 
 | Term | Meaning |
 |---|---|
-| **A/B slots** | every firmware and boot partition exists twice (`_a`, `_b`); the boot loader boots the active slot and keeps per-slot flags (`slot-successful`, `slot-retry-count`, `slot-unbootable`). The test tablet runs on slot b |
+| **A/B slots** | every firmware and boot partition exists twice (`_a`, `_b`); the boot loader boots the active slot and keeps per-slot flags (`slot-successful`, `slot-retry-count`, `slot-unbootable`). Flashing a slot's boot partition resets its flags; each normal boot of a non-successful slot counts the retry count down; only Android marks a slot successful (open ABL source). The test tablet runs on slot b |
 | **ABL** | Android Boot Loader: Qualcomm's (OnePlus-built) UEFI application that boots Android and provides **fastboot**. Never written by this project |
 | **ADSP** | the Hexagon audio DSP: runs audio (AudioReach), the **sensor hub** (SSC) and FastRPC services |
 | **AOP / AOSS** | the always-on processor and its subsystem: the arbiter of the SoC's sleep states. "AOSS sleep" is the deepest SoC state (not reached on mainline) |

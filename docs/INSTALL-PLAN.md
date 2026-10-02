@@ -1,7 +1,9 @@
 # OnePlus Pad 4: plan for the full install of Fedora 44 GNOME (planning only)
 
 Written 2 Oct 2026, updated the same afternoon with the findings of the install workflow (its PC-side tooling is
-built and checked) and of runs 45-60. **Nothing in this plan has been done on the tablet, and nothing in it runs
+built and checked) and of runs 45-60, and revised that evening (install workflow round 7) for the independent review
+(`docs/guide/07-INSTALL-REVIEW.md` R-1 to R-4: the AVB footer, the undo file, the probe-first order, which U-Boot the
+rehearsal boots) and for the boot loader's slot counter (section 5.2). **Nothing in this plan has been done on the tablet, and nothing in it runs
 without your explicit OK for each write.** So far the project has only booted from RAM; no partition has ever been
 written by it. This replaces the short draft in `phase4/INSTALL-PLAN.md`. The step-by-step guide for the day is
 `docs/INSTALL-GUIDE.md`.
@@ -36,9 +38,11 @@ written by it. This replaces the short draft in `phase4/INSTALL-PLAN.md`. The st
 | G8 Thermal protection as stock (skin, GPU, charging when hot) | **closed for the kernel** (runs 45: thermal 7 / 7, GPU cooling 20 / 20); the skin policy daemon is in device package 0.17 | your choice of the skin limit (48 C today or stock's 60 / 61 C with the daemon) |
 | G9 The install image boots from RAM through the real chain (install U-Boot, shim, GRUB, our kernel, SELinux enforcing) | tooling built and checked on the PC; tablet runs R0-R2 pending | section 4 |
 | G10 An update and a rollback rehearsed on that image | tooling built; runs U1-U3, R1b, R2b, R3 pending | section 4 |
-| G11 The slot flags of the active slot are understood | not done | read-only `fastboot getvar all` in ABL: `slot-successful`, `slot-retry-count`, `slot-unbootable` for a and b |
+| G11 The slot flags of both slots are understood | tool ready (`parta-read.ps1`, guide Part A step 6) | read-only `fastboot getvar` in ABL: `slot-successful`, `slot-retry-count`, `slot-unbootable` for a and b; how ABL changes them is in section 5.2 (the flash resets them, every boot of a slot not marked successful counts down) |
 | **G12 (new)** Fastboot reached by the keys from a cold start | not done | switch off, hold Volume Down + Power, read `fastboot getvar current-slot` (read only). This is the rescue path that must work without Fedora and without U-Boot |
-| **G13 (new)** The rehearsal cannot touch the tablet's storage | asked of the install workflow (2 Oct, 12:00) | written proof that the rehearsal U-Boot never maps the real `userdata` (only the RAM head and the PC's disk), that the read-only rule is active already in the initramfs, and that no step of the chain writes UFS; a self-check that refuses any rehearsal script mapping `userdata` |
+| **G13 (new)** The rehearsal cannot touch the tablet's storage | **closed** (install workflow REPORT 7.1-7.4: the rehearsal build of U-Boot has no SCSI / UFS code; selfcheck rules A / B / C) | written proof that the rehearsal U-Boot never maps the real `userdata` (only the RAM head and the PC's disk), that the read-only rule is active already in the initramfs, and that no step of the chain writes UFS; a self-check that refuses any rehearsal script mapping `userdata` |
+| **G15 (new)** Write 2's file proven on the PC against today's chain | tool ready (`parta-check.sh`, run by `parta-read.ps1`) | the install U-Boot carries an AVB hash footer made for today's `boot_b` (key, rollback index, OS version and security patch of today's image); Android's own `avb_slot_verify()` on today's pulled images continues (`PUBLIC_KEY_REJECTED`, the same result as LineageOS's own boot) and gives the TEE the same OS version / patch level as LineageOS: `AVB-PROOF: PASS` incl. `rot-equal`, `PARTA: READY FOR C0` |
+| **G16 (new)** The write-2 probe (C0) passed | not done | guide Part C0: the footered U-Boot written into `boot_b` while Android's data is intact, three cold boots, the slot flags read after each, undone the same day; LineageOS back with its data |
 | **G14 (new)** Sleep drain known | in work: CX collapse reached for the first time on a test kernel (run 59), the deepest state not yet; no night unplugged yet | the deep-sleep workflow, then one night with you. Not a safety gate: without it the tablet works but drains faster asleep |
 
 G6-G8 are the reason an installed tablet may be left alone on a charger. If one of them stays open, the install can
@@ -56,16 +60,20 @@ partitions may be written, all the others never.**
 | Partition | Size | What goes there | Undo |
 |---|---|---|---|
 | `userdata` (unit sda, the last and biggest partition) | 237159641088 bytes (0x3737D0F000; to be re-read in run R0) | the Fedora disk image, 4 KiB-native | `fastboot -w` (formats `userdata` and `metadata`) as part of the return to stock |
-| ONE boot-path partition of the ACTIVE slot: `boot_b` today (see 5.2 for the choice) | 96 MB | the **install** U-Boot (`u-boot-iceland.img`, see below) | `fastboot flash boot_b` with the saved image from the backup |
+| ONE boot-path partition of the ACTIVE slot: `boot_b` today (see 5.2 for the choice) | 96 MB | the **install** U-Boot with its AVB footer (`u-boot-iceland-footered.img`, see below) | `fastboot flash boot_b boot_b-before-install.img`: today's LineageOS `boot_b`, pulled read-only in guide Part A step 6 (**not** the 27 Sep backup's, which predates LineageOS) |
 
 `metadata` (64 MB, Android's encryption keys for `userdata`) is only touched on the way back to Android, by
 `fastboot -w`.
 
 New: the U-Boot that the kits RAM-boot every day (`diag-L-efi.img`) only waits for fastboot; it is **not** the one to
-write. The install U-Boot is a separate build of the same tree with three more patches (finds the disk inside
-`userdata` with 4 KiB blocks, lets EFI programs write only that disk, the install environment). It is built on the PC
-(sha256 recorded per build; a rebuild changes the hash through the build date, so the record always takes the file
-that was rehearsed) and will have been RAM-booted in every rehearsal boot (R1-R4) before it is written.
+write. The install U-Boot is a separate build of the same tree with four more patches (finds the disk inside
+`userdata` with 4 KiB blocks, lets EFI programs write only that disk, the install environment, a fastboot that gives
+up after 10 idle minutes and powers off). It is built on the PC (sha256 recorded per build). **The rehearsal boots a
+different build** (`u-boot-iceland-rehearsal.img`: the same code without any SCSI / UFS support, so it cannot see the
+storage; G13). The install build's own storage path is therefore first seen on the tablet in the probe C0 (and, if you
+allow it, one read-only RAM boot of it just before: guide C0.0) and with Fedora's disk in the tethered boots after
+write 1. What is written to `boot_b` is the install build with an AVB hash footer (`u-boot-iceland-footered.img`, made
+for today's `boot_b` by the Part A tool; the PC refuses to footer or accept the rehearsal build).
 
 ### Never written (the reason the tablet stays unbrickable)
 
@@ -125,10 +133,10 @@ size of `userdata`, so the growth is rehearsed too.
 How the installed tablet starts (each link was read from its source; the ones marked * are first seen on the tablet
 in run R1):
 
-1. ABL starts U-Boot from `boot_b`.
+1. ABL verifies `boot_b` (its AVB hash footer: unlocked = orange, continue) and starts U-Boot from it.
 2. U-Boot maps `userdata` as a disk with 4 KiB blocks* and starts the EFI boot manager.
-3. shim, then GRUB from the image's EFI partition*; with no stored EFI variables, shim's fallback creates the boot
-   option for this boot only*.
+3. shim (`\EFI\fedora\shimaa64.efi`, through an explicit boot option U-Boot creates in RAM for the Fedora disk, so no
+   other unit is searched and shim's fallback is not needed; review R-7), then GRUB from the image's EFI partition*.
 4. GRUB reads the boot entries, loads `kernel-iceland` and its device tree*.
 5. The initramfs (with our dracut module) puts a partitioned loop device over `userdata`, so Fedora finds its root
    inside it as on any disk; SELinux enforcing.
@@ -151,14 +159,14 @@ Added on top (all from our repositories, built reproducibly):
 
 | Piece | State today | Missing before the install |
 |---|---|---|
-| `kernel-iceland` rpm (7.3-rc4 + queue 0001-0108, modules, device tree, `kernel-install` plug-ins) | spec and plug-ins written; built from test kernel q55 on the PC: 12 / 12 checks (installonly, 950 modules, no firmware, no private module) | merge `install.config` (below), build from the final queue, a second version for the update rehearsal |
+| `kernel-iceland` rpm (7.3-rc4 + queue 0001-0162, test kernel q78; modules without debug info, device tree, `kernel-install` plug-ins) | built: K2 and a second version K3 (same code, another release string) for the update rehearsal, 13 checks each; `install.config` merged | the final queue (head 0174 on 2 Oct) after the rehearsals |
 | `install.config` (new) | written | **two findings**: SELinux is built into the kernel but never starts (`CONFIG_LSM` does not list it), and the kernel cannot load Fedora's xz-compressed firmware. Both are config lines |
 | `iceland-device` 0.17 (one battery guard with the charge limit, stock's charging rules and the thermal cap; the skin policy daemon; the cover drop-in; the camera rules; the update rules) | assembled, 62 PC checks pass; first RAM run (area-combo-57): 23 of 25 checks, two test-side points in work | the install fragment (= 0.18): read-only rule, dracut module, snapshots, trial boot, GRUB setup, protected packages (10 / 10 and 68 / 68 PC checks) |
 | `hexagonrpc`, `libssc`, `iio-sensor-proxy` (auto-rotate, light, proximity) | built on the tablet, proven | nothing |
-| Firmware extractor | **done**: one on-device script, read-only; checked on your backup (23 / 23 items) | runs once in the build session; the files never leave the tablet / PC |
+| Firmware extractor | **done**: one on-device script, read-only; checked on your backup (23 / 23 items, 0 differ from stock 11.A.38) | runs once in the build session; the files never leave the tablet / PC. The GPU microcode (`gen80200_sqe` / `gmu` / `aqe`) is not extracted: the image uses Fedora's `qcom-firmware` copies (upstream linux-firmware, GMU v5.3.23, what every GPU result was measured with; your decision of 2 Oct), and the device package puts them into the initramfs (`msm` is built in and loads them there); the zap shader stays the tablet's own |
 | Patched GStreamer V4L2 plug-in (hardware video) | proven as a file | an rpm |
 | Camera sensor module | proven, private (register tables from a trace of stock) | a local, never-published module rpm (your decision 4) |
-| The install U-Boot | built (`u-boot-iceland.img`, 10 / 10 checks: no fastboot flashing, EFI write guard, no FAT / ext4 write, variables not stored) | RAM-booted in the rehearsal runs |
+| The install U-Boot | built (`u-boot-iceland.img`, 37 build checks: no fastboot write command, EFI write guard, no FAT / ext4 / GPT writer, variables not stored, never a prompt: a 10-minute idle power-off) + the AVB footer for today's `boot_b` (`u-boot-iceland-footered.img`, PC proof `AVB-PROOF: PASS`) | the probe C0 (section 5.0) |
 | Bluetooth address | **finding**: not in `persist` (its Bluetooth folder is empty in your backup) | the build session writes it into the image from the PC's private record; the image is private anyway |
 
 ## 4. Rehearsal from RAM (no write)
@@ -181,16 +189,19 @@ the entry early in every trial boot. Whether U-Boot's write into `userdata` work
 |---|---|---|
 | R0 facts | normal RAM kit; reads `userdata`'s exact size, the storage path the read-only rule matches, firmware slots a = b, the speed of the disk over USB | size 0x3737D0F000, one partition named `userdata`, read speed at least 15 MB/s |
 | B1, B2 build | normal RAM kit; firmware extractor, our rpms, GRUB config, SELinux labels, initramfs into the golden disk (over the network, the tablet's storage untouched) | each step rc 0; the initramfs has our module and the read-only rule |
-| R1 first boot | the real chain, SELinux permissive to collect denials | the acceptance list (below); the U-Boot console file and the screen if it stops early |
+| R1 first boot | the chain from U-Boot on (the rehearsal build of U-Boot, the head from RAM), SELinux permissive to collect denials | the acceptance list (below); the U-Boot console file and the screen if it stops early |
 | R2 acceptance | the same, SELinux enforcing | `INSTALL-ACCEPT: n PASS, 0 FAIL` |
 | U1, U2, U2b, U3 | update with Fedora's current updates; a new kernel boots once and is confirmed; a broken kernel falls back by itself; GNOME Software's offline update | held packages offered 0, a snapshot before every transaction, the trial and its fallback as described in section 6 |
 | R1b, R2b, R3 | the previous kernel from GRUB's menu; rollback to the previous snapshot; repair from the rescue kit | each as described |
 | R4 final | the written file itself from its pristine state (fresh overlay), SELinux enforcing | 0 FAIL; then the sparse image and the record: **this exact file is what gets written** |
 
 Acceptance list (one script, one summary line): GNOME session, touch, Wi-Fi scan with 5 GHz, Bluetooth, sound
-cards, battery and time estimate, power modes, auto-rotate after a boot, suspend and resume, hardware video, both
-cameras listed, the default apps start, About shows "OnePlus Pad 4", `rpm -Va` clean for our packages, the root
-grown to the whole `userdata`, every other partition read-only, no `avc: denied` that breaks a service.
+cards, ADSP and CDSP running with no failed firmware request (their drivers stay out of the initramfs, so they load
+the tablet's firmware from the root), the GPU with Fedora's microcode loaded from the initramfs, battery and time
+estimate, the charge limit end to end (80 / 85 %, GNOME's "Preserve Battery Health"), power modes, auto-rotate after a
+boot, suspend and resume, hardware video, both cameras listed, the default apps start, About shows "OnePlus Pad 4",
+`rpm -Va` clean for our packages, the root grown to the whole `userdata`, every other partition read-only, no
+`avc: denied` that breaks a service, the providers' sync_state reached.
 
 Facts that only the tablet can answer (each has its run): U-Boot unpacking 2.5 GB at its address; shim's fallback
 under U-Boot; GRUB on a 4 KiB disk and which device tree Linux gets; whether the USB link survives the sensor /
@@ -199,16 +210,31 @@ the root on the network; memory with the head in RAM.
 
 ## 5. The writes (each one only after your OK; you run or confirm each command)
 
+**Order (decided 2 Oct, review R-3): the probe C0 first, while Android's data is intact; then write 1; then write 2
+in the same boot-loader session, with no Android boot in between.**
+
+### 5.0 The write-2 probe C0 (undone the same day)
+
+- Before: G1-G4, G11, G12, G15 (`PARTA: READY FOR C0` the same day); battery above 60 %.
+- Command: `fastboot flash boot_b u-boot-iceland-footered.img` (the file Part A made for today's `boot_b`).
+- What it shows: ABL's verified boot of a written `boot_b` (expected: orange, continues - the PC proof), the install
+  U-Boot's storage path on the real tablet (it maps Android's encrypted `userdata` read-only, finds no Fedora, waits in
+  its fastboot, powers off after 10 minutes), the rescue keys with U-Boot in `boot_b`, and **what ABL does with slot b's
+  flags** (section 5.2).
+- Undo (the same day, always): `fastboot flash boot_b boot_b-before-install.img`; LineageOS starts with its data and
+  marks slot b successful again. Steps, stop rules and the record: guide Part C0.
+
 ### 5.1 Write 1: `userdata`
 
-- Before: G1-G5, G9-G13 closed; battery above 60 %; the PC's USB port that has been used all along.
+- Before: G1-G5, G9-G13, G15, G16 closed (the probe passed); battery above 60 %; the PC's USB port that has been used
+  all along; Part A's read-only pull repeated the same day (the last time Android can be read).
 - Command (stock ABL fastboot, which splits a sparse image by itself; its limit is 805 MB per piece):
   `fastboot flash userdata fedora-iceland.sparse.img` - the sparse image from run R4; its unpacked size equals
   `userdata` exactly, and only about 12.8 GB of it are data.
 - What it changes: Android's data is gone (LineageOS will no longer start; its system partitions stay).
-- Proof before going on: boot tethered (`fastboot boot` the install U-Boot from the PC), Fedora's first-boot setup
-  appears, the acceptance list passes again, three cold boots in a row, and GRUB's environment is compared before
-  and after a trial boot (U-Boot's write into `userdata`).
+- Proof before going on: boot tethered (`fastboot boot` the plain install U-Boot from the PC: RAM only), Fedora's
+  first-boot setup appears, the acceptance list passes again, three cold boots in a row, and GRUB's environment is
+  compared before and after a trial boot (U-Boot's write into `userdata`).
 - Undo: return to stock (section 8), or flash the image again.
 - Hazard to know: until write 2 the tablet starts Android when it is switched on without the PC, and Android will
   say its data is damaged and offer a factory reset. Do not confirm it (it would erase Fedora, nothing worse).
@@ -216,23 +242,43 @@ the root on the network; memory with the head in RAM.
 
 ### 5.2 Write 2: the boot path
 
-Recommended: **the install U-Boot into `boot_b`** (the boot partition of the slot that is active today), so that
-switching the tablet on starts Fedora.
-- Before: G11 and G12; the slot must be marked successful, so that ABL does not count boot attempts. Save `boot_b`
-  once more from the tablet and compare with the backup; compare the two image headers (`check-header.py`: the saved
-  `boot_b` is a version 4 image whose OS version and patch level are zero; Android keeps them in the AVB footer).
-- **New finding: `boot_b` is verified by Android Verified Boot** (`vbmeta_b` chains it). After the write ABL finds
-  no valid signature for it. On an unlocked tablet a Qualcomm ABL warns ("orange" state) and continues; this is
-  expected, but no RAM boot can prove it (`fastboot boot` skips this check). The three cold boots below are the
-  proof, and the undo is ready.
-- Command: `fastboot flash boot_b u-boot-iceland.img` (the file of the record, RAM-booted in R1-R4).
-- Proof: switch on without the PC three times; then read the slot flags again in ABL (Volume Down + Power): the
-  retry counter must not have gone down. If it has, undo this write at once and use the alternative below.
-- Undo: `fastboot flash boot_b boot_b.img` from the backup (two minutes).
-- Alternative if ABL counts attempts for (or refuses) a boot image it cannot verify: U-Boot into `recovery_b`. Fedora
-  then starts with Power + Volume Up; a plain power-on still starts Android (which has no data). Less convenient, same
-  safety. (`recovery_b` is very likely chained the same way; the backup's `vbmeta_b` says, read with avbtool before
-  the day.)
+Recommended until C0 says otherwise: **the install U-Boot into `boot_b`** (the boot partition of the slot that is
+active today), so that switching the tablet on starts Fedora.
+- Before: G11, G12, G15, G16; the probe's undo done, slot b marked successful again by LineageOS. The undo file is
+  `boot_b-before-install.img` from guide Part A step 6 (today's LineageOS `boot_b`, 100663296 bytes, hash in the
+  guide's section 10); Part A's tool compares it with `boot_b` read again and checks the two headers
+  (`check-header.py`: the install build, never the rehearsal build).
+- **Verified boot (review R-1, settled on the PC).** `vbmeta_b` chains `boot`, so ABL verifies whatever is in `boot_b`
+  with Android's own code. A plain U-Boot image would give "invalid metadata" on a clean partition, which ABL does not
+  continue on (Qualcomm's open ABL: the slot is marked unbootable). The written file therefore carries an AVB hash
+  footer, signed with the AOSP test key that `vbmeta_b` already chains `boot` with, with today's rollback index: ABL
+  then reports "public key rejected" - exactly what it reports for LineageOS's own boot today - and continues in the
+  orange state. The footer also carries today's OS version and security patch, because ABL hands the footer's values
+  to the TEE (without both it falls back to U-Boot's header values); the TEE then sees exactly what it sees for
+  LineageOS. The PC proof runs Android's `avb_slot_verify()` on today's pulled images (`AVB-PROOF: PASS`).
+- **The slot counter (new, Qualcomm's open ABL source; OnePlus's ABL is closed, C0 measures it).** A flash of `boot_b`
+  clears slot b's *successful* flag and sets its retry count to the maximum. Every normal power-on of a slot that is
+  not *successful* counts one try down (recovery mode, fastboot and the charging screen do not). At zero ABL marks
+  the slot unbootable and switches to slot a if slot a is marked successful and not unbootable (it has no Android
+  system), else it stops in its fastboot. Part A on 2 Oct read slot a as successful **and unbootable** (slot b's retry
+  count 6): today exhaustion would end in ABL's fastboot (the review's case A), from where the undo works. Only Android marks a slot successful; U-Boot and Fedora do not. **If C0 shows the count going down,
+  `boot_b` cannot be the permanent boot path** (after a handful of power-ons the tablet would leave it), and the
+  alternative below is used.
+- Command: `fastboot flash boot_b u-boot-iceland-footered.img` (the file of the record), in the same boot-loader
+  session as write 1.
+- Proof: read the slot flags right after the flash (before the reboot); switch on without the PC three times; read
+  them again in ABL (Volume Down + Power): the retry count must be what it was right after the flash. If it went down,
+  undo this write at once.
+- Undo: `fastboot flash boot_b boot_b-before-install.img` (two minutes).
+- **Alternative (the fallback if C0 shows the count going down): U-Boot into `recovery_b`.** Recovery boots never
+  count down, and `boot_b` (LineageOS) stays as it is; a flash of `recovery_b` does not reset slot b's flags (only a
+  `boot` flash does). Fedora then starts from the recovery path (Android's "restart to recovery"; Power + Volume Up
+  is the open ABL's key, not yet seen on this tablet); a plain power-on still starts Android. To make Fedora the default, one more small write is possible: the boot command
+  `boot-recovery` in `misc` (the 32-byte field Android and its recovery use; ABL then starts recovery at every
+  power-on, and nothing clears it), undone from a saved copy of `misc`. Both are on today's never-write list and need
+  your explicit decision, a probe like C0 and their own AVB footer (`recovery` is verified like `boot`). Marking slot b
+  successful from Fedora (a write into the partition table of the firmware unit, as Android does) is **not**
+  proposed: an error there can stop the boot firmware from finding ABL.
 
 Dual boot (Android next to Fedora) stays outside this plan: it needs the partition table of unit sda changed. The
 install U-Boot is ready for it (a partition named `fedora` wins over `userdata`), so it can be planned separately.
@@ -307,8 +353,8 @@ backup holds everything else.
 | From which stage | What to do |
 |---|---|
 | Only RAM boots so far (today) | nothing: reboot, Android starts |
-| After write 2 only the boot path should go back | `fastboot flash boot_b boot_b.img` from the backup |
-| Full return to stock | `C:\OnePlusPad4\scripts\39-Return-To-Stock.ps1`: verifies the backup and the stock images, shows a dry run, then (after you type the confirmation) writes the stock boot set to both slots and `super` from your backup, erases `userdata`, and proves the result is byte-identical stock |
+| During the probe C0, or after write 2, only the boot path should go back | `fastboot flash boot_b boot_b-before-install.img` (today's LineageOS `boot_b` from guide Part A step 6; **not** the 27 Sep backup's) |
+| Full return to stock (written and dry-run, never executed; leaves the tablet on slot a) | `C:\OnePlusPad4\scripts\39-Return-To-Stock.ps1`: verifies the backup and the stock images, shows a dry run, then (after you type the confirmation) writes the stock boot set to both slots and `super` from your backup, erases `userdata`, and proves the result is byte-identical stock |
 | Locked boot loader as from the factory (optional) | `31-Relock-Bootloader.ps1`, only after the script's own check says the tablet is exactly stock |
 
 Before the first write the return path is rehearsed as far as it can be without writing: checksums of the backup
@@ -317,8 +363,10 @@ Android's own boot set and `super`, never firmware).
 
 ## 9. Decisions that are yours
 
-1. Go ahead with "Fedora only" as planned here, or plan the dual boot (needs the partition table changed) instead.
-2. Boot path: `boot_b` (power-on starts Fedora, recommended) or `recovery_b` (key combination).
+1. (answered 2 Oct) Fedora only for now; the dual-boot plan is prepared separately (`wf/install/DUALBOOT-PLAN.md`),
+   nothing of it is done.
+2. Boot path, after C0: `boot_b` (power-on starts Fedora) if ABL does not count down slot b with U-Boot there; else
+   `recovery_b` (Power + Volume Up), optionally made the default by the `misc` boot command (section 5.2).
 3. Whether an open gate G6-G8 / G14 blocks the install or only sets the "charge attended, 80 %" default.
 4. Whether the camera module (private, built from a trace of stock) is part of the image on your tablet.
 5. (new) GRUB, shim and firmware held back from Fedora's updates (default, recommended) or updated freely.
@@ -327,6 +375,13 @@ Android's own boot set and `super`, never firmware).
 8. (new) The skin temperature limit: 48 C as today, or stock's 60 / 61 C with the policy daemon (recommended).
 9. (new) A permanent "day 0" snapshot (section 11.2; recommended) and a regular copy of your home folder to the PC.
 10. (new) The Wi-Fi country.
+11. (answered 2 Oct) Probe write 2 first (C0), while Android's data is intact.
+12. (new, before C0) The AVB footer on the install U-Boot, signed with the AOSP test key `vbmeta_b` already chains
+    `boot` with (review R-1); no other partition changes.
+13. (new, before C0) One read-only RAM boot of the exact install U-Boot just before C0 (review R-4 suggestion 3).
+14. (answered 2 Oct) The GPU microcode is Fedora's (`qcom-firmware`, upstream linux-firmware), not the tablet's
+    vendor copies.
+15. (new) Is a way back to LineageOS needed after the install, or is the return to stock OxygenOS enough?
 
 ## 10. Work list that follows from this plan
 
@@ -336,11 +391,11 @@ Android's own boot set and `super`, never firmware).
 | 2 | The on-device firmware extractor | done, checked on your backup (piece c) |
 | 3 | The image builder, the network-disk rehearsal, the acceptance list as a script | built and checked on the PC (pieces d, e: the network disk 418 / 418 checks plus an independent client) |
 | 4 | The update and rollback rehearsal | scripts written (piece f); need the tablet runs |
-| 5 | G13: the written proof that the rehearsal cannot touch the storage | asked |
-| 6 | Merge `install.config`, build the kernel rpm from the final queue and a second version; iceland-device 0.18 | next, PC only |
-| 7 | Runs R0, B1, B2, R1, R2, U1, U2, U2b, U3, R1b, R2b, R3, R4 (RAM only, each under 10 minutes) | after 5 and 6 |
-| 8 | G3, G4, G5, G11, G12 (read-only checks and copies; G4 / G5 need you) | yours |
-| 9 | Then, and only with your OK: write 1, later write 2 (guide Parts C and D) | yours |
+| 5 | G13: the written proof that the rehearsal cannot touch the storage | **closed** |
+| 6 | Merge `install.config`, build the kernel rpm and a second version; iceland-device 0.18 | done (q78); 0.18 rebuilt in the next B run with the round-7 fixes |
+| 7 | Runs B (again: the initramfs without the root-firmware drivers, no SELinux policy in the RAM kit, Fedora's GPU microcode), R1, R2, U1, U2, U2b, U3, R1b, R2b, R3, R4 (RAM only, each under 10 minutes) | B run next |
+| 8 | G3, G4, G5, G11, G12, G15 (read-only checks and copies; G4 / G5 need you; G11 / G15 by `parta-read.ps1`) | yours / the PC session |
+| 9 | Then, and only with your OK: the probe C0 and its undo, then write 1 and write 2 (guide Parts C0, C and D) | yours |
 
 ## 11. Unbrickable, restorable, permanent: the suggestions
 
@@ -351,9 +406,10 @@ make every layer above that just as safe, so that the install can be left on the
 
 1. **Keep the write surface at two partitions forever.** Updates of U-Boot are a new "write 2" with the same
    rehearsal and your OK; everything else updates inside `userdata` only.
-2. **Prove the rescue door before the first write (G12).** Fastboot through Volume Down + Power from a cold start
-   must work with whatever is in `boot_b`, because ABL opens it before it looks at the boot partition. Doing it once
-   on the day turns "should" into "seen".
+2. **Prove the rescue door before the first write (G12), and again with U-Boot in `boot_b` (C0).** Fastboot through
+   Volume Down + Power from a cold start must work with whatever is in `boot_b`, because ABL opens it before it looks
+   at the boot partition (and entering it does not count down the slot). Doing it on the day turns "should" into
+   "seen".
 3. **Never lock the boot loader while Fedora is on the tablet**, never switch slots, never flash older firmware (the
    anti-rollback fuses would refuse it, or worse).
 4. **Close the last software path to the hardware:** no storage-firmware update from Fedora (fwupd plug-ins off and

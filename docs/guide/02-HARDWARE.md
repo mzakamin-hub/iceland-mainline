@@ -196,7 +196,7 @@ still say `qcom/kaanapali/OnePlus/iceland/`, which is stale).
 
 | Linux path (under `/lib/firmware`) | Taken from (partition: path) | Notes |
 |---|---|---|
-| `qcom/gen80200_sqe.fw`, `qcom/gen80200_gmu.bin`, `qcom/gen80200_aqe.fw` | the kits: upstream linux-firmware (GMU v5.3.23). The tablet's `vendor` partition has its own copies (GMU v5.3.39, proven in pc-010 / pc-012) | **Decided by the owner (2 Oct): linux-firmware's set (v5.3.23) goes into the installed image**, as in every kit since pc-024. Fedora ships it xz-compressed (hence `FW_LOADER_COMPRESS_XZ`) |
+| `qcom/gen80200_sqe.fw`, `qcom/gen80200_gmu.bin`, `qcom/gen80200_aqe.fw` | the kits: upstream linux-firmware (GMU v5.3.23). The tablet's `vendor` partition has its own copies (GMU v5.3.39, proven in pc-010 / pc-012) | **Decided by the owner (2 Oct): linux-firmware's set (v5.3.23) goes into the installed image**, as in every kit since pc-024. Fedora 44's own `qcom-firmware` package already carries the identical trio, xz-compressed (hence `FW_LOADER_COMPRESS_XZ`); the device package's dracut conf takes it from `/usr/lib/firmware/qcom/*.xz`. The firmware package is held, so a new version enters an initramfs only with the next kernel-iceland install |
 | `qcom/kaanapali/iceland/gen80200_zap.mbn` | `vendor` (in `super`): `/firmware/` | signed per device family; the GPU's secure mode needs it |
 | `qcom/kaanapali/iceland/vpu40_2v.mbn` | `vendor`: `/firmware/` | Iris video |
 | `qcom/kaanapali/iceland/adsp.mbn`, `adsp_dtb.mbn` | `modem_a` (FAT): `/image/adsp.mdt` + `.bNN` | split images squashed into one `.mbn` |
