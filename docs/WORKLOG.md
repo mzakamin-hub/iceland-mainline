@@ -939,3 +939,102 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   **55 working / 9 in progress / 10 not started / 2 not planned** (pen charging moved to "in progress"); page v32.
   All three repositories level with their remotes. Snapshot refreshed (`save-project*.sh`, new
   `save-project-wf.sh`: `workflows/` = public parts of every workflow, 270 files; privacy scan clean).
+
+### 2026-10-02 - entry 29: resumed after the model change (Opus 5.5); all seven agents running again; runs 48 + q57
+
+- Idle check at 10:10: no pipeline process, src clean on `iceland`, queue c52d6ee, docs fe9a448, 1 device (Android,
+  battery 86 %). Stale wait of run 30 (old background shell) stopped.
+- The old agent ids still resume with SendMessage: camera (run 46 app result + three questions: why Snapshot's
+  stream stays suspended while Firefox's runs, a package-side format fix, fuse at the start + GStreamer debug),
+  pencharge (run 47 resent + three questions: the empty pin reader / safe line state after unbind, "the IC reads
+  5017 mV", over-voltage 12000 mV vs stock DT 9000), wake, apps, audit (continue, REPORT / NEXT), pkg017 (finish,
+  no collision with the camera fragment, fuse modules-load in one place), install (continue; self-check script for
+  the forbidden fastboot words).
+- **Run 48** (kit q55 = queue head; deepsleep run 1, steps base bind force quiet long, `gen-combo-48.py`): setup
+  without `qcom_iris` (baseline = the session without extra drivers), the agent's debug module
+  `qcom_lpm_dbg.ko` (vermagic q55; only stock's own AOP debug requests, reads the rpmh-stats and stock's vx log
+  region), AUTOREBOOT_AT 2800, runner -Wait 2500. Writes reviewed: RTC alarms, /sys/power/state freeze,
+  pm_debug_messages, an ftrace instance, modprobe of missing drivers, state_synced (RAM boot only), sensor
+  service stop / start, Bluetooth rfkill (restored). No charger write. Started 10:2x in the background.
+- **Kernel q57** = queue head + pencharge (3 patchers, unchanged) + pogo (`pogo-kernel.py`): dry-applied together
+  on a throw-away worktree (`an/try-q57.sh`: all four ok); `build-q56.sh` has a `pogo)` case now
+  (`--enable KEYBOARD_ONEPLUS_POGO`). Build started: `TAG=q57 WF="pencharge pogo" bash build-q56.sh`.
+- Next: run 49 on q57 = pogo run A (no keyboard) + pencharge (rerun once the agent delivers round 2; rebuild as
+  q58 if the driver changes).
+
+### 2026-10-02 - entry 30: run 48 (deepsleep: NOT-DEEP), q57 + q58 built, audit and camera deliveries, run 49 started
+
+- **Run 48** (q55, deepsleep run 1): **NOT-DEEP**, levels base 0 / bind 0 / force - / quiet 0 / long 0; every
+  suspend worked (4 of 4, woken by the RTC alarm, display and USB back, 0 hard kernel lines). bind loaded 4 drivers,
+  14 of 14 RPMh providers synced, boot-floor votes 45 -> 0. After bind only `xo.lvl=3` and the clock buffer
+  `rfclka1` stay voted by Linux while asleep; the AOP monitor names SOCCP as the blocker; rough draw asleep 0.6 W
+  on the PC port. 534 interrupts of `qcom_geni_serial_uart1` while frozen. The kit boots with
+  `clk_ignore_unused pd_ignore_unused regulator_ignore_unused`. Sent to the deepsleep agent with four questions
+  (who holds xo / rfclka1, are the kit flags the reason and is booting without them safe, SOCCP = the PC port?,
+  the UART interrupts). Log set `build/area-combo-48/combo/deepsleep/`.
+- **Kernel q57** built (queue head + pencharge + pogo): 7.3.0-rc4-iceland-00228-g1ea3e1b70e50, 0 warnings,
+  `KEYBOARD_ONEPLUS_POGO=y`, `CHARGER_MT5806_PEN=m`.
+- **Audit agent delivered** (`wf/audit/`): 1,249 values compared (934 device-tree rows, 268 amplifier settings, 47 by
+  hand); battery / charger, thermal trips, clocks / OPP: nothing above stock. 13 fixes: 01 UFS PHY L4G 0.912 V,
+  02 panel I/O L12B 1.896 V, 03 BOB1 3.296 V (mic bias), 04 L1D / L3D always on (held for deepsleep), 05 second
+  backlight IC registers as stock's driver writes, 06 144 Hz front porch 64, 07 two amplifier registers, 08 all of
+  stock's secure pins reserved, 09 four pin drives / pulls, 10 GPIO 162 not driven, 11 / 12 USB 2 repeater tuning
+  (kit B), 13 panel reset pulse. `check-all.sh` PASS on the queue head (any order, DT compiles).
+- **Kernel q58** built = queue head + audit kit A (01 02 03 05 06 07 08 09 10 13): 0 warnings.
+- **Camera agent delivered round 3**: the Camera app's stream failed because libcamera's software ISP put four
+  1920x1080 RGBA buffers (8.3 MB each) into the 32 MiB CMA heap; the 4th failed ("cma: reserved: alloc failed,
+  req-size: 2025 pages") and PipeWire reported it as "Format negotiation failed". Fix in the package:
+  `71-iceland-dma-heap.rules` (CMA heaps root-only, libcamera falls back to the system heap); in
+  `cand/wp4-apps/pkg-017-camera.py`. The app step now proves the failure (H-A) and the fix (B) in one boot.
+- **Run 49** (q57) started: audit baseline (no fix expected), pogo run A, pencharge (round-1 test), pkg2, rotpkg
+  start, cam-d (camera run C). Run 50 (q58: audit kit A, pkg2 + rotpkg + cam-c, wifi, micdiag) is generated and
+  follows.
+
+### 2026-10-02 - entry 31: run 49 (pogo PASS, pencharge PASS, Camera app works), pen charger queued 0090-0093
+
+- **Run 49** (q57 = queue head + pencharge + pogo): **pogo run A PASS** (UART 921600, empty connector, supply off,
+  5 of 5 frames echoed through the transmit gate); **pencharge v2 PASS** (unbind leaves the transmitter off:
+  power line low, tx-off high, in gpio state and PMIC pads; hBoost switched on by the 7 V request, IC VIN 5005 mV,
+  the set-point register is in no stock source: only the owner's pen run says whether the boost follows);
+  **Camera app works** (previews alive on both cameras, 2 of 2 photos, 6.4 s video) with the DMA-heap rule;
+  run 49's journal shows the cause (without the rule WirePlumber uses /dev/dma_heap/reserved, with it
+  "Permission denied" then /dev/dma_heap/system); the no-rule part did not open the camera (Snapshot waits in the
+  overview), the camera agent made the step decisive in one boot (N then R). Audit baseline (read only): the
+  backlight / amplifier readers found nothing (I2C bus numbers change per boot) - fixed by the agent (find by
+  compatible); L4G / L12B already at stock's voltage through the boot vote, BOB1 3032 mV (stock 3296).
+- **Queue 0090-0093 pushed** (iceland-linux **db4c7cb**): pmic_glink hBoost client, MT5806 binding + vendor prefix,
+  driver, board nodes; `CONFIG_CHARGER_MT5806_PEN=m` (distro-neutral + required). Tree = q56 (verified from the
+  local base, `queue-0090.sh` with `PEN_ONLY=1 TAG=q56`). The first attempt with pogo stopped at the tree check:
+  the pogo agent changed its driver at 10:35 between the dry run and the real run (nothing was queued). Pogo goes in
+  after a retest. `build-q56.sh` now expects the head "add the pen charger"; pogo, wake and audit kit A still apply
+  on it (`an/try-head.sh`).
+- **Wake agent delivered** (charger plug / unplug wakes as stock: `battmgr-plug-wake.py`; logind drop-in + guard
+  "sleep only" for the package; volume keys and lid-on-charger are owner decisions). Kernel **q59** = old head +
+  pencharge + pogo + wake built (0 warnings); **run 51** (pkg2, rotpkg start, wake last; AUTOREBOOT_AT 2800) running.
+  Wake's package pieces were handed to the pkg017 agent.
+- Next: run 51 result -> wake agent; run 50 (q58, audit kit A, with the fixed reader); then one combined kernel on
+  the new head (pogo as changed + wake + audit kit A) for the final run of those three + the camera's decisive app
+  step, and queue what passes.
+
+### 2026-10-02 - entry 32: run 50 (audit kit A: 8 of 10 in effect), wake run A green, deepsleep round 2, run 53
+
+- **Run 51** (q59, wake run A): **PASS** (warning lid-candidate-setting = a test mistake: the RAM user has no
+  password, so GNOME blanks the screen instead of marking the session locked; test fixed). Every sleep ended by the
+  RTC alarm (191 s asleep in total); the charger channel answered inside the sleep without waking it; pogo-detect
+  armed and never the wake source. The wake kernel candidate is ready to queue (plug / unplug wake itself = the
+  owner's windows).
+- **Run 50** (q58 = queue head 0089 + audit kit A): audit **FAIL** on two items only: in effect 01 02 05 06 07 08 09
+  13, partial 03 (BOB1 not at 3296 mV) and 10 (GPIO 162). Both backlight ICs now b3/eb/77/76/f8 as stock; amplifier
+  boost f0 / d7 (none above stock: `07 --dcvos` not needed); panel and UFS 0 error lines; camera quality PASS with
+  fix 09's bus drive; Wi-Fi scans as before (the regulatory warnings are in runs 41-49 too); micdiag 13 of 13
+  suspends (one recording 1.7 s instead of 4 s: that step started 1.4 s late after a resume, no error). Sent to the
+  audit agent.
+- **Deepsleep round 2 delivered**: run 48's blocker is the Wi-Fi chip's PCIe link that stays up in s2idle (the root
+  port is wake-enabled through its WAKE# GPIO) and keeps a DDR bandwidth vote; the kit flags hold none of the
+  remaining votes and must stay (the boot screen runs on simpledrm until the display driver binds). Round 2 steps
+  bind dispoff ref rpwake nowifi nobt long (rpwake = root port wakeup disabled at run time); kernel candidate
+  `cand/pcie/pci-host-common-port-wake.py`. **Run 53** (q55, `gen-combo-53.py`) started.
+- Apps workflow delivered (7 slices, 1.3 GB); asked to split into runs of at most 10 minutes and to apply after
+  pkg017 and the camera fragment without a version bump.
+- Next: run 52 = kernel q60 (head 0093 + pogo fixed driver + wake + final audit kit A; `gen-combo-52.py`) once the
+  audit agent has finished 03 / 10; then queue pogo, wake and audit kit A.
