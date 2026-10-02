@@ -1394,3 +1394,252 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   6400 uW per count. Real fix: the report clock is 32.768 kHz (1021.7 / 1024 per s), energy 62.5 uJ per count (2.4 %).
   Test v2: load right after idle at the same brightness, skin under 46 C first, 30 s, energy over load + 75 s recovery.
   Next: build `TAG=q72 WF="telemetry"`, `gen-combo-telemetry.py N q72`.
+- Commit q pushed as iceland-mainline **5c5187e** (its message says 60 working; the page's count is right: 59 / 13 / 5 / 2).
+- try-head on 6d67bc241 (0124): quickwins, upsync (all 23) and telemetry v2 apply. upsync 18 (tsens v2 trip clamp
+  -40..120 C -> the hardware's -204..204 C) only stops the driver clamping stock's 125 C trips to 120 C (interrupt
+  storm); no trip and no limit changes -> within the charging / thermal safety rule.
+- CONFIG_QCOM_QMI_TMD is selected by QCOM_Q6V5_PAS (`if NET`): the queue configs need no line for 0117-0124.
+- Building q70 (quickwins r2), q71 (upsync), q72 (telemetry v2) with `build-q70-72.sh` (out/.config restored between).
+- Builds done: **q70** 7e081fd8d44f (quickwins r2), **q71** bfc56ce5f7ae (upsync), **q72** a3ac45bc8c43 (telemetry
+  v2; the make "clock skew" notice is harmless: the module is newer than the v2 source and has v2's window code), 0 warnings.
+- **install agent: the slow tablet -> PC direction is an f_ncm bug**: ncm_tx_timeout()'s flush is dropped with
+  NETDEV_TX_BUSY while all 10 IN requests are queued; the partial NTB waits until full; TCP runs into RTO backoff
+  (cwnd 1, backoff 9, 137 / 149 retransmissions D-SACKed). Patch (re-arm the timer while busy), a 30 s `link` test part
+  and linktest-server.py (Windows, --allow=172.16.42.1). Review note for upstream: hrtimer_forward_now() WARNs if
+  another CPU re-armed the timer between the is_queued check and the forward (tiny window). build-q56.sh got case
+  `ncm`; building **q73** = head + f_ncm.
+- **User: "the tablet isn't charging?"** Read live (run 77, RAM kernel, read-only): battery 66 %, Discharging -0.75 A
+  at 4.03 V (3.0 W); USB online as SDP (the PC port), input limit 500 mA, 0.49 A at 4.97 V (2.45 W); charge thresholds
+  100 / 0, charge_behaviour auto, battery guard not running. Charging is NOT off: the PC's USB port gives at most
+  2.5 W and the run (GNOME, screen, camera, GPU) draws about 5.5 W. A 10 min run costs about 1 %; between runs Android
+  charges slowly from the PC port. Nothing raised (the 500 mA SDP limit is the USB standard and stock's).
+- **q73** 9e83aef14 = head 0124 + f_ncm only (0 warnings). Kits generated and checked: **78** quickwins r2 (q70),
+  **79** upsync regression (q71: wifi, gpucool, upsync, qwvideo, usleep, upsync2; -Wait 2500), **80** telemetry v2
+  (q72), **81** link baseline (q69, no fix), **82** link with the f_ncm fix (q73); 81 / 82 AUTOREBOOT_AT 4300 -> 900
+  (a 30 s test). linktest-server.py on Windows (0.0.0.0:10811, --allow=172.16.42.1).
+- run-chain.sh got a **battery gate** (dumpsys battery in Android, read-only): below MINBAT (40 %) it waits until
+  45 % before the next run.
+- **Run 77** (q65, gpuisp): **b [app] PASS**: Snapshot on the GPU ISP, CPU 4.05 ms/f + GPU 1.48 ms/f, 5.20 W vs the
+  CPU path 24.32 ms/f, 5.38 W; EGL leak per camera start: GPU memory +19.8 MB, RSS +6.1 MB. **a [cam] not compared**:
+  the kit's rpm install used the `iceland-device-0.16*` / `hexagonrpc-0*` globs (the packaging is 0.17) -> rc 1, no
+  iceland-device, hexagonrpcd inactive, no accelerometer -> no camera frames (generator bug, as fixed in gen-combo-61).
+  **c [v072] not run**: no libcamera > 0.7.1-1.fc44 in the repositories. Sent to the gpuisp agent (round 2: generator
+  fix, optional self-built libcamera with the EGL patch, leak with / without).
+- LESSON: never edit a script a running bash is still reading (`run-chain.sh` got the battery gate while run 77's
+  runner was in it: "syntax error" after PROBE DONE, harmless that time). Make a copy, edit the copy, swap between runs.
+- Chain 78-82 started (battery before run 78: 71 %).
+- **Run 78** (q70, quickwins round 2): **all PASS** - items 1-15 and 17 (16 = 6) in 49 s: 14 / 14 RPMh providers
+  synced (11 forced by the sync-state timeout at 45 s, GMU trio released), no interconnect node at the boot floor;
+  bwmon 132 updates / 132 interrupts; both EEPROMs read 4096 B before and after the focus driver's rail switch; DP
+  binds with its jack; sram, ulog, edac, wdt, audio, speakers, video, display unchanged. **quickwins GREEN.**
+- **Queued 0125-0138** (iceland-linux **0391661**, `queue-0125.sh`, tree = q70 e9e82859, QUEUE-VERIFIED): 14 commits
+  (one per .msg section) + the config lines (distro-neutral: 6; required: FW_DEVLINK_SYNC_STATE_TIMEOUT, SRAM,
+  EEPROM_AT24). build-q56.sh HEAD_SUBJECT -> "do not log a deferred PHY lookup as an error". New base config for
+  builds on 0138: `out-config-base-0138` (= the queue config + the 6 lines).
+- Note: q71 (upsync) and q72 (telemetry) were built on 0124; to queue them a kernel on 0138 is needed (tree rule):
+  after runs 79 / 80, build q74 = 0138 + what passed and run one combined regression.
+- **User: "can we replace the usb host / otg with dynamic role switching?"** Answer: it already is dynamic - dwc3
+  DUAL_ROLE=y, `usb-role-switch` on the controller, the usb-c-connector power-role / data-role "dual" under pmic_glink,
+  UCSI (UCSI_PMIC_GLINK=y) sets the role; live (area-combo-70): port0 data_role host [device], power_role source
+  [sink] at the PC. Nothing to replace; host mode is only untested with an accessory (kits need the PC link = device).
+  Proposed: CONFIG_USB_UAS=m in the next combined kernel; an accessory kit step (owner unplugs the PC, plugs a hub /
+  stick, re-plugs; the tablet logs role, VBUS source, lsusb) as a deferred owner item - asked the user.
+- **User: "proceed with 1 and 3"** (1 = CONFIG_USB_UAS, 3 = the USB-C fixes in test; not 2, the accessory kit).
+  1: usb-storage is =y, so USB_UAS=m (auto-load by alias, as Fedora); build-q56.sh case `uas`; kit part
+  `an/uas_part.py` (aliases, load, unload; no drive). Goes into the combined kernel q74 (0138 + what passes in 79 / 80
+  + uas) and run 83; then the config line into the queue configs. 3: upsync 14 (pmic_glink altmode worker on the
+  freezable queue) and 16 (qmp-combo init_count on a forced init failure) are judged in run 79 (usbc, usleep, upsync2).
+- **Run 79** (q71, upsync regression): **upsync PASS on every group** (wifi, gpu 0 GMU/RPMh errors, gamma LUT 1024,
+  thermal 110 trips >= 120 C / 1448 tsens irqs, i2c 9/9, usbc, rproc, video, logs 0); after 2 s2idle cycles usbc PASS
+  (altmode bound, gadget configured 1 s after resume, no "Transfer while suspended") = the user's item 3 (upsync 14 /
+  16) holds. Non-passes, none a kernel finding: upsync2 logs and quickwins display/GPU "fault" = the kit's own sayk
+  summary line in kmsg matched their regexes (false positives); usleep long skipped (WF_SLEEP_LONG=20 < the test's
+  60 s minimum); gpucool limits / load SKIP: skin 51.2 C at start (warm from runs 77 / 78), stock's skin stop after
+  4 s -> the GPU-vote patches 06-11 still need a cool-start load. Sent to the upsync agent (round 2: fixes, apply on
+  0138, parts for a combined run 83). quickwins tablet.sh: the fault count now skips `iceland-combo` lines (fixed here).
+- LESSON for every kit: never count kmsg patterns without `grep -v iceland-combo` (sayk writes summaries there).
+- **gpuisp round 2 delivered**: Fedora 44 stays on libcamera 0.7.1 (0.7.2 pulled from F44 on 20 Aug for a flicker
+  regression, moved to F45) -> `req072` withdrawn. Run 77 part a failed on memory: without iceland-device the DMA-heap
+  rule was missing, cam took the 32 MiB CMA heap ("allocation failure for frame-3"); rotpkg looked in /tmp/area-in/rpms
+  instead of $R/rpms. Generator fixed (version from the spec). New: a local libcamera 0.7.1 build on the tablet (Fedora's
+  SRPM + 3 upstream fixes: border scaling, EGL probe with CPU fallback, the EGL context leak), unpacked to /tmp, not
+  installed; part c compares the leak per start (Fedora's >= 1 MiB vs local < 1 MiB). Kit **84** generated (q65; pkg2,
+  rotpkg, gpuisp-a 600 s, -b 660 s, -c 480 s; AUTOREBOOT 3600; chain -Wait 4000); starts after the chain 78-82.
+- **Run 80** (q72, telemetry v2): FAIL only on load, the rest PASS (7 rails; average 1.555 vs 1.496 W; stop 0x00;
+  backlight +8.09 W battery / +0.16 W rails; frac 1.9985x; clock 1022.89 / s = 32.768 kHz); scale CHECK 0.46 (rails
+  +48 J vs battery +105 J over 105 s). The load: CPU 50 -> 105 C within 1 s, skin 42.5 -> 53.3 C in 4 s -> the test's
+  stock 51 C skin stop at 5 s (the cool-start gate worked; the skin zone sits near the SoC). Sent to the telemetry
+  agent (round 3: a load under stock's thresholds, e.g. fewer cores / capped scaling_max_freq; judge 0.46; parts module).
+- **upsync round 2 delivered**: log checks skip `iceland-` lines and count from a mark (kmark); usleep LONG 90 /
+  BUDGET 240; new `ucool` part (read-only: skin < 46 C and gpuss < 60 C, max 360 s) before gpucool; qwvideo / usleep
+  in their own folders; summary wording without the regex words; all 23 apply and compile (W=1) on 0138; 17 still
+  valid on the TMD series (0117-0120 = upstream for-next, drop at the 7.4 rebase). Parts module cand/upsync_parts.py.
+- try-head "upsync telemetry" on 0138: both apply. q74 = 0138 + upsync + telemetry v2 + uas: `build-q74.sh`, started
+  by `after82-build-q74.sh` only once run 82's kit is staged (prep takes the kit lock with flock -n and refuses if busy).
+- **q74** 73138ff6c345 (0138 + upsync + telemetry v2 + uas): 0 compiler warnings; 367 make "Clock skew" notices =
+  only include/config/auto.conf(.cmd) 1.5 s in the future (Windows / WSL clocks agree to 0.2 s): a future-dated
+  prerequisite only causes extra rebuilds later, never a missed target in this build; uas.ko and qcom-qpt-hwmon.ko built.
+- **Run 81** (q69, link baseline WITHOUT the f_ncm fix): up 42.92 MB/s, down 36.97 MB/s (linktest.log). The single
+  continuous upload does not reproduce run 76's < 0.3 MB/s: a steady stream keeps filling NTBs; the stall needs a burst
+  that ends and waits for a reply (NBD writes: request, data, wait for the reply). The link test needs a request /
+  reply upload mode to tell the kernels apart -> to the install agent with run 82's result.
+- **Run 82** (q73, link WITH the f_ncm fix): up 42.93 MB/s, down 36.55 MB/s = the same as run 81. The continuous
+  test cannot separate the kernels. Battery through runs 78-82: 71 -> 69 % (Android charges between runs). Sent to the
+  install agent (round 3: a request / reply upload mode = NBD's write pattern, sizes 4 KiB - 512 KiB, predictions for
+  q69 vs q73, the next suspects if q69 is fast too). linktest-server.py keeps running on Windows.
+- **Run 84** (q65, gpuisp round 2) started (chain MAXN 400).
+- **telemetry round 3 delivered** (driver v2 unchanged = the one in q74): the load is a controller: each cluster's
+  scaling_max_freq capped to its highest step <= half max (1785.6 / 2227.2 MHz; written back and read back), pinned
+  busy threads added one at a time towards +2.5 W on the CPU rails; adds only while skin < 46.5 C, drops one at 48 C or
+  above +3.25 W, stops all at 49.5 C (stricter than stock; stock's stops stay armed); 60 s load + 80 s recovery.
+  Scale: run 80's 0.46 was no valid measurement (5 s burst vs a gauge that samples every ~5 s and averages 60 s);
+  expected 0.7-0.9, PASS 0.6-1.05, CHECK 0.45-0.6 / 1.05-1.2, no verdict below 45 s of load or 80 J battery side.
+  Part 7.2 min (8.2 max). Module cand/telemetry_parts.py.
+- **Run 83 generated** (`gen-combo-83.py`, q74): setup, telemetry, ucool, gpucool, wifi, upsync, qwvideo, usleep,
+  upsync2, uas, close (budgets 3300 s, AUTOREBOOT_AT 4300, chain -Wait 4000); queued to start after run 84.
+- **Run 84** (q65, gpuisp round 2): pkg2 / rotpkg fixed (iceland-device 0.17 installed, accelerometer after 2.4 s).
+  a [cam] CHECK: rear GPU vs CPU picture DIFFERENT r=0.58 (R/G 0.93 B/G 0.89), front ok 0.99; rear CPU 2.32 vs 21.42
+  ms/f at 30 / 30 fps, GPU 0.61 ms/f, 4.71 vs 4.64 W; edges gpu/cpu 3.73 / 0.51 (the border bug?); brightness put-back
+  FAIL (1161 != 1256, test bug). b [librpm] FAIL at 16.6 s: meson `Dependency "libdw" not found` (trimmed spec /
+  builddep). c [leak] CHECK: preview never came up (err 4). Sent to the gpuisp agent (round 3).
+- **install round 3 delivered**: run 81's continuous upload had 0 retransmits (cwnd 200); runs 72 / 76: 134 slow writes,
+  each the server waiting for the rest of a write after its header (<= 16 KiB mean 6.1 s, > 256 KiB mean 11.9 s).
+  Refined: only bursts that fill all 10 IN requests (> ~140 KiB) or concurrent requests hit the lost flush. New parts
+  `rr` (request / reply 4 K-512 K, 2 x 4 in flight, with a download, via the relay to WSL) and `nbdw` (the real NBD
+  client, dd oflag=direct to /dev/nbd0 at 100 GiB - checked: only /dev/nbd0, never the tablet's storage).
+  Prediction: q69 512 K one at a time < 2 MB/s, q73 25-40 MB/s; "with a download" faster than alone on q69.
+  Kits **85** (q69) and **86** (q73) "link rr nbdw", AUTOREBOOT 1200; they need the NBD server + relay, the Windows
+  linktest server (new version copied) and the relay leg (WSL linktest 10811 + Windows relay 10812): started after run 83.
+- **Run 83** (q74 combined): **telemetry round 3 PASS** (7 rails; average 0.500 vs 0.499 W; cap restored; CPU rails
+  +2.19 W for 59 s with up to 3 threads; scale 0.74 over 140 s; frac 1.9954; clock 1023.16) = **telemetry GREEN**.
+  ucool PASS (cool at once), **gpucool 20 / 20 PASS** incl. ramp / cap / effect / recover (= upsync 06-11 under load),
+  **upsync PASS** on every group, **upsync2 PASS** (21 lines since the mark, 0 warnings), **uas PASS** (27 aliases,
+  loads, unloads). Sleep: 3 s2idle + 90.6 s long sleep, cxsd +26. **But no sound card** (sink "Dummy Output", 0
+  amplifiers, audio 0 / 2). Cause: 21 modules that run 78 had were never loaded, among them snd_soc_hdmi_codec = the
+  DP audio codec the card waits for since quick-wins item 9; run 78's card came exactly when the quick-wins autoload
+  step (udevadm trigger of driverless devices) loaded it; run 79 had no DP audio. A kit artifact: kits unpack the module
+  tree after boot and nothing loads modules for existing driverless devices; an installed boot does (udev coldplug).
+  Fix: genwf.gen(..., coldplug=True) = trigger only driverless devices with a modalias (as quick-wins item 11; guarded
+  against an empty list = never "trigger everything"), settle 60 s. Confirmation run **87** (q74: coldplug, qwvideo,
+  usleep). Also seen in 83's sleep part: dpu "frame done wait timed out" and PCIe "Timeout waiting for L2 entry" at a
+  suspend - compare with earlier sleep runs before queueing.
+- **gpuisp round 3 delivered**: libdw (Fedora's %meson = --auto-features=enabled; BuildRequires pkgconfig(libdw));
+  part c: iceland-device 0.17's 51-iceland-camera.conf + WirePlumber 0.5.17 stalls WirePlumber's event dispatcher ->
+  0 camera sources (fixed upstream 65519a1, in WirePlumber 0.5.18, F44 stable since 1 Oct) -> for 0.18:
+  `Requires: wireplumber >= 0.5.18` (or drop the rule); rear DIFFERENT = exposure / clipping / metering area, not
+  geometry (the compare now ignores clipped cells); brightness = GNOME's auto level, now restored while owned. Kit **88**.
+- Servers for 85 / 86 started: NBD `rehearsal-pc.sh serve stage0 build` (WSL 10810), relay 10809 -> wsl:10810,
+  linktest 10811 (Windows), linktest 10811 (WSL, gateway only) + relay 10812; all --allow=172.16.42.1.
+  Chain 85 86 87 88 started.
+- Suspend-time lines checked across runs: PCIe "Timeout waiting for L2 entry" on every suspend since run 67 (67: 8 / 8,
+  79: 2 / 2, 83: 3 / 3) and one dpu "frame done wait timed out" / "enc timeout pending" in run 67 already (before any
+  upsync patch) -> pre-existing, not from q74; no block for queueing. (A follow-up for the deep-sleep notes.)
+- **Run 85** (q69, NO f_ncm fix; link rr nbdw): link up 42.95 / down 36.42 MB/s. rr one at a time: 4 K 6.75, 64 K
+  35.7, 128 K 39.5, **512 K 41.4 MB/s** (max 14 ms) -> the agent's "512 K alone collapses" is wrong. 2 x 4 in flight:
+  ~40 MB/s total but stalls 0.7 / 1.1 s. **512 K with a download running: 0.12 MB/s, max 8.4 s, and the download
+  itself 0.24 MB/s** = two-way traffic collapses both (NBD reads + writes at once = run 76). **512 K through the relay to
+  WSL: 0.03 MB/s, max 19.3 s** (ran right after the collapse: a stuck partial NTB survives into the next flow?).
+  nbdw did not run: `wf-install.sh: line 238: r: unbound variable` (agent's bug). Waiting for run 86 (q73, with fix).
+- **Run 86** (q73 = 0124 + f_ncm only): **the f_ncm patch fixes the two-way collapse**. q69 -> q73: 512 K + download
+  0.12 MB/s (max 8.4 s), download 0.24 -> **8.35 MB/s (max 104 ms), download 31.0 MB/s**; 512 K via the relay to WSL
+  0.03 (max 19.3 s) -> **39.7 MB/s (max 14 ms)**; 2 x 4 in flight 64 K 40.7 (676 ms) -> 43.0 (20 ms), 512 K 39.6
+  (1141 ms) -> 43.1 (114 ms); one-at-a-time and link unchanged (~41 / 43 / 36 MB/s). Trigger = traffic in both
+  directions (the download's ACKs + the upload keep all 10 IN requests busy). nbdw still `r: unbound variable`.
+  Sent to the install agent (round 4: nbdw fix, commit message to the data, the hrtimer re-arm race, rehearsal plan).
+  To queue: needs a kernel on the head (after q74's queueing) + a short rr confirmation.
+- **Run 87** (q74 + coldplug: 36 driverless devices triggered, 16 modules loaded): **sound back** - 6 / 6 amplifiers,
+  sink "Built-in Audio Speakers", audio 2 / 2 across s2idle; video 240 / 240, display, GPU ok; sleep PASS (2 cycles +
+  89.7 s long). = run 83's missing card was the kit (no autoload of snd_soc_hdmi_codec). **But cxsd +0** (83: +26) and
+  **s2idle entries +19** (83: +3): coldplug also autoloaded **qcom_qpt_hwmon, which starts the telemetry at probe**
+  ("report every 1000 ms, telemetry started") and keeps it running -> an installed system would run it forever and it
+  likely breaks CX collapse (the sound card is a second difference: 79 and 87 with sound had cxsd +0; 79's long sleep
+  was skipped). -> telemetry NOT queueable as is; sent to the telemetry agent (round 4: lazy start / idle stop / off in
+  suspend, an IRQ-count + s2idle A/B part). Plan: q75 = 0138 + upsync + uas + f_ncm (no telemetry), run 89 regression
+  with coldplug (upsync, qwvideo, usleep = cxsd with sound and without telemetry, uas) + run 90 rr link -> queue those.
+- **q75** 3c1486eb1f5f = 0138 + upsync + uas + f_ncm (no telemetry), 0 compiler warnings. Kits **89** (q75 regression
+  with coldplug: wifi, upsync, qwvideo, usleep, upsync2, uas; AUTOREBOOT 2800) and **90** (q75 "link rr", 900 s)
+  generated; queued after run 88; link servers (Windows 10811, WSL 10811 + relay 10812, --allow) running for 90.
+  If both pass: queue upsync (23) + the uas config + f_ncm from q75's tree.
+- **install round 4 delivered**: nbdw fixed (`local r=""`; dry-run 11 PASS). **f_ncm patch v2**: the race was real
+  (ncm_wrap_ntb starts the timer under u_ether's dev->lock, the callback's BUSY return happens before that lock), so
+  the callback now calls hrtimer_start() itself and returns NORESTART (allowed; __run_hrtimer leaves an enqueued timer
+  alone); no re-arm while the port is suspended; at most 333 re-arms (~100 ms) per NTB; commit message rewritten to
+  the q69 / q73 data. qmult workaround removed from iceland-rehearsal. Reviewed here: OK to test.
+  -> q75 carries v1, so: chain 89 / 90 stopped before it started, **q76** = 0138 + upsync + uas + f_ncm v2 building;
+  kits 89 / 90 to be regenerated for q76. B-run plan after queueing: gate `rr` (+down >= 5 MB/s, slowest < 1 s), then
+  "rr dev b1a b1b b2a b2b", AUTOREBOOT 4300, ~20-30 min at 30-40 MB/s; then commit golden, serve golden r1, R1.
+- **q76** 825c23ce595c = 0138 + upsync + uas + f_ncm **v2** (TX_TIMEOUT_MAX_REARM in the tree), 0 compiler warnings; kits 89 / 90 regenerated for q76 and re-queued after run 88.
+- **Run 88** (q65, gpuisp round 3): **a [cam] PASS** (GPU ISP works: rear r=0.82, front 0.98 after the clipping-aware
+  compare; 30 fps; CPU 2.34 vs 21.40 ms/f; 4.86 vs 4.61 W). b [librpm] FAIL at 6.4 s: spec parse error - a comment in
+  mk-spec.py's spec mentions `%meson`, RPM expands macros in comments ("Macro expanded in comment on line 30", "Unknown
+  tag: CFLAGS=..."). c [leak] CHECK: Fedora's library +19773 KiB GPU / +6148 KiB RSS per start (run 77 exactly);
+  "rule as installed: 0 camera sources" = the WirePlumber 0.5.17 stall confirmed. Sent to gpuisp (round 4: %% in
+  comments, rpmspec -P check, err 4). Battery before 88: 67 %.
+- **telemetry round 4 delivered** (driver **v3**, queue v3 not v2): run 87's counters show the **ADSP awake through
+  the whole 90 s sleep** (qcom_stats adsp: last exit after last entry; 83: asleep +93 s) - the long sleep began right
+  after wf/sleep's 3 s tone with the stream open -> that alone explains cxsd +0; 87's "s2idle +19" is a running total
+  (+1 in the long sleep in both runs); the report IRQ was never requested. Stock: the driver never starts at probe (a
+  powercap "enabled" write does; stock's thermal daemon stops it); in suspend stock masks the report IRQ, keeps the
+  overflow IRQ as a wake source. v3: no start at probe (a boot-firmware-started one stops after idle), first read of
+  energy / power starts it, stops idle_ms (10 s) after the last read, at every suspend and at removal; overflow IRQ
+  only while running, not a wake source. New part **tlazy** (PT 420): idle = no reports / IRQs, 90 s s2idle A/B
+  (driver loaded vs removed) on CX / AOSS / s2idle entries / ADSP. Next: after q76 is queued, q77 = head + telemetry v3,
+  parts setup, tlazy, telemetry.
+- Open question for the deep-sleep notes: does PipeWire leave the ADSP awake when audio is idle on the installed
+  system? (wf/sleep plays a tone right before its long sleep - worst case.) tlazy's A/B runs with an idle sound card.
+- **Run 89** (q76 regression with coldplug: 35 driverless devices, 15 modules): **all PASS** - upsync every group,
+  upsync2 (18 lines since the mark, 0 warnings), qwvideo (video 240 / 240, display, 6 / 6 amplifiers), sleep PASS
+  (3 s2idle + 90.6 s long, audio 2 / 2), uas PASS. **cxsd +0 again without any telemetry driver** (s2idle entries +3)
+  -> confirms the telemetry agent: the ADSP stays awake after wf/sleep's tone (stream open); not the telemetry.
+- **gpuisp round 4 delivered**: spec comment without %, mk-spec refuses an unescaped % in added comments, part b runs
+  rpmspec -P first; on the PC a real rpm 4.18.2 + Fedora 44 macros parse the spec (0 errors, negative control
+  reproduces run 88), rpmbuild -bp with Fedora's lookaside tarball applies all patches at fuzz 0; "err 4" = the stopped
+  WirePlumber's IPA workers (harmless), now attributed. Kit **91** queued after run 90.
+- `queue-0139.sh` (0139-0161 upsync via git am, authors kept + our trailers; 0162 f_ncm v2; configs USB_UAS=m): DRY
+  -> tree equals q76. Waiting for run 90 (link rr on q76) before queueing.
+- **Run 90** (q76, f_ncm v2, "link rr"): link 42.91 / 36.37 MB/s; rr 4K 6.57, 64K 35.4, 128K 39.3, 512K 41.5 MB/s;
+  2 x 4 in flight 42.9 / 43.0 MB/s (max 17 / 154 ms); **512K + download: rr 4.54 MB/s, max 185 ms, download 33.6 MB/s**
+  (q69: 0.12 MB/s max 8.4 s, download 0.24); relay 39.6 MB/s (max 15 ms). = v2 fixes the collapse as v1 did (rr / down
+  split 4.5 / 33.6 vs v1's 8.4 / 31.0, same total; no stall > 185 ms). The agent's B-run gate "+down >= 5 MB/s" is too
+  strict for TCP's split: gate on "slowest round trip < 1 s and rr + down > 20 MB/s" instead. 0 REFUSED. Link servers
+  stopped. Queueing 0139-0162 once run 91 is staged (biz4b3wwq).
+- **Queued 0139-0162** (iceland-linux **b591ccd**, `queue-0139.sh`, tree = q76 31260bdc, QUEUE-VERIFIED): 0139-0161
+  the 23 upsync fixes (authors kept), 0162 f_ncm v2, configs CONFIG_USB_UAS=m. **upsync GREEN, uas GREEN**, the
+  install link blocker fixed in the queue. Head: "usb: gadget: f_ncm: retry the NTB flush while every IN request is
+  busy"; base config out-config-base-0162. Next: q77 = head + telemetry v3 -> run 92 (tlazy, telemetry, coldplug).
+- **q77** 853e87db03c2 = 0162 + telemetry v3 (idle_ms in the tree), 0 compiler warnings; kit **92** (coldplug,
+  tlazy, telemetry) generated. **q78** = the plain queue head 0162 (first head with the f_ncm fix) on base-0162: the
+  install B-run kernel; building with the kit lock; then `next-k2p1u1.sh TAG=q78` (DRY first; k3 holds the lock
+  10-15 min, so run 92's chain starts only after it).
+- **q78** 0b261bcba556 = the plain queue head 0162, 0 compiler warnings. next-k2p1u1.sh DRY TAG=q78: 5 PASS; real run started (k2, k3, p1 -> iceland-device 0.18 source, u1, tin) -> wf/install/work/next-k2p1u1-q78.log.
+- **next-k2p1u1 TAG=q78: 5 PASS** - K2 kernel-iceland-7.3.0~rc4.iceland.00300.g0b261bcba556 (22 MB, check 13 PASS),
+  K3 (.1, marker in the DT, check 13 PASS, 0 warnings), P1 iceland-pkg-0.18.tgz (0.17 @ 5c5187e + the install
+  fragment, check-device 16 PASS), U1 both U-Boot images (29 PASS), TIN tablet-in 14 files 45 MB.
+- **B-run kit 93** (q78, "rr dev b1a b1b b2a b2b", AUTOREBOOT 4300, chain -Wait 4000). Safety read: every storage
+  write goes to /dev/nbd0 / its loop; ufs_ro sets the UFS devices read-only first; the 15 "flash/format" matches in the
+  kit are LEDs / video formats / an rpm queryformat. ov-build was empty (cow.idx 0 B). Servers: NBD serve stage0 build
+  (WSL 10810), relay 0.0.0.0:10809 -> wsl:10810 and linktest 10811 (Windows), all --allow=172.16.42.1. Gate judged by
+  me: rr "+down" slowest < 1 s (the agent's 5 MB/s is too strict, q76 gave 4.54 with no stall). Chain 92 93 queued.
+- **Run 91** (q65, gpuisp round 4): **a PASS** (rear r=1.00, front 0.99; CPU 2.30 vs 21.25 ms/f; 4.81 vs 4.87 W).
+  **b**: rpmbuild rc 0 in 104 s, 5 rpms libcamera*-0.7.1-1.fc44.iceland1, SoftISP GPU YES, cam lists 2 cameras;
+  "FAIL" only because its patch check read a BUILD dir rpmbuild had removed (build.log lines 15 / 17 / 19: all three
+  patches applied in %prep). **c PASS: the local build stops the leak** (system +19773 KiB GPU / +5437 KiB RSS per
+  start, local 0 / 0; err 0); border fix: right-edge ratio 10.89 -> 2.16 (CPU 0.40). **gpuisp green in substance**;
+  sent: fix b's check, the 0.18 patcher (wp0518 + hold) on the install's 0.18 tree, how the local rpms reach the install.
+- NOTE for the next docs commit: run 91's log set holds the 5 built rpms (librpm/rpms/*.rpm) and the blob guard has
+  no `rpm`: exclude '*.rpm' in the log-set copy and add rpm to the guard (mk-commit-r).
+- **Run 92** (q77 = 0162 + telemetry v3, coldplug): **tlazy PASS** (lazy, start, readings, idle-stop, quiet, suspend,
+  s2idle, kernel): s2idle A (driver loaded) cxsd +28 = 95 %, aosd +0, system s2idle +1, apss 98 %, ADSP asleep; B
+  (driver removed) cxsd +26 = 95 %, same -> **the v3 driver costs deep sleep nothing, and CX collapses with the sound
+  card present and idle** (the cxsd +0 of runs 79 / 87 / 89 = wf/sleep's tone right before its long sleep).
+  **telemetry PASS** (round 4): lazy at load, average 0.455 vs 0.458 W, cap restored, stop 0x00, backlight +8.20 /
+  +0.01 W, CPU rails +2.15 W for 59 s, **scale 0.86**, frac 1.9948, clock 1023.04. **telemetry GREEN** -> queue from
+  q77's tree (+ CONFIG_SENSORS_QCOM_SPMI_QPT=m).
+- Run 93 (B run) did not start: prep "sensor module / regulatory.db missing" - build-q78.sh (build-q2.sh directly) did
+  not make camdrv/sc1320cs-q78.ko as build-q56.sh does. Built it (an/camdrv-q78.sh, vermagic = q78), run 93 restarted.
+- **Queued 0163-0166** (iceland-linux **f84d0d2**, `queue-0163.sh`, tree = q77 da065d30, QUEUE-VERIFIED): binding,
+  hwmon driver v3, pmk8850 node, board node + CONFIG_SENSORS_QCOM_SPMI_QPT=m. **telemetry GREEN.** Head "enable the
+  power telemetry"; base config out-config-base-0166.
+- Workflow state: quickwins, npucool, upsync (+uas, f_ncm), telemetry, hwinv GREEN and queued / done; gpuisp green in
+  substance (b's check, the 0.18 patcher, the local rpms pending with the agent); install: B run 93 on q78 running;
+  deepsleep: the night test is the owner's, its package fallback goes into 0.18.
