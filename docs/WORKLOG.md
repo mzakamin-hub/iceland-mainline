@@ -777,3 +777,75 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   holder + hwdb + UPower drop-in, chargelimit from the package's thresholds) - started 08:28; run 42
   (`gen-combo-42.py`: camera run A + C with the patched module); `build-q55.sh` (queue head + level shifters +
   focus) for camera run B - to be RUN only after run 42 has shown LS1B_E0 / LS2B_E0 in the command DB.
+
+### 2026-10-02 - entry 24: run 41 (package 0.16) passes; commit I; run 42 (camera A + C); six round-4 workflows started
+
+- **Run 41** (kit q54): gpucool **20 PASS / 0 FAIL** (392 fps free, 175 fps at 342 MHz, 388 fps after; GPU 98.4 C
+  max). pkg2: sensor RPMs build in 9.8 s, iceland-device 0.16 in 9.3 s, install rc 0 / 0, `rpm -V` clean.
+  rotpkg start: accelerometer after 1.9 s. **pkg16: holder PASS** (holder active after the packaged start; camera
+  sensors 2 of 2 with no desktop session, after a daemon restart, after stop / start: the holder stops with the
+  daemon and comes back by itself), **hwdb PASS** (udev CHARGE_LIMIT 80,85 from the installed package), UPower
+  ordered after systemd-udev-settle. chargelimit with the package's thresholds: PASS (hold 93916 -> 0 uA at end
+  81 %, release +101 mA, UPower on -> 80 / 85, off -> 0 / 100, GNOME group shown).
+- Queue verification finished from the local base (`queue-0077-finish.sh`): "prepared tree = expected",
+  iceland-linux **6c44bdc** pushed (0077-0083).
+- **Commit I**: iceland-mainline **0663d62** (467 files: log sets of runs 38-41, results part H, work log,
+  packaging 0.16, tools, the camera workflow's public deliverables + brief; no private names). Matrix
+  (`research/matrix-c2h.py`): **55 working / 8 in progress / 11 not started / 2 not planned (76)**; new row "Skin
+  temperature policy (stock gears)" (in progress, waits for the user's choices); GPU cooling -> working; device
+  package -> 0.16. Page **v30**.
+- **Run 42** (kit q54 + patched sensor module `sc1320cs-q54r.ko`; camera workflow run A + C):
+  - bus: the RPMh command DB lists **LS1B_E0 .. LS4B_E0** (0x46c00 .. 0x46f00) = the gate for kernel q55 is
+    passed. "2 of 2 with the hub idle" in this run proves nothing: the sensor stack was never started in this
+    boot, so the hub was never configured and the level shifters were still in their boot state.
+  - driver: patched driver loads, both sensors in the media graph, libcamera lists 2, streams rc 0; the "bus cut
+    during a stream" case did not happen for the same reason (808 frames, no cut).
+  - timing: **4 of 4 modes at 30.00 fps** (rear 4160x3120 and the new 2104x1560, front 3264x2448 and 1632x1224;
+    line 5520 / 3520 pixel clocks as the workflow derived).
+  - quality: 6 of 6 captures, 30 fps, the rear preview uses the binned 2104x1560 mode, the tuning files are
+    loaded (`sc1320cs.yaml`, `sc820cs.yaml`), first AGC gain 563.2 (the 4x start), the private matrices raise the
+    colourfulness (34 -> 69 rear, 22 -> 45 front). "settled no": 100 frames are too few in a dim room with the
+    torch at 1/6 (gain 563 -> 5508 and still rising, mean 133-148) - a test length matter, to send back.
+- Runs prepared: 43 (`gen-combo-43.py`: q54, pkg2 + rotpkg start so that the hub IS configured, then cam-a = the
+  real baseline and the driver's silent-bus test; started 08:5x), 44 (`gen-combo-44.py`: q55 with the level
+  shifters + focus: pkg2, rotpkg start, cam-b "bus focus flash", cam-d "app").
+- **User (mid-turn): "Start workflows to address below not started items , test run and fix till resolution and
+  use autonomous agents till they are working(Display&input,Power&charging, Sleep&powersaving,
+  Software&packaging)".** Brief `docs/WORKFLOW-BRIEF-4.md`; six background agents started, one per not-started
+  row of those sections, folders `build/wf/<name>/`:
+  pogo (Pogo keyboard), pencharge (Pen charging), wake (Wake by lid / keyboard / charger), deepsleep (Deep-sleep
+  proof), apps (Full GNOME app set), audit (Stock-values audit). Loop: an agent delivers -> the main session
+  runs its test on the tablet -> results go back to the agent (SendMessage) -> fix -> again, until the item works
+  or is proven to need the user's hands (keyboard, pen, lid, a night unplugged).
+- Lesson: a shell loop variable inside `wsl.exe bash -c '...'` is expanded by the outer layer (it created
+  wf/work, wf/cand, wf/priv; removed): loops go into script files.
+
+### 2026-10-02 - entry 25: runs 43-44: the camera bus fix and the focus motor work -> queue 0084-0089
+
+- **Run 43** (kit q54 = queue 0083, patched sensor module, the hub configured through pkg2 + rotpkg start):
+  bus: hub idle (sensor daemon stopped, the packaged holder goes with it) **0 of 2**, with the holder 2 of 2 = the
+  true baseline. Driver, now really tested: probe with the hub idle 0 answered / **2 registered without an
+  answer / 0 probe failures**; libcamera lists 2 cameras; first stream after the bus is back rc 0, 20 frames; bus
+  cut during a stream: **1** "stopped answering" line (5 camera / I2C lines in all, no flood); stream after the
+  cut rc 0, 20 frames. timing 4 of 4 at 30 fps.
+- **Run 44** (kit q55 = queue 0083 + PMH0101 level shifters ls1-ls4 with ls1 / ls2 always on + dw9719 "vio" supply
+  + focus node, hub configured):
+  - **bus PASS**: `vreg_ls1b` / `vreg_ls2b` on with use count 1; hub idle **2 of 2 sensors answer**. The cause of
+    runs 24-34 is confirmed: the camera I2C lines run through two level shifters of the PMH0101 that only the
+    sensor hub voted for.
+  - **focus PASS**: `dw9719 0-000c` bound and linked to the rear sensor (`focus_absolute` 0..1023); sweep on the
+    binned mode: sharpness 7624 at 0, 3876 at 100, 83036 at 800, 15821 at 1000 = ratio 21.4 with a clear maximum
+    at 800; module EEPROM at 0x58 answers (calibration words 352, 734, 736, 398).
+  - flash: `yellow:flash-0` alone lights the rear camera's scene (mean 64 -> 231), `white:flash-1` alone does not.
+  - **app: not passed**: Snapshot 50.0 starts but shows only its "Camera" page with a Close button, no preview, no
+    running source; its log stops at the camera portal request; the session journal has "xdg-document-portal:
+    fuse init failed" and "Document portal fuse mount point unknown"; only xdg-desktop-portal-gtk is on the
+    accessibility bus. Sent back to the camera workflow with the other findings (bus / driver steps must detect
+    an unconfigured hub; quality must run until it settles; fixed focus position; package changes without the
+    holder).
+- **Queue 0084-0089** (`queue-0084.sh`, dry run = tree of q55): rpmh binding + driver for the PMH0101 level
+  shifters, board file keeps ls1 / ls2 on, dw9719 binding + driver "vio" supply, focus motor node enabled.
+  Verification from the local base as in entry 23.
+- The private driver in `camdrv/sc1320cs.c` is the patched one (30 fps, binned rear mode, silent-bus handling).
+- Next for the cameras: iceland-device 0.17 without the holder unit once the camera workflow confirms; the Camera
+  app / browser steps after the workflow's next delivery; matrix + commit.
