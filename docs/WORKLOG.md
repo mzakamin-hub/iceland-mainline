@@ -1038,3 +1038,92 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   pkg017 and the camera fragment without a version bump.
 - Next: run 52 = kernel q60 (head 0093 + pogo fixed driver + wake + final audit kit A; `gen-combo-52.py`) once the
   audit agent has finished 03 / 10; then queue pogo, wake and audit kit A.
+
+### 2026-10-02 - entry 33: commit L, run 53 (deepsleep round 2: still level 0), q60, runs 52 / 54-56 started
+
+- **Commit L** pushed: iceland-mainline **e8f6ee3** (runs 48-51, results part K, entries 29-32, matrix
+  55 / 13 / 6 / 2 with `matrix-c2k.py`, wake / audit / apps deliverables; the audit's full device-tree table and
+  generated `.xml` files stay local: the blob guard refuses every `.xml`). Matrix page v33.
+- **Audit 03 / 10 revised**: BOB1's regulator table has only 3.000 V + n x 32 mV, so 3.296 V became 3.320 V in run 50;
+  the floor is now 3288000 (8 mV below stock, never above). GPIO 162 gets stock's run-time state (input,
+  pull-down, 2 mA). New judged finding: BOB2 runs at 3.000 V (stock 2.720 V; mainline's table has no lower step;
+  inside stock's range).
+- **Run 53** (q55, deepsleep round 2): still level 0 in every step; the Wi-Fi chip's PCIe link stays up even with
+  the root port's wakeup off AND the endpoint unbound; xo held by disp_cc_mdss_ahb_clk and the three gcc_pcie_0
+  clocks; the AOP monitor now names AUDIO in every line. FAIL only on the clean-up: the Wi-Fi interface was gone
+  at the end (RAM only). Sent back with four questions (pcie-qcom suspend path and its ICC vote, the audio blocker,
+  the display AHB clock, the clean-up).
+- **Kernel q60** = head 0093 + pogo (fixed driver, md5 d2f4e4ed) + wake (battmgr-plug-wake, md5 9a148004) + audit
+  kit A (revised 03 / 10), audit applied last: 0 warnings. The three agents froze their `cand/`.
+- `queue-0094.sh` written and dry-run: 15 commits (pogo 0094-0097, wake 0098, audit 0099-0108), tree = q60.
+- **Runs 52, 54, 55, 56** started as one chain (`run-chain.sh 52 54 55 56`): 52 = the combined confirmation (audit
+  kit A, pogo run A with the replay check, pkg2 + rotpkg start + the camera's decisive app step, wake last;
+  AUTOREBOOT_AT 2800); 54 / 55 / 56 = apps runs A (core help), B (store media browser), C (print office + guard),
+  each one call of at most 570 s (`gen-combo-54.py`).
+
+### 2026-10-02 - entry 34: run 52 all green -> queue 0094-0108 (pogo, plug wake, audit kit A); pkg017 delivered
+
+- **Run 52** (q60 = head 0093 + pogo + wake + audit kit A): **audit PASS** (all ten in effect, partial none,
+  panel / UFS 0 errors, 0 warnings; BOB1 3288 mV, GPIO 162 input pull-down); **pogo PASS**
+  `[ok:...,selftest,replay-stale,stable]` (5 detect interrupts, 5 judged stale); **camera app decisive**: without
+  the DMA-heap rule the stream fails on CMA (1 allocation failure, kernel "req-size: 2025 pages", "Could not start
+  camerabin"), with it previews / 2 photos / video; **wake PASS, no warnings** (every sleep by the RTC alarm, lid
+  with "GNOME locked: yes (shield up, screen off)", pkey).
+- **Queue 0094-0108 pushed** (iceland-linux **acdecb4**, `queue-0094.sh`, tree = q60, verified from the local base):
+  pogo 0094-0097, the plug wake 0098, audit kit A 0099-0108 (`commit-all.py`), `CONFIG_KEYBOARD_ONEPLUS_POGO=y`.
+  Queue head bfb2d3731; `build-q56.sh` expects "stock's reset sequence" now.
+- **pkg017 delivered** iceland-device 0.17 (one guard with chargelimit + charging + thermal cap + wake's
+  sleep-only lid block, the thermal daemon without the private model, the logind drop-in; `check.sh` 62 checks,
+  0 FAIL). Reviewed: every safety constant and the FCC / VBATDET tables byte-identical to 0.16; the cap is
+  min(stock table, cool-down 1200 mA, thermal cap) - only lowers. Order of the three patchers: camera, pkg-017,
+  apps. **Run 57** generated (`gen-combo-57.py`: package from a patched copy `build/pkg017-tree`, fuse in setup,
+  0.17 globs; pkg2, rotpkg start, pkg017) - runs after the apps chain.
+
+### 2026-10-02 - entry 35: apps runs 54-56, audit kit B (q61), deepsleep round 3 (q62), runs 57-59 started
+
+- **Apps runs** (q55, one call each, all ALL DONE well inside 10 minutes): **54 = A** core + help (57 packages,
+  +171 MiB, 211 s): 25 of 26 apps showed a window, `gnome-connections` FAIL; on-screen keyboard comes up on a tap;
+  gnome-shell never restarted; 0 core dumps. **55 = B** store + media + browser (143 s): 3 of 3 windows. **56 = C**
+  print + office (90 s): guard PASS (dnf reads the excludes, 9 of 9 forbidden installs refused, simulated full
+  upgrade 84 packages with nothing forbidden, release 45 refused). Sent to the apps agent (Connections, the
+  details of B / C).
+- **Audit kit B** (11 12, USB 2 repeater tuning) checked on the new head; the ten queued patchers moved to
+  `cand/queued/`, waivers cleaned (966 rows, 0 open). Kernel **q61** = head 0108 + kit B (0 warnings); **run 58**
+  generated (`gen-combo-58.py`, setup + audit only: if the link breaks, the kit's auto reboot brings Android back).
+- **Deepsleep round 3** delivered: the Wi-Fi port never reaches D3 because pcie-qcom leaves the slot's Hot-Plug
+  Capable bit set while CONFIG_HOTPLUG_PCI_PCIE is off (pci_bridge_d3_possible refuses), so the link and its DDR vote
+  stay; candidate 5 `pcie-qcom-slot-hpc.py` clears the bit only without the hotplug driver; candidate 6
+  `dsi-phy-iface-runtime.py` stops the two DSI PHYs keeping the display AHB clock (and so the crystal vote)
+  prepared; round-2 candidate 4 withdrawn; the AUDIO blocker gets a new record + a `noaudio` step. Kernel **q62** =
+  head 0108 + 5 + 6 (0 warnings, `deepsleep)` case in `build-q56.sh`), debug module rebuilt for q62; **run 59**
+  generated.
+- Camera: the WirePlumber rule hiding the 16 raw CAMSS nodes never matched (property only after open); now matched
+  by the udev bus path; run 57's package copy regenerated with it.
+- **Runs 57 (0.17 package), 58 (audit kit B), 59 (deepsleep round 3)** started as one chain at about 11:40.
+
+### 2026-10-02 - entry 36: runs 57-59, queue 0109-0112 (audit complete), INSTALL-PLAN updated
+
+- **Run 57** (q60, iceland-device 0.17 from a patched copy of the repo tree): 23 of 25 checks; FAIL on two
+  test-side points (logind's 4th cover field read empty, so the guard took the careful side and blocked the lid
+  switch too; the backlight changed by GNOME's automatic brightness during the part). Everything that protects the
+  battery passed: limit 80 / 85, the guard's sleep block on the cable, the thermal cap lowering the current (400 mA
+  live), suspend. Sent back to pkg017.
+- **Run 58** (q61, audit kit B): **PASS**, repeater 0e/07/04/02/03 as stock, link high-speed, the whole run over USB.
+  **Queued 0109-0112** (iceland-linux **0f9a117**, `queue-0109.sh`, tree = q61). Fix 04 dropped (stock votes L1D /
+  L3D off in suspend, mainline cannot express "on awake, off asleep"; always-on would hold more than stock). The
+  audit's kernel work is complete. `build-q56.sh` expects the head "USB 2 repeater slew rate from stock".
+- **Run 59** (q62, deepsleep round 3 = candidates 5 + 6): **the PCIe link goes down and the SoC reaches CX
+  collapse** for the first time (cxsd +1); the long sleep was ended after 0.4 s by the Lid interrupt (irq 238).
+  Sent to the deepsleep agent and the wake agent (hall sensor supply L1B in CX collapse).
+- **Apps run D** generated as run 60 (Connections through gapplication, fwupd plug-ins after a restart, the pin's
+  opt-out).
+- **Install workflow delivered** the PC-side tooling (pieces a-f all checked on the PC; findings: 4 KiB storage, the
+  official image would not boot, root growth needs a GPT, the install U-Boot is a separate build, SELinux off and
+  no compressed firmware in kernel-iceland, EFI programs could write every LUN, GRUB's save_env, boot_b AVB-chained,
+  the Bluetooth address not in persist). No rehearsal boot before the written proof that the rehearsal cannot touch
+  the storage (asked; gate G13).
+- User: "update docs/INSTALL-PLAN.md with new findings and suggestions for an unbrickable restorable permanent
+  install" -> done: gates G7 / G8 closed, new gates G12-G14, the new findings in sections 2, 3, 5, 6, the run order
+  in section 4, decisions 5-10, the work list with states, new section 11 (unbrickable / restorable L0-L5 with a
+  day-0 snapshot and home copies / permanent). The next commit script must copy `docs/INSTALL-PLAN.md` from the
+  project folder (commit L did not).
