@@ -1158,3 +1158,43 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   Fedora's kernels stay blocked, each new Linux release means a rebase of the queue, the private camera module per
   kernel version.
 - **Run 63** (q61, install R0 facts, without the network disk) started.
+
+### 2026-10-02 - entry 38: queue 0113-0116 (deep sleep), run 64, K1 kernel q65 + run 65; readiness estimate
+
+- **Run 64** (q64 = head 0112 + deepsleep 5 + 6 v2 + L1B always-on + the wake workflow's gpio-keys lid patch):
+  PARTIAL cxsd - CX collapse 98 % of a 150 s sleep, every sleep ended by the RTC alarm with the cover open and the lid
+  wake on, PCIe link down, Wi-Fi / display back, 0 hard kernel lines. The Lid edge latched by the PDC at the first CX
+  exit (GPIO 98 idles high with the cover open, only the rising edge is armed) is the cause; L1B was not.
+  **Queued 0113-0116** (iceland-linux **bdab8af**, `queue-0113.sh`, tree = q64): PCI qcom hot-plug slot, DSI PHY iface
+  clock, hall sensor supply, gpio-keys. Head 685ce87b2; `build-q56.sh` expects "do not arm a switch that is already
+  released". AOSS sleep: the AOP names APPS / SP / AOP / COMPUTE (the secure processor and the CDSP are never started).
+- Wake workflow: done until the owner's windows (NEXT.md section I, ~15 minutes, kit = queue head + 0.17).
+- Install: K1 is safe for the kits (their RAM roots carry no SELinux policy: "SELinux: Initializing" only, every check
+  allowed, permissive by DEVELOP). `pkg-install.py` fixed for the committed 0.17 (%preun of the trial units), 16 PASS.
+  Kernel **q65** = queue head 0116 + install.config (`build-q65.sh`, merge_config): 0 warnings, CONFIG_LSM with
+  selinux, FW_LOADER_COMPRESS XZ / ZSTD. **Run 65** (= run 45's regression on the head + the K1 check) started.
+- User: "does the new update regarding the full install means i will need to use the laptop as network relay and
+  there's no way to install it on tablet?" -> no: the relay / network disk is only the rehearsal before the install;
+  after the two writes Fedora runs from the tablet's own storage and Wi-Fi; the PC is needed for the writes, for new
+  kernel versions (until a published repository) and for rescue.
+- User: "update feature matrix with everything being commited and update the status, and basis everything calculate
+  the percentage of having this running successfully on the tablet fully instaled with dual boot android (use
+  everything since the start of the project)" -> `matrix-c2n.py` (deep sleep, wake, lid switch, kernel package and
+  dual-boot rows; the page subtitle and the FEATURES.md status line rewritten). **The estimate and its model:**
+  - Project so far (since 28 Sep): 138 SM8850 base patches + 116 Pad 4 patches, 113 kit runs, 76 test kernels,
+    201 docs commits; matrix 57 working / 12 in progress / 5 not started / 2 not planned of 76.
+  - Progress = 50 % features + 30 % single install path + 20 % dual-boot specifics:
+    - features: 74 rows in scope, working 1, in progress 0.5, not started 0 -> (57 + 6) / 74 = 85 % -> 42.6 points;
+    - single install path: running from RAM proven 100 % (w .25), packaging 80 % (kernel rpm 12 / 12, 0.17
+      committed, 0.18 checked on the PC; w .20), rehearsal tooling 70 % (built, PC-checked, G13 closed; w .20),
+      tablet rehearsal 5 % (R0 only; w .20), the writes 0 % (w .15) -> 56 % -> 16.8 points;
+    - dual boot: U-Boot "fedora" partition support + the recovery helper exist; the partition change of LUN 0, its
+      rehearsal and the OTA handling are not planned in detail -> 20 % -> 4 points;
+    - total about 63 %.
+  - Chance that it works as planned (the risks, each from what is proven so far): the install chain on the tablet
+    (U-Boot from userdata on 4 KiB storage, shim fallback, GRUB, SELinux denials; all software, the rehearsal shows
+    each) 0.90; ABL starting an unsigned boot / recovery image in the unlocked state 0.88; the partition change for
+    the dual boot (never done here; fastboot stays reachable, backups exist) 0.85; Android after its data reset and
+    smaller userdata 0.95 -> Fedora only about 0.90 x 0.88 = 0.79 (four in five); with dual boot about 0.64 (two in
+    three). Not counted as failure: a higher sleep drain than stock (CX collapse reached, AOSS open), autofocus, the
+    owner's hand tests still to do.
