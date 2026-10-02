@@ -4,7 +4,7 @@
 # No firmware and no binaries: configuration files and small scripts only.
 
 Name:           iceland-device
-Version:        0.14
+Version:        0.15
 Release:        1%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
@@ -42,6 +42,13 @@ Source22:       iceland-tuned.tar.gz
 Source23:       iceland-power-profiles
 Source24:       battery-guard.conf
 Source25:       machine-info
+# the sensors behind the ADSP (accelerometer / auto-rotate, light, proximity, compass): udev rule, unit ordering,
+# the readiness wait, the restart after a suspend
+Source26:       81-iceland-ssc.rules
+Source27:       iio-sensor-proxy-iceland.conf
+Source28:       hexagonrpcd-adsp-sensorspd-iceland.conf
+Source29:       iceland-ssc-wait
+Source30:       iceland-ssc-resume.service
 
 Requires:       kernel-iceland
 Requires:       bluez
@@ -52,6 +59,10 @@ Requires:       curl
 Requires:       iw
 Requires:       alsa-utils
 Requires:       tuned-ppd
+# the sensor programs (packaging/sensors; not in Fedora 44, iio-sensor-proxy there has no SSC support)
+Requires:       hexagonrpc
+Requires:       libssc
+Requires:       iio-sensor-proxy >= 3.9-10
 Requires(posttrans): grubby
 
 %description
@@ -84,6 +95,11 @@ Settings that make Fedora 44 work safely on the OnePlus Pad 4 with the kernel-ic
 - GNOME's About page and hostnamectl name the tablet "OnePlus Pad 4": /etc/machine-info gets HARDWARE_VENDOR,
   HARDWARE_MODEL and CHASSIS (systemd-hostnamed prefers them over the firmware's DMI strings, which U-Boot derives
   from the device tree as "oneplus" / "OnePlus Pad 4").
+- auto-rotate and the other sensors behind the ADSP: a udev rule gives iio-sensor-proxy the accelerometer and the
+  proximity sensor with the Pad 4 mount matrix and starts hexagonrpcd (sensors PD) and then iio-sensor-proxy when
+  /dev/fastrpc-adsp appears; iio-sensor-proxy waits until the accelerometer answers; hexagonrpcd is started again
+  after a suspend. Needs the tablet's own DSP file tree in /usr/share/qcom/kaanapali/OnePlus/iceland (extracted
+  at install time, never shipped).
 
 %prep
 %setup -q -c -T
@@ -132,6 +148,11 @@ install -Dm0755 %{SOURCE23} %{buildroot}/usr/bin/iceland-power-profiles
 install -d %{buildroot}/var/lib/iceland/repo/aarch64
 install -d %{buildroot}/etc/iceland
 install -Dm0644 %{SOURCE25} %{buildroot}/usr/share/iceland/machine-info
+install -Dm0644 %{SOURCE26} %{buildroot}/usr/lib/udev/rules.d/81-iceland-ssc.rules
+install -Dm0644 %{SOURCE27} %{buildroot}/usr/lib/systemd/system/iio-sensor-proxy.service.d/iceland.conf
+install -Dm0644 %{SOURCE28} %{buildroot}/usr/lib/systemd/system/hexagonrpcd-adsp-sensorspd.service.d/iceland.conf
+install -Dm0755 %{SOURCE29} %{buildroot}/usr/libexec/iceland/iceland-ssc-wait
+install -Dm0644 %{SOURCE30} %{buildroot}/usr/lib/systemd/system/iceland-ssc-resume.service
 
 %posttrans
 # kernel-iceland is the default kernel and new kernel-iceland versions become the default
@@ -147,7 +168,7 @@ if [ ! -e /var/lib/iceland/.asound-state-reset ]; then
 	rm -f /var/lib/alsa/asound.state
 	mkdir -p /var/lib/iceland && touch /var/lib/iceland/.asound-state-reset
 fi
-systemctl enable iceland-battery-guard.service iceland-npu-off.service iceland-wifi-country.service >/dev/null 2>&1 || :
+systemctl enable iceland-battery-guard.service iceland-npu-off.service iceland-wifi-country.service iceland-ssc-resume.service >/dev/null 2>&1 || :
 systemctl --global enable iceland-refresh.service >/dev/null 2>&1 || :
 # GNOME's power modes -> the Pad 4 tuned profiles (edits tuned-ppd's mapping between marker lines)
 /usr/bin/iceland-power-profiles apply >/dev/null 2>&1 || :
@@ -175,7 +196,7 @@ if [ -f "$f" ] && ! grep -q '^DisabledPlugins=.*uefi_capsule' "$f"; then
 fi
 
 %preun
-[ "$1" -eq 0 ] && systemctl --global disable iceland-refresh.service >/dev/null 2>&1; [ "$1" -eq 0 ] && systemctl disable iceland-wifi-country.service iceland-npu-off.service iceland-battery-guard.service iceland-bdaddr.service >/dev/null 2>&1 || :
+[ "$1" -eq 0 ] && systemctl --global disable iceland-refresh.service >/dev/null 2>&1; [ "$1" -eq 0 ] && systemctl disable iceland-ssc-resume.service iceland-wifi-country.service iceland-npu-off.service iceland-battery-guard.service iceland-bdaddr.service >/dev/null 2>&1 || :
 [ "$1" -eq 0 ] && /usr/bin/iceland-power-profiles reset >/dev/null 2>&1 || :
 
 %files
@@ -216,8 +237,23 @@ fi
 %dir /etc/iceland
 %dir /usr/share/iceland
 /usr/share/iceland/machine-info
+/usr/lib/udev/rules.d/81-iceland-ssc.rules
+%dir /usr/lib/systemd/system/iio-sensor-proxy.service.d
+/usr/lib/systemd/system/iio-sensor-proxy.service.d/iceland.conf
+%dir /usr/lib/systemd/system/hexagonrpcd-adsp-sensorspd.service.d
+/usr/lib/systemd/system/hexagonrpcd-adsp-sensorspd.service.d/iceland.conf
+/usr/libexec/iceland/iceland-ssc-wait
+/usr/lib/systemd/system/iceland-ssc-resume.service
 
 %changelog
+* Fri Oct 02 2026 mzak <mzak.amin@gmail.com> - 0.15-1
+- sensors / auto-rotate: 81-iceland-ssc.rules (the SSC accelerometer and proximity sensor for iio-sensor-proxy, the
+  mount matrix "0, 1, 0; -1, 0, 0; 0, 0, -1" derived from stock, both services started by udev when
+  /dev/fastrpc-adsp appears), drop-ins that start hexagonrpcd (sensors PD, the tablet's own DSP file tree) before
+  iio-sensor-proxy, iceland-ssc-wait (waits until the accelerometer delivers a sample; area-combo-17: 2.5 s),
+  iceland-ssc-resume.service (hexagonrpcd again after a suspend); requires hexagonrpc, libssc and
+  iio-sensor-proxy >= 3.9-10 (packaging/sensors)
+
 * Thu Oct 01 2026 mzak <mzak.amin@gmail.com> - 0.14-1
 - /etc/machine-info: HARDWARE_VENDOR=OnePlus, HARDWARE_MODEL="Pad 4", CHASSIS=tablet (the missing keys are added at
   install from /usr/share/iceland/machine-info): GNOME's About page and hostnamectl show "OnePlus Pad 4" instead of

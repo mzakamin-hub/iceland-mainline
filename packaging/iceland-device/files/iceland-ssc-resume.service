@@ -1,0 +1,14 @@
+# iceland-device: hexagonrpcd's unit stops for a suspend (Conflicts=suspend.target) and nothing starts it again.
+# This runs after the resume (ordered after suspend.target, pulled in by it).
+[Unit]
+Description=OnePlus Pad 4: start the sensor hub's file server again after a suspend
+After=suspend.target
+ConditionPathIsDirectory=/usr/share/qcom/kaanapali/OnePlus/iceland/sensors/registry
+ConditionPathExists=/dev/fastrpc-adsp
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl --no-block start hexagonrpcd-adsp-sensorspd.service
+
+[Install]
+WantedBy=suspend.target

@@ -1,0 +1,103 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: GPL-2.0-or-later
+"""iceland-ssc-wait [SECONDS] | --list
+
+OnePlus Pad 4: wait until the ADSP's sensor hub (QMI service 400, "SSC") is on the QRTR bus, at most SECONDS
+(default 30). iio-sensor-proxy looks for that service once when it starts and gives up at once if it is not there;
+this runs before it (ExecStartPre in iio-sensor-proxy.service.d/iceland.conf). Always exits 0: iio-sensor-proxy
+starts either way, the journal says how long the wait was. --list prints every QRTR service (for the logs).
+The QRTR name service sends the servers that exist, an empty record, and then every new server as it appears.
+"""
+import socket
+import struct
+import sys
+import time
+
+SSC = 400                   # libqmi QMI_SERVICE_SSC (0x190); the ADSP is QRTR node 5 here
+CTRL_PORT = 0xFFFFFFFE      # QRTR_PORT_CTRL
+NEW_SERVER, NEW_LOOKUP = 4, 10
+
+
+def lookup(want, limit):
+    """want = service number to wait for, or 0 to list what exists now"""
+    fam = getattr(socket, "AF_QIPCRTR", 42)
+    s = socket.socket(fam, socket.SOCK_DGRAM)
+    node = s.getsockname()[0]
+    s.sendto(struct.pack("<5I", NEW_LOOKUP, want, 0, 0, 0), (node, CTRL_PORT))
+    t0 = time.monotonic()
+    seen = []
+    while True:
+        left = limit - (time.monotonic() - t0)
+        if left <= 0:
+            return None, seen, time.monotonic() - t0
+        s.settimeout(left)
+        try:
+            data = s.recv(64)
+        except socket.timeout:
+            return None, seen, time.monotonic() - t0
+        if len(data) < 20:
+            continue
+        cmd, service, instance, snode, port = struct.unpack("<5I", data[:20])
+        if cmd != NEW_SERVER:
+            continue
+        if service == 0 and instance == 0 and snode == 0 and port == 0:    # end of the servers that exist now
+            if want == 0:
+                return None, seen, time.monotonic() - t0
+            continue
+        seen.append((snode, port, service, instance & 0xFF, instance >> 8))
+        if want and service == want:
+            return seen[-1], seen, time.monotonic() - t0
+
+
+def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "--list":
+        try:
+            _, seen, _ = lookup(0, 3)
+        except OSError as e:
+            print("iceland-ssc-wait: no QRTR lookup (%s)" % e)
+            return 0
+        for snode, port, service, version, instance in sorted(seen):
+            print("%d:%d service %d version %d instance %d" % (snode, port, service, version, instance))
+        print("iceland-ssc-wait: %d services, SSC (service %d) %s" % (
+            len(seen), SSC, "present" if any(x[2] == SSC for x in seen) else "absent"))
+        return 0
+    try:
+        limit = float(sys.argv[1]) if len(sys.argv) > 1 else 30.0
+    except ValueError:
+        limit = 30.0
+    try:
+        hit, _, dt = lookup(SSC, limit)
+    except OSError as e:
+        print("iceland-ssc-wait: no QRTR lookup (%s); waiting 5 s instead" % e)
+        time.sleep(5)
+        return 0
+    if hit:
+        print("iceland-ssc-wait: SSC (service %d) at QRTR %d:%d after %.1f s" % (SSC, hit[0], hit[1], dt))
+    else:
+        print("iceland-ssc-wait: no SSC (service %d) on QRTR after %.0f s" % (SSC, dt))
+        return 0
+    # The service is on the bus as soon as the ADSP runs, but its sensors only appear after hexagonrpcd has served
+    # the sensor hub its configuration files (seen: the accelerometer about 3-4 s later). With a probe program
+    # (libssc's ssccli) wait until the accelerometer really delivers a sample.
+    if len(sys.argv) > 2:
+        import subprocess
+        t0 = time.monotonic(); n = 0
+        while time.monotonic() - t0 < limit:
+            n += 1
+            try:
+                out = subprocess.run([sys.argv[2], "--sensor", "accelerometer", "--timeout", "1"],
+                                     capture_output=True, text=True, timeout=5).stdout
+            except (OSError, subprocess.SubprocessError) as e:
+                print("iceland-ssc-wait: probe %s failed (%s); waiting 6 s instead" % (sys.argv[2], e))
+                time.sleep(6)
+                return 0
+            if "measurement" in out:
+                print("iceland-ssc-wait: the accelerometer answers after %.1f s (%d tries)" % (time.monotonic() - t0, n))
+                return 0
+            time.sleep(1)
+        print("iceland-ssc-wait: no accelerometer sample after %.0f s (%d tries)" % (time.monotonic() - t0, n))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

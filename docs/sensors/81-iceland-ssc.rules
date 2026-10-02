@@ -1,1 +1,20 @@
-SUBSYSTEM=="misc", KERNEL=="fastrpc-adsp", ENV{IIO_SENSOR_PROXY_TYPE}+="ssc-accel ssc-proximity", ENV{ACCEL_MOUNT_MATRIX}="0, 1, 0; -1, 0, 0; 0, 0, -1"
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-device: the OnePlus Pad 4's accelerometer, light, proximity and compass sensors sit behind the ADSP's
+# sensor hub (SSC). iio-sensor-proxy (built with SSC support) reaches them through /dev/fastrpc-adsp, so the
+# settings hang on that node. systemd's sensor hwdb (60-sensor.rules) only looks at iio and input devices and
+# never sees this one: the mount matrix has to be a udev rule.
+#
+# IIO_SENSOR_PROXY_TYPE: upstream's rule enables the light sensor and the compass; the accelerometer and the
+#   proximity sensor are opt-in. All four are named here so the result does not depend on the other rule.
+# ACCEL_MOUNT_MATRIX: the SSC reports Android's sensor frame (natural orientation portrait, +g on the axis that
+#   points up; stock axis map x=+x y=+y z=+z). iio-sensor-proxy wants the panel's own frame (3392x2400 landscape)
+#   with gravity itself: x' = Y, y' = -X, z' = -Z. Measured in the stand (Android ROTATION_90 = the panel's native
+#   orientation): raw (8.16, 0.02, 5.94) m/s2 -> (0, -8, -5) = "normal".
+# SYSTEMD_WANTS: the node appears when the ADSP is up and fastrpc has bound, early or late in the boot. Both
+#   services start from here (hexagonrpcd first, see the two iceland.conf drop-ins), not from multi-user.target.
+ACTION=="remove", GOTO="iceland_ssc_end"
+SUBSYSTEM=="misc", KERNEL=="fastrpc-adsp", \
+  ENV{IIO_SENSOR_PROXY_TYPE}="ssc-light ssc-compass ssc-accel ssc-proximity", \
+  ENV{ACCEL_MOUNT_MATRIX}="0, 1, 0; -1, 0, 0; 0, 0, -1", \
+  TAG+="systemd", ENV{SYSTEMD_WANTS}+="hexagonrpcd-adsp-sensorspd.service iio-sensor-proxy.service"
+LABEL="iceland_ssc_end"

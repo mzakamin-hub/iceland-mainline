@@ -15,6 +15,10 @@ binaries. `./build-rpm.sh OUT` builds `iceland-device-*.noarch.rpm` (rpmbuild; t
 | `60-iceland-wifi-powersave.conf` | `/usr/lib/NetworkManager/conf.d/` | Wi-Fi power saving |
 | `iceland-battery-guard(.service)` | `/usr/libexec/iceland/`, systemd unit | stock charging limits as a second safety layer (see the file header for each stock value) |
 | `machine-info` | `/usr/share/iceland/machine-info`; missing keys added to `/etc/machine-info` | GNOME's About page and `hostnamectl` show "OnePlus Pad 4" (hostnamed prefers this file over the firmware's DMI strings) |
+| `81-iceland-ssc.rules` | `/usr/lib/udev/rules.d/` | the sensors behind the ADSP for iio-sensor-proxy: accelerometer + proximity enabled, the mount matrix (stock: Android frame, natural portrait, panel native at ROTATION_90), hexagonrpcd and iio-sensor-proxy started when `/dev/fastrpc-adsp` appears |
+| `hexagonrpcd-adsp-sensorspd-iceland.conf` | `/usr/lib/systemd/system/hexagonrpcd-adsp-sensorspd.service.d/iceland.conf` | hexagonrpcd (sensors PD) with the tablet's own DSP file tree (`/usr/share/qcom/kaanapali/OnePlus/iceland`, extracted at install time, never shipped) |
+| `iio-sensor-proxy-iceland.conf`, `iceland-ssc-wait` | `/usr/lib/systemd/system/iio-sensor-proxy.service.d/iceland.conf`, `/usr/libexec/iceland/` | iio-sensor-proxy after hexagonrpcd and only once the accelerometer delivers a sample (it looks for its sensors once) |
+| `iceland-ssc-resume.service` | systemd unit | hexagonrpcd's unit stops for a suspend; this starts it again after the resume |
 | (%posttrans) | `/etc/sysconfig/kernel` | `DEFAULTKERNEL=kernel-iceland`, `UPDATEDEFAULT=yes` |
 | (%triggerin fwupd) | `/etc/fwupd/fwupd.conf` | `DisabledPlugins=uefi_capsule` |
 

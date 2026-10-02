@@ -407,3 +407,136 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
 - **Queued: iceland-linux 82e192d = 0073** the cameras' device tree (= the tree tested as q49). Queue 0001-0073.
 - Camera open points: libcamera sensor helper + tuning (AE), front gain coding, focus motor, GNOME Snapshot on
   screen (webcam / user), shipping the private sensor module.
+
+### 2026-10-02 - entry 14: run 23: the sensor programs as RPMs, auto-rotate with the packaged stack, camera gain codes
+- New in the repo (not committed yet at this point): `packaging/sensors/` = `hexagonrpc.spec` (upstream 598b591 +
+  our patch, units moved to the unit directory, user `fastrpc`, udev rule for the nodes), `libssc.spec` (54dd13e,
+  `-devel` split, `ssccli` in the main package), `iio-sensor-proxy.spec` (3.9 with `-Dssc-support=enabled` + two
+  patches, release `10.iceland1` above Fedora's 3.8-2), `build-rpm.sh`, README. `build/mk-sensor-pkg.sh` makes the
+  source tarballs from the pinned upstream commits and `sensors-pkg.tgz`. Fedora 44 has no hexagonrpc and no libssc
+  (checked on mdapi), and its iio-sensor-proxy is 3.8 without SSC.
+- iceland-device 0.15 (`build/pkg-015.py`): `81-iceland-ssc.rules`, the two unit drop-ins, `iceland-ssc-wait`,
+  `iceland-ssc-resume.service` (hexagonrpcd again after a suspend), Requires on the three packages.
+- Run 23 (q49, 05:00-05:05, the whole run took 5 minutes):
+  - **pkg2 PASS**: build deps 30 s; the three sensor RPMs built in 9.7 s, the device RPM in 8.6 s, all on the
+    first try, no unpackaged-file warnings; `rpm -Uvh` rc 0 with dependencies checked (iio-sensor-proxy 3.8-2 ->
+    3.9-10.iceland1), `rpm -V` clean, user `fastrpc` created, the daemon links libssc; the device package's only
+    unresolved requires are `kernel-iceland` and `grubby` (not in a RAM session); with the RPMs in the local
+    repository `dnf check-upgrade iio-sensor-proxy` offers nothing. RPMs + SRPMs: `C:\platform-tools\rpms\sensors`.
+  - **rotpkg start PASS**: the packaged units alone (`modprobe fastrpc` = node added after the rules, as at boot,
+    at uptime 131 s; ADSP up at 48.6 s): accelerometer sample after 2.7 s, the daemon found accelerometer, light,
+    compass and proximity; GNOME (session already up): 1 claim, 'normal', managed=true.
+  - **rotpkg real PASS** (the boot order with the REAL sensor: new GNOME session after the daemon): 1 claim, 504
+    readings in 20 s, 'normal', transform 0, vector (0, -7, -6).
+  - **rotpkg inject PASS**: packaged daemon + test accelerometer + new session: 4 of 4 turns.
+  - **FAIL found**: after the daemon was restarted under that session (the test's clean-up): 0 claims, orientation
+    'undefined', managed=false. Cause read from mutter's source: a mutter that has been through its first claim
+    sits at inhibit count 1 when the daemon vanishes and waits for HasAccelerometer = true before it claims; patch
+    v4 hid it for ever. (After a boot the count is 0 and mutter must NOT see it before the claim.)
+    Fix = v5 `wf/rotate/cand/iio-accel-hold-back.py`: held back until the claim, or until 2 s after the client
+    first read the property. Logic self-tested on the PC against glib (`an/cc-hold-back.sh`); replaces the commit
+    in the local clone; patch `0002-main-hold-back-HasAccelerometer-until-a-client-has-c.patch`.
+  - **gainmap** (sensor module q49b: analogue gain register per model = 0x3e09 rear, 0x3e08 front, as in stock's
+    trace; slope of two exposures per code, black level drops out):
+    rear SC1320CS (flash LEDs): 0x00 1.00, 0x01 1.96, 0x03 3.92, 0x07 7.82, 0x08 1.96, 0x09 3.91, 0x0b 7.80,
+    0x0f 15.6, 0x1f 31.4, 0x27 15.5, 0x2f 31.2, 0x3f 63.4; front SC820CS (the screen at full white as the light):
+    1.00, 2.03, 3.94, 7.87, 2.00, 3.96, 7.92, 16.0, 31.7, (0x23 48.4), 15.8, 31.7, 62.4, 0x7f 61.9.
+    So every set bit of the low six doubles the gain; stock's own codes (0x0f rear; 0x09, 0x0b front) are on the
+    ladder 0x00 0x08 0x09 0x0b 0x0f 0x1f 0x3f = 1 2 4 8 16 32 64. Fine digital gain 0x3e07: 0xc0 = 1.51x,
+    0xff = 2.01x on both. Correction to entry 12: 0x0f / 0x1f / 0x3f are 16x / 32x / 64x, not 1x / 2x / 4x (the
+    driver's old default 0x0f was already 16x, which is why libcamera's pictures were overexposed).
+  - Sensor module q49c (`camdrv/gain-table.py`): V4L2_CID_ANALOGUE_GAIN = total gain x 128 (128..8192, linear):
+    ladder step + fine digital gain, as stock does. libcamera's software AGC without a sensor helper takes the
+    control as linear, so no libcamera patch is needed for auto-exposure.
+- Lesson: `prep` checks of the kind "binqNN = queue head + 1 candidate" break when the candidate is queued; compare
+  trees instead.
+- Next: run 24 = RPMs again with v5, boot order / injection / two daemon restarts, libcamera auto-exposure (rear
+  lit, rear dark, front), then systemd's suspend path with the packaged stack (logs fetched before it).
+
+### 2026-10-02 - entry 15: run 24: packaged auto-rotate after a boot order, suspend path; two failures understood
+- Run 24 (q49, 05:11-05:19): RPMs rebuilt with the daemon change v5 (rc 0, same checks as run 23).
+  - rotpkg start / real / inject: PASS again (1 claim, 503 readings, 'normal'; 4 of 4 turns).
+  - **rotpkg restart FAIL** (v5): two daemon restarts under the running session: 0 claims, and the daemon's
+    "told after the wait" line never appeared. Cause read from the daemon's source: it takes its bus name BEFORE it
+    opens its sensors (`name_acquired_handler` -> `find_sensors`), so mutter's property read can come while there is
+    no accelerometer yet; v5 armed its 2 s timer only when the accelerometer existed. Fix v6
+    (`wf/rotate/cand/iio-accel-hold-back.py`): the timer is always armed; a client whose delay ended before the
+    accelerometer was found is told from `send_dbus_event()` when it appears. Self-test on the PC covers the three
+    cases. Local clone commit 6e7aa4f, patch 0002 regenerated.
+  - **rotsusp PASS for the path itself**: systemd's own suspend (`systemctl suspend -i` with an RTC alarm, 25 s)
+    twice: suspend_stats 0 -> 1 -> 2, no failure, woke by irq 23 pm8xxx_rtc_alarm, ssh back both times. Without
+    `iceland-ssc-resume.service` hexagonrpcd is inactive after the resume (its unit conflicts with suspend.target);
+    with the unit enabled it is active again. The accelerometer answered `ssccli` in both cases. (GNOME's readings
+    could not be judged here: it had no claim because of the restart failure above.)
+  - **ae FAIL, not the auto-exposure**: the sensor module was loaded 5.5 minutes after boot and BOTH sensors gave
+    no ACK on the chip-id read (`geni_i2c 884000.i2c: DMA txn failed:3`, chip id 0x0000). In run 23 the same
+    read worked at 2.3 minutes, while GNOME was reading the accelerometer; in run 24 nobody was (restart failure).
+    Hypotheses: (a) a supply the camera bus needs is held up by the ADSP's sensor hub only while its sensors run;
+    (b) something time-dependent. Not the gain change (the probe code is unchanged).
+- Next: run 25 = v6, `camdiag` (same boot: module loaded with an accelerometer client / with the sensor daemon
+  stopped, at ~150 s and at ~350 s), auto-exposure with an accelerometer client held, suspend again.
+
+### 2026-10-02 - entry 16: run 25: daemon v6 proven; the cameras need a rail the sensor hub switches; auto-exposure works
+- Run 25 (q49, 05:26-05:37; sensor module q49c with the linear gain control):
+  - **rotpkg restart PASS** (daemon v6): after the injection test's clean-up and after two more daemon restarts
+    under the running session GNOME claims again 3 s after the daemon is up (130 / 145 readings, 'normal',
+    managed=true). The journal shows the mechanism: three clients "look for the accelerometer before claiming it
+    (not found yet)" at the daemon's start and are told 2 s later. start / real / inject: PASS as before.
+  - **camdiag (root cause of run 24's camera failure)**: the sensor module loaded again and again in one boot:
+    early (168-195 s): accelerometer in use 2 of 2 sensors answer, sensor daemon stopped for 12 s 0 of 2, in use
+    again 2 of 2; late (324-362 s): stopped 0, in use 2, stopped 0, in use 2. Not time-dependent: the camera
+    sensors only answer on their I2C bus while a sensor of the ADSP's sensor hub runs. Stock's sensor configs
+    (`odm/sensor/config/*.json`, private) name the hub's rails: `vddio_rail` L1B_E0 for every sensor (1.8 V),
+    L18B_E0 (accelerometer core), L2B_E0 (light / proximity). Our DT has `vreg_l1b_1p8` with no consumer and not
+    always-on, so only the hub votes for it. Stock's camera nodes do not list L1B either (vio L2F, vana L14B,
+    vdig L1F, vaf L16B): on stock the hub always has a sensor running while the screen is on.
+    Runs 20-22 worked because the hub was never configured there (no hexagonrpcd), so its boot-time vote stayed.
+  - **ae PASS in substance** (an accelerometer client held during the test): libcamera's software AGC takes the
+    control as "Exposure 1-3999, gain 128-8192"; rear with the torch: frame 3 mean 47 -> last frame mean 118
+    (mid grey; the preview shows the scene well exposed, a hand close to the lens blown out); rear dark 39 -> 46
+    and front (dark room) 1 -> 39 at the top of the gain range. The AGC's own step lines were not captured (the
+    log level list needs the category after `*:INFO`).
+  - **rotsusp PASS**: two suspends through systemd, woke by the RTC alarm; GNOME reads the accelerometer again
+    after the resume in both cases (124 readings in 5 s, 'normal'); hexagonrpcd is only running again with
+    `iceland-ssc-resume.service`.
+- Kernel q50 built (05:30): queue 0073 + candidate `an/dt-l1b-on.py` = `regulator-always-on` on `vreg_l1b_1p8`.
+- Next: run 26 (q50): camdiag must give 2 of 2 with the sensor daemon stopped; the RPMs built in run 25 are
+  installed from the PC through dnf (no build on the tablet); rotate tests again (the rail now stays on under the
+  hub); auto-exposure with the sensor daemon stopped and the AGC steps logged; suspend.
+
+### 2026-10-02 - entry 17: runs 26-31: the camera bus and the sensor hub (cause not found); new request: 5 workflows + install plan
+- Run 26 (q50 = queue 0073 + `regulator-always-on` on `vreg_l1b_1p8`, sensor RPMs of run 25 installed from the PC
+  through dnf, 05:40): prebuilt RPMs install and start (stack up at uptime 85 s); rotate start / real / inject /
+  restart PASS again; **camdiag unchanged: 0 of 2 with the sensor daemon stopped** -> L1B is not it. Suspend PASS.
+- Run 27 (q50): `camrail` = one hub sensor at a time through `ssccli`, PMIC B registers read singly: cameras
+  answer with ANY hub sensor (magnetometer, light, proximity, accelerometer: 2 of 2; none: 0 of 2, five times).
+  PMIC B: L1B on in all states, L2B only with light, L18B only with the accelerometer -> with the magnetometer
+  nothing on PMIC B differs from "none". `ae` with an accelerometer client held: AGC steps logged (level list must
+  be `*:INFO,IPASoftExposure:DEBUG`): gain 140.8 -> 691.9 in 18 steps / 70 frames, mean 60 -> 106-135.
+- Run 28 (q50): `camdiff` = status + enable of every clock / GPIO / SMPS / LDO peripheral of all 8 PMICs, hub idle
+  vs magnetometer, twice: no register follows the hub (SMPS status bit 3 flickers at random). `/sys/kernel/debug/
+  gpio`: only TLMM gpio4 / gpio5 (the camera I2C lines) differ: HIGH with the hub idle, LOW with it active (camera
+  rails off in both).
+- Run 29 (q50, sensor module with `hold_ms`: keeps the sensor powered 4 s and reads again): while powered, idle vs
+  magnetometer: 0 PMIC registers differ (status, voltage, mode, enable of all SMPS / LDO; reset pads; clocks);
+  lines high in both; first and second read fail when idle, succeed with the magnetometer.
+- gpio4 / gpio5 are eGPIO pads (`PINGROUP(4, qup2_se1, ibi_i3c, ..., egpio)`): owner bit 12 of the pad's CFG.
+  Run 30 read every pad's CFG through /dev/mem and **the tablet reset at once** (reserved pads belong to the
+  secure world; it came back to Android by itself, nothing written). Lesson: /dev/mem only for pads Linux uses.
+  Run 31 (pads 4 / 5 only): CFG 0x01807 = owned by the application processor in every state; binding the I2C
+  controller again does not bring the sensors back. -> not the owner bit.
+- State of the camera question: three hypotheses tested and rejected (L1B, any PMIC rail / clock enable, eGPIO
+  owner). Facts: works before the hub is ever configured (runs 20-22), fails with the hub configured and idle,
+  works with any hub sensor streaming; the SoC-side lines are high at rest when it fails and low when it works
+  (low = connected to the unpowered camera side). Suspect: a bus switch or level shifter between the SoC pads and
+  the camera connector that the hub enables through a pin Linux cannot read (PMIC peripherals owned by another
+  master read as errors: 928 of 1664 in run 28). In daily use GNOME holds the accelerometer whenever the screen
+  is on, so the cameras work then. Candidate q50 (L1B always on) is dropped, not queued.
+- 06:10 the user's new request: separate workflows for (1) low-battery current limiting (BCL), (2) charging,
+  (3) charge limits, (4) GPU cooling, (5) improved thermals; and a full plan for the install (planning only:
+  no bricking, restore to stock OxygenOS at any time, which partitions must never be flashed, default GNOME apps,
+  upgrades that cannot brick and only take what fits our setup).
+  -> `docs/WORKFLOW-BRIEF-2.md`; five background workflows started 06:14 (folders `build/wf/{bcl,charging,
+  chargelimit,gpucool,thermal}`; PC work only, their tests are run by the main session afterwards).
+  -> `docs/INSTALL-PLAN.md` written (gates, the two partitions that may be written, the never list, rehearsal
+  from RAM with the exact image, the two writes, updates, rescue, return to stock, open decisions).

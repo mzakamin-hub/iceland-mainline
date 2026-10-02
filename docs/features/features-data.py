@@ -6,21 +6,21 @@
 DATE = "2 Oct 2026"
 
 # One sentence after the date in FEATURES.md.
-STATUS_MD = ("Wi-Fi finds 5 GHz networks; both cameras work through libcamera (pictures at 24 fps, offered to the desktop); "
-             "hardware video is complete; the About page, GNOME's power modes and the battery time estimate work; sleep "
-             "is clean over 37 cycles including a 4-minute sleep; auto-rotate turns the picture in tests and its "
-             "after-boot failure is understood and worked around. In progress: packaging of the sensor programs, "
-             "camera auto-exposure and focus, a 5 GHz connect")
+STATUS_MD = ("Auto-rotate works after a boot with the sensor programs installed as packages, and survives sleep and a "
+             "restart of the sensor service; both cameras expose automatically through libcamera; Wi-Fi finds 5 GHz "
+             "networks; hardware video is complete; power modes, battery estimate and the About page work. In progress: "
+             "the cameras only answer while a sensor of the sensor hub runs (cause not found yet), camera focus, charging "
+             "and thermal items in parallel workflows, the plan for the install")
 
 # The subtitle of the published page.
 STATUS_HTML = ("Everything is tested by booting from RAM; nothing is installed on the tablet yet. Status as of "
-               f"{DATE}: Wi-Fi finds 5 GHz networks at boot; both cameras deliver pictures through libcamera at 24 fps "
-               "and are offered to the desktop; hardware video decoding is complete and GNOME Web uses it; the About "
-               "page, GNOME's three power modes and the battery time estimate work; sleep is clean over 37 cycles in "
-               "three sessions, including a 4-minute sleep; auto-rotate turns the picture for all four orientations in "
-               "tests, and why it stayed dead after a normal boot is understood and worked around. In progress: "
-               "packages for the sensor programs, camera auto-exposure and focus, a 5 GHz connect. Boot & platform "
-               "waits for your go-ahead on the install.")
+               f"{DATE}: auto-rotate works after a boot with the sensor programs installed as packages, and survives "
+               "sleep and a restart of the sensor service; both cameras set their exposure automatically through "
+               "libcamera; Wi-Fi finds 5 GHz networks at boot; hardware video decoding is complete; the About page, "
+               "GNOME's three power modes and the battery time estimate work; sleep is clean. In progress: the cameras "
+               "only answer while a sensor of the sensor hub is running (cause not found yet), camera focus, and - in "
+               "parallel workflows - low-battery protection, charging, charge limit and thermal improvements. The plan "
+               "for the install is written (docs/INSTALL-PLAN.md); the install itself waits for your go-ahead.")
 
 G = [
 ("Boot & platform", [
@@ -45,7 +45,7 @@ G = [
  ("Lid switch", "ok", "SW_LID events on GPIO 98 (area-display-1)"),
  ("Power and volume keys", "ok", "Power key also wakes from sleep"),
  ("Pogo keyboard", "todo", "Private UART protocol", "Private UART protocol: stock oplus pogo driver in OnePlusOSS; serdev + HID bridge"),
- ("Auto-rotate", "part", "GNOME turns the picture for all four orientations and back when they are fed through the tablet's own mount-matrix path (test accelerometer; area-combo-14, -17, -18); the real sensor reads “normal” in the stand; the sensor services now start by themselves once the accelerometer really answers (2.5 s). After a normal boot GNOME never asked for the sensor: a counting bug in GNOME's window manager when a tablet's sensor is already there at login. With a small change in our sensor daemon GNOME asks and turns 4 of 4 (A/B in one session, area-combo-19). The sensor programs are still built on the tablet in each test - nothing is packaged", "Packages for the three sensor programs with our two changes; the sensor hub wants its files within about two minutes of its start (a late start found no sensors once); report the GNOME bug (your OK); one turn of the tablet with you"),
+ ("Auto-rotate", "ok", "Works with the sensor programs installed as packages. Started by the system alone when the sensor hub's node appears, the accelerometer answers after 2.7 s. In the order of a real boot (sensor service first, then a new GNOME session) GNOME takes the real sensor: 1 claim, ~500 readings in 20 s, “normal”. Four fed orientations turn the picture 4 of 4. After a restart of the sensor service under the running session GNOME is back after 3 s (twice), and after a sleep through systemd it reads again (area-combo-23, -25, -26). GNOME's window manager has a counting bug with a sensor that is already there at login; our build of the sensor service works around it (patch 0002 in docs/sensors/patches)", "One turn of the tablet with you watching (which side portrait turns to; touch follows); report the bug to GNOME (your OK)"),
 ]),
 ("Graphics & compute", [
  ("Adreno 840 GPU, GLES 3.2", "ok", "OpenGL 4.6 / ES 3.2 on Mesa 26.2.3 (Fedora 44's newest; Mesa main is 7 % slower here); glmark2 3213 offscreen / 2345 on GNOME, DCVS already at 1.2 GHz under load; the stock 1100 MHz level added (area-graphics-1)"),
@@ -95,7 +95,7 @@ G = [
  ("GPU cooling", "part", "The skin loop now caps the GPU under sustained load: 90-s stress 318 → 306 and 321 → 288 fps with the GPU at 74-79 °C, 54-60 s throttled (area-graphics-2/-3); the 105 °C passive map matches stock", "Turn the 125 °C critical into hot (stock has no GPU shutdown trip); a 30-min stress with the skin zone"),
 ]),
 ("Sleep & power saving", [
- ("Suspend (s2idle)", "ok", "37 sleep cycles in three sessions on kernels with the USB fix, all woken by the clock alarm, none failed - with sound played and recorded between and during them (area-combo-12, -14, -15). The two “stalls after audio” of September ran on kernels before the USB fix and no sound had reached the hardware in them", "One recording right after a wake was cut short (once); one display warning on the way into a sleep; the sensor daemon is not restarted after a wake"),
+ ("Suspend (s2idle)", "ok", "37 sleep cycles in three sessions on kernels with the USB fix, all woken by the clock alarm, none failed - with sound played and recorded between and during them (area-combo-12, -14, -15). Sleep through systemd itself (the path the power key and the lid use) works too: six sleeps in three sessions, woken by the alarm, the network back each time, GNOME reading the accelerometer again; the sensor hub's file server is started again after each wake by iceland-device 0.15 (area-combo-24, -25, -26)", "One recording right after a wake was cut short (once); one display warning on the way into a sleep"),
  ("Long sleep", "ok", "The “unexplained reboot after a long sleep” was the test kit's own reboot timer (it counts time asleep), not the watchdog, which is stopped in sleep. A 4-minute sleep wakes by the clock alarm and sound works afterwards (area-combo-15); a 22-minute sleep woke by the power key (2 Oct)", "Overnight drain and deep-sleep proof (own row)"),
  ("Wake by power key and alarm", "ok", ""),
  ("Wake by lid, keyboard, charger", "todo", "", "wakeup-source on gpio-keys lid, pmic-glink/UCSI; /sys/power/pm_wakeup_irq"),
@@ -105,13 +105,13 @@ G = [
 ]),
 ("Sensors & camera", [
  ("Rear flash LEDs", "ok", ""),
- ("Accelerometer, compass, light / proximity", "ok", "Working in RAM through the ADSP sensor hub (area-sensors-4..7): BMI3x0 accelerometer, AK09919 magnetometer, STK36C01 light + proximity read live; iio-sensor-proxy (SSC build) serves them to GNOME. Needs kernel 0061, hexagonrpcd with the device's own sensor files, libssc and iio-sensor-proxy with SSC support (built here, not in Fedora)", "Package hexagonrpc / libssc / iio-sensor-proxy (SSC) + the udev rule; extract the sensor files from the tablet at install"),
- ("Cameras (13 MP rear, 8 MP front)", "part", "Both cameras deliver pictures. The sensors answer with stock's chip IDs and stream raw 10-bit frames (rear 4160×3120, front 3264×2448; device tree queued as 0073). The rear sensor's exposure is linear and its gain steps are known - measured with the flash LEDs as the light (area-combo-20). libcamera lists “Internal back camera” and “Internal front camera” and gives processed pictures at 24 fps; PipeWire offers both to the desktop (area-combo-21, -22). The sensor driver is ours, written from a trace of stock; its register tables stay private", "Automatic exposure (libcamera needs a gain table for these sensors; the front sensor's gain coding is not known yet); the focus motor; GNOME's Camera app on screen; how to ship the private sensor driver"),
+ ("Accelerometer, compass, light / proximity", "ok", "Packaged: hexagonrpc, libssc and iio-sensor-proxy (3.9 with sensor-hub support and two patches) build as RPMs on Fedora 44 on the tablet in 10 s, install with their dependencies checked and verify clean; the RPMs built in one session install in the next through dnf, and Fedora's own iio-sensor-proxy 3.8 is not offered as an update (packaging/sensors; area-combo-23, -26). All four sensor types are found 2.7 s after the hub's node appears. iceland-device 0.15 carries the udev rule, the start order and the restart after a sleep", "The script that copies the sensor hub's files from the tablet's own partitions at install; the service still runs as root"),
+ ("Cameras (13 MP rear, 8 MP front)", "part", "Both cameras deliver pictures through libcamera at 24 fps and PipeWire offers them to the desktop (area-combo-21, -22). Automatic exposure now works: the gain codes of both sensors were measured (seven steps, each twice the one before, up to 64×; area-combo-23), our sensor driver offers the gain as one linear control, and libcamera's software exposure control raises it step by step - a torch-lit scene goes from mean 47 to mean 118 in 70 frames (area-combo-25, -27). Found on the way: both sensors only answer on their bus while a sensor of the sensor hub is running (always the case with GNOME on screen, because of auto-rotate); with the hub idle they are silent. It is not a supply, not the PMIC and not the pad owner bit (area-combo-25..31)", "The cause of the sensor-hub dependency (suspect: a bus switch the hub controls); the exposure control settles slowly (libcamera's 10 % steps); the focus motor; GNOME's Camera app on screen; how to ship the private sensor driver"),
  ("Haptics, modem, NFC, fingerprint", "out", "Not on this tablet"),
 ]),
 ("Software & packaging", [
  ("Kernel package (kernel-iceland)", "ok", "Test-built: 948 modules, device tree, install hooks"),
- ("Device package (iceland-device 0.14)", "ok", "Settings, battery guard 0.11 (70 °C, USB-C L/R, 85 % limit), sound, Wi-Fi region, 60/120 Hz by power source, GNOME power modes (stock's floors, three real steps), the About page's model name; built as an RPM on Fedora 44 on the tablet and installed there: 41 files, verify clean (area-combo-17)"),
+ ("Device package (iceland-device 0.15)", "ok", "Settings, battery guard 0.11 (70 °C, USB-C L/R, 85 % limit), sound, Wi-Fi region, 60/120 Hz by power source, GNOME power modes, the About page's model name, and now the sensors: udev rule with the mount matrix, start order, readiness wait, restart after a sleep. Built as an RPM on Fedora 44 on the tablet and installed there with the three sensor packages (area-combo-23..26)"),
  ("Local update repository", "ok", "Checksum-verified sync; tested"),
  ("Full GNOME app set", "todo", "Relay 008", "Relay 008 package list in the RAM rootfs"),
  ("Stock-values audit", "todo", "Relay 013", "Relay 013 table; offline-prep/*.md stock comparisons"),
