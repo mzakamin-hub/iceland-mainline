@@ -1288,3 +1288,109 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   - dual boot 20 %: unchanged 20 % -> 4 points;
   - total 65.2 % -> about 65 %. Chances unchanged: Fedora only about 0.79, with dual boot about 0.64 (the network-disk
     timeout is a tooling fault of the rehearsal, not a risk of the install itself).
+- **Run 70** (q65, hwinv): both passes complete - 464 bus devices, 82 unbound; modules built but not loaded 8 (dw9719,
+  fastrpc, mt5806_pen_charger, phy_qcom_mipi_csi2, qce_core, qcom_camss, qcom_stats, rpmsg_ctrl); sync_state held by 5
+  unbound consumers (crypto, GMU, ISP, two PHYs); the second pass after cam-a showed the same numbers (cam-a to be
+  checked). Sent to the hwinv agent.
+- User: "also make another agent to add 11 pmic power telemetry" -> new agent **telemetry** (wf/telemetry/): a
+  read-only mainline driver for the PMK8850 per-rail power telemetry (hwmon or IIO), binding, DT node, a tablet test
+  comparing its total with the battery-side figure; writes only to the telemetry block with stock's values (charging
+  safety first). Iterate without asking the owner.
+- User: "also start agent for item 10 npu cooling" -> new agent **npucool** (wf/npucool/): the QMI cooling series from
+  the lists rebased on the queue head (credit kept), the CDSP's cooling devices + stock's trips / maps, optional QMI TS
+  sensors; tablet test starts the CDSP from cdsp-fw.tar (never stops it), steps the cooling states, emulated
+  temperatures; cooling only ever limits. Iterate without asking the owner.
+- User asked which unmerged patches could help -> searched the lists: our tree already has the A840 with IFPC /
+  preemption, Kaanapali CAMSS / Iris / QCE / LLCC / TSENS / FastRPC; worth taking: the remoteproc QMI TMD cooling
+  series v8 (9 Aug 2026; passed to npucool as its base), "hwmon: Add Qualcomm SPMI BCL driver" v2 (Jul 2026; PMH0101 /
+  PMIH0108; passed to telemetry), accel/qda v2 (Aug 2026; after the NPU decision), libcamera 0.7's GPU soft ISP,
+  newer versions of the Kaanapali series (USB, qcrypto, SoCCP, Iris, CAMSS, device-tree batches).
+- User: "start both workflows, gpu isp check and upstream sync" -> new agents **gpuisp** (wf/gpuisp/: is the GPU ISP in
+  Fedora's libcamera 0.7.1, how to switch it on, a CPU-vs-GPU capture / power test, Snapshot with it) and **upsync**
+  (wf/upsync/: SYNC.md of our queue vs the newest postings / mainline, "take" candidates as patches with an apply
+  script, a regression plan). Iterate without asking the owner.
+- hwinv analysed run 70: 112 rows (52 working, 11 bound not proven, 1 bound not needed, 6 described not bound, 2
+  disabled, 12 not described, 14 no mainline driver, 13 not on this tablet); 47 as predicted, 23 new, 5 open (camera:
+  cam-a never ran - its generator did not copy wf/camera/tablet.sh, fixed; CDSP cooling). Every unbound device is
+  explained (UFS W-LUNs, ADSP glink edges without client, the battery data node, ...). New part `hwload` (loads only
+  allowlisted modules that earlier runs loaded). Seven more actions handed to quickwins as items 10-16: WSA / WSA2
+  macros off (hold LPASS clocks; maybe the AUDIO voter), autoload of fastrpc / dw9719 / mt5806 / rpmsg_ctrl, EDAC_QCOM,
+  WATCHDOG_SYSFS, the PMIH0108 pinconf double bias, no wireless supply in qcom_battmgr, the ulog channel is SOCCP.
+- Install B1 failure explained: Windows' WSL localhost forwarder (wslrelay) stalled for good after ~333 MB of writes
+  (reproduced on the PC without the tablet); not the tablet, the USB link or the server. Fix: the server also listens
+  on WSL's own address (peers 127.0.0.1 and the Windows host only), the relay goes there (`--target=wsl:10810`),
+  multi-connection server, TCP_NODELAY / keepalive, slow-request log, nbd-client -t 120 -C 2. PC load check through
+  the new path: PASS (2 x 1 GiB written + read, 0 errors, 0 slow). dnf5's "superuser" line was a consequence of the
+  read-only btrfs. **Run 71** (q65, install dev + B1 + B2 retry) started; server on 127.0.0.1 + 172.22.46.255:10810,
+  relay -> wsl:10810, peers 172.16.42.1 only. Battery 75 %.
+- **Run 71** (q65, install retry): devrpm PASS; build1 / build2 FAIL "network disk" at once - the tablet's nbd_up()
+  never reached the relay (relay alive the whole run, no connection logged; nbd-client.txt empty; no nbd line in the
+  tablet's dmesg; the overlay untouched). Likely the new client options (-t 120 -C 2) or a step before the client.
+  Sent back to the install agent (log every step of nbd_up, fall back to one connection). Server and relay stopped.
+
+### 2026-10-02 - entry 43: install B1 runs 71 / 72, quick wins / telemetry / NPU cooling built (runs 73-75)
+
+- Install: run 71 failed at once (Fedora 44's nbd-client 3.27.1 segfaults on the short option `-C 2`; fixed with
+  `-connections 2` + a one-connection fallback + full logging). **Run 72**: two connections worked, but build1 took
+  1002 s and its own time limit disconnected the disk with writes pending (I/O errors only at the teardown; server
+  slow requests 88, errors 0; one relay leg "semaphore timeout"). Cause very likely mine: kernels q68 / q69 were
+  compiled in WSL during build1. **Rule: no WSL builds while a network-disk run is active.** Sent back: split build1
+  (B1a / B1b with records), never disconnect with writes pending. Overlay deleted, server + relay stopped.
+- Agents delivered: **quickwins** (16 items; USB audio offload not possible on mainline for this chip; check.sh 40 / 40),
+  **telemetry** (PMK8850 telemetry = per-rail power / energy of 21 bucks from three SDAMs; hwmon driver
+  qcom-qpt-hwmon, writes only stock's start / ack bytes in its own SDAMs; `start=0` keeps it read-only),
+  **npucool** (upstream QMI TMD series v8, patches 1-4 in rproc-next / linux-next since 25 Sep, backported unchanged;
+  + Kaanapali CDSP entry with stock's instance 0x43 and four endpoints, stock's three maps; no trip changed).
+  Kernels: **q67** = head + quickwins (0 warnings), **q68** = head + telemetry (inherits the quickwins config lines
+  from out/.config; harmless for its test), **q69** = head + npucool (on the restored queue config, 0 warnings).
+  Runs 73 (quickwins), 74 (telemetry), 75 (npucool) started as one chain.
+- **Run 73** (q67 quickwins): 11 PASS / 4 FAIL - PASS: bwmon (128 updates), PMIH0108 lite alarm, autoload (QCE, Iris,
+  CAMSS, CSI PHY + fastrpc, dw9719, mt5806, rpmsg_ctrl by the coldplug trigger), charger ulog on the SoCCP channel
+  (462 lines), IMEM, DisplayPort bound (DP-1 disconnected), DP audio, EDAC, watchdog sysfs, no wireless supply. FAIL:
+  1 (providers synced 14 / 14 incl. gcc / gpucc / gxclkctl; a criterion?), 5 (rear EEPROM 0x58 reads nothing), 10 (WSA
+  macros gone; something else), 14 (the pin reader read nothing). Sent back.
+- **Run 74** (q68 telemetry): 7 rails (cpu-m cpu-l gpu nsp mxc cx mmcx); counters consistent (ratio 1.02), CPU rails
+  0.3 -> 11.9 W under load, backlight not on a measured buck, stop path ok; FAIL scale: rails +11.68 W vs battery side
+  +8.12 W under load (1.44). Sent back.
+- **Run 75** (q69 npucool): 13 / 14 PASS - TMD service 24 inst 0x43, four cooling devices stepped through every level,
+  the three stock maps set and release under emulated temperatures; QMI TS instance 67 exists on the CDSP; FAIL cdevs
+  (to be checked). Sent back.
+- install agent: run 72's I/O errors came from its own build2 fallback disconnecting build1's disk; the slowness was
+  the tablet -> PC write direction (0.2-0.7 MB/s) from the first minute, NOT my WSL builds (correction); suspect: the
+  kits ran without the USB CPU-latency hold (USB_QOS empty in the run-44 template). Build split into build1a / 1b / 2a /
+  2b (480 s each, records, safe release), relay per-minute lines. **Run 76** (q65, install dev + b1a b1b b2a b2b,
+  USB_QOS=2, AUTOREBOOT_AT 4300, runner -Wait 4000) started; server + relay running.
+- **gpuisp** delivered: Fedora 44's libcamera 0.7.1 already has the GPU soft ISP and uses it by default (every camera
+  run so far was GPU; the 3.2 ms debayer is the GPU path); select with LIBCAMERA_SOFTISP_MODE or
+  /etc/libcamera/configuration.yaml. 0.7.1 issues: GPU framing anchored top-left with garbage columns, no CPU fallback,
+  an EGL context leak per camera start; 0.7.2 (in Fedora 44 updates) fixes framing and fallback. Run 77 generated
+  (pkg2, rotpkg start, gpuisp-a cam GPU vs CPU + power, gpuisp-b Snapshot + leak, gpuisp-c 0.7.2 side by side).
+- **upsync** delivered: base v7.3-rc4 is 705 commits behind mainline (rc5); our infiniti base is current (22 of its
+  138 already accepted upstream); 23 "take" fixes in wf/upsync/cand/patches (ath12k regulatory x5, A8xx GPU votes x6,
+  GPU shrinker, DPU gamma LUT, Type-C mux in suspend, eUSB2 repeater off at exit, QMP combo usage count, remoteproc stop
+  error, TSENS trips above 120 C, Iris x4 incl. 10-bit formats + IOMMU low range, GENI I2C clock selection); risks: I2C
+  probe, GPU votes. Plan: build qNN = head + upsync after run 76 (no WSL builds during network-disk runs), run its
+  regression (wifi, gpucool, upsync, video / display / speakers, short sleeps).
+
+### 2026-10-02 - entry 44: NPU cooling queued 0117-0124, run 76, quick wins round 2, the matrix
+
+- **Queued 0117-0124** (iceland-linux **66d3736**, `queue-0117.sh`, tree = q69): the upstream remoteproc QMI TMD series
+  (4 cherry picks, original authors Gaurav Kohli / Casey Connolly kept) + our Kaanapali CDSP ids / entry / node / stock's
+  three maps. Head 6d67bc241; `build-q56.sh` expects "throttle the CDSP as stock".
+- **Run 76** (install, split parts, USB_QOS=2): devrpm PASS; build1a: reads 31.1 MB/s, **writes under 0.3 MB/s**,
+  package removal hit the budget (rc 124); 1b / 2a / 2b refused correctly; every part released the disk. The latency
+  hold did not help: the tablet -> PC direction is the blocker. Sent to the install agent (gadget TX / NCM / TCP / MTU,
+  a raw link test both ways). Server and relay stopped, overlay deleted.
+- quickwins round 2 delivered: items 1 / 10 / 14 were test bugs (1 = no avdec_h264 in the rootfs; video now checked by
+  the reference MD5s), item 5 real (the rear EEPROM loses L16B when the focus driver switches it: at24 gets a vio supply,
+  stock's rails), new item 17 (the DSI PHY deferral logged without an error). FW_DEVLINK_SYNC_STATE_TIMEOUT judged safe.
+- **Run 77** (q65, GPU ISP) started.
+- User: "update feature matrix with everything commited" -> `matrix-c2p.py`: new rows NPU / CDSP cooling (ok),
+  per-rail power telemetry (part), hardware inventory (ok); DisplayPort, headset (USB offload not possible), NPU,
+  cameras (the ISP already on the GPU), Fedora installed (the write direction) updated; queue 0001-0124 in the status.
+- **telemetry round 2 delivered**: the 1.44x was the test's comparison (the load stopped after 5 s at the skin limit,
+  right after the 100 % brightness state; the battery figure was mostly that state's tail; the gauge stalled at the
+  load start). The tablet's per-phase counts ("frac", two slots per rail) sum to 2.00x the main count = stock's
+  6400 uW per count. Real fix: the report clock is 32.768 kHz (1021.7 / 1024 per s), energy 62.5 uJ per count (2.4 %).
+  Test v2: load right after idle at the same brightness, skin under 46 C first, 30 s, energy over load + 75 s recovery.
+  Next: build `TAG=q72 WF="telemetry"`, `gen-combo-telemetry.py N q72`.
