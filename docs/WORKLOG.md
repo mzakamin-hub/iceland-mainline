@@ -540,3 +540,114 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   chargelimit,gpucool,thermal}`; PC work only, their tests are run by the main session afterwards).
   -> `docs/INSTALL-PLAN.md` written (gates, the two partitions that may be written, the never list, rehearsal
   from RAM with the exact image, the two writes, updates, rescue, return to stock, open decisions).
+
+### 2026-10-02 - entry 18: runs 32-34: the camera bus is cut outside the SoC when the hub idles; first workflow results
+- Commit G: iceland-mainline 241bbb2 (runs 23-31, packaging/sensors, iceland-device 0.15, docs/INSTALL-PLAN.md);
+  matrix 52 / 9 / 12 / 2, page v28.
+- Stock's device tree has 8 mA drive strength for the camera I2C lines (overlay) and a sleep pin state that hands the
+  two pads to the sensor island (`qcom,remote`); ours has 2 mA and no sleep state.
+  Run 32 (q51 = queue 0073 + `an/dt-i2c9-drive.py`, 8 mA): camdiag unchanged (0 of 2 with the hub idle) -> not it.
+- Run 33 (`campull`, pads 4 / 5 only, register restored): the pad's level with its own pull set to down / none /
+  up: hub active 0 / 0 / 0 (the unpowered camera side pulls the lines low: connected); **hub idle 0 / 0 / 1 (the
+  pad follows its own pull: alive, and nothing hangs on it)**. So with the hub idle the camera side is disconnected
+  from the SoC pads, outside the SoC.
+- Stock has four "bidirectional level shifter" pin states on PMIC B (GPIO pairs 11/12 .. 17/18). Run 34 (`camls`):
+  registers 0x00-0x5f of those GPIOs (and of 0x51 / 0x5e): identical with the hub active and idle (mode 00, enable
+  00 in all states) -> not them.
+- Rejected so far: L1B, every readable PMIC rail / clock / GPIO register, the eGPIO owner bit, rebinding the I2C
+  controller, 8 mA, PMIC B's level-shifter GPIOs. What is left is a switch driven from the hub's side through a pin
+  that is reserved for it (Linux can neither read nor set reserved pads). Stock has the same dependency in
+  principle; there the hub always has a sensor running while the screen is on.
+  Practical answer: `iceland-ssc-hold.service` (holds the accelerometer through `monitor-sensor --accel`, bound to
+  the sensor daemon) so that the cameras do not depend on GNOME's own claim (orientation lock, no session).
+  Test in run 35 (`hubhold`), then auto-exposure over 160 frames with only that unit holding the hub.
+- Workflow "chargelimit" delivered (06:42): GNOME's switch needs `charge_control_*_threshold` on the battery (UPower's
+  udev rule); stock's limit is a kernel loop through `OPLUS_CHG_EN`, the knob our guard uses; candidate
+  `wf/chargelimit/cand/battmgr-charge-limit.py` (14 edits, compiles, 29-case self-test), hwdb 80 / 85, guard
+  follows the kernel's thresholds; test `wf_chargelimit`. Its REPORT / NEXT saved by the main session.
+- Workflow "bcl" delivered (06:47): stock = two PMIC BCL blocks (alarms cap only the GPU: 1100 / 1000 / 826 MHz)
+  + "socd" at 5 % (CPUs 2227200 / 2438400 kHz, GPU 826 MHz); mainline has no driver. Candidates: kernel driver
+  `qcom-spmi-bcl` + device tree (syntax-checked), user-space `iceland-bcl-guard` (31 simulated cases); test `wf_bcl`
+  (read-only except the three maximum-frequency files, lowered and restored). REPORT / NEXT saved.
+- Run 35 (q51 kit; its only difference from the queue head is the 8 mA candidate): bcl run A, chargelimit run A,
+  hubhold, ae.
+
+### 2026-10-02 - entry 19: runs 35-36: auto-exposure settles, the hub holder unit, first workflow tests
+- Run 35 (q51 kit, 06:55):
+  - **bcl run A PASS**: both PMIC BCL blocks answer (PMIH0108 rev 05.01, PMH0101 rev 05.02), enable 0x80, alarms as
+    the firmware left them 2790 / 2600 / 2300 mV + 13437 / 15000 mA and 2850 / 2700 / 2300 mV (stock's table for
+    this temperature: 2800 / 2800 / 2600 and 2850 / 2700 / 2500), voltage reading 4211 mV against the battery's
+    4214 mV; 0 BCL interrupts / zones in today's kernel; the guard's 31 simulated cases pass; live with a simulated
+    4 % battery: maxima [3628800 4396800 1200000000] -> [2227200 2438400 826000000] -> restored.
+  - chargelimit run A: as expected (no threshold attributes, UPower "not supported", GNOME group hidden).
+  - **hubhold PASS**: no desktop session and no holder: 0 of 2 camera sensors; `iceland-ssc-hold.service` started:
+    2 of 2; after a restart of the sensor daemon: 2 of 2; daemon stopped: 0 of 2 (the holder goes with it). After the
+    daemon was started again the holder stayed off (the test unit was not enabled) -> the packaged version gets
+    `Wants=iceland-ssc-hold.service` in the daemon's drop-in.
+  - **ae PASS with only the holder keeping the hub awake** (no desktop session): rear with the torch, 160 frames:
+    gain 140.8 -> 2161 in 30 steps, exposureMSV 1.0 -> 2.35 (target 2.5 +- 0.2), **settled** (last 10 steps equal),
+    frame mean 34 -> 135. Rear dark: gain to the maximum 8192. Front (dark room): still rising after 70 frames.
+- Run 36 (q51 kit, 07:03): **charging run A PASS** (workflow "charging"): SDP, VBUS 4975 mV, input 497 of 500 mA,
+  charge limit 600 mA = stock; inhibit: 0 uA "Not charging" while inhibited, +136 mA "Charging" after; the
+  charge-current knob could not be judged (only 136 mA of charge current on the PC port with the screen off; the
+  test needs 180 mA). The session draws 660 mA from the battery with the screen on.
+- Workflow "charging" delivered (07:00): on the PC port everything is right and the 6 % per hour drain is the port's
+  2.5 W against the session's 4.5 W (stock would do the same). Gaps on wall chargers (from the code): the
+  charge-current limit goes through the generic property (stock: 0x300 / 66), a suspend on a charger leaves charging
+  to the firmware alone, the type is read once per attach, no stepped input current, C / ACA / Apple as 500 mA,
+  rejected requests count as success. Five kernel candidates + a debug probe, a guard candidate (blocks sleep
+  while a charger is in), a logger for one sitting with wall chargers. REPORT / NEXT saved.
+- Workflow "thermal" delivered (07:08): stock's kernel does NOTHING on the skin thermistor; its policy is a fitted
+  shell temperature (five models over skin, WLAN, board, charge pump, battery) with 20 gears from 27 C in 2 C
+  steps (CPU / GPU / brightness / charging per gear), read from the tablet's own horae files (decoded on the PC
+  with the key in the tablet's own binary). Candidates: two missing sensors in the device tree, a policy daemon
+  `iceland-thermal`, the skin loop moved to stock's 60 / 61 C trips as a backstop, stock's PMIC cooling maps.
+  **PRIVATE: `wf/thermal/priv/` and `wf/thermal/tablet-in/thermal-model.json` (stock's fitting coefficients and the
+  decoded files): RAM only on the tablet, never in a log set, never committed.**
+- Kernel q52 built (07:06): queue 0073 + the charge-limit candidate + the BCL driver and its zones
+  (`build-q52.sh`). The charging candidates touch the same lines as the charge limit and get their own kernel.
+- Run 37 (q52): chargelimit run B (with the hwdb entry), bcl run B (thermal emulation).
+
+### 2026-10-02 - entry 20: run 37, queue 0074-0076, all five workflows delivered; SAVE POINT (user: "save everything and stop for compacting")
+- Run 37 (q52 = queue 0073 + charge limit + BCL driver, 07:10):
+  - **chargelimit run B**: attributes present; values PASS (end 83 / start 80 read back, 101 refused); hold: status
+    "Not charging" after 5 s (28 -> 0 mA: the charge current on the PC port was too small to judge the step);
+    release: +114 mA "Charging" after 5 s; UPower PASS (supported, EnableChargeThreshold as the desktop user ->
+    sysfs 75 / 80, off -> 0 / 100); GNOME "Battery Charging" group shown, radio follows; everything left as found.
+    Open: the candidate hwdb entry (80 / 85) did not take effect (udev still 75,80; `hwdb-update.txt` is empty).
+  - **bcl run B PASS**: driver probes on both PMICs (revision 5), alarms programmed to stock's table for 32 C
+    (2800 / 2800 / 2600 mV and 2850 / 2700 / 2500 mV), six interrupts with count 0, emulation 7 of 7 zones
+    limited to stock's values and released; the user-space guard steps aside.
+- **Queued: iceland-linux 70f9604 = 0074 (charge limit), 0075 (qcom-spmi-bcl driver), 0076 (BCL nodes + zones)**,
+  `CONFIG_QCOM_SPMI_BCL=y`; queue 0001-0076; the tree equals q52 (`queue-0074.sh`, verified by prepare.sh).
+- Workflows "gpucool" and "thermal" delivered; all five have REPORT.md / NEXT.md / tablet.sh / cand/ in
+  `build/wf/<name>/`. gpucool: keep the 125 C critical trip (stock powers off there through its thermal service);
+  one gap = the PMH0110 F map (GPU from state 5 at 95 C), which the thermal workflow's `dt-pmic-maps.py` also adds.
+- Kernel q53 built (07:17): queue 0073 + charging candidates 1, 2, 4, 5 + probe + thermal device tree candidates
+  (inputs, skin 60 / 61 C, PMIC maps). `build-q53.sh`; sensor module `camdrv/sc1320cs-q53.ko`.
+- Prepared, NOT run: run 38 (`gen-combo-38.py`, kit q51: thermal "before" + gpucool on the queue kernel) and run 39
+  (`gen-combo-39.py`, kit q53: charging B, thermal "after" with the private model in RAM, gpucool). The chain of
+  run 38 was stopped before it booted the tablet (the user asked to stop). Chains: scratchpad
+  `area-combo-38-chain.sh`; for 39 derive it from 38 with sed as before. The prep checks of 38 / 39 accept a kernel
+  "built on the queue" (the queue head moved to 0076).
+- Next after the break, in this order:
+  1. run 38, then run 39; judge with each workflow's NEXT.md.
+  2. If run 39 passes: queue the thermal device tree candidates and the charging candidates 4 and 1 (2 if the ladder
+     ends at 500 mA on the PC port); the charging candidates must be rebased onto 0074 (same lines of
+     qcom_battmgr.c: `an/cand-apply-check.sh` shows which asserts fail).
+  3. iceland-device 0.16: `iceland-ssc-hold.service` + `Wants=` in the daemon's drop-in (proven in run 35), the
+     hwdb entry (find out why it did not take effect), then - after the user's decisions - the guard changes of
+     chargelimit / charging / thermal merged into ONE guard (three candidates touch the same file), the thermal
+     daemon, the BCL guard is no longer needed (kernel driver queued).
+  4. Commit H is done at this save point (logs of runs 32-37, tools, the four non-thermal workflow folders).
+     `wf/thermal` is NOT committed: its report carries stock's fitted weights; `wf/thermal/priv/`,
+     `wf/thermal/tablet-in/thermal-model.json` and `cand/mk-thermal-model.py` stay private until the user decides.
+  5. The private sensor driver: retry the chip-id read later instead of failing the probe (hub idle at probe time).
+- Decisions waiting for the user (collected from the workflows and the plan):
+  install: Fedora only or dual boot; boot path `boot_b` or `recovery_b`; open gates block or "charge attended";
+  camera module in the image. Charge limit: on by default; hold or charge to the limit when switched on between
+  the thresholds; watched during sleep (keep awake on a charger = also the charging guard's KEEP_AWAKE).
+  Thermal: skin loop at 60 / 61 C with the policy daemon (recommended) or 50 / 60 or 48 C; Balanced = stock's normal
+  table (first cap at 33 C shell temperature) or shifted like Performance; may stock's fitting coefficients be
+  committed to the private repo. GPU: an optional 30-minute soak. Earlier ones: one turn of the tablet, Wi-Fi
+  password for a 5 GHz connect, reporting the mutter bug, wall-charger sitting, microphone meter look.
