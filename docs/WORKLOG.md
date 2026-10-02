@@ -849,3 +849,88 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
 - The private driver in `camdrv/sc1320cs.c` is the patched one (30 fps, binned rear mode, silent-bus handling).
 - Next for the cameras: iceland-device 0.17 without the holder unit once the camera workflow confirms; the Camera
   app / browser steps after the workflow's next delivery; matrix + commit.
+
+### 2026-10-02 - entry 26: queue 0084-0089 pushed, commit J; "till all green"; the flashing guide; two more workflows
+
+- Queue 0084-0089 verified and pushed: iceland-linux **c52d6ee** (queue head = the tree of test kernel q55).
+  Commit J: iceland-mainline **cbecbd0** (runs 42-44, results part I, brief 4). Matrix page v31 (counts unchanged:
+  55 / 8 / 11 / 2; the camera row now says what is solved and what is open).
+- User: "continue till all workflows are completed and green", then "once all working flows are green , update
+  accordingly the project knowledge and make sure the repos are updated, Meanwhile write a complete guide for
+  flashing this on my tablet and make sure it follows the safety measures set before".
+- **Flashing guide written: `docs/INSTALL-GUIDE.md`** (project folder + docs repo, sent to the user). Built on
+  `docs/INSTALL-PLAN.md`: readiness table, the safety rules, Part A (read-only preparation: backup and stock image
+  verification, return-to-stock dry run, second copy, read-only copies of `/data/vendor` and today's `boot_b`,
+  slot flags), Part B (the RAM rehearsal that must produce the two files and their checksums), Part C (write 1:
+  `fastboot flash userdata`), Part D (write 2: `fastboot flash boot_b`, the retry-count check, the undo, the
+  `recovery_b` alternative), after the install, back to stock, a "what if" table, the record to fill in. Sizes
+  taken from the backup's own partition table: userdata 463202424 sectors = 237159641088 bytes (0x3737D0F000),
+  boot_b 100663296 bytes (0x6000000). Parts C and D are locked until Part B has run: its tools do not exist yet.
+- Two more background agents started:
+  - **pkg017**: merges the three battery-guard candidates (chargelimit, charging, thermal cap) and packages the
+    thermal policy daemon = iceland-device 0.17 as a generator + tests (`build/wf/pkg017/`). Defaults taken where
+    the user has not answered, each a one-line setting: KEEP_AWAKE=1 as stock, the guard follows the kernel's
+    charge thresholds, the policy daemon on, the kernel's skin loop stays at 48 / 51 C (the move to 60 / 61 C
+    remains the user's choice), stock's model file stays private and outside the package.
+  - **install**: the PC-side tooling of the install plan's work list 1-4 (kernel rpm with the device-tree hook,
+    read-only rule / snapshot / trial-boot units, on-device firmware extractor, image builder, the RAM rehearsal
+    harness with the acceptance list, update and rollback rehearsal) in `build/wf/install/`. No script of it may
+    contain a write to the tablet; rehearsals are `fastboot boot` only.
+- **Run 45** (kit q55 = queue head 0089; regression of the finished workflows on the final tree) started 09:15:
+  so far charging PASS, chargelimit PASS, gpucool 20 PASS / 0 FAIL, thermal 7 PASS / 0 FAIL / 0 WARN (79 zones,
+  PMIC maps, restore) - the rest (stuck, bcl) follows.
+- **Run 45 finished, all six parts green on the queue head (kernel q55 = 0001-0089):** charging PASS (497 of
+  500 mA, inhibit ok), chargelimit PASS (80 / 85 through the hwdb entry, hold 128833 -> 0 uA, release, GNOME group),
+  gpucool 20 PASS / 0 FAIL, thermal 7 PASS / 0 FAIL / 0 WARN (79 zones, PMIC maps f 0/0/5 g 27/0/0 i 0/28/0,
+  restore), stuck NOT reproduced, bcl PASS (7 of 7 zones). No WARNING / BUG / Oops in the kernel log. Battery 80 %
+  at the end (it drains during test runs on the PC port: pause the runs below 40 %).
+
+### 2026-10-02 - entry 27: SAVE POINT (usage limit reached): run 47 pencharge result, pogo delivered, what is running
+
+- **Run 47** (kit q56 = queue head 0089 + pen charging candidates; `build-q56.sh`, `gen-combo-47.py` through the new
+  generator `an/genwf.py`): the pen charger driver comes up without a reset: IC 0x5806 firmware 0x20022, hBoost
+  7000 mV asked and confirmed by the charger firmware, lines as stock's idle state, state idle, inhibit works,
+  rebind works. Two checks FAIL (after the unbind the test reads no state for the power / tx-off lines) and one
+  note (the IC reads 5017 mV where 7000 mV was confirmed). Sent back to the pencharge agent (id
+  a410fb5800fadd638) with three questions; log set `build/area-combo-47/combo/pencharge/`.
+- **Run 46** (kit q55, camera round 2: pkg2, rotpkg start, cam-d app, cam-f "focus fixfocus", cam-c quality,
+  cam-e browser; `gen-combo-46.py`) was started right after run 47 by `scratchpad/run-chain.sh 47 46 ...`; it
+  finishes on its own and reboots the tablet to Android. NOT judged yet: read `area-combo-46-probe.log`
+  (lines "camera (") and `build/area-combo-46/combo/camera/*/result.txt`, criteria in `wf/camera/NEXT.md`.
+- **Camera agent, round 2 delivered** (id a3b3533c41c6d6b08): the Camera app was waiting on the portal's
+  permission dialog; test now sets the permission for the run; `cand/wp4-apps/pkg-017-camera.py` = device package
+  changes (holder unit out, tuning files, WirePlumber rule, fixed-focus helper at stock's position 450).
+- **Pogo agent delivered** (id a53da1519c5319e23): `wf/pogo/` (serdev driver for the keyboard dock at 921600 baud,
+  binding, UART node, board nodes; `cand/kernel/pogo-kernel.py`; config `KEYBOARD_ONEPLUS_POGO=y`). NOT built or
+  run yet. Next: add a `pogo)` case to `build-q56.sh` (see wf/pogo/NEXT.md run A), build q57 = queue head +
+  pencharge + pogo, run `wf_pogo` (before any suspend part), send `$X/pogo/` back.
+- Agents that were still working when the limit hit (they may have been stopped; resume each with SendMessage to
+  its id and "continue and deliver"): wake a6be96dffe3eab71a, deepsleep a78a7b8bcac860a75, apps
+  a15f21638a769c7c1, audit a9cfcdbd7afd6ab6e, pkg017 a93f7eb7566f701cc, install a68073ae3baaf9f4b, pencharge
+  a410fb5800fadd638 (second round). Their folders: `build/wf/<name>/` (work in `work/`).
+- Not committed yet: docs/INSTALL-GUIDE.md, WORKLOG entries 26-27, run 45-47 log sets, wf/pencharge, wf/pogo
+  (next commit: make `mk-commit-k.py` from `mk-commit-j.py`, add the new wf folders and INSTALL-GUIDE.md).
+- The user's standing order for the end: when ALL workflows are green, update the project knowledge (WORKLOG,
+  STATE.md, CLAUDE.md, memory, snapshot) and make sure the repositories are pushed.
+- **Run 46 finished** (kit q55, camera round 2; read after the save point): focus PASS and **fixfocus PASS**
+  (motor and EEPROM with the hub idle, the fixed-focus helper); **quality PASS** (6 of 6 settled or at the gain
+  limit, 30 fps, binned mode); **browser PASS** (Firefox got camera frames through the portal; both cameras
+  listed). **app still CHECK**: previews / photos 0 of 2 also with the camera permission set (fuse now loaded, all
+  portal names owned, camera portal present) - details in `build/area-combo-46/combo/camera/app/`; to send back
+  to the camera agent (a3b3533c41c6d6b08). Tablet back in Android.
+
+### 2026-10-02 - entry 28: HAND-OVER POINT (user: "save everything because im changing models")
+
+- Nothing is running: no kit run, no build; the seven agents that were still working were stopped at the usage
+  limit (partial work kept in their folders). Tablet in Android.
+- Written for the next model: **`HANDOVER.md`** (orders in force, exact state, every workflow with its next
+  action and agent id, the method, the prompt template, lessons, the first ten minutes), **`docs/WORKFLOW-BRIEF-5.md`**
+  (the task texts of the pkg017 and install agents), CLAUDE.md (pointer + new rules), STATE.md status block,
+  memory resume block.
+- State of the workflow folders at the hand-over (`bash build/an/wf-status.sh`): camera, pencharge, pogo,
+  deepsleep have REPORT + NEXT + tablet.sh; wake has tablet.sh + kernel candidate, no documents yet; apps has
+  tablet.sh + package lists; audit has its table, tool and fix candidates 01-10+; pkg017 has its generator and
+  merged files, tests unfinished; install has only scratch work.
+- Open results to act on first: run 46's Camera app CHECK (to the camera agent), run 47's two pencharge checks,
+  pogo run A (needs kernel q57), deepsleep (read NEXT.md, run).
+- Next WORKLOG entry: 29.
