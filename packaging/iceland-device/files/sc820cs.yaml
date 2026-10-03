@@ -1,8 +1,5 @@
-# SPDX-License-Identifier: CC0-1.0
-# libcamera software ISP tuning for the front camera of the OnePlus Pad 4 (SmartSens SC820CS).
-# Installed as /usr/share/libcamera/ipa/simple/sc820cs.yaml. The black level is the value of the stock camera
-# characteristics: 65 of white level 1023 (10 bit), in the 16-bit scale libcamera expects (65 << 6). No colour matrix
-# here: the one taken from the stock tuning data is private and lives outside the repository.
+# Colour matrices from stock's tuning data of the OnePlus Pad 4: private repository and the owner's image only
+# (the owner's decision, 3 Oct 2026); never publish.
 %YAML 1.1
 ---
 version: 1
@@ -10,6 +7,32 @@ algorithms:
   - BlackLevel:
       blackLevel: 4160
   - Awb:
+  - Ccm:
+      ccms:
+        - ct: 2650   # stock trigger 1 K .. 2650 K
+          ccm: [ 1.8334, -0.7776, -0.0558,
+                 -0.3606, 1.4808, -0.1201,
+                 -0.1602, -0.5628, 1.7230 ]
+        - ct: 3025   # stock trigger 2750 K .. 3300 K
+          ccm: [ 1.7334, -0.6776, -0.0558,
+                 -0.2606, 1.2808, -0.0201,
+                 -0.1102, -0.3128, 1.4230 ]
+        - ct: 4100   # stock trigger 3800 K .. 4400 K
+          ccm: [ 1.7730, -0.8505, 0.0776,
+                 -0.2756, 1.5089, -0.2333,
+                 -0.0216, -0.6073, 1.6289 ]
+        - ct: 5050   # stock trigger 4600 K .. 5500 K
+          ccm: [ 1.7947, -0.9464, 0.1516,
+                 -0.3259, 1.5700, -0.2441,
+                 -0.1270, -0.4073, 1.5343 ]
+        - ct: 6250   # stock trigger 5800 K .. 6700 K
+          ccm: [ 1.7947, -0.9464, 0.1516,
+                 -0.3259, 1.5700, -0.2441,
+                 -0.0770, -0.4073, 1.4843 ]
+        - ct: 7800   # stock trigger 7200 K .. 10000 K
+          ccm: [ 1.7449, -0.7443, -0.0006,
+                 -0.3309, 1.5053, -0.1744,
+                 -0.0212, -0.4580, 1.4792 ]
   - Adjust:
   - Agc:
 ...

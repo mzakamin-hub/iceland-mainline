@@ -2123,3 +2123,866 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   r1debug (Fable, resumed) reviews the rehearsal design (carrier, dracut confs, nbd resilience, the golden's initramfs
   modules vs the kit's mods25 order) and the R1b logs, proposes fixes + the evidence kit as candidates in wf/r1debug;
   the install agent stays the owner of wf/install and also reports independently (two views).
+- Commit w pushed: iceland-mainline **c2d26c0** (runs 97-100, docs round 7 + DUALBOOT-PLAN, guide slot facts, bootfix /
+  bypass / bypasssafe / r1debug deliverables; matrix c2u: rows "Wi-Fi across sleep" ok, "Bypass charging" todo, the
+  install row; the run count in STATUS_HTML had never been updated by c2t (split string) - now 150 runs / 88 kernels);
+  iceland-u-boot **6e53ddd** (uboot.pin 17.0.0 / 2026-09 with the boot_b note). Matrix **v43**: 63 / 12 / 6 / 2 of 83.
+- **Owner: "no wifi in sleep"** (Wi-Fi stays off in s2idle; no wake-on-WLAN work) **and "spin a fable agent to tackle
+  pending sleep power"** -> Fable agent "sleeppower" (wf/sleeppower): (1) keep the CDSP running in 0.18 (boot-time stop
+  opt-in) or a clean stop, (2) the first sleep's IRQ 316 early wake + mt5806's 2250 ms suspend (run 99), (3) AOSS
+  sleep re-check or documented limit, (4) the unplugged-night drain test made ready (one-line morning report),
+  (5) other sleep-power costs found in the logs.
+- **Install agent on R1b:** (1a) the 2-min gap = the initramfs's iceland-rehearsal pings the PC 120 x 1 s; Windows'
+  firewall drops ICMP echo, so it always waits 120 s. (1b) the drop, most likely: B1 keeps qcom_q6v5_pas out of the
+  initramfs, so the SoCCP glink edge and with it the built-in pmic_glink / ucsi_glink start only after switch_root
+  (udev coldplug from the NBD root), a few s after the NBD connect; UCSI's registration sets USB_ROLE_NONE (ucsi.c
+  ~1958) -> dwc3-qcom pre_set_role turns the VBUS override off = gadget disconnect / re-enumeration; systemd had killed
+  the initramfs udhcpd (PC -> 169.254), Windows aborted the NBD TCP connection, nbd-client 3.27 cannot reconnect
+  (-persist never reaches persist_mode) -> root lost -> hung_task_panic -> PSHOLD reset. = old open fact F8 ("does the
+  link survive the SoCCP / ADSP start?"). Not proven (no log). netconsole is not in kernel-iceland. **R1c (args only):**
+  head "enforcing=0 initcall_blacklist=pmic_glink_ucsi_driver_init,pmic_glink_altmode_driver_init plymouth.enable=0
+  rd.plymouth=0 console=tty0 loglevel=7 ignore_loglevel log_buf_len=4M systemd.show_status=1 printk.devkmsg=on" +
+  ncm-watch.ps1 (read-only adapter watcher, checked: writes only its log) + webcam photos (~10 s). Prepared for the next
+  package build: TCP-8000 readiness instead of ping, udhcpd restarted in the real root, opt-in kmsg stream
+  (iceland.rehearsal_kmsg=PORT + kmsg-listen.py). Guide gap: the installed system has no USB debug network unless an
+  opt-in argument (to design after R1). r1debug asked to review the hypothesis and R1c's arguments.
+- **r1debug review of R1b: the chain holds in our tree** (ucsi_register_port sets USB_ROLE_NONE without
+  PARTNER_FLAG_USB; dwc3 pre_set_role -> dwc3-qcom turns the VBUS override off/on = purely an override toggle, the mode
+  never changes); unproven only that this PPM leaves the USB flag clear (no kaanapali quirk) - R1c decides. pmic_glink
+  clients come up at the SoCCP attach (run 100: battmgr 1 s after qcom_q6v5_pas). Initcall names right, both =y;
+  qcom_battmgr separate (battery / charger / limits untouched); blacklist side effects (no typec port0, no USBSS / QMP
+  orientation programming, no DP altmode) fine for a rehearsal. R1c args safe; add `rd.shell=0 rd.emergency=reboot`.
+  For the next package build (forwarded to the install agent): KillMode=process on iceland-carrier.service (else the
+  kmsg streamer + udhcpd die at switch-root), the RAM udhcpd before the root's coldplug, drop nbd's dead -persist or fix
+  persist_mode + -dead-timeout 60. Patchers in wf/r1debug/cand-r1b.
+- Install agent, next package build ready (not needed for R1c): iceland-rehearsal 5e34ff81... = TCP-8000 readiness
+  (logs "the PC answers ... after N s"), the real root's udhcpd and the opt-in kmsg streamer as fresh RAM units
+  (DefaultDependencies=no, Before=sysinit.target systemd-udev-trigger.service) instead of r1debug's KillMode=process
+  (a helper kept alive from the deleted initramfs would lose /dev and /run and hold port 67), nbd -persist dropped;
+  check-b-run.sh b962453e... checks all three (run 100's rpm fails only that new line, as expected). Order: R1c first
+  (old golden, args only); then P1 + TIN, a B run, kmsg-listen.py on the PC, R1d with iceland.rehearsal_kmsg=10813.
+- **Owner: "go ahead with r1c, webcam is on the tablet"** -> R1c started about 23:09: fresh ov-r1, head
+  head-20261002-230718 "enforcing=0 initcall_blacklist=pmic_glink_ucsi_driver_init,pmic_glink_altmode_driver_init
+  rd.shell=0 rd.emergency=reboot plymouth.enable=0 rd.plymouth=0 console=tty0 loglevel=7 ignore_loglevel
+  log_buf_len=4M systemd.show_status=1 printk.devkmsg=on"; ncm-watch.ps1 -> C:\platform-tools\ncm-watch-r1c.log; webcam
+  (cam.ps1, frames every 10 s in the scratchpad's cam/r1c, local only, deleted after the verdict); rehearse.ps1 ->
+  C:\platform-tools\r1c-rehearse.log; probe -> area-install-r1c.
+- **R1c (23:09-23:12): rebooted by a FULL POWER CYCLE about 100 s into Linux, before any NBD connect; the owner did
+  not touch the tablet.** ncm-watch: Up 23:10:35, gone 23:12:11; Android kernel 23:12:16; relay: no connect (the 120 s
+  ping wait had not ended); webcam: screen dark from about 23:10:50, no tty0 text despite plymouth off. bootloader_log
+  (saved privately, wf/install/priv/r1c-bootloader_log.txt): NO "Reset by PSHOLD"; "xVdd reset", "PON by PWR key DEB",
+  "PON by SMPL", "PON by SYSOK", "PBS_RAM 0-3 reload required", **"Ship mode experienced"**, "PM_DT_PARSING_ERR:
+  charger", VBAT 3976 mV / 24 C / ICL 500 mA, "HW Wdog Setting from PCD: Enabled", battmngr "WdogBiteTimer = 60 sec".
+  Leading hypothesis: with B1 no SoCCP attach (qcom_q6v5_pas only from the root) -> no pmic_glink partner for about
+  100 s -> the charger firmware / PMIC power-cycles (a watchdog? ship mode / BATFET?). **ALL R1 RUNS ON HOLD** until the
+  install agent and r1debug (both asked, independently) agree on the cause and a safe design (preference: the SoCCP
+  attach back into the rehearsal initramfs, as in the kits). Webcam frames cam/r1c kept until the verdict, then deleted.
+- **chgsafe (Fable) delivered** (REPORT.md saved by the main session from its answer): stock's usbtemp action = CC open
+  + input suspend (OPLUS_USB_INPUT_CURRENT_LIMIT = 0) + VBUS discharge; we take only the input suspend (keeps USB data).
+  Kernel k1 + k2 (input_current_limit writable on the OPLUS USB supply: 0 = suspend, anything else = stock's unsuspend +
+  500 mA + the ladder, never a limit raise; `present` = CID; compile W=1 clean); package 0.18 -> 0.19 copy: the guard
+  cuts the input at USB-C connector stops and the input over-limit stop, releases as stock (cable out, < 55 C), events +
+  the iceland-charge-alert user notifier; PC tests 0 FAIL (new 41 + 19); tablet part `chgsafe` with an emulated zone
+  temperature (emul_temp, no heat), simulation 11 / 11. To run after the R1c power-cycle analysis (both touch the
+  charger firmware), with the owner's go; version clash with the deferred bypass (both 0.19) noted.
+- **sleeppower (Fable) delivered** (REPORT.md saved by the main session): (1) 0.18 already keeps the CDSP running
+  (stop opt-in); stale texts fixed by a package patcher + tests/test_npu.py (11 files, 0 FAIL); a clean CDSP stop is
+  not realistic (the CDSP's own voter keeps CX 3 / DDR). (2) **IRQ 316 = the pen charger (TLMM GPIO 169, mt5806, a
+  wake source)**: the IC raised it 104 ms after the driver's start sequence, 1 ms after the wake IRQs were armed ->
+  kernel candidate 1-mt5806-suspend-grace (suspend waits for a running start + 1 s; W=1 clean); kit step `first`.
+  (3) AOSS sleep = known limit (the AOP names APPS / SP / AOP / COMPUTE in every state; no SPSS driver; Linux's sleep
+  set clean); matrix text proposed. (4) the unplugged night made ready (night-chain.sh / night-morning.sh, floors
+  50 / 20 / 10 %, 18 h auto-reboot, one-line morning report, pass <= 1.0 %/h over >= 6 h with cxsd >= 85 %).
+  (5) other costs: an open playback stream keeps the ADSP and CX awake; the screen-off-awake window 0.64 W = 0.2 % per
+  idle-to-sleep episode; pen charger boost on at idle (as stock); BT RF clock (as stock). Build q81 WF="sleeppower",
+  kit gen-combo-sleeppower.py; owner questions: shorter GNOME battery suspend timeout? the night's floors OK?
+  Tablet steps wait for the R1c power-cycle analysis (owner: "ok wait for the agents' power cycle analysis").
+- **Install agent on the R1c power cycle:** a real PMIC-level power loss (SMPL + xVdd reset + PBS RAM reloads + ship
+  mode), not a Linux reboot / panic / APSS bite (all of those end in "Reset by PSHOLD"). The "no battery-manager
+  partner" theory is contradicted by R1b (same golden, no SoCCP partner until about 125 s, no power loss); the 60 s
+  "WdogBiteTimer" belongs to the disabled low-battery shutdown; OPLUS ship mode is requested only by Android at reboot /
+  shutdown. Suspect #1 = its own initcall_blacklist: without pmic_glink_altmode the DP HPD bridge never registers, so
+  msm's component bind (DSI in the same master) never completes -> no display at all (= the black screen), and with
+  FW_DEVLINK_SYNC_STATE_TIMEOUT the display providers drop their boot votes while ABL's splash pipeline (DSI, panel,
+  KTZ8869 bias / backlight) is still configured; how that becomes a power loss 80 s later is not shown. Blacklist
+  WITHDRAWN. Revised design (PC only, no tablet commands until r1debug agrees): no blacklist; qcom_q6v5_pas + the
+  kits' early stack (glink_smem, pd_mapper, qrtr, qrtr_smd, battmgr) and the tablet's adsp / cdsp firmware back in the
+  initramfs (91 conf 7ec66f66...; Wi-Fi / BT / video stay out; no sound modules); iceland-rehearsal e1e24b6d... waits
+  for typec port0 (30 s + 5 s, udhcpd running) before TCP readiness and NBD; head args "enforcing=0 rd.shell=0
+  rd.emergency=reboot iceland.rehearsal_kmsg=10813"; build2b reports "early dsp 5", check-b-run.sh eef0a508... requires
+  it; check-all 15 PASS. Path then: P1 + TIN, B run, R1 with kmsg-listen.py + ncm-watch.ps1 + webcam.
+- R1c webcam luminance (screen area): Android screen off 19.3-20.7; ABL / U-Boot lit 85.9-87.8 (23:10:07-27); from
+  23:10:37 19.1-20.5 = backlight OFF (no lit-black phase) until the loss; 18.3-18.9 in the last 25 s (inconclusive);
+  Android logo 23:12:17. Sent to the install agent; the owner asked about heat at the panel.
+- Install agent, corrected after the luminance numbers: in R1c msm never even tried to bind (without altmode's HPD
+  bridge the QMP aux bridge defers at probe, aux-bridge.c 120-127; DP never calls component_add, dp_display.c 1094-1100),
+  so Linux never owned the display: ABL's splash pipeline was left unmanaged and lost its clocks / rails at the
+  sync_state timeout; ktz8869 should have kept the bias and lit the backlight - the T+2 s darkness and the power loss
+  have no proven mechanism; common factor = a display / panel / bias path no kit ever left unmanaged. Revised design
+  unchanged (msm binds as in R1b and every kit). New hazard noted for the display / hwinv topics: if msm DRM never
+  binds, the panel and its bias stay unmanaged with the providers' votes dropped (a guard could switch the bias off
+  after N s; not for install).
+- Owner on R1c: did not check for heat at the panel (no data for the bias theory). Waiting for r1debug's independent view.
+- Android's kernel log of the boot right after R1c had rolled over (dmesg starts at 1003 s; logcat's kernel buffer has
+  no qcom_pon lines) -> the PMIC power-off / fault reasons Android prints at boot are lost. Lesson: read dmesg with adb
+  root within minutes of any such reset.
+- **Owner: "assign another fable to run the same kit but add all possible debugging that can help us identify the
+  cause, specifically since this didn't happen in the previous test"** -> Fable agent "pwrloss" (wf/pwrloss): an
+  instrumented R1c reproduction (kmsg streamed live to the PC via an appended debug cpio if possible, initcall_debug /
+  sync_state / dyndbg, periodic deferred-probe / regulator / clk / genpd / thermal / PMIC PON-POFF-FAULT snapshots, read
+  only), variants V1 = R1c, V2 = R1c + clk/pd_ignore_unused, V3 = R1b + blacklist only, V4 = R1c without the blacklist,
+  a post-boot capture script (adb root, dmesg + bootloader_log at once), command sheets, a safety plan (battery >= 50 %,
+  stop after the first reproduction per variant, max 3 power-loss events, the owner feels for heat). Agent prepares
+  only; the main session runs it after the owner's go.
+- **r1debug's independent R1c verdict (REPORT-R1C.md, cand-r1c/):** a battery-side power loss (BATFET open / VPH
+  collapse, restart on VBUS: ABL's PON parse KPDPWR 0, HARD_RESET 0, USB_CHG 1; PBS RAM reload on SID 0 and the charger
+  PMIC bus 1 sid 7 = every PMIC lost its always-on logic); no Linux reset (all go through PS_HOLD), no watchdog (the
+  60 s timer belongs to the disabled low-battery shutdown; the UEFI watchdogs end at ExitBootServices; stock pets
+  nothing; ship mode only via Android's reboot notifier); rd.emergency=reboot did not act. The R1c-only condition: the
+  altmode blacklist -> msm never bound -> the panel driver took reset-gpios OUT_HIGH (panel in RESET, the darkness at
+  about T+8 s); the golden's cmdline lacks clk_ignore_unused / pd_ignore_unused / regulator_ignore_unused (the kits
+  have all three) -> ABL's splash clocks off at late_initcall and about 30 s later regulator_init_complete switched
+  off the panel's vddio (vreg_l12b_1p9) while the +-5.5 V KTZ8869 bias (vsp / vsn, always-on, kept by ktz8869_iceland)
+  stayed applied to the DDIC in reset = a power-sequencing violation stock never allows (bias off first), for about
+  70 s before the loss; the mechanism to the power loss is not shown. Kits not at risk; installed boot not at risk
+  while msm binds (latent hazard for the display topic if msm ever fails to bind). **Both agents agree on the revised
+  R1 design** (no blacklist; SoCCP-first initramfs; wait for the SoCCP / typec before the gadget carries the disk).
+  r1debug adds: keep rd.shell=0 rd.emergency=reboot; never run a head whose display config was not seen in R1b or a
+  kit; save /proc/bootloader_log after every run (rehearse.ps1 patch). **It advises against experiments that recreate
+  the R1c state** (they would recreate the hazard) -> forwarded to the pwrloss agent: mark V1 / V3 HAZARDOUS, prefer
+  safe discriminators (V2 = blacklist + *_ignore_unused keeps vddio; V4 = no blacklist). Owner decides.
+- **Owner chose path 1 (continue the install with the revised design).** 3 Oct 00:00: P1 + TIN = 2 PASS (pkg e1242c61, the
+  rehearsal script with TCP-8000 readiness + the typec port0 wait, no -persist in code; 91 conf add_drivers has
+  qcom_q6v5_pas, omit_drivers no longer); selfcheck clean (119), check-all 15 PASS. **Run 101 (B run) started about
+  00:04**: fresh ov-build, `genwf-install-b.py 101 q78 "dev b1a b1b b2a b2b" 4300 qos=2`, tcp-relay; battery 60 %.
+- **Run 101 (B run, 00:04-00:10) = B-RUN 21 PASS, 1 FAIL**; the FAIL is a stale checker line (check-b-run.sh 50 still
+  requires qcom_q6v5_pas in the omit_drivers line = the old B1; the revised design puts pas IN, which the same checker
+  confirms with "early dsp 5"; the built 91 conf omits Wi-Fi / BT / video as intended) -> effectively green; the line
+  goes to the install agent. Everything else PASS incl. TCP readiness + udhcpd in the real root + no -persist, early dsp
+  5, no SELinux load in the whole session. The owner stopped the pwrloss debug-kit agent (path 1 chosen).
+- **R1d started about 00:14**: run 101 committed into golden (163441 blocks), fresh ov-r1, head head-20261003-001303
+  "enforcing=0 rd.shell=0 rd.emergency=reboot iceland.rehearsal_kmsg=10813" (display as in R1b); kmsg-listen.py ->
+  C:\platform-tools\kmsg-r1d.log, ncm-watch -> ncm-watch-r1d.log, webcam cam/r1d every 10 s, rehearse.ps1 ->
+  r1d-rehearse.log, probe -> area-install-r1d. Battery 60 %.
+- **R1d: the golden booted to the GNOME desktop - the first complete rehearsal boot. INSTALL-ACCEPT 27 PASS, 6 FAIL,
+  4 CHECK in 225 s.** Timeline: head sent 00:15:30, NCM up 00:15:43 / IP 00:15:45 (no later change), "the PC answers
+  on 172.16.42.2:8000 after 0 s", NBD connect 00:15:46, switch_root about 5 s later, SSH 00:16:01, accept to about
+  00:19:50; the owner saw plymouth -> the first-boot setup (skipped) -> the desktop; kmsg stream 1580 lines; no power
+  event. PASS incl. grown (218 GiB btrfs), efi, dt, entries, trial, snapshots, storage (162 UFS devices read-only),
+  mounts, holds, firmware 23 / no failed load, adsp (soccp attached, adsp + cdsp running), cdsp, gpu (GMU v5.3.23 from
+  qcom-firmware, initramfs copy = root file), about, firstboot, session, touch, bluetooth, battery, chargethreshold,
+  chargelimit 80 / 85, rotate, video, camstack, syncstate (70 providers, 14 / 14 RPMh), kernel (no WARNING / BUG / Oops).
+  FAIL: root (the check expects /dev/nbd0, the carrier maps loop0 over nbd0 = stale check); packages + verify = **the
+  clock**: date 2026-03-13 (systemd's epoch), RTC 1970-03-03, not synchronized -> Fedora's signatures of 2026-03-14 are
+  "not alive" and rpmdb skips those headers (rpm -q nautilus "not installed" with 1404 packages and 20 / 25 apps
+  running) - a real install issue (no writable RTC, no NTP before Wi-Fi); wifi: scan 0, `iw reg` country 00
+  DFS-UNSET, ath12k "Failed to set the requested Country regulatory setting"; sound: no card although sc8280xp /
+  hdmi_codec / q6apm / macros are loaded; powermodes: power-profiles-daemon inactive, tuned + tuned-ppd active (F44)
+  -> the check expects ppd's CLI. CHECK: selinux permissive 0 AVC, pcieprobe 11 attempts, cameras 0 (owner decision 4),
+  apps 20 / 25 (TextEditor, font-viewer, SystemMonitor, DiskUtility, Firefox). Results:
+  area-install-r1d/install-results.tgz. Sent to the install agent (+ check-b-run's stale omit_drivers line).
+- **Owner: "spin another fable specifically for testing the tablet after booting to fedora ... each time fedora boots it
+  will run and test and debug and fix"** -> Fable agent "fedtest" (wf/fedtest): a ~10-min verification suite over SSH
+  (install, hardware, modules, apps), log bundles, debugging with fix candidates (package patchers on a copy, kernel
+  candidates compile-checked in its own worktree), REPORT / NEXT. **New rule:** it touches the tablet ONLY between the
+  main session's "SESSION UP" and "SESSION DOWN" messages (sessions run with the owner's go), never reboots /
+  powers off / adb / fastboot, never writes internal UFS, read-only for charger / thermal / regulators, undoes its
+  changes. First task: the R1d device-side failures (clock, Wi-Fi regulatory, sound card, tuned-ppd, apps, pcieprobe);
+  the install agent keeps the install tooling (root check, check-b-run line, integration, the B-run clock).
+- R1d ended by the rehearsal's own guard (planned); bootloader_log saved privately (wf/install/priv/r1d-bootloader_log.txt):
+  "Reset by PSHOLD, Hard Reset, PON by SYSOK" **and "Ship mode experienced" again** - so that line also appears after a
+  normal PS_HOLD reset (a sticky / generic flag, not specific to R1c); R1c's distinctive marks stay SMPL + xVdd + the PBS
+  RAM reloads + no PS_HOLD line.
+- Owner asked for the default password: there is none. In the rehearsal, accept.sh creates a test user "iceland"
+  (useradd without a password = locked) and sets GDM autologin + InitialSetupEnable=False; the real install's user and
+  password come from Fedora's first-boot setup.
+- Install agent after R1d: tooling fixed (check-b-run 72625c1a: run 101 now 22 / 0; accept.sh 1b48d99e: root compares
+  device names (loop backing file reads "/nbd0" after switch_root), **wifi was its bug** (scanned wlan0, Fedora renames
+  to wlp1s0), powermodes via powerprofilesctl or the D-Bus API (tuned-ppd), camstack passed falsely (rpm -q text let
+  through sort -V) - now versions must look like versions; test_accept 21 PASS; rehearsal-probe 8498e81a sets the clock
+  from the PC for rehearsal sessions only and logs the offset). Port0 wait ran (kmsg 1097: "USB-C port registered;
+  settling 5 s" at 1.9 s; disk at 6.9 s). Device-side findings forwarded to fedtest: **sound root cause** = alsa-lib's
+  dist-alsa.conf install hook for snd-pcm calls modprobe snd-seq, kernel-iceland has no SND_SEQUENCER -> the first
+  parallel udev loads abort (7 x retcode 1) -> soundwire iface clock / codec dai not found; fix: /etc/modprobe.d override
+  (now) or CONFIG_SND_SEQUENCER=m (long term). Wi-Fi country unset (owner decision 10), first-boot presets failed on a
+  read-only / (harmless for our pre-enabled units), pcieprobe 11 = most attempts before the initramfs udev. Next:
+  P1/TIN with the new accept.sh; the C0 path (Part A again, owner decisions 1 + 2, C0 by the owner); the rehearsal path
+  (P1 + TIN, B, R2 without enforcing=0, then U1-U3, R1b, R2b, R3, R4).
+- **Owner chose "2" (the rehearsal path).** No package change since run 101, so no new B run: TIN only (accept.sh
+  1b48d99e staged, 1 PASS), then **R2 started about 00:31** = golden (run 101) + R1d's overlay r1 (56270 blocks), head
+  "rd.shell=0 rd.emergency=reboot iceland.rehearsal_kmsg=10813" (no enforcing=0 = SELinux enforcing), kmsg-r2.log,
+  ncm-watch-r2.log, rehearse.ps1 -> r2-rehearse.log, probe -> area-install-r2 (sets the clock from the PC). fedtest gets
+  SESSION UP after the accept step.
+- **R2 (SELinux enforcing; golden of run 101 + R1d's overlay): INSTALL-ACCEPT 29 PASS, 4 FAIL, 3 CHECK in 195 s.**
+  Boot 00:32:45, SSH 00:33:13, tablet clock 2026-03-13 at login (-17616775 s), set from the PC for the session. NEW PASS:
+  selinux (Enforcing, 0 AVC denials, no failed unit), wifi (scan 1 network at 2.4 GHz, 2 at 5 / 6 GHz with the fixed
+  check), powermodes (through D-Bus net.hadess.PowerProfiles = tuned-ppd), root (loop0 over nbd0, 4 KiB, direct I/O),
+  camstack (real versions). FAIL: packages = "missing: none" (the clock fix works) but "must not be installed:
+  uboot-images-armv8" (a forbidden package in the image - build side); verify = rpm -V flags depmod-generated files of
+  kernel-iceland (modules.alias / .bin / builtin.*: size / digest / mtime) - the kernel spec should %ghost or
+  %verify(not ...) them; sound = no card (the dist-alsa / snd-seq fix not applied yet); rotate = no accelerometer
+  orientation within 15 s (passed in R1d). CHECK: pcieprobe 10, cameras 0 (decision 4), apps 19 / 25 with 1 crash
+  (TextEditor, Logs, SystemMonitor, DiskUtility, Snapshot, Firefox). fedtest got SESSION UP at about 00:37 for the
+  remaining minutes; build-side items to the install agent.
+- **R2 ended by its guard (Android back); camera: the owner decided (about 00:45): "no submit it to my private repo and
+  local repo" + choices "Kernel queue" and "Driver + tuning" = the SC1320CS / SC820CS driver (build/camdrv, register
+  lists included) becomes an in-tree module in the private kernel queue (0175 after the next rehearsal passes), and the
+  stock-derived tuning yaml (wf/camera/priv/tablet-in/tuning) may be committed and shipped; traces, photos, decoders
+  stay private. This CHANGES the standing privacy rule for the camera driver + tuning only. Owner: "next test include
+  cameras please". wf/camq/apply-kernel.sh (driver + 3 headers into drivers/media/i2c, Kconfig VIDEO_SC1320CS, Makefile)
+  + kernel.config (--module VIDEO_SC1320CS); **test kernel q81 = 0174 + camq building** (build-q81.sh). The install agent
+  prepares kernel-iceland from q81, the tuning in the package, a real accept camera check (with the sensor hub
+  streaming), the R2 fixes, and the sequence (K2/K3 + P1 + TIN, B run, R2 with cameras).
+- **q81 built** (0174 + camq): commit 5faf21cbb230, 7.3.0-rc4-iceland-00313-g5faf21cbb230, 0 compiler warnings,
+  sc1320cs.c 637 lines in-tree, sc1320cs.ko in modfull. **Owner: "also make sure that next rehearsal will have everything
+  working like in the final build"** -> **q82 building** = 0174 + camq + chgsafe (k1 input suspend + k2 usb present) +
+  sleeppower (mt5806 suspend grace) + sndseq (CONFIG_SND_SEQUENCER=m, the base config had it unset) = the final-build
+  kernel for kernel-iceland; the install agent prepares the release-candidate package (camera tuning, chgsafe guard +
+  notifier, sleeppower npu texts, R2 fixes, a slot for fedtest's clock fix) and accept checks for every final function.
+- **Owner: "go ahead with the build run when ready"** = advance go for the next B run (final-build kernel package from q82 +
+  the release-candidate device package) once q82, K2 / K3, P1 and TIN are done; R2-final still asks first.
+- **q82 built** (final-build kernel = 0174 + camq + chgsafe k1/k2 + sleeppower grace + sndseq): commit 786b17ae0050,
+  release 7.3.0-rc4-iceland-00313-g786b17ae0050, 0 compiler warnings, 8 files / +1609 -3 (qcom_battmgr.c +186), modules
+  sc1320cs.ko, snd-seq.ko, mt5806_pen_charger.ko present. Next: kernel-iceland K2 / K3 from q82 once the install agent's
+  spec fix (%ghost depmod files) and package are ready.
+- **Owner: "go ahead with r2-final when ready"** = advance go for R2-final right after the build run (the tablet stays
+  connected; fedtest gets SESSION UP after the accept step).
+- Install agent, release-candidate tooling done (INSTALL-PC-CHECKS 18 PASS): kernel rpm with depmod outputs %ghost +
+  %posttrans depmod, camera module allowed, the candidate commit packed as Source4, check-kernel-rpm checks sc1320cs /
+  snd-seq; package **0.19** (0.18 chain + sleeppower npu texts + chgsafe + the private camera tuning + a dist-alsa hook that
+  never fails a snd-pcm load + a FEDTEST_PKG slot; README tests 630 PASS, check-device 0 failures); uboot-images-armv8
+  excluded by rpmdb glob matching (build2b "left out still installed: none"); accept.sh real checks (test_accept 40 PASS):
+  sound playback, rotate (30 s), cameras (both, 10 frames, tuning path), chgsafe lever (read only), notifier, clock (FAILs
+  until fedtest's fix), packages. Both GitHub repos confirmed private (404 anonymously). Main session started K2 / K3
+  from q82 (build/out holds q82).
+- K2 / K3 from q82 started early by the main session: NEXT-K2P1U1 0 PASS 2 FAIL. K2 check: posttrans order check (the
+  agent's new depmod-first %posttrans) + sc1320cs / snd-seq "not m" in config-q82 because build-q82.sh restored
+  out/.config to the base after the build (no copy of q82's real config kept - reproducible: base 0174 + --module
+  VIDEO_SC1320CS --module SND_SEQUENCER + olddefconfig); K3: build/src on iceland, q82 is branch cand82. Sent to the
+  install agent for its sequence. Lesson: build scripts must save the built config (binqNN/config) before restoring
+  the base.
+- **fedtest delivered** (REPORT.md / NEXT.md saved by the main session): suite (20 steps, ~10 min) ready; fixes: clock
+  (iceland-clock save / restore + timer, seed /var/lib/systemd/timesync/clock; systemd 259 advances to its mtime),
+  sound (modprobe shadow + softdep; **proven live in R2**: the card came up), rotate = SELinux denies iio-sensor-proxy's
+  qipcrtr_socket (60 AVC, start-limit-hit) -> iceland_sensors.te, first-boot presets (Fedora's 99-default-disable would
+  disable every iceland unit) -> 50-iceland.preset, touch (nt36536 firmware re-download error after modesets) -> kernel
+  follower on panel_enabled / disabling, **firewalld not running** (kernel lacks NFT_FIB_INET etc.) -> nftables config,
+  hung-task config; acceptance check fixes (selinux AVC count, app names, iio timing). Wi-Fi: firmware keeps US; changing
+  country needs CFG80211_CERTIFICATION_ONUS + ATH_REG_DYNAMIC_USER_REG_HINTS (owner decision 10). Snapshot SIGBUS with 0
+  cameras (re-test with cameras). **q83 building** = q82 + fedtest (config saved as binq83/config); the install agent
+  folds fedtest's 4 package patchers + accept fixes into the 0.19 release candidate, K2 / K3 from q83.
+- **Owner decision 10 (Wi-Fi country): "keep US for wifi"** - the firmware's US regulatory setting stays; no
+  CFG80211_CERTIFICATION_ONUS / ATH_REG_DYNAMIC_USER_REG_HINTS; /etc/iceland/wifi-country stays absent.
+- **q83 built** (the final-build kernel = 0174 + camq + chgsafe + sleeppower + sndseq + fedtest): commit 8b90cfe083cb,
+  release 7.3.0-rc4-iceland-00313-g8b90cfe083cb, 9 files / +1620 -7, config saved as binq83/config (NFT_FIB_INET=m,
+  VIDEO_SC1320CS=m, SND_SEQUENCER=m, DETECT_HUNG_TASK=y); modules sc1320cs, snd-seq, mt5806, nft_fib_inet present.
+- Install agent's release-candidate sequence (round 7h): fedtest's 4 patchers folded into P1 (its dist-alsa hook dropped
+  in favour of fedtest's softdep file), devrpm installs checkpolicy + policycoreutils through nosel, build2b seeds the
+  clock stamp and records the SELinux module (semodule -n in the installroot, nothing loaded), K2 refuses a config
+  other than the build's auto.conf, K3 copies K2's config, compare-kernels q78 -> q83 4 PASS (0163-0174 + the candidate
+  commit; 956 -> 1003 modules), accept.sh 2c8c5722 (selinux mode, denials at the end, units at 120 s, real app names,
+  firewall, wifi US, clock vs the package install time; test_accept 51 PASS); decisions 4 and 10 marked answered.
+  **Step 1 started** (TAG=q83 K2_CONFIG=binq83/config STEPS="k2 k3 p1 tin", src on cand83 then back to iceland).
+- **Release candidate step 1: NEXT-K2P1U1 4 PASS** - K2 kernel-iceland-7.3.0~rc4.iceland.00313.g8b90cfe083cb-1 (22 MB, the config
+  equals q83's auto.conf, check 20 PASS); K3 the .1 twin (vermagic ok, DT = K2's + 1 marker line); P1 iceland-pkg-0.19
+  (iceland-mainline c2d26c0 + fragment + gpuisp npu fedtest nputexts chgsafe camtuning; check-device 16 PASS, README
+  tests 18 run 0 failed); TIN 16 files. **Run 102 (B run, kit kernel q83) started about 01:41**, battery 60 %, 28 C.
+- **Run 102 (B run, release candidate, kit q83) = B-RUN: 26 PASS, 0 FAIL** (01:41-01:48): devrpm iceland-device-0.19 built in
+  17 s, early dsp 5, clock stamp 2026-10-02T22:46:48Z, left out none, SELinux module in the store, policy loads 0
+  everywhere; NBD stopped, REFUSED 0.
+- **R2-final started about 01:53** (owner's advance go): run 102 committed into golden (172987 blocks), fresh overlay r2f,
+  head head-20261003-015206 "rehearsal_max=1500 ... rd.shell=0 rd.emergency=reboot iceland.rehearsal_kmsg=10813"
+  (enforcing; MAX raised from 540 to 1500 s so the accept step + fedtest's ~10-min suite fit). Main-session slip: a
+  check command "rehearsal-pc.sh head --show" created a head with the stray arg "--show" (rehearsal_max 540) that
+  briefly became boot/head.boot.img; caught before any boot and replaced (head 015206). Lesson: rehearsal-pc.sh has no
+  read-only subcommands - read the heads/*.json records instead. kmsg-r2f.log, ncm-watch-r2f.log, r2f-rehearse.log,
+  probe -> area-install-r2f; fedtest gets SESSION UP after the accept step.
+- R2-final: SSH 01:54:45; **the clock fix works** - tablet clock at login -470 s off (2026-10-02T22:46:57Z = the build stamp;
+  R2 was -17.6 million s); accept from 01:54:50. **Owner: "run the fedora debugger as well to catch any errors"** ->
+  fedtest got SESSION UP (read-only until ACCEPT DONE, then its full suite + live debugging until about 02:17).
+- **R2-final accept: INSTALL-ACCEPT 40 PASS, 2 FAIL, 1 CHECK in 251 s.** PASS: packages (no U-Boot images / Pi firmware / Fedora
+  kernels), verify (rpm -V clean), selinux Enforcing, denials 0 (audit + kernel), units (no failed unit after 277 s),
+  **sound** (card OnePlusPad4, speaker sink, pw-play rc 0, PCM running; "snd-seq hook error" still logged), **clock**
+  (login 22:46:56 = the stamp, -470 s off the PC), **firewall** (firewalld active, FedoraWorkstation), wifi (2 + 2
+  networks, regulatory US), chgsafe (lever writable, present 1, guard active, INPUT_SUSPEND 1), notifier, apps 24 / 25,
+  touch, and the rest. FAIL: **cameras** (libcamera lists 0; likely the boot-time probe while the sensor hub is idle),
+  **rotate** (no orientation within 30 s, but monitor-sensor reported "Tilt changed: face-down" = data flows; probably the
+  tablet lying flat). CHECK: pcieprobe 10. fedtest got ACCEPT DONE (01:59) to debug cameras / rotate live.
+- **Owner: "fix and confirm and queue the new kernel pieces in preparation for final install"** = go for: fedtest's
+  camera / rotate fix, the pieces' own kit tests (chgsafe, sleeppower), a B run + R2-final again, then queueing 0175+
+  (camq driver, chgsafe k1 / k2, sleeppower grace, fedtest touch follower; config lines SND_SEQUENCER*, NFT set,
+  DETECT_HUNG_TASK, VIDEO_SC1320CS into configs/required.config), then commits + pushes + matrix. wf/camq/camq.msg written.
+- **R2-final session ended early (Android 02:06:07, "Reset by PSHOLD, Hard Reset, SYSOK" = a normal Linux reset):** fedtest's
+  suite started an s2idle at 02:03:00 (the main session had allowed suspend in phase 2 - a mistake); the USB gadget
+  suspends, the NBD root over USB is lost (kmsg stream closed 02:03:01; after resume the PC got 169.254.x = no DHCP
+  answer), hung tasks -> panic -> PS_HOLD reset. A rehearsal-only limitation (open fact F13: s2idle with the root on the
+  network); the installed system's root is on UFS. **Lesson: no suspend in rehearsal sessions** (accept already uses
+  ACCEPT_SUSPEND=0); suspend is tested in kits and on the installed system. fedtest had about 4 minutes after ACCEPT DONE.
+- **Runs 103 (chgsafe: setup, pkg2, chgsafe, close) and 104 (sleeppower: setup, sleeppower, close) started about 02:08** on
+  q83 (owner's go "fix and confirm and queue"); battery 60 %, 31.6 C.
+- **fedtest's R2-final report:** the s2idle incident was its suite's last step (now: never suspends on an NBD root; every
+  result line also goes to kmsg; the runner streams live). Verdicts: clock PASS (iceland-clock's own restore set the time
+  from the stamp at boot - keep it), sound PASS (card + all macros / SoundWire bound, 0 install-command errors), SELinux
+  PASS (iceland_sensors loaded, 0 AVC), **rotate works** (accelerometer appeared, "Tilt changed: face-down" - the tablet
+  lay face down; the check should accept tilt), **cameras: the driver works** - both sensors probed at boot with the hub
+  idle (sc820cs 0xd154 at 1-0010, sc1320cs 0xc658 at 1-0036), camss + dw9719 loaded, 19 video nodes; "libcamera lists 0"
+  = `cam` (libcamera-tools) not installed in the image; touch PASS (0 nvt firmware errors after the 120 Hz switch =
+  the follower candidate works), firewall PASS (nft_fib_inet, 75 chains), presets PASS for ours, wifi / dsp / pcie /
+  battery / display PASS. New: wcd939x MBHC "ASoC error (-16) [0x3017]/[0x3018]" x1766 at 15.49 s (headset detection while
+  the SoundWire slave is cache-only; candidate later); the rehearsal's watchdog is never armed ("Failed to set watchdog
+  hardware timeout to 1min" - max 31 s -> 30 s); the gnome-session SIGABRT of the initial-setup greeter at the gdm
+  restart (rehearsal only). Sent to the install agent: libcamera-tools in the image, the rotate check, watchdog 30 s,
+  firefox.desktop. The q83 kernel pieces camq / touch / nftables / hung-task / sequencer are confirmed in R2-final.
+- Install agent round 7i (PC 18 PASS): TIN adds libcamera-tools 0.7.1-1.fc44.iceland1 (7 rpms); accept cameras = cam lists 2
+  + 10 frames each with the package's tuning + PipeWire shows 2 libcamera sources; rotate accepts tilt (the screen turn
+  is an owner check); iceland-rehearsal RuntimeWatchdogSec / RebootWatchdogSec 30 s + an accept "watchdog" check
+  (rehearsals only; the installed system arms no watchdog - a later decision); Firefox gets 20 s, launch logs kept;
+  test_accept 56 PASS. queue-0175.sh / .msg written (0175 camq, 0176-0177 chgsafe, 0178 sleeppower, 0179 fedtest touch;
+  config lines; tree check vs q83 + prepare.sh verify; then out-config-base-0179). P1 + TIN started (round 7i).
+- **Run 104 (sleeppower on q83): first FIXED** (the first s2idle after the driver loaded was woken by the RTC, wall 21.3 s,
+  cxsd +14 76 %, device suspend 3.46 s = the grace; no IRQ 315/316 abort), second sleep 83 %, CDSP running 95 % (its own
+  sleep 116 %), audio open 0 % / closed 91 % (as expected), idle: battery suspend timeout 900 s. -> 0178 confirmed.
+- **Run 103 (chgsafe on q83): the lever works** (input 494 -> 0 -> 494 mA, online / present kept, udc configured) and the
+  guard works (emulated 58 C: inhibit in 6 s, input 0 mA, event + notifier, latched as stock) - **but a real flaw:**
+  input_current_limit reads 500000 while the input is suspended, so the test's restore saw "as found" and never released:
+  **the input stayed cut (0 mA, discharging) until the kit's reboot to Android**. Also "NOT RESTORED: emul(...)" on many
+  zones (read-back artefact or real - to verify) and 2 test_battery_guard failures on the tablet. Sent to the chgsafe agent
+  (make the suspend state observable, fix the restore, check emul_temp, k1 v2). **chgsafe k1 / k2 not queued until it
+  passes;** the queue waits for one q84 build with all pieces. P1 + TIN round 7i: 2 PASS (pkg 0.19 16a7e3ef, 17 files).
+- **Run 105 (B run with P1 / TIN round 7i, kit q83) started about 02:22**; battery 60 %, 31.5 C. Then R2-final again (r2g).
+- **Run 105 (B run, round 7i) = B-RUN 26 PASS, 0 FAIL** (watchdog 30 s in the rehearsal script). **R2-final again (r2g)
+  started about 02:32**: run 105 committed into golden (170007 blocks), fresh overlay r2g, head head-20261003-023128
+  (rehearsal_max 1500, enforcing, kmsg 10813; verified from the head's json record), kmsg-r2g / ncm-watch-r2g logs.
+- **Owner (r2g session): "auto rotate works"** - the screen turns on the installed-image release candidate (owner check
+  done; the matrix's auto-rotate row holds for the installed system).
+- **r2g accept: INSTALL-ACCEPT 42 PASS, 1 FAIL, 1 CHECK in 120 s.** PASS incl. watchdog (armed 30 s), sound (snd-seq hook
+  errors at boot 0), rotate (tilt; the owner confirmed the screen turns), camstack, apps 24 / 25, and the rest. FAIL
+  cameras: **both cameras work** (libcamera lists 2, rear sc1320cs and front sc820cs rc 0 with 10 frames each, PipeWire 2
+  libcamera sources, 0 raw V4L2) but **the rear camera loads sc820cs.yaml** (the front sensor's tuning) - a naming /
+  model issue (driver entity name or libcamera's model lookup) or a check artefact. CHECK pcieprobe 11. fedtest got
+  SESSION UP + ACCEPT DONE (about 02:37) to find the tuning selection live (no suspend; stop by 02:55).
+- **Owner (r2g): "fedora camera app crashes and doesnt open"** - GNOME Snapshot crashes with both cameras present (R2 had a
+  SIGBUS in pipewire-main-l right after portal.Camera:OpenPipeWireRemote with 0 cameras). Sent to fedtest live: coredump,
+  journal (snapshot / pipewire / wireplumber / portal / libcamera), AVCs, pw-dump; separate libcamera / PipeWire / Snapshot.
+- **chgsafe v2 delivered:** input_current_limit reads 0 while the host's suspend is in force (k1 v2, +188 / -4, W=1 clean);
+  the firmware keeps online 1 under the suspend; the test's restore always writes the found value (no-op unless suspended)
+  and checks input >= 100 mA + "allowed again"; the "emul" list was a read-back artefact (emul_temp is write-only; only
+  usb-temp-r was set and was cleared - restore samples show 32.2 C); unit failures = root writing 0444 files (now run as
+  the GNOME user); guard v2 (state-change messages) + a v1 -> v2 delta for P1; PC tests 0 FAIL; simulation S0 / S4 / S5
+  16 PASS. Next: q84 with all pieces after fedtest's camera findings, kit chgsafe again, then the queue.
+
+### 2026-10-03 about 02:45 - SAVE POINT before a compaction (owner: "keep everything running save state")
+
+**Running right now:** r2g (R2-final again; golden of run 105 = kernel-iceland q83 + iceland-device 0.19 round 7i) on the
+tablet until the guard ends it at about 02:58 (rehearsal_max 1500), then Android. fedtest (Fable) is in that session
+(SESSION UP + ACCEPT DONE given at about 02:37; no suspend; stop by 02:55) on two items: (1) the rear camera loads
+sc820cs.yaml (the front's tuning), (2) the owner's report "fedora camera app crashes and doesnt open" (GNOME Snapshot;
+R2 had a SIGBUS in pipewire-main-l after portal.Camera:OpenPipeWireRemote). Background shells: r2g rehearse.ps1
+(log C:\platform-tools\r2g-rehearse.log), kmsg-listen (kmsg-r2g.log), ncm-watch (ncm-watch-r2g.log) - stop the last
+two after Android is back; read /proc/bootloader_log with adb root right after (save to wf/install/priv/).
+
+**Results of the night (3 Oct):**
+- R1d: the first complete rehearsal boot (GNOME). R2: 29 / 4 / 3. R2-final (r2f, q83 + 0.19): 40 / 2 / 1. **r2g: 42 PASS,
+  1 FAIL (cameras: tuning mix-up only - both cameras list, capture 10 frames, PipeWire 2), 1 CHECK (pcieprobe 11).**
+  Owner checks: auto-rotate works (upright); the Camera app crashes.
+- Kernels: q81 (0174 + camq), q82, **q83 = 0174 + camq + chgsafe v1 + sleeppower + sndseq + fedtest** (8b90cfe083cb,
+  config binq83/config). K2 / K3 from q83 (kernel-iceland ...00313.g8b90cfe083cb + .1). P1 iceland-pkg-0.19 (16a7e3ef) +
+  TIN (17 files, libcamera-tools). Runs: 102 B 26 / 0, 103 chgsafe (flaw: suspend not observable -> v2 delivered),
+  104 sleeppower (first FIXED), 105 B 26 / 0.
+- Owner decisions: bypass deferred; no Wi-Fi in sleep; Wi-Fi country = US (firmware); camera driver + stock tuning into
+  the private repos (kernel queue 0175); "next rehearsal = the final build"; "fix and confirm and queue the new kernel
+  pieces in preparation for final install".
+
+**Next steps, in order (owner's go given for the fix-and-confirm runs):**
+1. When r2g ends: save bootloader_log, stop listeners, read fedtest's report (camera tuning + Snapshot crash fixes).
+2. Build **q84** = 0174 + camq (+ fedtest's camera naming fix if it is a driver change) + **chgsafe v2** (wf/chgsafe
+   k1 v2) + sleeppower + sndseq + fedtest: a build-q84.sh like build-q83.sh (save binq84/config BEFORE restoring the base).
+3. K2 / K3 from q84 (`git checkout cand84; TAG=q84 K2_CONFIG=binq84/config STEPS="k2 k3 p1 tin" next-k2p1u1.sh;
+   checkout iceland`), P1 with the chgsafe v2 guard (chgsafe-pkg.py handles v1 -> v2) + any Snapshot / camera package fix.
+4. Kit chgsafe again: `python3 wf/chgsafe/cand/gen-combo-chgsafe.py 106 q84`, `an/chk.sh 106`, chain from
+   area-combo-97-chain.sh (sed 97 -> 106). Pass: lever PASS (limit reads 0 when suspended), guard PASS, restore PASS,
+   unit PASS as iceland. Stop rule: if the input is left cut, `echo 500000 > .../qcom-battmgr-usb/input_current_limit`
+   over ssh, else reboot to Android.
+5. B run 107 (`genwf-install-b.py 107 q84 "dev b1a b1b b2a b2b" 4300 qos=2`, chain from the 94 template, check-b-run with
+   PKG_VERSION=0.19 -> 26 / 0), then R2-final once more (commit, serve golden r2h, MAX=1500 head, accept, fedtest suite)
+   -> aim: all PASS (pcieprobe CHECK allowed) and the Camera app opens.
+6. **Queue:** `TAG=q84 DRY=1 MSG=queue-0175.msg bash queue-0175.sh` then without DRY (0175 camq, 0176-0177 chgsafe,
+   0178 sleeppower, 0179 fedtest touch + config lines); it pushes iceland-linux and writes out-config-base-0179.
+7. Commit iceland-mainline (commit x: the camera tuning yaml from wf/install/work/p1/new/packaging/iceland-device/files/
+   into packaging, WORKLOG, docs, results, matrix c2v with the new rows / runs) + push; HANDOVER; snapshot; matrix page.
+8. Then the remaining rehearsals U1-U3 / R1b / R2b / R3 / R4, then the C0 path (owner decisions 1 + 2, the owner's
+   writes).
+
+**Next numbers:** kit run 106 (then 107), test kernel q84, queue patch 0175, matrix script matrix-c2v.py, commit
+script commit-campaign2-x.sh (mk-commit-x.py from commit-campaign2-w.sh).
+**Agents:** install a997748c4c5627a37 (idle), fedtest a41173137e94caf02 (in r2g), chgsafe a28bff6cb55904eac (done, v2),
+sleeppower af6b45583d5bb8cc6 (done), r1debug ab236e1ef0aa067eb (done), docs a3047486eb1c0ec68 (idle).
+**Lessons of the night:** build scripts must save the built config (binqNN/config) before restoring the base; NO suspend
+in rehearsal sessions (NBD root over USB); rehearsal-pc.sh has no read-only subcommands (read heads/*.json); after any
+kit reset read Android's dmesg / bootloader_log with adb root within minutes; a Linux reboot here is a PS_HOLD hard reset
+(pstore useless); R1c's power loss came from a blacklist that left the panel unmanaged - never boot a display config
+not seen in a kit or R1b.
+
+### 2026-10-03 about 02:55 - r2g ended; owner: "stop building", "fix everything first basis on the logs"
+
+- r2g (R2-final again, q83 + 0.19): INSTALL-ACCEPT 42 PASS / 1 FAIL (cameras: parse error) / 1 CHECK (pcieprobe 11);
+  fedtest suite 21 / 2 / 6 / 1 (suspend auto-SKIP on the NBD root works). It ended at 02:44, not by a crash: the guard
+  logged "session limit 625 s reached - reboot" (Android: "Reset by PSHOLD", Hard Reset). Cause: rehearsal-probe.sh's
+  extend (uptime + 600) replaced rehearsal_max 1500 (F7). Listeners stopped; bootloader_log saved privately.
+- Owner (about 02:50): "stop building", "fix everything first basis on the logs", "also collect logs from the fedora
+  testing agent", "after consolidating the logs from every source pass them through our debugger for verification on
+  fixes". q84 is ON HOLD (nothing was building; the kit lock was free).
+- All logs consolidated (private) in WSL ~/mainline/build/an/r2g-logs/ (an/r2g-bundle.sh): pc/ (rehearse, relay, NCM,
+  head.json), tablet-stream/kmsg.log, android/bootloader_log.txt, accept/ (journal, dmesg, cam-*, pw-dump ...),
+  fedtest/ (live probes 7-12, suite output, REPORT-r2g.md). The 5 core dumps stay in ov-r2g (cow over golden).
+- FIX-LIST.md there: F1 Snapshot SIGBUS (frame #0 = 0x3: a call through a bad function pointer on the first
+  metadata.property event in GStreamer's PipeWire device provider; also in R2 without cameras), F2 CMA 32 MB too small
+  (7803 pages = 3264x2448x4, 12675 = 4160x3120x4: full-size soft-ISP buffers fail), F3 accept camera parse, F4 probe
+  fixes, F5 libcamera sensor properties / helper / flip, F6 camss TPG entity, F7 guard limit, F8 first-boot setup
+  (initial-setup must appear on the final image), F9 preset RO lines, F10 tss user missing, F11 Wi-Fi regdomain
+  (setregdomain + ath12k refuse; keep US), F12 CONFIG_THERMAL_NETLINK (irqbalance), F13 libseccomp in initrd, F14 bfq
+  busy, F15 reserved-mem overlap cpucp / pdp, F16 sync_state never reached (amba 111b8000.tn deferred), F17 SoundWire
+  7630000 port counts, F18 SWR bus clash + wcd9390 parity (+ r2f MBHC -16), F19 BT frame reassembly -84, F20 PCIe
+  supplies / 11 probes, F21 dummy supplies, F22 pmic-glink devlinks, F23 MM2 no backend + quiet loopback; benign groups.
+- Wireplumber "IPCUnixSocket ... Connection refused" = the greeter user's wireplumber stopping (benign).
+- Dispatched: debugger = fedtest (verify the list against every log -> VERIFY.md; F1 backtrace from the cores PC-side
+  with debuginfod; F4 / F9 / F23; later verify every fix candidate); install (F3, F7, F8, F10, F13, F14, benign group);
+  new Fable agents camfix (F2, F6, F5) and klog (F11, F12, F15-F22). Flow: candidates -> debugger verifies -> only then
+  q84 + packages + kits + B run + R2-final.
+
+### 2026-10-03 about 03:05 - the team pipeline (owner: "use a whole team of agents using opus and fable ... automated ... no intervention from my side ... by a timeline ... consolidated")
+
+- Plan: WSL ~/mainline/build/an/team/TEAM-PLAN.md (copy docs/TEAM-PLAN.md). Main = orchestrator, tablet runner,
+  committer. New Opus agents: ledger (one error ledger for every run: ingest / map / board / diff / check, baseline
+  r2g + r2f / r2 / r1d), review (independent review: correctness, rule 13, charging safety, privacy, style,
+  conflicts), builder (one consolidated q84 build: build-q84.sh from q84.wf, preflight in its own worktree, manifest,
+  K2 / K3 / P1 / TIN, kit 106 / B 107 generators, queue-0175 variant; real build only on main's "go").
+- Fable fixers: install (image + rehearsal tooling, P1 / TIN integration), camfix, klog; debugger = fedtest (verdicts
+  per F, F1 root cause, live suite in the next rehearsal); docs (guides, matrix-c2v.py, commit x scripts, release notes).
+- Owner: "you can add existing agents knowledge to your team" -> resumed chgsafe (charging-safety guardian: v2
+  facts, kit 106, safety verdicts), sleeppower (power + sleep: F16 power view, the q84 sleep proof in kit 106, power
+  verdicts), r1debug (rehearsal / boot chain: verdicts on install fixes, pre-boot head checker, post-session end
+  classifier).
+- Protocol: one fix record per F (wf/<agent>/fixes/F<nn>.json with signatures_gone / _expected), verdict files, gates
+  G0 found -> G1 ready (debugger + reviewer + domain verdicts) -> G2 built (manifest) -> G3 proven (ledger check on the
+  tablet run) -> G4 committed. One consolidated loop per build; freeze 05:00, G1 05:30, q84 06:30, packages 07:00,
+  kit 106 + B 107 07:00-08:00, R2-final r2h 08:00-09:00, commits 09:00-10:00, reserve to 13:00.
+- Tablet sessions inside the pipeline run without asking each time (owner: no intervention); each starts with a
+  presence + battery gate and pauses with a notification if it fails. RAM boot only, no writes, as always.
+- Timers: one-shot 05:02 (freeze) and 05:33 (G1 -> builder go).
+
+- 03:05: the owner stopped fedtest, camfix and klog (Fable); on the owner's choice a new Fable debugger took over fedtest's
+  role (wf/fedtest/), and camfix + klog were restarted on Opus with the same briefs. chgsafe reported: v2 changes k1 by
+  one line (input_current_limit reads 0 while suspended) - forwarded to the builder; kit 106 generator refuses cleanly
+  until q84 exists.
+
+### 2026-10-03 about 04:10 - team round 1 progress
+- review (Opus): chgsafe v2 NOT G1. S1 [safety, kernel]: an in-cable release while a PD charger holds 9 V re-runs
+  iceland_setup_charger with the ask computed at 5 V (2000 mA at 9 V = 18 W > stock PD 13.5 W = 1500 mA at 9 V; kept if
+  vbat >= 4.5 V; also a pre-existing path after a type-change re-setup) -> compute at max(5000, VBUS) mV, unreadable =
+  9000. S2 [safety, guard]: a restarted guard releases a left-over cut in-cable; an unreadable "present" counts as
+  unplugged -> latch + unreadable = plugged. R1: set_input_limit clears input_suspend before the writes and ignores a
+  failed unsuspend. Trailers Fable -> Opus at source. chgsafe making v3 (k1, a new S1 patcher, guard v3); the install
+  agent must not ship guard v2.
+- review: queue-0175.sh would abort - Q1 sleeppower's mt5806 .msg has no trailers / header (sleeppower fixing), Q2 the
+  queue must target q84 (k1 read-back), Q3 config check after the merge (builder's queue variant moves it + a trap).
+- ledger (Opus): wf/ledger/ledger.py (ingest / check / board ~1 s), baseline of 9 runs (r2g 174 signatures, 109
+  error-level, 0 unmapped); new F25-F37 assigned (F25 debugger, F26-F29 / F32 / F35-F37 install, F30 / F31 / F33 / F34 klog).
+- Routing slip: the ledger and builder agent ids were swapped in three messages; re-sent to the right agents.
+- camfix (Opus): F02 = --disable DMABUF_HEAPS_CMA (stock has 36 MiB linux,cma and no camera heap; the desktop user is
+  already on the system heap via 71-iceland-dma-heap.rules; the r2g CMA failures were the debugger's root probes);
+  F06 = TPG entity function MEDIA_ENT_F_PROC_VIDEO_PIXEL_FORMATTER (no upstream fix). F05 next.
+- sleeppower: F16 corrected (held by 3d37000.gmu, power-benign; TNOC separate) -> F16a / F16b; sleepq84 kit part ready.
+- r1debug: preboot-check.sh + postsession.sh; F03 / F07 confirmed; the run-105 golden carries the old guard (r2h needs
+  a new golden). install: F24 decided (no *_ignore_unused on the installed system). docs: final docs, matrix-c2v.py,
+  commit x scripts, release notes draft ready (not run).
+
+### 2026-10-03 about 03:50 - round 1: records in, F1 root cause, builder ready
+- **F1 Snapshot SIGBUS - root cause (debugger, from the 5 ov-r2g cores, gdb-multiarch + Fedora debuginfod):** pipewire
+  1.6.2's GStreamer device provider binds the "default" Metadata twice when the global is re-announced on a portal
+  permission change and re-appends the same spa_hook; the listener walk reaches the other list's head and calls its
+  marshal version word (3) -> pc 0x3 -> SIGBUS. Upstream fix cf7faec4 / 1e817dff in PipeWire 1.6.8; Fedora 44 updates has
+  1.6.9 (image has GA 1.6.2). Fix: the pipewire set >= 1.6.8 through an iceland-device Requires (record F01 coming).
+- Debugger VERIFY pass 1: F01-F25 confirmed as findings; F9 = PID 1's first-boot preset-all (benign); F23 = the greeter's
+  wireplumber ALSA probe (benign) + a tone.py threshold; F15 = our dts override over stock's single cpucp_pdp_region;
+  F11 = COUNTRY=US in /etc/sysconfig/regdomain + benign ath12k 11d refusals; F17 cosmetic; F18 real (loop 2).
+- Records: install 19 (F03 F07 F08 F10 F13 F14 F24 B02-B05 F26-F29 F32 F35-F37; F29 confirmed benign by the stock carve:
+  no oemconfig.so in stock either); camfix F02 F06 (F05 loop 2); klog 21 (F11 image regdomain, F12 THERMAL_NETLINK, F15
+  DT, F16b TNOC periphid from stock, F17 log level, F20 pwrctrl built in; F16a / F21 / F22 / F31 / F33 / F34 / B8-B13
+  benign; F18 / F19 / F30 loop 2). klog's F29 / F30 / F32 / F33 renumbered by main to the ledger's F30 / F31 / F33 / F34.
+- review: batches 1 + 2 = 21 confirmed; F36 needs-data -> the clutter line moved out to a new F38 (on-screen keyboard JS
+  error in a modal dialog: functional check, debugger). Main applied the form fixes (F02 address regex, F08 test field).
+- builder: preflight / build-q84.sh / after-kernel.sh / gen-kit106.py / queue-q84.sh ready; nothing built. It found a real
+  queue blocker: queue-0175.sh put SND_SEQ / NFT / HUNG_TASK lines in required.config, which the queue's build.sh does not
+  merge -> queue-q84 puts them in distro-neutral.config. Main shortened three queue subjects to <= 75 (camq, nt36536,
+  klog cpucp).
+- Open for G1: chgsafe v3 (in progress), F01 record, klog batch verdicts (review, sleeppower), debugger pass 2.
+
+- ~04:00 klog final: 21 records (F11 image regdomain, F12, F15 DT, F16b DT periphid from stock, F17 log level, F20
+  pwrctrl built in; benign F16a (GMU, settled per supplier from devlinks) F21 F22 F31 F33 F34 B8-B13; loop 2 F18 F19 F30).
+  Incident (harmless): a wsl bash -lc one-liner lost its variables and ran the packaging script iceland-bdaddr in WSL
+  twice; it stopped at its first line (no /etc/iceland/bdaddr), no btmgmt call. chgsafe v3 done (S1 k3 commit, R1, guard
+  v3; suites 0 FAIL, sim 16/0) -> review + debugger re-check; chgsafe asked for power verdicts incl. F24 (no
+  *_ignore_unused on the installed system: nothing charger-related may depend on an unused regulator / clock).
+
+### 2026-10-03 about 03:57 - G1 reached for the kernel; q84 build started (ahead of the 06:30 plan)
+- G1 (review + debugger, and chgsafe / sleeppower for power) confirmed: camfix F02 F06; klog F12 F15 F16a F16b F17 F20
+  (+ benign F21 F22 F31 F33 F34 B8-B13, image F11); chgsafe v3 kernel (k1 R1, k2, new k3 S1: the ask at max(5000, VBUS)
+  mV); F01 (pipewire >= 1.6.8, independently confirmed by review from the cores + upstream cf7faec4); install records
+  F03 F07 F08 F10 F13 F14 F24 B02-B05 F26-F29 F32 F35-F37; F09 benign. Guard v3.1 confirmed by review (adoption only with
+  this boot's /run/iceland/input-cut marker; S2a closed; a phantom cut at boot impossible).
+- chgsafe's F24 check: the charging path uses no Linux regulator / clock / PD; r2g's 30 s regulator cleanup disabled
+  nothing; the charger stayed in before and after. Confirmed.
+- Preflight bug found by main: fixrecs.py crashed on the debugger's string inputs_sha1 and the preflight silently reused
+  the previous run's fixrecs json -> fixed (a string = the record file's sha1; the old json is removed first and a
+  missing result FAILs).
+- q84.env: G1_SKIP="chgsafe-v3 F30 sleep-q84" (main's decision: chgsafe's kernel part confirmed by both, the guard is
+  gated by P1; F30 is a loop-2 diagnosis with no build change; sleep-q84 is a kit part). Preflight q84: build PASS,
+  queue PASS (51 PASS, 0 FAIL, 1 WARN = the chgsafe delta vs q83). build-q84.sh started at about 03:57.
+- Open: install's F01 B-run check (pipewire-(gstreamer|libs) regex, all pipewire* one version, libcamera iceland1 kept);
+  sleeppower: is kit 106's sleep proof valid without the kits' *_ignore_unused trio (installed cmdline, F24)?
+
+- 03:55 q84 BUILT: ba2ed250bf33, 7.3.0-rc4-iceland-00313-gba2ed250bf33; manifest: 43/43 config lines, every fix marker present
+  (chgsafe k1-k3, camss-tpg, CMA heap off, cpucp delete, TNOC periphid, swr log level, pwrctrl prompt, THERMAL_NETLINK),
+  0 compiler warnings, sc1320cs-q84.ko vermagic OK. The manifest's one FAIL ('2 modules gone vs q83') is F20 working:
+  pci-pwrctrl-pwrseq and pwrseq-qcom-wcn are in modules.builtin (=y). Next: packages (K2 / K3 / P1 / TIN) after install's
+  F01 check-b-run fix, then kit 106.
+
+- ~04:05 sleeppower on F24 (notes/F24-sleep-cmdline.md): the trio keeps no regulator and no extra power domain in kits,
+  only ~76 clock branches (leakage); the installed system sleeps with at most less on. Main applied its opt-in knob
+  (linux-ram/build.sh: KIT_NOUNUSED=1 drops the three words; backup build.sh.pre-nounused) and generated kit 108 =
+  setup -> sleepq84 on q84 WITHOUT the trio (the installed cmdline) - the A/B partner of kit 106. Presence gate: Android
+  present, battery 60 %, USB powered, 24.2 C. Kit 108 started in the background (run-chain.sh 108).
+- install: F01 B-run check fixed (any pipewire-* >= floor, every pipewire* one version, libcamera* = iceland1); expected
+  B-RUN 31 / 0. P1 waits on chgsafe's guard: its marker-first edit broke one guard test (writes 500000 with no cable) -
+  chgsafe told to fix or revert to the reviewed v3.1.
+
+- ~04:10 guard v3.1 RE-CONFIRMED by review on its own run (12 package suites, 634 PASS / 0 FAIL): the reviewed pin
+  a6a837ba had a real bug (no cable + firmware 0 after the first decision -> release write 500000) - fixed ('not
+  self.suspended and no marker'); marker written before the kernel write. New pins in wf/review/verdicts/chgsafe-v3-guard.json.
+  Lesson (review): run the suites before confirming. Package step started: GO=pkg after-kernel.sh (K2 / K3 / P1 / TIN
+  from q84), while kit 108 runs.
+
+### 2026-10-03 about 04:15 - packages built; kit 108 PASS; kit 106 running
+- Packages for q84 (after-kernel.sh GO=pkg, 04:03-04:12): K2 kernel-iceland-7.3.0~rc4.iceland.00313.gba2ed250bf33-1
+  (check 20 PASS), K3 ...gba2ed250bf33.1-1 (uname / vermagic ok), P1 iceland-pkg-0.19 (0.17 + fragment + gpuisp npu fedtest
+  nputexts chgsafe camtuning ufssched cmdline + records F11 regdomain, F01 pipewire >= 1.6.8; guard v3.1), TIN 17 files
+  46 MB -> NEXT-K2P1U1 4 PASS 0 FAIL; COUPLING q84 PASS (K2 / K3 / P1 / TIN all q84; guard marker; 4 chgsafe kernel checks).
+- **Kit 108** (q84, setup -> sleepq84; 04:00-04:05): sleeppower DONE - first: FIXED (RTC wake, wall 21.4 s, cxsd +14 75 %,
+  device suspend 3.45 s), second sleep cxsd +8 92 %, CDSP 20 s s2idle cxsd +15 94 %, wifi: chip powered off at the suspend,
+  firmware reloaded at the resume, WoWLAN disabled, wakes: 25 sources, new vs the baseline none, nothing outside the allow
+  list, hard kernel lines 0. **PASS** for the q84 sleep proof. BUT not the planned A/B: the kits boot through U-Boot
+  (diag-L-efi.img) whose fixed cmdline carries clk/pd/regulator_ignore_unused, so the KIT_NOUNUSED knob in
+  linux-ram/build.sh cannot reach it (reverted to build.sh.pre-nounused). Sleep without the trio = the installed system
+  only: owner check (first installed suspend + overnight drain), per sleeppower's analysis it can only have less on.
+- Ledger: k108 ingested; `check` judges all records on every run (39 "FAIL" = not tested by this kit) and a long-line
+  match bug left sleep-q84 at 8/10 although the DONE line holds both fields -> ledger agent fixing (per-run scope / n/a,
+  match raw lines).
+- Kit 106 (setup -> sleepq84 -> pkg2 -> chgsafe; apply-pkg 12 suites 0 FAIL; tablet 60 %, 25.4 C) started about 04:14.
+
+### 2026-10-03 about 04:22 - kit 106 PASS (charging safety v3.1 on q84); B run 107 started
+- **Kit 106** (q84; setup -> sleepq84 -> pkg2 -> chgsafe; 04:09-04:17): sleepq84 DONE again (first: FIXED, wall 20.9 s,
+  cxsd +12 74 %); pkg2 rpm builds rc 0; **chgsafe: lever PASS** (suspended: battery -1314 mA, input 0 mA, limit reads 0,
+  udc configured, kernel line +1, rejected 0; released: input 494 mA, limit 500000), **guard PASS** (inhibit after 6 s,
+  limit 0; event stop class=connector "USB connector 58.0 C >= 57 C" input=suspended plugged=1; notifier id 1), **restore
+  PASS** (input_current_limit 500000, charging 494 mA, guard as before). **unit "FAIL (as iceland)" = a scorer bug, not a
+  test failure:** all four unit outputs are green (battery_guard 115 / FAILURES: 0, charge_alert 19 / 0 failure(s),
+  guard_input_suspend 58 / 0 failure(s), guard_kernel_limit 27 / FAILURES: 0). In tablet.sh _cs_unit the PASS assignment
+  ends with `$([ $who = root ] && echo ...)`, whose status 1 (who=iceland) makes the `||` branch run (reproduced in bash;
+  run 103 ran as root). Main counts unit PASS (219 checks as iceland); chgsafe fixing the scorer.
+- B run 107: install's recipe - rehearse.ps1 + tcp-relay.py copied to C:\platform-tools, rehearsal-pc.sh stop, ov-build
+  deleted (ov-r1 / r2f / r2g kept), check-load.ps1 "load check: PASS", serve stage0 build (127.0.0.1 + WSL :10810),
+  relay 0.0.0.0:10809 -> wsl:10810 allowed 172.16.42.1 (log tcp-relay-107.log), genwf-install-b.py 107 q84 "dev b1a b1b
+  b2a b2b" 4300 qos=2, chain from the builder (Wait 4000). Tablet 60 %, 26.2 C. Started about 04:22. Expect B-RUN 31 / 0.
+- **B run 107** (04:21-04:28, all five parts in 7 min): `B-RUN: 30 PASS, 1 FAIL`. New checks all PASS: every pipewire
+  package at 1.6.9 >= 1.6.8 (10), libcamera 0.7.1-1.fc44.iceland1 (3), every sysusers.d entry has its account (image +
+  initramfs), no tpm2-tss / libseccomp inside, PCIe power control inside, clock stamp, SELinux module, release-candidate
+  pieces. FAIL: build2a 2x "dracut[E]: Module 'systemd-pcrphase' depends on module 'tpm2-tss', which can't be installed"
+  = a side effect of F10's omit (the initramfs is complete, dracut skips the module). Main's decision: fix before r2h so
+  the rehearsed golden equals the final build (install: omit the tpm2-tss dependants too; amended F10 re-checked by
+  review + debugger), then P1 / TIN and B run 109 (108 is the sleep kit), then r2h.
+- 04:30-04:43: F10 amended (install: omit "tpm2-tss systemd-pcrphase"; review confirmed: the initramfs module lists of
+  runs 105 and 107 differ by exactly those two, nothing needed lost). P1 / TIN rebuilt (records F11 + F01 applied,
+  NEXT-K2P1U1 2 PASS; COUPLING q84 PASS; the drop-in in the tgz). **B run 109** (04:36-04:43): **B-RUN: 31 PASS, 0 FAIL**
+  ("build2a: no dracut-install error"; pipewire 1.6.9 x10; libcamera iceland1 x3); relay REFUSED 0. Run 107's overlay kept
+  as priv/run/ov-build-b107. Golden commit from run 109 started about 04:44. Debugger briefed for r2h (reviewer's suite
+  points, F10 + sleep-q84 verdicts; FT_BUDGET=900 FT_WAIT=1100).
+
+### 2026-10-03 about 04:50 - r2h: INSTALL-ACCEPT 45 PASS, 0 FAIL, 0 CHECK
+- Golden committed from B run 109 (174213 overlay blocks); serve golden r2h (fresh overlay); head-20261003-044428 with
+  MAX=1500 + "rd.shell=0 rd.emergency=reboot iceland.rehearsal_kmsg=10813". r1debug's preboot-check: 39 PASS, 0 FAIL,
+  3 WARN (pwrseq_qcom_wcn / pci_pwrctrl_pwrseq not initramfs modules = built in by F20, expected; manifest versions in the
+  accept step). rehearse.ps1 started with -WaitAndroid 1800 (main's catch: the default 900 s is shorter than the 1500 s
+  session and the script stops the NBD relay when it gives up). kmsg-listen (kmsg-r2h.log), ncm-watch (ncm-watch-r2h.log).
+- Boot 04:46:48 (ABL, battery 3966 mV, slot b) -> answers on 172.16.42.1 after 39 s. Live kmsg: "iceland-rehearsal:
+  session limit 1500 s (head 1500 s, extend none) at uptime 11 s", then "(head 1500 s, extend 1500) at uptime 31 s"
+  (F07 proven: the probe's extend no longer shortens it); "Kernel command line:" without any *_ignore_unused (F24).
+- **INSTALL-ACCEPT: 45 PASS, 0 FAIL, 0 CHECK in 117 s** (r2g: 42 / 1 / 1) - cameras, iosched, pcieprobe, watchdog,
+  rotate all PASS. SESSION UP to the debugger at about 04:50 (suite FT_BUDGET=900 FT_WAIT=1100; stop by 05:08; the
+  guard reboots at about 05:12).
+- **r2h debugger suite** (04:50-04:52, + manual re-tests to 04:58; SESSION DOWN 04:58:37): FEDTEST r2h 29 PASS, 2 FAIL,
+  4 CHECK, 1 SKIP - both FAILs were test-environment issues, re-tested by hand:
+  - **F1 PROVEN:** pipewire-gstreamer / -libs 1.6.9 in the image; Snapshot alive, 0 core dumps. The suite's FAIL: the
+    screen had blanked and locked (idle 311 s, dpms Off), so Snapshot's window never mapped. After waking the screen,
+    Snapshot requested the camera within 0.2 s, OpenPipeWireRemote ok, stream node org.gnome.Snapshot RUNNING and the
+    camera node running within 5 s. The suite now wakes the screen first.
+  - **F2 PROVEN (kernel side):** /dev/dma_heap = system only, 0 cma failures, rear 8 frames x 51916800 bytes, front
+    8 x 31961088, user 1280x960 fine (re-run with a fixed cam syntax). camfix's 'DmaBufAllocator ... Using
+    /dev/dma_heap/system' expected line never appears (log category) -> drop that regex.
+  - Proven: F6 (TPGs PROC_VIDEO_PIXEL_FORMATTER, 0 "not initialized"), F11 (reg country US), F17 (no mismatch lines),
+    F23 (loopback share 0.28), F25 (units, display mode, no serial error), F38 (oskdialog: pkexec through the Shell
+    dialog with typed keys).
+  - NOT fixed: **F12** (THERMAL_NETLINK=y is running, irqbalance still "thermal: failed to receive messages") and
+    **F18** (3602 x wcd939x "ASoC error (-16) soc_component_read_no_lock() [0x3017/0x3018]" from 15.57 s: r2f's burst is
+    back; r2g had the SWR clash instead - intermittent per boot). klog-f31 CHECK (Audio0 reservation). -> klog loop 2
+    started at once (PC only, with the r2h logs).
+
+### 2026-10-03 about 05:02 - SAVE POINT (usage limit reached)
+**State:** q84 build complete and proven - kits 106 (chgsafe v3.1: lever / guard / restore PASS; unit PASS by evidence,
+scorer fixed) and 108 (sleep), B run 109 (31 / 0), r2h INSTALL-ACCEPT 45 / 0 / 0, debugger suite: F1 Camera app WORKS,
+F2 F6 F10 F11 F13 F15 F16b F17 F20 F23 F25 F38 proven. Not fixed: F12 (irqbalance thermal), F18 (wcd939x -16 burst,
+intermittent) -> klog agent on loop 2 (PC only, running).
+**Running:** r2h session on the tablet until the guard's reboot at about 05:12 (rehearse.ps1 -WaitAndroid 1800, then
+Android); kmsg-listen (kmsg-r2h.log), ncm-watch (45 min). The one-shot crons at 05:02 / 05:33 are STALE (the freeze and G1
+are long done) - ignore them.
+**Next steps:** (1) after Android is back: adb root bootloader_log -> wf/install/priv/r2h-bootloader_log.txt; r1debug
+postsession.sh; stop kmsg-listen; (2) ledger: `ledger.py ingest r2h <area-install-r2h> /mnt/c/platform-tools/kmsg-r2h.log
+wf/fedtest/runs/r2h` + `check r2h` (base r2g) + board; (3) fill RESULTS in wf/builder/q84.queue-msg.txt, then
+`DRY=1 bash wf/builder/queue-q84.sh`, then the real run (queues 0175-0185, pushes iceland-linux); (4) docs: copy
+matrix-c2v.py + mk-commit-x.py from wf/docs/staging, run them (commit x: tuning yaml, docs, results, matrix), reviewer
+checks the diff first; HANDOVER, snapshot, matrix page; (5) loop 2 (F12, F18, F05, camfix's F02 regex, sleep-q84's 3
+regexes) -> q85 if klog finds fixes. Owner checks: H1-H3 (chgsafe), installed suspend + overnight drain, OSK touch.
+- 05:12 r2h ended by the guard at the full limit ("session limit 1500 s reached - reboot", uptime 1503 s); Android back,
+  relay refused 0, nothing written; bootloader_log saved (PSHOLD hard reset, PON by SYSOK) to
+  wf/install/priv/r2h-bootloader_log.txt.
+- klog loop 2 ready (PC only, compile-checked on q84, not tablet-tested): **F12 benign** - irqbalance.service runs with
+  PrivateNetwork=yes / PrivateUsers=true and the thermal genetlink family has no .netnsok, so GETFAMILY returns ENOENT in
+  the private netns (reproduced with irqbalance 1.9.5 code under unshare -rn); THERMAL_NETLINK=y kept. **F18** = two
+  impedance loops of 900 failed reads (3602 lines): headset detection runs in 3.5 mm mode because our DT does not link the
+  codec to the USB-C audio switch (stock: USB-C audio only, switch at I2C 0xe), the plug-detect work holds no runtime-PM
+  reference, and the irq callback loops on uninitialised status. Patches k5-k8 (queue 0186 wcdirq, 0187 mbhcpm, 0188
+  zdet - default on; 0189 usbcjack DT - opt-in, delays USB-C orientation setup ~12 s, kit-test with a USB link check
+  first). f17 / f31 probe bugs fixed (wrong user), F31 benign. Next: review + debugger verdicts -> q85 -> kit (f18 passive
+  must be 0 lines across boots) -> short rehearsal -> queue 0186+. The q84 queue (0175-0185) and commit x come first.
+
+### 2026-10-03 about 08:45 - resumed (owner: "resume basis on the ledgers verdict and queue patches and resume using same agents")
+- r1debug postsession.sh on r2h: end=GUARD-REBOOT at uptime 1503 s (05:12:22), PSHOLD hard reset, PON HARD_RESET+USB_CHG,
+  vbat 3952 mV, slot _b success=1, accept 45 / 0 / 0; kmsg stream 5125 lines, 2 connections (the switch-root reconnect).
+- Dispatched, all the same agents: ledger (ingest r2h + k106 + b109, check r2h vs r2g, k106 --only chgsafe-v3,sleep-q84),
+  camfix (drop F02's never-printed DmaBufAllocator regex), sleeppower (reword sleep-q84's 3 dead regexes; power verdict
+  on F18), review + debugger (klog loop 2: F12 benign, F18 k5-k8 incl. the opt-in usbcjack DT), builder (DRY queue-q84 +
+  a RESULTS draft). Main then fills RESULTS from the ledger's G3 table and runs the real queue (0175-0185).
+- ~08:50 builder DRY queue-q84: PASS, nothing moved (11 commits 0175-0185 = binq84's tree; 42 config lines into
+  distro-neutral.config; config stage simulation 0 missing). It found and fixed a manifest false alarm (the two pwrctrl
+  modules counted as lost although built in; manifest-q84.json now PASS 0 / 0; the original kept as
+  manifest-q84.build-0355.json) - the real run would have stopped at that gate.
+- Loop 2 verdicts: debugger + review + sleeppower all confirmed F12 benign (irqbalance's PrivateNetwork + no .netnsok on
+  the thermal genl family, reproduced by review) and F18 k6 wcdirq / k7 mbhcpm / k8 zdet for q85; k5 usbcjack opt-in,
+  kit first (USB-C mux waits ~12 s for the codec module: never in a rehearsal over USB until f18u passes). Proof rule:
+  0 lines in every q85 run + at least one run with "mbhc irqs >= 1, exercised yes". Main shortened k5 / k6 / k8 subjects
+  (73 / 70 / 66). camfix F02 (4dfb8aac) and sleep-q84 (13b356ac, k106 + k108 PASS 13/13) re-pinned by review.
+- **Ledger G3 of r2h vs r2g:** 51 records, 29 PASS, 6 FAIL, 16 n/a. PASS: F01 F02 F03 F04 F06 F07 F09 F11 F14 F15 F16a
+  F16b F19 F20 F21 F22 F23 F24 F25 F30 F33 F34 F38 B08-B13. FAIL, none from this queue: F05 (libcamera, deferred), F18
+  (loop 2), F12 / F31 (benign; r2h ran klog's old probe as the wrong user), F17 (both mismatch lines gone; probe), F08
+  (benign teardown, one new gnome-session line). RESULTS filled into q84.queue-msg.txt; real queue-q84.sh started ~08:55.
+- **~09:00 QUEUED: iceland-linux cd0bf55 "iceland: 0175-0185 the final-build pieces of kernel q84 + config"** (author
+  mzak, trailers SoB + Co-Authored-By Opus 5.5; pushed, main == origin/main). queue-q84.sh: config lines all in q84's
+  config, QCONFIG PASS (distro-neutral 120 / required 21 lines, 0 missing), the prepared tree c3765597 = expected,
+  QUEUE-VERIFIED; build/src iceland at 4a58f67b9 (0185); base config out-config-base-0185.
+- Next: docs (commit x with the final numbers: release notes, known issues from the ledger, matrix-c2v with APP_FIXED=1);
+  builder (q85 = iceland 0185 + klog k6-k8; q85u + k5 usbcjack kit-only; kits 110 / 111; queue-q85 0186-0188).
+- ~09:10 ledger's refined r2h G3: PASS 32 / FAIL 5 / n/a 14; 12 records at G3 (F01 F02 F04 F06 F11 F15 F19 F20 F23 F25
+  F38 sleep-q84). FAILs = F05 (deferred), F12 + F18 (loop 2), F17 (lines gone; old probe), F31 (record expects a line that
+  did not occur). Image / tooling records stuck at G1 for lack of a P1 manifest -> builder writes manifest-p1-0.19.json.
+  chgsafe-v3 on k106: two record-regex misfires (unbounded ".*" across " | ", zone number vs name) -> chgsafe fixing.
+  New: F39 camera I2C GPI DMA errors (camfix), F40 GMU fenced-write delay (klog), F41 gnome-session screensaver timeout
+  (install). Ledger: case-sensitive matching, quoted-regex lines ignored, waivers.json (k106 unit waiver).
+- ~09:40 all round records confirmed by review + debugger: F17 / F31 (probe PASS lines), F40 (GMU fenced-write delay =
+  success on the 2nd poll; benign, watch regex), F41 (user-session ScreenSaver login race; benign, not F08), F10 / F13
+  (r2h evidence), F39 (camera EEPROM 0x58 NACK at power-up in GPI mode, once per boot inside the at24 0x51->0x58 window;
+  benign; checked on 6 runs), F38 (+ the oskdialog test's own pkexec / uinput lines). Ledger re-check requested.
+- Ledger: 14 records at G3 (F01 F02 F04 F06 F11 F15 F16b F19 F20 F23 F25 F38 chgsafe-v3 sleep-q84); chgsafe-v3 k106
+  PASS with the unit waiver (waivers.json; the next chgsafe kit must pass without it).
+- builder: q85 (iceland 0185 + klog wcdirq / mbhcpm / zdet; queue 0186-0188) and q85u (+ usbcjack, KIT_ONLY=1, refused
+  by the queue and package scripts) prepared, preflights PASS; manifest-p1-0.19.json written (P1 records checked against
+  the tarball); manifest-q84 cleaned to kernel records only (+ benign_ids). Main: go -> build q85 started about 09:40.
+- ~09:10 q85 BUILT: e0373b2308fc, 7.3.0-rc4-iceland-00324-ge0373b2308fc (iceland 0185 + wcdirq / mbhcpm / zdet); preflight
+  33 PASS 0 FAIL; manifest PASS 0 / 0; config = q84; 1001 modules, 0 new / 0 gone; 0 compiler warnings. Packages for q85
+  (TAG=q85 GO=pkg) then the q85u build (kit-only) running.
+- ~09:14 q85 packages: K2 kernel-iceland-7.3.0~rc4.iceland.00324.ge0373b2308fc-1 (check 20 PASS), K3 ...ge0373b2308fc.1-1,
+  P1 iceland-pkg-0.19 (c92755f0), TIN 17 files -> NEXT-K2P1U1 4 PASS 0 FAIL. The coupling check first FAILed with an empty
+  reason: q85.checks had no chgsafe section (q85's chgsafe kernel side comes from the queue, not a WF) - the q85 tree has
+  all four chgsafe markers; main appended q84's chgsafe check lines to q85.checks (backup q85.checks.pre-chgsafe) ->
+  COUPLING q85 PASS. q85u built: a4bdc3b18cc5 (7.3.0-rc4-iceland-00324-ga4bdc3b18cc5), manifest PASS. builder:
+  manifest-tooling-r2h.json (F04 F19 F23 F25 F38 F39 against the r2h suite inputs).
+- Kits 110 (q85: setup -> sleepq84 -> klogp) and 111 (q85u: setup -> sleepq84 -> klogu, kit-only) started about 09:17;
+  tablet 71 %, 23.3 C.
+
+### 2026-10-03 about 09:35 - kits 110 / 111; then WSL disk full -> WSL root emergency read-only (STOPPED)
+- **Kit 110 (q85):** sleepq84 DONE (first FIXED, wakes new none); **klog-f18: PASS no WCD -16 line; mbhc irqs 1,
+  exercised yes** = the F18 fix (k6-k8) PROVEN; klog-f17 PASS (capture as iceland 217132 bytes); f15 / f16a / f16b / f21 /
+  f33 / f34 / benign PASS; f11 / f12 / f20 FAIL and f22 / f31 CHECK = the kit's own rootfs / late module load (proven in
+  r2h).
+- **Kit 111 (q85u, + usbcjack, kit-only):** klog-f18u PASS (Headset Jack off, mbhc irqs 0, orientation reverse, udc
+  high-speed configured, DP mux 0 failed); f18 PASS with codec USB-C mode yes. judge-f18u.sh: checks b-e PASS, check a FAIL
+  "USB NCM disconnects 1 without / 5 with" - but kit 110's window listed no NCM events at all (windowing bug) and the
+  script printed sed errors -> inconclusive. **Decision: usbcjack stays opt-in, out of the final build; final = q85.**
+  sleeppower + builder asked to judge the drops / fix the judge.
+- **09:33 incident:** while starting B run 112, main copied golden.body (13.7 GB) to golden-b109.body as a safety copy
+  for the r2h evidence. **Drive D: (D:\WSL\Ubuntu-24.04\ext4.vhdx, 649.7 GB of the 664 GB drive) reached 0 GB free**,
+  the vhdx could not grow, and WSL's root ext4 was remounted **emergency_ro** ("Read-only file system" / "Input/output
+  error"). Nothing on the tablet was running; the q84 queue (cd0bf55) was pushed before. The copy is partial. All agents
+  told to PAUSE (no writes). Needs the owner: space on D: and a WSL distro restart (wsl --shutdown stays forbidden).
+- Kit 111 judged correctly (sleeppower + builder, read-only, from each run's own relay-side-STAMP folder; the judge script
+  had paired both kits with kit 111's recorder and had a sed "/" bug): both kits have the same 3 NCM drops = sleepq84's
+  three s2idle cycles + 1 at the reboot; kit 111 adds ONE 0.8 s USB re-enumeration 5.3 s after the gadget came up (the
+  codec's typec switch / USB-SS mux setup; fw_devlink "/audio-codec <-> typec-mux@e" lines). B run 107 (q84, no
+  usbcjack) shows a 5.3 s / 0.76 s blip of the same shape, so it is not clearly usbcjack's. Verdict CHECK; decision
+  confirmed: usbcjack opt-in, out of the final build (q85 = k6-k8 only).
+- Owner's choice for the disk: the owner frees space on D: and tells main; then main restarts only the distro (wsl
+  --terminate Ubuntu-24.04), checks the filesystem, deletes the partial golden-b109 copy and other regenerable files, and
+  enables sparse mode so the vhdx shrinks. All agents paused until then.
+- ~10:45 owner: "delete old builds for both lineageos and mainline work and free same space".
+  - D: (Windows) holds only D:\WSL (649.9 GB vhdx) and D:\Download (14 GB, the owner's personal downloads). Deleted on
+    D: only the unpacked duplicate D:\Download\lineage-24.0-20260808-UNOFFICIAL-iceland (2.37 GB; verified identical to
+    the .zip beside it, which stays) -> D: 2.38 GB free.
+  - `wsl --terminate Ubuntu-24.04`, then sparse mode refused by WSL 2.7.14 ("disabled due to potential data corruption",
+    needs --allow-unsafe: not used). The distro then failed to start (Error code 6, failure step 2, E_FAIL); owner
+    allowed ONE `wsl --shutdown` -> Ubuntu starts, / mounts rw cleanly, 630 G used.
+  - Survey: android 439 G (lineage/out 144 G build output, .repo 109 G, prebuilts 61 G, fw 39 G), mainline 178 G
+    (build/modstage* ~60 G, wf 60 G of which wf/install 41 G, fwsuper 15 G, fedora 6 G, kit 6 G, out 5.5 G).
+  - Cleanup script (dry run checked twice, 239 items, 219.7 GB): KEEP the newest LineageOS flashables moved to
+    ~/android/lineage-keep-20260929 (lineage-24.0-20260929-UNOFFICIAL-iceland.zip + boot / init_boot / vendor_boot /
+    dtbo / dtb / recovery / vbmeta* / vendor_dlkm / system_dlkm images, SHA256SUMS); DELETE android/lineage/out, mainline
+    modstage* / binq* / modfull-* older than q83 (plain "modstage" kept), the partial golden-b109.body, ws44.raw (stage0
+    can be re-made by rehearsal-pc.sh prepare), ov-build-b107, old rehearsal head images (their .json records kept; r2h's
+    head kept), queue-verify. Kept: sources, .repo, fw, fwsuper, backups / parta, q83-q85 builds, golden / stage0,
+    ov-build-b109, run results. Running.
+- ~11:00 cleanup DONE: 239 items, **219.5 GB deleted**; kept 13 files in ~/android/lineage-keep-20260929 (the
+  20260929 LineageOS zip + its 11 images + SHA256SUMS; `sha256sum -c` OK, 2.6 G); android/lineage/out gone. WSL / now
+  413 G used, 544 G free. D: still 2.4 GB free: the vhdx stays 649.8 GB (the root ext4 is mounted with `discard`, so
+  the freed blocks were trimmed, but a non-sparse vhdx does not shrink). **Test:** 1 GiB of new random data written +
+  synced inside WSL -> D: free and the vhdx size unchanged (2.446 GB / 649.775 GB) = the vhdx reuses the trimmed space;
+  builds can go on. Guard: a background watch stops main's work at D: free < 1.5 GB; no agent makes copies > 2 GB
+  without main's OK. Shrinking the vhdx (fstrim + `wsl --shutdown` + admin compact) stays an owner decision. D:\$RECYCLE.BIN
+  holds 11.7 GB (the owner's; not touched).
+- ~11:00 owner: "spin our team again and start updating them our status, and resume building release candidate with
+  all fixes integrated". RC = q85 (iceland 0185 + k6 wcdirq / k7 mbhcpm / k8 zdet) + K2 / K3 / P1 0.19 / TIN built
+  09:14. Team re-spun with the status; loop 2 resumes: B run 112 -> r2i rehearsal -> accept + debugger suite + ledger
+  G3 -> queue 0186-0188 -> commit x -> handover.
+
+### 2026-10-03 about 11:05 - loop 2 resumed: team re-spun, B run 112 (q85 RC) 31 PASS, 0 FAIL
+- Team re-spun with the status (all 11 agents, same ids); new rule for all: no copy > 2 GB without main's OK. Replies:
+  camfix F05 deferred-after-rc (F05.json 7eb2337e; needs a libcamera iceland2 rpm + P1 rebuild); klog F18 record
+  proven-kit110, k5 usbcjack deferred / opt-in, every record has an "r2i" field, F19 / F30 benign, F31 probe in
+  wf/klog/tablet.sh 0ef95418 (klog's own probe, run in the r2i session); sleeppower sleep-q85 confirmed from kit 110,
+  F18-usbcjack CHECK / opt-in; chgsafe q85 CONFIRMED (5 chgsafe lines PASS on the q85 tree); review CONFIRMED queue
+  0186-0188 (3 files +34/-5, checkpatch 0/0) and the commit x staged set (privacy clean); r1debug preboot-check has
+  --manifest (q85u's manifest is newer by mtime); ledger: board G3 39 / 45, F18 G3 from k110 (rc.json excludes q85u),
+  new F42 = SWR RX clash / wcd parity (loop 3); builder: q85 outputs verified (verify-outputs PASS 0), manifest-q85
+  names F17 + every queued record, judge-f18u fixed (F18U CHECK), mkchecks.py generates the chgsafe base lines,
+  queue-ready PASS; debugger: r2i suite ready (wcd step = F18 rule, camfix-f39, F1 / F2 / F6, oskdialog, 52 records),
+  verdicts F18 (q85), F19, F30 confirmed; docs: STAGED-LIST-x 1195 paths, RC1-NOTES.md drafted; install:
+  R2I-COMMANDS.md (0fa0f8ae), accept.sh adds a cmdline check (kernel release + F24), check-all no longer needs binq65.
+- Gate: tablet in Android, slot b, 76 %, 23.9 C. B run 112 = 109's recipe: rehearsal-pc.sh stop, ov-build-b109 kept,
+  serve stage0 build, check-load PASS, relay tcp-relay-112.log, `genwf-install-b.py 112 q85 "dev b1a b1b b2a b2b" 4300
+  qos=2`, chain from the 109 template.
+- **B run 112** (11:07-11:14): **B-RUN: 31 PASS, 0 FAIL**; builder's check-b112.sh **B112-RC: PASS 0** (kit kernel
+  7.3.0-rc4-iceland-00324-ge0373b2308fc, BLS version / linux / devicetree / initramfs of it, installed
+  kernel-iceland-7.3.0~rc4.iceland.00324.ge0373b2308fc-1.fc44, one kernel, iceland-device-0.19); relay REFUSED 0.
+  Three stale relay-run-kit runners (110 / 111 / 112) stopped. Tablet back in Android, 76 %, 24.9 C.
+- Golden commit from B112 running: golden-b109.json / .tail kept (r2h's record; its body = stage0 + ov-build-b109),
+  golden.body rewritten in place, overlay kept as ov-build-b112; accept.sh (cmdline check) copied into tablet-in.
+
+### 2026-10-03 about 11:15 - golden from B112, rehearsal r2i (q85 RC)
+- Golden commit from B112 in 31 s: stage0 + 174086 overlay blocks -> golden.body (4724 MB allocated, rewritten in
+  place); D: free unchanged 2.446 GB (vhdx 649.775 GB). B109's golden.json / .tail kept as golden-b109.*, overlay kept as
+  ov-build-b109; B112's overlay kept as ov-build-b112. accept.sh 91a3d76c (new cmdline check) copied into tablet-in.
+- r2i: serve golden r2i; head-20261003-111538 (MAX 1500, "rd.shell=0 rd.emergency=reboot iceland.rehearsal_kmsg=10813");
+  r1debug preboot-check (--manifest manifest-q85.json): 42 PASS, 0 FAIL, 2 WARN (versions in the accept step; the
+  listener started right after). kmsg-listen (kmsg-r2i.log), ncm-watch (ncm-watch-r2i.log), rehearse.ps1 -Yes
+  -WaitAndroid 1800. Head sent 11:17:54, system answers after 39 s; "session limit 1500 s (head 1500 s, extend none) at
+  uptime 11 s", then "(extend 1500) at uptime 261 s" (F07 holds); kernel command line without *_ignore_unused (F24).
+- The owner watched the tablet: gnome-initial-setup was on screen (F08) and they joined their home Wi-Fi in it (their
+  PSK is in priv/run/ov-r2i: private, never copied out).
+- **INSTALL-ACCEPT: 46 PASS, 0 FAIL, 0 CHECK in 123 s** (r2h 45 / 0 / 0 + the new cmdline check).
+- **klog passive parts in the session: all 14 PASS** - f18 "no WCD -16 line this boot; mbhc irqs 1, exercised yes; RX
+  clash 0, parity 0" on the installed image; f12 benign, f17 capture as iceland 303148 bytes, f20 2 probe attempts,
+  f31 benign (area-install-r2i-klog.txt).
+- **FEDTEST r2i: 32 PASS, 2 FAIL, 3 CHECK, 1 SKIP** (wf/fedtest/runs/r2i/): F1 proven again (Snapshot 6x, 0 cores), F2
+  kernel side (system heap only, 0 cma failures, full-size frames; the 51916800 line missed because this boot
+  enumerated the cameras in the other order = suite index bug), F6 / F39 / F18 / F23 / F25 / F38 PASS. FAIL snapshot =
+  NEW F44 (libcamera "Failed to setup link msm_csiphy4[1] -> msm_csid0[0]: Device or resource busy" when another
+  libcamera process used the other camera since login; stale csid0 link; camfix). CHECK: gnome-software SIGABRT at
+  11:25 = NEW F45 (install: benign upstream GTK 4 AT-SPI assertion after a network change, F45.json 40a50999).
+- **Owner report: "Activation of network connection failed" although Wi-Fi was connected in the setup wizard** = NEW
+  F43 (klog). Masked evidence area-install-r2i-{nmfail,wpa,wpa2,recon}.txt: connected at 232.7 s (PTK CCMP, GTK TKIP:
+  mixed WPA/WPA2 router), group rekey (TKIP) at 332.5 s, BEACON-LOSS at 341.5 s, disconnect reason 4; afterwards every
+  association on 2.4 and 5 GHz: associated, no 4-way handshake, beacon loss within 7-9 s; NM supplicant-timeout then
+  no-secrets -> the GNOME notification. Main's reconnect test at 1110 s: the same. No ath12k warning in kmsg. First real
+  Wi-Fi association ever tested on mainline (all earlier images had no saved network).
+- Privacy slip (main): one collection step's scan list printed neighbouring network names and AP addresses unmasked into
+  this session's transcript; the saved file was cut and both files re-checked (0 MAC / SSID / LAN-address hits); nothing
+  committed. The debugger's suite also mirrored one AP MAC into kmsg (masking added to the suite); kmsg-r2i.log stays
+  private.
+- r2i end: Android back 11:40:02 (rehearse.ps1: relay refused 0, nothing written); bootloader "Reset by PSHOLD / Hard
+  Reset / PON by SYSOK", PonReason HARD_RESET + USB_CHG; r1debug postsession: PSHOLD-NO-LINUX-LINE - the stream shows an
+  orderly systemd-shutdown at uptime 1305 s (11:39:47, "Syncing filesystems", "Sending SIGTERM"), before the 1500 s
+  limit; nothing of main's requested it (all reads) -> asked the owner whether they restarted it from the screen.
+  Tablet 76 %, 29.7 C. F45 (gnome-software) recorded benign by install (needs debugger + review). Bundle handed to the
+  ledger (r2i.sh r2i).
+
+### 2026-10-03 about 11:50-12:10 - ledger G3 of r2i, queue 0186-0188 pushed, loop 3 (F43 Wi-Fi, F44 camera)
+- Ledger r2i (base r2g, 55 records): 44 PASS, 7 FAIL, 4 n/a; **F18 G3 on k110 + r2i** (r2h 3601 WCD -16 lines -> 0).
+  FAILs outside the queue: F01 / F02 (suite: snapshot hit F44; camera-index bug), F05 deferred, F08 / F31 (one
+  WirePlumber startup line, not F44 per camfix -> its own id), F36 / F38 (new GNOME lines -> install's F46 / F49).
+  manifest-q85: G3 except F02 (re-run with the fixed suite) and F31 (that WirePlumber line).
+- q85.queue-msg.txt RESULTS filled (draft kept as .draft). `TAG=q85 DRY=1 queue-q85.sh`: 3 commits, tree = q85,
+  QCONFIG PASS. **Real run: queue 0186-0188 pushed, iceland-linux a9b55d4 "iceland: 0186-0188 the pieces of kernel
+  q85", QUEUE-VERIFIED (tree 4c97b7a4), base config out-config-base-0188.**
+- F45 benign: review CONFIRMED with a condition (generic coredump regexes only with the GTK line), install amended
+  (8ff75af0), debugger CONFIRMED the amended record.
+- **F43 root cause (klog, rank 1):** ath12k re-arms the firmware 802.11d scan at every disconnect (mac.c:12463-12469)
+  and starts it right after the next host scan (mac.c:5755-5758), so auth / assoc / the 4-way handshake run while the
+  firmware scans off-channel (no M1, beacon loss 7-9 s after association, 3 auth tries in 30 ms); it is stopped only
+  after association. Stock: g11dSupportEnabled=0. Fix k9 no11d (ath12k.enable_11d, default off), compile-checked;
+  rank 2 = the first drop (scan while associated at 44 % signal), rank 3 TKIP unlikely. Review + debugger asked.
+- **F44 root cause (camfix):** libcamera's simple pipeline trusts its cached link flags (simple.cpp:761-814); both
+  sensors share csid0 (CAMSS allows one enabled link per CSID sink, -EBUSY). Fix after the RC: libcamera 0005 (ships
+  with F05 as iceland2). Not an RC blocker (a Snapshot-only user is unaffected); workaround: restart the user's
+  WirePlumber.
+- install: benign records F46-F49 for r2i's new GNOME / zram / polkit lines; owner decision 16 added (third-party
+  repos: asked once as Fedora ships, or enabled at build).
+- **Owner answers (12:10):** they powered the tablet off at 11:39:47 (r2i's end = owner action, not a fault); YES to
+  testing the F43 fix on their network reusing the connection saved in r2i (RAM only, PSK root-only, never logged or
+  committed, deleted after the run).
+
+### 2026-10-03 about 11:50-12:00 - loop 3 prep: verdicts, k9 final, kit 113 (libcamera iceland2 build in RAM)
+- review CONFIRMED: F44 / F46-F50 / B18 (each regex hits only r2i of 17 runs); builder's G1 rule (all_queued) YES with
+  2 conditions (patcher content = queued commit, marker present) -> g1gate.py + g1gate-test.sh 5 / 0; k9 FINAL
+  (434ddeed: helper ath12k_mac_11d_enabled() at scan start, vdev create, unassign; +22/-3 on 0188, checkpatch 0/0),
+  F11 (34d0d046: the two ~24 s country refusals -> signatures_gone), F05 56528fcf / F44 fc9acafa (iceland2 recipe),
+  main's gpuisp tablet.sh edit (238864b5); f43o privacy OK (keyfile pushed by scp at run time, never staged).
+- klog: owner's r2i keyfile extracted to wf/klog/priv/nm/r2i.nmconnection (600; a temporary 4.05 GiB sparse image of
+  r2i's root built twice and deleted both times; the file is a zstd inline extent read from golden + ov-r2i). F18 =
+  committed (a9b55d4). install: F50 (WirePlumber startup race, benign), F48 trimmed to zram only.
+- builder: q86 = iceland 0188 + k9 (queue 0189); preflight with compile 39 PASS, 1 FAIL (F43 debugger verdict pending).
+  Kits prepared: 114 = klogp + klog43ab (11d A/B/A2 by module reload, no network, ~7 min); 115 = klog43o (owner network
+  A/B/A2, ~45 min; keyfile by push-klog-wifi.sh after ssh). P1 0.20 (p1-020.py) for after iceland2.
+- docs: RC1 RESULTS filled, staged list 1298 paths (loop 3 kept out; new guards: ELF files, credential-like lines,
+  */priv/*, *.nmconnection); Wi-Fi 2.4 GHz row -> part (F43).
+- **Kit 113** (q85; setup, pkg2, rotpkg start, gpuisp-b librpm iceland2, cam-delay; 11:54-11:59): **libcamera
+  0.7.1-1.fc44.iceland2 built** (rpmbuild rc 0 at 64.5 s, 5 rpms, GPU acceleration YES, 5 of 5 patches, EGL probe 1 /
+  context reset 3) **but its unpacked `cam -l` lists 0 cameras** (librpm FAIL); the cameras work in the same boot
+  (cam-delay streamed both sensors: rear gain DELAY=2 twice, the other 6 "no change seen"). Sent to camfix: sensor hub
+  not held at that step vs path / lookup of the unpacked build vs a 0004 / 0005 regression. iceland2 is NOT stashed or
+  used until that is answered.
+- ~12:05 camfix: kit 113's "cam -l 0" = the camera modules were not loaded yet at that step (qcom-camss / sensors came
+  up at 254.6 s with the later cam-delay step; run 91 had gpuisp-a load them first); the iceland2 rpm checks out on the
+  PC; F05 marker changed to "sc820cs" (the 8-byte "sc1320cs" is built from immediates). Delays: only rear gain = 2
+  (twice); the rest "no change seen" (threshold on the mean incl. the black level, dark front scene) -> 0004 keeps
+  empty delays. **Kit 114** = lc2-check (q85; modules first, Fedora vs iceland2 cam -l, F05 cam -p, captures, F44
+  cross test) started 12:05. F43 kits renumbered 115 (no network) / 116 (owner network).
+- review CONFIRMED commit x (privacy clean) with a scope note; docs dropped the loop-3 / r2i tools -> RC1-only, 1291
+  paths. Commit x run next (run 101-112, RC1-NOTES, RELEASE-NOTES, install guide at q85 / r2i, matrix 169 runs / 94
+  kernels / queue 0188).

@@ -13,7 +13,11 @@ The documentation set (this folder: WSL `~/mainline/build/wf/docs/`; drafts unti
 | `06-PROCESS-HISTORY.md` | timeline, method, key findings, lessons, evidence map |
 | `07-INSTALL-REVIEW.md` | independent review of the install: findings, consistency, recovery gaps, questions |
 | `GLOSSARY.md` | terms |
-| `RESUME-2026-10-02.md` | one page for a fresh session: state, agents, next actions, owner decisions and tests |
+| `RESUME-2026-10-02.md` | the resume page of 2 Oct 22:30 (historic; since 3 Oct the team plan `docs/TEAM-PLAN.md` and the ledger lead) |
+| `RELEASE-NOTES-draft.md` | the final build's release notes (the proven build of 3 Oct; committed as `docs/RELEASE-NOTES.md`), made by `tools/mk-release-notes.py` |
+| `final/INSTALL-GUIDE.md`, `final/INSTALL-PLAN.md`, `final/DUALBOOT-PLAN.md` | the install documents' final-build edition (first-boot setup, initramfs after R1c, no suspend in rehearsals, section 11 known issues), made by `tools/mk-final-docs.py` from the install workflow's round-7 texts |
+| `tools/known_issues.py` | the known-issues / fixed-in-this-build tables (F1-F23 + the night's fixes), refreshed from fix records, verdicts, the build manifest and the ledger |
+| `staging/matrix-c2v.py`, `staging/mk-commit-x.py`, `staging/commit-campaign2-x.sh`, `staging/commit-campaign2-x.msg` | prepared for the main session: copy to `~/mainline/research/` and `~/mainline/build/` (not run here) |
 
 The main session committed the drafts of 2 Oct evening to `iceland-mainline/docs/guide/` (commit u, 1c417e9). This
 folder stays the source; later updates are committed from here.
@@ -38,7 +42,7 @@ folder stays the source; later updates are committed from here.
 
 | Path | Content |
 |---|---|
-| `gh/iceland-linux/` | kernel queue: `kernel.pin`, `patches/0001-infiniti` (138), `patches/0002-iceland` (0001-0174), `configs/` (`distro-neutral.config`, `required.config`, `debug-hang.config`), `scripts/prepare.sh`, `scripts/build.sh`, `packaging/fedora/` (kernel-iceland spec + DT plug-in), `packaging/repo/make-repo.sh`, `docs/PORT-LOG.md`, `debug-patches/` |
+| `gh/iceland-linux/` | kernel queue: `kernel.pin`, `patches/0001-infiniti` (138), `patches/0002-iceland` (0001-0185), `configs/` (`distro-neutral.config`, `required.config`, `debug-hang.config`), `scripts/prepare.sh`, `scripts/build.sh`, `packaging/fedora/` (kernel-iceland spec + DT plug-in), `packaging/repo/make-repo.sh`, `docs/PORT-LOG.md`, `debug-patches/` |
 | `gh/iceland-mainline/` | `README.md`, `PROJECT.md`, `CHANGELOG.md`; `docs/` (`PLAN.md` v4 incl. Phase 4-DB dual boot, `KNOWLEDGE.md`, `FEATURES.md`, `features/` matrix source, `reference/pad4-hardware-boot-partitions.md`, `device-facts/`, `research/`, `sensors/patches/`, `tests/` log sets, INSTALL-PLAN / GUIDE, WORKLOG copy); `packaging/iceland-device/`, `packaging/sensors/`; `audio/` (UCM, topology); `firmware/` (manifest: names only, `convert-nt36536.py`); `tools/linux-ram/` (kit builder, shim `init`, `run-linux.ps1`, `fw-extract.sh`), `tools/dualboot/`, `tools/capture/`, `tools/relay/`; `phase4/` (Fedora rootfs in RAM); `relay/` (relay-era requests and results) |
 | `gh/iceland-u-boot/` | `uboot.pin`, `patches/0001-infiniti` (14), `patches/0002-iceland` (3), `scripts/prepare.sh` + `build.sh`, `tools/diag/` (diag environments A-L, `build-diag.sh`) |
 | `build/` | the working area: `src/` (kernel git, branch `iceland` = queue head), `out/`, `bin<tag>/` + `modstage<tag>/` test kernels, `build-q2.sh`, `build-q56.sh`, `queue-00NN.sh`, `make-kit26.sh`, `prep-area-combo-N.sh`, `gen-combo-N.py`, `an/` (tablet scripts, probes, `genwf.py`, `chk.sh`, `kmsg-errors.py`), `area-combo-N/` log sets, `wf/` (workflows) |

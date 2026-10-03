@@ -1,6 +1,6 @@
 # 04 - Build your own kernel and RAM-boot it on your OnePlus Pad 4
 
-A step-by-step guide for a Linux user with their own Pad 4. State: 2 Oct 2026 (queue 0001-0174).
+A step-by-step guide for a Linux user with their own Pad 4. State: 3 Oct 2026 (queue 0001-0185, the final build).
 
 The project itself works from Windows 11 with WSL (Ubuntu 24.04) for building and PowerShell for the tablet runs.
 **Steps marked "untested here" were not run that way by the project.** The underlying commands are the same, but
@@ -101,7 +101,7 @@ What it does (read `scripts/prepare.sh`; it changes nothing outside `./src`):
    `kernel.pin` (93f51579e7df...).
 2. Applies `patches/0001-infiniti/*.patch` (138 commits of the OnePlus 15 port of the same SoC) with `git am`, so
    every patch keeps its author, date and message. It checks that the tree hash equals `TREE_AFTER_0001_infiniti`.
-3. Applies `patches/0002-iceland/*.patch` (the Pad 4 series, 0001-0174) and checks `TREE_AFTER_0002_iceland`.
+3. Applies `patches/0002-iceland/*.patch` (the Pad 4 series, 0001-0185) and checks `TREE_AFTER_0002_iceland`.
 4. Prints `source ready: ./src (<commit>)`. A tree-hash mismatch stops it: your tree would not be the tested one.
 
 If the GitHub clone stalls (it did twice for the project), clone `v7.3-rc4` by hand into `./src` and run the script
@@ -229,8 +229,9 @@ Useful environment knobs (read the script for all of them):
 | `ROOTFS_CPIO=<file>` | appends a root file system (the Fedora-in-RAM kits, section 8) |
 | `CMDLINE_EXTRA="..."` | adds kernel arguments |
 
-The kernel command line always has `clk_ignore_unused pd_ignore_unused regulator_ignore_unused`. The boot screen runs
-on the firmware's framebuffer until the display driver takes over, and these keep its clocks and rails.
+The kit's kernel command line always has `clk_ignore_unused pd_ignore_unused regulator_ignore_unused`. The boot screen
+runs on the firmware's framebuffer until the display driver takes over, and these keep its clocks and rails. (The
+installed system boots without them, as every rehearsal did: finding F24 in the release notes.)
 
 ## 7. RAM-boot it (nothing is written)
 
@@ -327,8 +328,9 @@ start`). The camera and sensor tests only mean something after that.
 
 - **No install.** Writing `userdata` or a boot partition is not part of this guide. The project's install plan is
   not executed yet and has open review findings (`07-INSTALL-REVIEW.md`).
-- **The private camera sensor driver** (SC1320CS / SC820CS) is not in the queue. Without it the cameras do not work.
-  Everything else in the queue is GPL source.
+- **The camera sensor driver** (SC1320CS / SC820CS) is in the private kernel queue since the final build (queue
+  0175, owner's decision of 3 Oct; it carries register lists from a trace of stock), and its stock-derived tuning
+  files are in the private device package. A build of only the public parts has no cameras.
 - **Wall chargers, the pen, the keyboard cover, a monitor** have not all been tested with real accessories. Read
   the feature matrix row before relying on one.
 - **Risk summary.**

@@ -120,9 +120,13 @@ xz-compressed firmware). Debian's firmware packages work either way.
   modules at all.
 
 **Kernel command line**:
-- `clk_ignore_unused pd_ignore_unused regulator_ignore_unused`, as the Fedora package's `iceland-cmdline` adds them.
-  The boot screen runs on the firmware's framebuffer until the display driver takes over. The deep-sleep work
-  confirmed the flags hold none of the votes that block sleep.
+- **No** `clk_ignore_unused pd_ignore_unused regulator_ignore_unused` on the installed system (the install
+  workflow's decision, 3 Oct, finding F24). Every rehearsal boot (R1d, R2, R2-final, r2g, the final r2h) ran without them, with the
+  display driver bound and display, touch, Wi-Fi, Bluetooth, sound and both cameras working, and Linux switching off
+  unused clocks, power domains and regulators. The device package's `iceland-cmdline` now removes them from every boot
+  entry and `/etc/kernel/cmdline`. (The RAM kits keep them: there the boot screen runs on the firmware's framebuffer
+  until the display driver takes over.) Keep R1c's lesson: never boot a display configuration that has not been seen
+  working - an unmanaged panel once lost power.
 - `lsm=...` (section 2.3).
 
 ## 4. The disk image: 4 KiB sectors
@@ -149,7 +153,7 @@ From `packaging/iceland-device/README.md` (0.17) and the install additions (0.18
 | Piece (installed path on Fedora) | Purpose | On Debian |
 |---|---|---|
 | `81-iceland-ssc.rules` (udev) | sensor hub: enable accel / proximity, mount matrix, start hexagonrpcd and iio-sensor-proxy when `/dev/fastrpc-adsp` appears | same file in `/usr/lib/udev/rules.d/` |
-| `71-iceland-dma-heap.rules` | CMA dma-heaps root-only, so libcamera's soft ISP takes the system heap (four 1080p frames do not fit the 32 MiB CMA) | same; needed for any camera app |
+| `71-iceland-dma-heap.rules` | CMA dma-heaps root-only, so libcamera's soft ISP takes the system heap (four 1080p frames do not fit the 32 MiB CMA). Since the final build the kernel does not offer CMA as dma-heaps at all (F2), so the rule has nothing left to restrict | keep it for a kernel that still has `CONFIG_DMABUF_HEAPS_CMA` |
 | `59-iceland-storage-ro.rules` + `iceland-storage-ro` | every other UFS partition read-only | same; also into the initramfs (section 3) |
 | `61-iceland-battery.hwdb` | `CHARGE_LIMIT=80,85` for UPower's "Preserve Battery Health" | same (`/usr/lib/udev/hwdb.d/`, then `systemd-hwdb update`); needs a UPower with charge-threshold support (what GNOME's "Preserve Battery Health" uses) |
 | UCM: `/usr/share/alsa/ucm2/Qualcomm/kaanapali/OnePlus-Pad4/*.conf` + `conf.d/kaanapali/oneplus-OnePlusPad4.conf` link | speakers, microphones, the -12 dB cap | same paths (alsa-ucm-conf layout) |
@@ -170,7 +174,7 @@ From `packaging/iceland-device/README.md` (0.17) and the install additions (0.18
 | `machine-info` | GNOME's About shows "OnePlus Pad 4" | `/etc/machine-info` |
 | `iceland-npu` / `iceland-npu-off.service` | was: stop the CDSP on battery. **Do not use the stop**: it costs CX collapse until reboot (area-combo-66 / -67); 0.18 keeps the CDSP running | keep the CDSP running |
 | fwupd guard (`DisabledPlugins=` in `/etc/fwupd/fwupd.conf`) | fwupd cannot write boot code, EFI variables or the UFS device firmware | same file and setting on Debian. **Important:** fwupd lists the UFS storage as updatable by default |
-| `iceland-cmdline` (grubby) | the three `*_ignore_unused` arguments on every entry | Debian: `GRUB_CMDLINE_LINUX` in `/etc/default/grub` + `update-grub` |
+| `iceland-cmdline` (grubby) | removes the three `*_ignore_unused` arguments from every boot entry and `/etc/kernel/cmdline` (F24, 3 Oct: the installed system boots as every rehearsal did) | Debian: keep them out of `GRUB_CMDLINE_LINUX` in `/etc/default/grub` (+ `update-grub`) |
 | `80-iceland-kernel.conf`, `50-iceland-fedora-hold.repo`, `51-iceland-fedora-44-pin.repo`, `49-iceland-no-system-upgrade.rules`, `iceland-protected.conf` | no distribution kernels, rescue initramfs, akmods / dkms, boot loaders; GRUB, shim and firmware held; release pinned; our packages protected | `/etc/apt/preferences.d/` pins (`Pin-Priority: -1` for `linux-image-*` except ours; holds via `apt-mark hold grub-efi-arm64 shim-signed firmware-*`). The polkit rule names PackageKit, which Debian's GNOME Software uses (on Fedora 44 the rule blocked nothing, because dnf5's daemon has one permission); Debian release upgrades are not offered by GNOME Software anyway |
 | `iceland-repo-sync`, `iceland-local.repo` | a local dnf repository filled from the PC | a local apt repository (`file:` source with `reprepro` / `aptly`), or `dpkg -i` |
 | snapshot (libdnf5 actions) + trial boot (`96-iceland-trial.install`, GRUB `next_entry`) + `iceland-grub-setup` | btrfs snapshot before every transaction, a boot-once trial of new kernels | no direct equivalent: snapper + grub-btrfs for snapshots; GRUB's `grub-reboot` for a boot-once trial, with your own confirm service |
@@ -210,11 +214,13 @@ Results of `wf/gpuisp` (area-combo-77, -84, -88, -91):
   libcamera version for the same three fixes.**
 - PipeWire's libcamera plug-in (`pipewire-libcamera` on Debian) and xdg-desktop-portal give browsers and GNOME
   Camera (Snapshot) their camera.
-- **The DMA-heap rule** (`71-iceland-dma-heap.rules`) is required, otherwise the stream fails on the 32 MiB CMA heap
+- **The DMA-heap rule** (`71-iceland-dma-heap.rules`) is required only on a kernel that offers CMA as a dma-heap (the
+  final build's kernel does not, F2); there the stream fails on the 32 MiB CMA heap
   ("Format negotiation failed").
 - **WirePlumber >= 0.5.18** if you use the rule that hides the raw CAMSS nodes.
-- **The sensor driver is private.** It was made from a trace of stock and is not in the queue. It is an out-of-tree
-  module rebuilt for each kernel version. Without it there are no cameras, on any distribution.
+- **The sensor driver** was made from a trace of stock. Since 3 Oct it is in-tree in the private kernel queue (the
+  owner's decision), so any distribution's kernel package built from the queue carries it; its tuning files belong to
+  the private device package. Without them there are no cameras, on any distribution.
 - Autofocus does not exist in libcamera's simple pipeline yet. The focus helper holds the lens at stock's start
   position.
 

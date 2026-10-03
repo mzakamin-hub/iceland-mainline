@@ -1,6 +1,7 @@
 # 01 - Overview: mainline Linux and Fedora on the OnePlus Pad 4
 
-State: 2 Oct 2026, about 22:30. Sources: `iceland-mainline/docs/FEATURES.md` (generated from
+State: 3 Oct 2026, the final build (kernel q84 = `7.3.0-rc4-iceland-00313-gba2ed250bf33`, queue 0001-0185 in `iceland-linux` cd0bf55; `iceland-device` 0.19): proven in kits 106 / 108, the build run 109 (31 PASS, 0 FAIL) and the
+final rehearsal r2h (45 PASS, 0 FAIL, 0 CHECK). Sources: `iceland-mainline/docs/FEATURES.md` (generated from
 `docs/features/features-data.py`), `WORKLOG.md` entries 1-44, `docs/INSTALL-PLAN.md`, the workflow reports in
 `~/mainline/build/wf/`. Every "proven" below names the test run that showed it (`area-combo-NN` = kit run NN; the log
 sets are in `iceland-mainline/docs/tests/` and `~/mainline/build/area-combo-NN/`).
@@ -13,10 +14,10 @@ The project brings an upstream Linux kernel and a normal desktop distribution to
 |---|---|
 | Device | OnePlus Pad 4, model OPD2514, board codename **iceland** |
 | SoC | Qualcomm Snapdragon **SM8850P**: "Kaanapali" in mainline Linux, "canoe" in Android and ABL |
-| Kernel | Linux **7.3-rc4** + 138 SM8850 base patches (the OnePlus 15 "infiniti" port, same SoC) + **174 Pad 4 patches** (`iceland-linux` a88cf03, `patches/0002-iceland/0001-0174`) |
+| Kernel | Linux **7.3-rc4** + 138 SM8850 base patches (the OnePlus 15 "infiniti" port, same SoC) + **185 Pad 4 patches** (`iceland-linux` cd0bf55, `patches/0002-iceland/0001-0185`; the final build's kernel q84) |
 | Boot loader for Linux | **U-Boot** v2026.10-rc5 + patches (`iceland-u-boot`), started by the tablet's own boot loader (ABL) |
 | Distribution | **Fedora 44 Workstation (GNOME 50)**, aarch64. The owner chose it on 28 Sep 2026 |
-| Device package | `iceland-device` 0.17 in the repository. 0.18 adds the install parts, the GPU-ISP hold and "keep the CDSP running"; it is built on the tablet in the rehearsal's build runs (93, 94), and not committed yet |
+| Device package | `iceland-device` 0.19 in the final build (built and checked on the tablet in B run 109: 31 PASS, 0 FAIL): the install parts, the battery guard v3.1 with the charger input cut, PipeWire 1.6.8 or newer, Wi-Fi regulatory domain US, the camera tuning, no `*_ignore_unused` flags. The repository's `packaging/` holds 0.17; 0.18 / 0.19 are made by the install workflow's recipe (`wf/install/next-k2p1u1.sh`) |
 | How it is tested | **RAM boot only.** The PC sends a boot image over USB (`fastboot boot`). The tablet runs Linux from memory and returns to Android at the end. Nothing has ever been written to the tablet's storage by this project |
 | Planned | A permanent install into the tablet's `userdata` partition. It is designed to be unbrickable and restorable, and runs only with the owner's explicit OK for each write (see `03-BOOT-AND-PARTITIONS.md` and `07-INSTALL-REVIEW.md`) |
 
@@ -69,14 +70,14 @@ all cores busy 8.1 W falling to 7.7 W (about 7 h); screen off but awake 0.64 W (
 
 | Item | State | Why / what is missing |
 |---|---|---|
-| Fedora installed on the tablet | not started | the owner runs every write. The rehearsal's build run passed (area-combo-93, rerun -94 with device package 0.18); one more B run carries the round-6 fixes. R1 stopped in the rehearsal U-Boot; the fix is verified 15 / 15 in a U-Boot sandbox; next on the tablet: a "not gzip" test head, the B run, R1 (`docs/INSTALL-RERUN-COMMANDS.md`). AVB proven on the PC: the U-Boot for `boot_b` needs an AVB footer and has one. Owner decision: first a "write-2 probe" (U-Boot into `boot_b` while Android's data is intact, then undone). It also measures whether ABL counts down boots of `boot_b` (the flash resets the slot's flags; only Android marks a slot successful); if it does, U-Boot's permanent place becomes `recovery_b` (owner's decision) |
+| Fedora installed on the tablet | not started (the rehearsal reaches the desktop) | the owner runs every write. 3 Oct: the install image boots from the PC's disk to the GNOME desktop (R1d first, then R2 with SELinux enforcing); the release candidate (kernel q83) passed 42 of 44 checks in r2g; one consolidated fix round of its findings (F1-F23, grown by the team's error ledger to F41) made the final build, whose rehearsal r2h passed 45 of 45 (0 FAIL, 0 CHECK; the debugger's suite 29 PASS; GNOME's Camera app works). Next: the write-2 probe C0 (it decides `boot_b` vs `recovery_b`) and the two writes (`final/INSTALL-GUIDE.md`, `RELEASE-NOTES-draft.md`) |
 | Dual boot with Android | not started | owner decision (2 Oct): Fedora-only for now; a dual-boot plan with the best safety precautions is being prepared (`wf/install/DUALBOOT-PLAN.md`) |
 | Speaker protection | not started | NXP's TFA protection runs in a closed protocol. The volume stays capped at -12 dB |
-| Headset over USB-C | not started | USB headsets use the normal USB audio driver. Analog headsets need the codec's audio-accessory mode. USB audio offload is not possible on mainline for this chip |
+| Headset over USB-C | not started | USB headsets use the normal USB audio driver. The headset codec's bus errors (F18) are the next loop (kernel q85, tested in kits 110 / 111 after the final build). Analog headsets need the codec's audio-accessory mode. USB audio offload is not possible on mainline for this chip |
 | USB host / OTG | not started (untested) | the roles switch by themselves (dual-role controller, UCSI). Every test kit uses the port for the PC link, so no accessory has been tried |
-| Wi-Fi 5 GHz connect, 6 GHz | in progress | 5 GHz networks are found; connecting needs the owner's password; the regulatory country is not set ("Failed to set the requested Country regulatory setting") |
-| PCIe link at suspend | diagnosis running | "Timeout waiting for L2 entry" at every suspend. The hwfix workflow found the cause: ath12k resets the Wi-Fi chip at suspend, and the reset chip never answers the PCIe power-down handshake. Diagnosis kit run 97 (test-only switch) is running |
-| Bypass charging | in progress | stock-like "charging off, input kept" inside the battery guard, with a GNOME Quick Settings toggle (hwfix workflow, topic C) |
+| Wi-Fi 5 GHz connect, 6 GHz | in progress | 5 GHz networks are found; connecting needs the owner's password; the country stays the firmware's US (owner decision 10, 3 Oct; the refused-request lines are gone in the final build, F11) |
+| PCIe link at suspend | explained, kept as upstream | "Timeout waiting for L2 entry" at every suspend: ath12k resets the Wi-Fi chip before the sleep, so the chip cannot answer the PCIe power-down handshake; it costs 10 ms. Skipping the reset (test only) made the next wake fail (runs 97 / 99), so the reset stays |
+| Bypass charging | deferred (owner, 2 Oct) | stock-like "charging off, input kept" inside the battery guard, with a GNOME Quick Settings toggle: built and reviewed by the bypass safety reviewer (wf/bypasssafe, REVIEW.md); to be added later |
 | Pogo keyboard, pen charging, wake by cover / charger | in progress | drivers queued and proven without the accessory; one short session with the owner's hands remains |
 | Deep sleep (AOSS sleep) | in progress | CX collapse is reached. The deepest SoC state is out of reach on mainline: the always-on processor names the secure processor, which has no mainline driver |
 | Skin temperature policy | in progress | the policy daemon exists (device package 0.17). Moving the kernel's skin loop from 48 C to stock's 60 / 61 C is the owner's choice |
@@ -105,8 +106,10 @@ These are the owner's rules. Every procedure in these documents follows them.
    and wait for the owner's go before any tablet run.** The tablet is unplugged while it recharges, so no chain may
    sit waiting for adb.
 7. **Privacy.**
-   - Proprietary firmware, stock tuning and calibration files, the owner's backup, camera traces and the private
-     camera driver are never committed or published.
+   - Proprietary firmware, stock tuning and calibration files, the owner's backup and camera traces are never
+     committed or published. One exception by the owner's decision (3 Oct): the camera sensor driver with its
+     register lists goes into the private kernel queue, and the camera tuning files with stock's colour matrices into
+     the private device package; both stay out of anything public.
    - The serial number, MAC / Bluetooth addresses and network names are masked.
    - The repositories are private; nothing is sent upstream without the owner's OK.
 8. **Firmware is never distributed.** Every user extracts it from their own tablet, read-only.

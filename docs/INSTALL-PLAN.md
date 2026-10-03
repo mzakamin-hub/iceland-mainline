@@ -6,7 +6,8 @@ built and checked) and of runs 45-60, and revised that evening (install workflow
 rehearsal boots) and for the boot loader's slot counter (section 5.2). **Nothing in this plan has been done on the tablet, and nothing in it runs
 without your explicit OK for each write.** So far the project has only booted from RAM; no partition has ever been
 written by it. This replaces the short draft in `phase4/INSTALL-PLAN.md`. The step-by-step guide for the day is
-`docs/INSTALL-GUIDE.md`.
+`docs/INSTALL-GUIDE.md`. **Edition: 3 Oct 2026, release candidate 1 (kernel q85 = queue 0001-0188, iceland-device 0.19, rehearsal r2i 46 / 0 / 0)** (the initramfs design after R1c, no suspend in rehearsals,
+the first-boot setup, the rehearsal results to r2g, the known-issues pointer).
 
 ## 0. The idea in five lines
 
@@ -196,10 +197,13 @@ the entry early in every trial boot. Whether U-Boot's write into `userdata` work
 | R4 final | the written file itself from its pristine state (fresh overlay), SELinux enforcing | 0 FAIL; then the sparse image and the record: **this exact file is what gets written** |
 
 Acceptance list (one script, one summary line): GNOME session, touch, Wi-Fi scan with 5 GHz, Bluetooth, sound
-cards, ADSP and CDSP running with no failed firmware request (their drivers stay out of the initramfs, so they load
-the tablet's firmware from the root), the GPU with Fedora's microcode loaded from the initramfs, battery and time
+cards, ADSP and CDSP running with no failed firmware request (since 3 Oct their driver and the tablet's ADSP / CDSP
+firmware are IN the initramfs, so the charger co-processor (SoCCP), pmic_glink and USB-C come up before the network
+disk - R1b / R1c showed the USB link dropping when they came later; Wi-Fi, Bluetooth and video stay out and load
+from the root), the GPU with Fedora's microcode loaded from the initramfs, battery and time
 estimate, the charge limit end to end (80 / 85 %, GNOME's "Preserve Battery Health"), power modes, auto-rotate after a
-boot, suspend and resume, hardware video, both cameras listed, the default apps start, About shows "OnePlus Pad 4",
+boot (suspend and resume are tested in kits and on the installed system, never in a rehearsal: the root is on the
+PC), hardware video, both cameras listed, the default apps start, About shows "OnePlus Pad 4",
 `rpm -Va` clean for our packages, the root grown to the whole `userdata`, every other partition read-only, no
 `avc: denied` that breaks a service, the providers' sync_state reached.
 
@@ -233,7 +237,8 @@ in the same boot-loader session, with no Android boot in between.**
   `userdata` exactly, and only about 12.8 GB of it are data.
 - What it changes: Android's data is gone (LineageOS will no longer start; its system partitions stay).
 - Proof before going on: boot tethered (`fastboot boot` the plain install U-Boot from the PC: RAM only), Fedora's
-  first-boot setup appears, the acceptance list passes again, three cold boots in a row, and GRUB's environment is
+  first-boot setup appears (gnome-initial-setup: your user account is created there; in the rehearsals the
+  acceptance step replaces it with a test user, finding F8), the acceptance list passes again, three cold boots in a row, and GRUB's environment is
   compared before and after a trial boot (U-Boot's write into `userdata`).
 - Undo: return to stock (section 8), or flash the image again.
 - Hazard to know: until write 2 the tablet starts Android when it is switched on without the PC, and Android will
@@ -333,14 +338,17 @@ replaced. This is also how a forgotten password or a full disk is handled.
 
 ## 7. Known gaps on the day of writing (what "full install" will not have yet)
 
-- Deep sleep: suspend and resume work; the chip's deepest sleep state is not reached yet (CX collapse reached in a
-  test kernel, run 59), so the tablet drains faster asleep than on stock until the deep-sleep work is queued and one
-  night unplugged has been measured.
-- Cameras: everything automated works (both cameras, the Camera app, a browser); automatic focus needs lens support
-  in libcamera (not there yet); colours and sharpness need your eyes.
+- Deep sleep: suspend and resume work and CX collapse is reached (queue 0113-0116, 95-98 % of a sleep); the chip's
+  deepest state (AOSS sleep) is out of reach on mainline; one night unplugged measures the real drain.
+- Cameras: both cameras capture on the release candidate (driver in the private queue, stock-derived tuning; r2g);
+  GNOME's Camera app works (F1: PipeWire 1.6.8 or newer) and full-size captures work (F2: no CMA dma-heaps),
+  both proven in the final rehearsal r2h; automatic focus needs lens support in libcamera (not there yet); the
+  sensor data for libcamera comes later (F5); colours and sharpness need your eyes.
+- **Build-specific known issues** (F1-F23 of the last rehearsal's logs, with their status) are kept in one place:
+  `docs/INSTALL-GUIDE.md` section 11, `docs/RELEASE-NOTES.md` and `docs/guide/RC1-NOTES.md`.
 - Speakers stay volume-capped until speaker protection exists; fast charging (SuperVOOC) is not planned.
 - The NPU needs Qualcomm's SDK (your decision); Wi-Fi 5 GHz connect needs your password once; the Wi-Fi country
-  setting is yours.
+  stays the firmware's US (your decision 10, 3 Oct).
 - Items that need your hands once: wall-charger checks, one turn of the tablet, the microphone meter, the pen (90 s on
   the magnet side), the keyboard cover (type once), the cover / cable / power-key windows of the wake test.
 The feature matrix is the full list.
@@ -368,13 +376,15 @@ Android's own boot set and `super`, never firmware).
 2. Boot path, after C0: `boot_b` (power-on starts Fedora) if ABL does not count down slot b with U-Boot there; else
    `recovery_b` (Power + Volume Up), optionally made the default by the `misc` boot command (section 5.2).
 3. Whether an open gate G6-G8 / G14 blocks the install or only sets the "charge attended, 80 %" default.
-4. Whether the camera module (private, built from a trace of stock) is part of the image on your tablet.
+4. (answered 3 Oct) The camera driver goes into the private kernel queue, in-tree with its register lists, and
+   kernel-iceland carries it; the tuning files with stock's colour matrices ship in the private device package.
 5. (new) GRUB, shim and firmware held back from Fedora's updates (default, recommended) or updated freely.
 6. (new) Fedora pinned to release 44 until 45 is rehearsed (default, recommended).
 7. (new) LibreOffice (with Java, about 650 MB) in the image (default yes); GNOME Web next to Firefox (default yes).
 8. (new) The skin temperature limit: 48 C as today, or stock's 60 / 61 C with the policy daemon (recommended).
 9. (new) A permanent "day 0" snapshot (section 11.2; recommended) and a regular copy of your home folder to the PC.
-10. (new) The Wi-Fi country.
+10. (answered 3 Oct) The Wi-Fi country stays the firmware's US: no CFG80211_CERTIFICATION_ONUS /
+    ATH_REG_DYNAMIC_USER_REG_HINTS in the kernel, no /etc/iceland/wifi-country; the acceptance check expects US.
 11. (answered 2 Oct) Probe write 2 first (C0), while Android's data is intact.
 12. (new, before C0) The AVB footer on the install U-Boot, signed with the AOSP test key `vbmeta_b` already chains
     `boot` with (review R-1); no other partition changes.
@@ -382,6 +392,7 @@ Android's own boot set and `super`, never firmware).
 14. (answered 2 Oct) The GPU microcode is Fedora's (`qcom-firmware`, upstream linux-firmware), not the tablet's
     vendor copies.
 15. (new) Is a way back to LineageOS needed after the install, or is the return to stock OxygenOS enough?
+16. (new, 3 Oct, r2i) Fedora's third-party repositories: as Fedora ships it (GNOME Software or the first-boot setup asks once; the default here) or enabled in the image (`fedora-third-party enable` at build time). On aarch64 Chrome, Steam and NVIDIA do not apply; enabling mainly adds the unfiltered Flathub catalogue.
 
 ## 10. Work list that follows from this plan
 

@@ -2,7 +2,8 @@
 
 Written 2 Oct 2026, revised the same evening (install workflow round 7: the write-2 probe C0 first, the review's
 R-1 / R-2 / R-4 / R-8 / R-9 points, the slot-retry finding). This is the step-by-step companion of
-`docs/INSTALL-PLAN.md` (the reasons are there; the steps are here). **Nothing in this guide has been done on the
+`docs/INSTALL-PLAN.md` (the reasons are there; the steps are here). **Edition: 3 Oct 2026, release candidate 1 (kernel q85 = queue 0001-0188, iceland-device 0.19, rehearsal r2i 46 / 0 / 0)**: adds the
+first-boot setup note (Part C step 4) and section 11 (known issues and what this build fixes). **Nothing in this guide has been done on the
 tablet yet.** Every write is done by you, one command at a time, after its own checks.
 
 **Read section 0 first.** The order is: Part A (read only) - Part B (the rehearsal from RAM, no write) - **Part C0
@@ -26,14 +27,15 @@ tablet yet.** Every write is done by you, one command at a time, after its own c
 | G12 fastboot reached by the keys from a cold start | **not done** (Part A step 7) | C0 |
 | G13 the rehearsal cannot touch the storage | **closed** (a U-Boot build without UFS support, the read-only rule in the initramfs, a network-disk-only carrier, the self-check) | Part B |
 | G14 sleep drain known | in work (deep-sleep workflow); not a safety gate | leaving the tablet asleep for days |
-| Kernel as an installable package (`kernel-iceland`) | built from test kernel q78 (queue 0001-0162): K2 and a second version K3 for the update rehearsal, 13 checks each | Part B |
-| Device package `iceland-device` 0.18 (read-only rule, dracut module, snapshots, trial boots, GPU firmware from Fedora's `qcom-firmware`) | built on the tablet in the B run (runs 93 / 94); rebuilt with the round-7 fixes before the next B run | Part B |
+| Kernel as an installable package (`kernel-iceland`) | release candidate 1: kernel q85 = queue 0001-0188 (iceland-linux a9b55d4, release 7.3.0-rc4-iceland-00324-ge0373b2308fc); K2 `...00324.ge0373b2308fc-1` and its twin K3 `...ge0373b2308fc.1-1` for the update rehearsal | Part B |
+| Device package `iceland-device` 0.19 (read-only rule, dracut module, snapshots, trial boots, GPU firmware from Fedora's `qcom-firmware`, the battery guard v3.1 with the input cut, PipeWire >= 1.6.8, Wi-Fi regdomain US, the camera tuning, no `*_ignore_unused`) | built and checked on the tablet in B runs 109 and 112 (31 PASS, 0 FAIL each) | Part B |
 | Firmware extractor (the tablet's own files, read only) | done; checked on the backup: 23 of 23 items, 0 differ from stock 11.A.38 | Part B |
-| Image builder + rehearsal from RAM over the USB network (G9) | built; B run passed (runs 93 / 94); **the first rehearsal boot R1 is pending** (round 5 fixed its U-Boot stop) | Part B |
+| Image builder + rehearsal from RAM over the USB network (G9) | built; B run 112 31 / 0; rehearsal boots up to r2i (46 / 0 / 0) | Part B |
 | Update and rollback rehearsal (G10) | scripts ready; runs U1-U3, R1b, R2b, R3 pending | Part B |
 | AVB footer for the install U-Boot + its PC proof (review R-1) | done; re-made and re-proven on the day from today's `boot_b` by Part A step 6 | C0, write 2 |
 | Charging, low-battery and thermal protection as stock (G6-G8) | kernel parts queued and proven on a PC port; wall chargers need one sitting with you | leaving the tablet alone on a charger |
-| Your decisions (section 0.4) | partly answered | C0, Parts C and D |
+| Rehearsal boots so far (3 Oct) | R1d: the first complete boot to the desktop (27 / 6 / 4); R2, SELinux enforcing (29 / 4 / 3); R2-final r2f with the release candidate (40 / 2 / 1); r2g (42 PASS, 1 FAIL = an acceptance parse error, 1 CHECK = PCIe probe count); the final build's rehearsal **r2h: INSTALL-ACCEPT 45 PASS, 0 FAIL, 0 CHECK**, the debugger's suite 29 PASS, the Camera app works; release candidate 1's rehearsal **r2i: INSTALL-ACCEPT 46 PASS, 0 FAIL, 0 CHECK** (known issues F43 Wi-Fi and F44 Camera app: section 11) (3 Oct) | Part B |
+| Your decisions (section 0.4) | partly answered (6 and 10 answered on 3 Oct) | C0, Parts C and D |
 
 The install must not start while any line that is "needed for write 1" or "Part B" is open; C0 must not start
 while a line "needed for C0" is open.
@@ -97,9 +99,10 @@ Still open (answer before the step named):
 4. Boot path alternative and its key: as 3.
 5. Whether an open charging / thermal gate (G6-G8) blocks the install or only sets the rule "charge attended,
    charge limit on".
-6. Whether the private camera driver is part of the image on your tablet.
-7. The plan's decisions 5-10 (held boot-code updates, release pin, LibreOffice / GNOME Web, skin temperature limit,
-   day-0 snapshot, Wi-Fi country): plan section 9.
+6. (answered 3 Oct) The camera driver is in the image: in-tree in the private kernel queue, in kernel-iceland, with
+   the stock-derived tuning files in the private device package.
+7. The plan's decisions 5-9 (held boot-code updates, release pin, LibreOffice / GNOME Web, skin temperature limit,
+   day-0 snapshot): plan section 9. Decision 10, the Wi-Fi country, was answered on 3 Oct: the firmware's US stays.
 8. Is a way back to LineageOS needed after the install, or is the return to stock OxygenOS enough (section 8)?
 
 ### 0.5 The boot loader's slot counter (new, from Qualcomm's open boot-loader source)
@@ -243,7 +246,7 @@ Done by the PC session (automated, RAM only, each run under 10 minutes on the ta
 3. **The acceptance list passed on that boot** (automated, one line `INSTALL-ACCEPT: n PASS, 0 FAIL`): the boot chain
    and the read-only rule, GNOME session, touch, Wi-Fi scan with 5 GHz, Bluetooth, sound, ADSP and CDSP running with
    no failed firmware request, the GPU with its firmware, battery and time estimate, charge limit (80 / 85 %), power
-   modes, auto-rotate, suspend and resume, hardware video, both cameras, the default apps start, About shows
+   modes, auto-rotate, hardware video, both cameras, the default apps start, About shows
    "OnePlus Pad 4", our packages verify clean.
 4. **The update rehearsal** (a `dnf upgrade` keeps our kernel and sensor packages; a new kernel is installed next
    to the old one, boots once and becomes the default) and **the rollback rehearsal** (previous kernel from GRUB's
@@ -254,6 +257,9 @@ Done by the PC session (automated, RAM only, each run under 10 minutes on the ta
      seen in C0 step 0 and C0, and with Fedora's disk in Part C step 4) and `u-boot-iceland-footered.img` (the same
      with the AVB footer for `boot_b`, made in Part A step 6). The PC refuses to footer or accept the rehearsal build
      for `boot_b`.
+
+Suspend and resume are tested in the RAM kits and on the installed system, **never in a rehearsal**: the
+rehearsal's root comes from the PC over the USB link, and the USB gadget's suspend loses it (R2-final, 3 Oct).
 
 Part B is complete when section 10 has these values and the date of the passed acceptance list.
 
@@ -458,7 +464,17 @@ If it stops with an error or the cable drops: the boot loader is unaffected. Sta
 ```
 
 (the plain install build, RAM only; `fastboot boot` never writes). Expected: U-Boot's text, GRUB's menu (3 s), then
-Fedora's first-boot setup on the tablet. Go through the setup. The PC session then runs the acceptance list on this
+Fedora's first-boot setup on the tablet. Go through the setup. (It never showed up during the rehearsals for a known
+reason: GDM opened it about 17 s after every rehearsal boot - r2g's log: "New session 'c1' of user
+'gnome-initial-setup' with class 'greeter'" - and about a minute later the rehearsal's acceptance check, on rehearsal
+boots only, created its own test user with automatic login and restarted the login screen, which closed the setup.
+Nothing in the image creates a user or switches the setup off, so on the installed tablet it is the first screen.)
+
+> **First-boot setup.** It asks for language, keyboard, Wi-Fi, privacy and **your user account and password**:
+> the image has no preset user and no default password (finding F8: the rehearsal-only test user never reaches
+> the installed system).
+
+The PC session then runs the acceptance list on this
 boot and records GRUB's environment before and after a trial boot (U-Boot's write of GRUB's one-time entry into
 `userdata`, the one write no rehearsal can show). Switch off and repeat the tethered boot until you have seen **three
 cold boots in a row** reach the desktop.
@@ -544,6 +560,8 @@ Undo of write 2 (two minutes, from the boot loader):
 
 ## 7. After the install
 
+- **First start:** Fedora's first-boot setup creates your user account (see Part C step 4); there is no preset
+  user or password.
 - **First hour:** Wi-Fi, sound, rotation, a suspend and resume, About shows "OnePlus Pad 4"; Settings > Power
   shows "Battery Charging": choose "Preserve Battery Health" (stops at 85 %; on by default from the device package).
 - **Charging:** until the one sitting with your wall chargers is done (the charging row of the feature matrix),
@@ -630,3 +648,128 @@ interrupted: enter fastboot again (Volume Down + Power) and run it again.
 | Decisions 0.4 | | |
 | Write 1 done, three tethered cold boots, GRUB environment before / after | | |
 | Write 2 done (flags right after the flash), three untethered cold boots, retry count unchanged | | |
+
+---
+
+## 11. Known issues and what this build fixes
+
+Status 3 Oct 2026, release candidate 1 (kernel q85 = queue 0001-0188, iceland-device 0.19, rehearsal r2i 46 / 0 / 0). The findings come from the logs of the release candidate's rehearsal (r2g, 3 Oct 02:44:
+INSTALL-ACCEPT 42 PASS, 1 FAIL, 1 CHECK), consolidated as F1-F23 (`an/r2g-logs/FIX-LIST.md`, private) and grown
+by the team's error ledger to F50 and B1-B18; the status column is the ledger's G3 check of release candidate 1's
+rehearsal r2i (`wf/ledger/check-r2i.md`) with the main session's review (re-run `wf/docs/tools/mk-final-docs.py`).
+What RC1 contains, what each run proved, its known issues (F43 Wi-Fi, F44 Camera app) and the owner's checks:
+`docs/guide/RC1-NOTES.md`. "Rehearsal only" and "test only" items do not exist on the installed
+tablet; "log only" items change nothing you would notice.
+
+### Fixed during the night of 2-3 October (proven in the rehearsal boots R2-final / r2g)
+
+| What | Before | Now | Proof |
+|---|---|---|---|
+| Clock at first boot | the tablet started at systemd's built-in date (March 2026): package signatures looked "not yet valid" | `iceland-clock` keeps a time stamp; the first boot starts at the image's build time, NTP takes over with Wi-Fi | r2f / r2g clock PASS |
+| Sound on the installed system | no sound card: alsa-lib's install hook called a sequencer module the kernel did not have | `CONFIG_SND_SEQUENCER=m` + a modprobe softdep | r2f / r2g sound PASS (speaker sink, playback running) |
+| Auto-rotate under SELinux | SELinux denied iio-sensor-proxy's QRTR socket | a small SELinux module `iceland_sensors` | r2g rotate PASS; the owner saw the screen turn |
+| Firewall | firewalld could not start (nftables features missing in the kernel) | nftables config set in the kernel | r2f / r2g firewall PASS |
+| First-boot presets | Fedora's preset would have disabled our units | `50-iceland.preset` | r2f presets PASS |
+| Touch after a refresh-rate change | the touch firmware re-download failed after modesets | a kernel follower on the panel's enable / disable | r2f touch PASS, 0 firmware errors |
+| Cameras in the image | the sensor driver was private and outside the queue | in-tree in the private kernel queue (owner, 3 Oct), stock-derived tuning in the device package, `libcamera-tools` in the image | r2g: libcamera lists 2, 10 frames each, PipeWire 2 sources |
+| Kernel package verify | `rpm -V` flagged depmod's generated files | `%ghost` + depmod in `%posttrans` | r2f verify PASS |
+| Forbidden package in the image | `uboot-images-armv8` came in with a dependency | excluded | r2f packages PASS |
+| First sleep after boot | the pen charger's interrupt woke the first suspend | the driver waits for its start sequence before suspend | run 104 |
+| Charger input cut at a hot USB-C connector | the guard could only stop charging; the system load still flowed through the connector | a stock-exact input-suspend lever, used by the guard; v3.1 in the final build | run 103 (v1 flaw found), kit 106 (v3.1: lever, guard, restore PASS) |
+| U-Boot boot header values | U-Boot carried old Android version / patch values | header and AVB footer copy today's `boot_b` (17 / 2026-09) | Part A PARTA: READY FOR C0 |
+| Rehearsal watchdog | never armed (the driver's maximum is 31 s) | 30 s in rehearsals; the installed system arms none (a later decision) | r2g watchdog PASS |
+
+
+### The findings and their status in release candidate 1
+
+Ledger G3 check of release candidate 1's rehearsal r2i: 62 records: PASS 51 | FAIL 7 | await 0 | n/a 4 (`wf/ledger/check-r2i.md`; r2i itself: INSTALL-ACCEPT 46 PASS, 0 FAIL, 0 CHECK). Statuses below include the main session's review; the plain explanations of the FAILs and the known issues are in `docs/guide/RC1-NOTES.md` (sections 2a, 3a).
+
+| Id | Area | What it is / what you would notice | Where it matters | Owner | Gate | Status in the final build |
+|---|---|---|---|---|---|---|
+| F1 | Cameras | GNOME Camera (Snapshot) crashes when it starts (SIGBUS in PipeWire's device monitor inside the app); the cameras themselves work | installed system | fedtest | G2 | **fixed in this build** (r2h PASS; on r2i the app started 6 times without a crash - the suite's Snapshot step failed on F44) |
+| F2 | Cameras | the CMA dma-heap (32 MB) was too small for full-resolution frames (13 MP rear, 8 MP front), so the largest photo modes failed; the final build no longer exports CMA as dma-heaps, full-size buffers come from the system heap | installed system | camfix | G2 | **fixed in this build** (r2h PASS; on r2i the kernel side passed - system heap only, full-size frames; the suite missed its line by an index bug) |
+| F3 | Cameras | the acceptance check read the wrong tuning-file line (libcamera loads the right file for each camera) | test only | install | G3 | resolved: the test or suite was corrected / the line explained (r2i PASS) |
+| F4 | Cameras | the debugger's own camera probes (arguments, missing tool) | test only | fedtest | G3 | resolved: the test or suite was corrected / the line explained (r2i PASS) |
+| F5 | Cameras | libcamera has no sensor data for SC1320CS / SC820CS (generic gain model, assumed delays, no flip controls): exposure and gain less exact than stock | installed system | camfix | G1 | deferred: libcamera sensor data for SC1320CS / SC820CS comes later (the cameras work with the generic model) |
+| F6 | Cameras | camss warns that its test-pattern entities have no function set | log only | camfix | G3 | **fixed in this build** (r2i PASS) |
+| F7 | Install rehearsal | the rehearsal's guard took the probe's extension as its limit (625 s instead of 1500 s) and ended the session early | rehearsal only | install | G3 | resolved: the test or suite was corrected / the line explained (r2i PASS) |
+| F8 | First-boot setup | in rehearsals the acceptance step's test user replaces GNOME's first-boot setup (and its greeter logs a crash); the installed system must show the setup | rehearsal only | install | G2 | benign, rehearsal only (the installed system shows the first-boot setup); a new WirePlumber line on r2i (F50) is being classified |
+| F9 | System | "Failed to preset all unit ... Read-only file system" lines | log only | fedtest | G3 | benign, confirmed by the debugger and the reviewer (r2i) |
+| F10 | System | the system user / group `tss` is missing (tpm2-tss sysusers not applied): tmpfiles and udev warnings | installed system (cosmetic) | install | G3 | **fixed in this build** (r2i PASS) |
+| F11 | Wi-Fi | the regulatory country request is refused and `setregdomain` cannot determine a country; the firmware's US stays (owner decision 10) | installed system | klog | G3 | **fixed in this build** (r2i PASS) |
+| F12 | Power / thermal | irqbalance cannot receive thermal messages (CONFIG_THERMAL_NETLINK not set) | log only | klog | G3 | benign, confirmed by the debugger and the reviewer (r2i) |
+| F13 | Boot | the initramfs' udevd cannot resolve the bpf system call (libseccomp missing in the initramfs) | log only | install | G3 | **fixed in this build** (r2i PASS) |
+| F14 | Storage | "Failed to write bfq to queue/scheduler: Device or resource busy" on sda-sdd | installed system (the disk scheduler: 3-5 of the 6 UFS disks kept the old one at random) | install | G3 | **fixed in this build** (r2i PASS) |
+| F15 | Kernel / DT | reserved-memory overlap between `cpucp` and `pdp` at 0x81200000 | log only (memory map) | klog | G3 | **fixed in this build** (r2i PASS) |
+| F16a | Power | gcc / gxclkctl / gpucc reach sync_state only by the timeout, held by the GPU's GMU node (no driver of its own, by design); power-benign | log only | klog | G3 | benign, confirmed by the debugger and the reviewer (r2i) |
+| F16b | Kernel / DT | the CoreSight trace NoC stays in deferred probe (its driver is not built) | log only | klog | G3 | **fixed in this build** (r2i PASS) |
+| F17 | Audio | SoundWire 7630000 port counts differ from the controller (din 4 vs 6, dout 0 vs 1) | log only (microphone path) | klog | G3 | **fixed in this build** (r2i PASS) |
+| F18 | Audio | bus clashes on the headset codec's SoundWire bus, a codec parity error, the headset-detection -16 burst | installed system (headset detection) | klog | G3 | **fixed in this build** - queue 0186-0188 (kernel q85); kit 110 and r2i PASS; the USB-C jack mode (k5) stays an opt-in |
+| F19 | Bluetooth | two "Frame reassembly failed (-84)" lines at power-on | log only | klog | G3 | benign, confirmed by the debugger and the reviewer (r2i) |
+| F20 | Wi-Fi / PCIe | PCIe supplies not described (dummy regulators) and about 11 probe attempts before Wi-Fi binds | installed system (boot time) | klog | G3 | **fixed in this build** (r2i PASS) |
+| F21 | Kernel / DT | other dummy or missing supplies (GPU vdd / vddcx, pwrseq vddant, UFS vdd-hba / vccq2) | log only (to prove optional) | klog | G3 | benign, confirmed by the debugger and the reviewer (r2i) |
+| F22 | USB-C | pmic-glink "Failed to create device link" warnings | log only | klog | G3 | benign, confirmed by the debugger and the reviewer (r2i) |
+| F23 | Audio | "MultiMedia2 Playback: no backend DAIs enabled" and a quiet loopback share | log only | fedtest | G3 | resolved: the test or suite was corrected / the line explained (r2i PASS) |
+| F24 | Boot / power | the device package said `iceland-cmdline` adds clk / pd / regulator `_ignore_unused` to every boot entry, but its call ran before the kernel's boot entry existed and failed silently, so every rehearsal booted without them - and worked fully, in the better power state. Decision (install workflow, 3 Oct): no flags; `iceland-cmdline` now removes them from every entry and `/etc/kernel/cmdline`; README, guides and package agree | installed system (power, documentation) | install | G3 | **fixed in this build** (r2i PASS) |
+| F25 | Tests | the debugger suite's own false alarms (units, a serial-number read, a truncated command, a watchdog line) | test only | fedtest | G3 | resolved: the test or suite was corrected / the line explained (r2i PASS) |
+| F26 | System | PAM setcred fails (audit res=failed) for the user@ managers of root, iceland and gnome-initial-setup | log only (benign) | install | G3 | benign, confirmed by the debugger and the reviewer (r2i) |
+| F27 | System | GNOME Settings global-shortcuts provider (dbus-:1.N-org.gnome.Settings.GlobalShortcutsProvider) exits with failure | log only (benign) | install | G3 | benign, confirmed by the debugger and the reviewer (r2h) |
+| F28 | System | login sound missing: libcanberra 'Failed to play sound: File or data not found' (sound theme not in the image?) | log only (benign) | install | G3 | benign, confirmed by the debugger and the reviewer (r2i) |
+| F29 | System | hexagonrpcd: Could not open oemconfig.so (+ 'Unsupported method') - sensor-hub daemon files | log only (benign) | install | G3 | benign, confirmed by the debugger and the reviewer (r2i) |
+| F30 | Bluetooth | bluetoothd cannot set its default system configuration for hci0 | log only | klog | G1 | benign, confirmed by the debugger and the reviewer (r2i) |
+| F31 | System | wireplumber reserve-device assertion: wp_reserve_device_own_name: assertion 'self->owner_id == 0' failed (audio device reservation) | log only (benign) | klog | G2 | benign; its probe passed on r2i; a new WirePlumber line in its subsystem (F50) is being classified |
+| F32 | System | udev .link settings cannot be applied to the USB gadget usb0 (Could not set Alias=, MACAddress= ... ignoring) | log only (benign) | install | G3 | benign, confirmed by the debugger and the reviewer (r2i) |
+| F33 | System | irqbalance: No directory /sys/devices/platform/31091000.pmu/ (PMU IRQ owner without a platform device dir) | log only (benign) | klog | G3 | benign, confirmed by the debugger and the reviewer (r2i) |
+| F34 | System | NetworkManager: p2p-dev-wlp1s0 error setting IPv4 forwarding: Resource temporarily unavailable | log only (benign) | klog | G3 | benign, confirmed by the debugger and the reviewer (r2i) |
+| F35 | System | ModemManager probes a600000.usb and the WCN7860 PCIe function: not supported by any plugin (no modem on this tablet) | log only (benign) | install | G3 | benign, confirmed by the debugger and the reviewer (r2i) |
+| F36 | System | benign to confirm: GNOME first-login / offline noise (keyring socket, geolocation off, malcontent, realmd, rsyslog first run, gvfs, gsd-keyboard assertion, app warnings, polkit, portal parent window, abrt journal) | log only (benign) | install | G3 | benign, confirmed by the debugger and the reviewer (r2i) |
+| F37 | System | systemd-logind: BLS entry 'Unknown line grub_arg / grub_class / grub_users, ignoring' (x12 per boot) | log only (benign) | install | G3 | benign, confirmed by the debugger and the reviewer (r2i) |
+| F38 | Desktop | the on-screen keyboard raised an error in a modal dialog (e.g. a password prompt) | installed system | fedtest | G3 | resolved: the test or suite was corrected / the line explained (r2i PASS) |
+| F39 | Cameras | camera I2C bus: one GPI DMA error (-5) per boot - the camera module's EEPROM (0x58) does not answer at power-up in GPI mode | log only | camfix | G3 | benign, confirmed by the debugger and the reviewer (r2i) |
+| F40 | GPU | the GPU's GMU logs a delay in a fenced register write | log only | klog | G3 | benign, confirmed by the debugger and the reviewer (r2h) |
+| F41 | Desktop | gnome-session asks for the screensaver state before GNOME Shell offers it, once at a fresh login (GNOME behaviour) | log only | install | G3 | benign, confirmed by the debugger and the reviewer (r2i) |
+| F42 | Audio | the headset codec's SoundWire RX bus logged a bus clash and a codec parity error (r2g, r2h) | log only | klog | G0 | seen in r2g / r2h, not in kit 110 or r2i (no bus clash or parity error there); being classified (G0) |
+| F43 | Wi-Fi | on the owner's network the connection drops after about 110 s and every reconnect (2.4 and 5 GHz) fails until a reboot: the Wi-Fi firmware's 802.11d scan is re-armed at every disconnect; stock switches 802.11d off | installed system | klog | G0 | **known issue of RC1** - fix k9 in loop 3 (docs/guide/RC1-NOTES.md, section 3a) |
+| F44 | Cameras | the Camera app can fail to start a camera when another camera program used the other camera since login (a stale link in the camera pipeline) | installed system | camfix | G0 | **known issue of RC1** - loop 3 (camfix; docs/guide/RC1-NOTES.md, section 3a) |
+| F45 | Desktop | GNOME Software can abort after a network change (an upstream GTK 4 accessibility assertion) | log only | install | G1 | benign, confirmed by the debugger and the reviewer (r2i) |
+| F46 | System | benign: GNOME Shell: 'Gio.IOErrorEnum: Timeout was reached' when NetworkManager re-asks for the W... | log only (benign) | install | G0 | benign (r2i PASS; the debugger / reviewer to confirm) |
+| F47 | System | benign: gsd-xsettings: no UI scaling factor when the X11 services start on demand | log only (benign) | install | G0 | benign (r2i PASS; the debugger / reviewer to confirm) |
+| F48 | System | benign: the session's end: zram stop res=failed and 'watchdog did not stop!' at the reboot | log only (benign) | install | G0 | benign (r2i PASS; the debugger / reviewer to confirm) |
+| F49 | System | benign: GNOME Software's third-party repositories question: the authorisation was dismissed | log only (benign) | install | G0 | benign (r2i PASS; the debugger / reviewer to confirm) |
+| F50 | System | user WirePlumber startup: wp-event-dispatcher 'failed to activate item: Object activation aborted: proxy destroyed' (benign pending the debugger) | installed system | install | G0 | being classified (G0) |
+| CHGSAFE-V3 | Charging | the charger input cut at a hot USB-C connector (kernel lever + battery guard) and its desktop notice | installed system (safety) | chgsafe | G3 (kit 106) | **fixed in this build** - proven in kit 106 (v3.1: the lever, the guard and the restore PASS; 219 unit checks) |
+| SLEEP-Q84 | Sleep | s2idle on the consolidated kernel q84, incl. the pen charger's first-sleep fix | installed system | sleeppower | G3 | **fixed in this build** - proven in kits 106 and 108 (q84) and 110 (q85) |
+
+Benign groups (B-ids; noise that is expected on this hardware or first boot):
+
+| Id | What | Status |
+|---|---|---|
+| B1 | benign: greeter wireplumber IPC refused at session stop (FIX-LIST) (+ IPCPipe 'Failed to call async' of the same stop: to confirm, camfix) | benign (expected noise) |
+| B2 | benign to confirm: alsactl no asound.state (first boot) | benign, confirmed in r2i |
+| B3 | benign to confirm: colord EDID too small (DSI panel) | benign, confirmed in r2i |
+| B4 | benign to confirm: gsd-usb-protection without USBGuard | benign, confirmed in r2i |
+| B5 | benign to confirm: dnf / gnome-software / PackageKit offline | benign, confirmed in r2i |
+| B6 | benign to confirm: gnome-shell JS errors / warnings | benign (expected noise) |
+| B7 | benign to confirm: gsd-media-keys grabs | benign (expected noise) |
+| B8 | benign upstream: ALSA control name truncated | benign, confirmed in r2i |
+| B9 | benign upstream: rx_macro unsorted reg_defaults | benign, confirmed in r2i |
+| B10 | benign upstream: GIC ITS table sizes reduced | benign, confirmed in r2i |
+| B11 | benign upstream: arm-scmi no fast channel, regular messaging | benign, confirmed in r2i |
+| B12 | benign upstream: SELinux checkreqprot (tmpfiles) | benign, confirmed in r2i |
+| B13 | benign upstream: simple-framebuffer prefers memory-region | benign, confirmed in r2i |
+| B14 | benign upstream: kauditd callbacks suppressed | benign (expected noise) |
+| B15 | benign: Android bootloader reset reason (PS_HOLD reset = every Linux reboot here) | benign (expected noise) |
+| B16 | ledger: info lines that only look like errors (IRQ names 'fatal' / 'overflow', SCMI max-rx-timeout, unit descriptions) | benign (expected noise) |
+| B17 | benign: desktop deprecation warnings (GTK style-*.css, Adw properties, dbus eavesdropping, udev-settle pulled by upower) | benign (expected noise) |
+
+### Long-standing limits (not bugs of this build)
+
+- Speakers stay volume-capped (-12 dB): speaker protection has no mainline driver.
+- No fast charging (SuperVOOC / PPS); bypass charging is built and reviewed but deferred (owner, 2 Oct).
+- No automatic focus (libcamera's simple pipeline); the lens holds stock's start position.
+- The deepest SoC sleep state (AOSS sleep) is out of reach on mainline; CX collapse is reached (95-98 % of a sleep).
+- Wi-Fi stays off in sleep (owner, 2 Oct); the Wi-Fi country stays the firmware's US (owner decision 10).
+- Firefox decodes video in software; GNOME's player and GNOME Web use the hardware decoder.
+- Running neural networks on the NPU needs Qualcomm's QNN SDK (owner's decision).
+- Need your hands once: wall chargers, a night unplugged, the pen (90 s on the magnet side), the keyboard cover, a
+  USB-C monitor, USB accessories, a USB headset, the 5 GHz password.

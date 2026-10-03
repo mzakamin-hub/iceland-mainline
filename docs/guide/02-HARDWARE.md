@@ -80,7 +80,7 @@ below means mainline + infiniti; a number is a Pad 4 queue patch.
 | Speakers: 6 x NXP TFA9865 on TDM (8 x 32 bit, 48 kHz) | I2C 0x34 / 0x36 / 0x37 on two buses | `tfa9865` (simple driver) + AudioReach TDM | 0014-0015, 0038-0051, 0104 | **proven** (all six, stereo); volume capped at -12 dB because speaker protection has **no mainline driver** |
 | Codec: Qualcomm WCD9395 (SoundWire RX / TX) + USB-SS audio switch | SoundWire; switch at I2C 0x0e | `wcd939x`, `wcd939x-usbss` | base + 0052, 0059, 0107, 0169 (VA macro DMIC rate) | **proven** microphones; analog USB-C headset untested |
 | Microphones (2) | WCD9395 TX path | UCM profile (+12 dB as stock's DSP adds) | `audio/ucm/` | **proven** (area-combo-1..3) |
-| Rear camera: SmartSens SC1320CS 13 MP; front: SC820CS 8 MP | GENI I2C bus `884000` (stock uses this bus, not CCI): rear 0x36, front 0x10 | a **private** sensor driver (built from a trace of stock; not in the queue) | DT 0073, 0086 | **proven** at 30 fps (area-combo-46/-50/-52) |
+| Rear camera: SmartSens SC1320CS 13 MP; front: SC820CS 8 MP | GENI I2C bus `884000` (stock uses this bus, not CCI): rear 0x36, front 0x10 | `sc1320cs` (one driver for both sensors; built from a trace of stock; **in-tree in the private kernel queue** since the owner's decision of 3 Oct, queued after the final build's proof) | | DT 0073, 0086 | **proven** at 30 fps (area-combo-46/-50/-52) |
 | Camera bus level shifters (PMH0101 LS1B / LS2B, RPMh XOB resources) | RPMh | `qcom-rpmh-regulator` | 0084-0086 | **proven**: without them the bus only worked while the sensor hub streamed |
 | Focus motor: Dongwoon DW9800K | I2C 0x0c | `dw9719` (+ I/O supply) | 0087-0089 | **proven**; held at stock's start position (no autofocus in libcamera's simple pipeline) |
 | Camera EEPROMs (OTP data) | I2C rear 0x58, front 0x51 | `at24` (+ I/O supply) | 0129-0131 | **proven** readable (4096 B, area-combo-78); unused by libcamera |
@@ -239,13 +239,20 @@ From `docs/BOOT-LOG-PLAN.md` (boot logs of area-combo-92 / -93) and `configs/dis
   the ADSP there is no sound and no sensors. The battery does **not** depend on it: its data travels over the SoCCP's
   pmic_glink channel (`PMIC_RTR_SOCCP_APPS`, hwinv O03), and the kits read the battery at 30 s while the ADSP was
   still offline (BOOT-LOG-PLAN P1-a, corrected 2 Oct).
-- **The install's answer** (wf/install round 6, not yet run on the tablet):
-  - dracut `omit_drivers` for the drivers that need root firmware (the remote processors, ath10k / 11k / 12k,
-    Iris / Venus, Bluetooth UART);
-  - `add_drivers` for `pwrseq_qcom_wcn` and `pci_pwrctrl_pwrseq` (ends the PCIe probe deferrals early);
-  - the GPU microcode trio (`gen80200_sqe` / `gmu` / `aqe`, linux-firmware's set by the owner's decision) in the
-    initramfs. MSM is built in and loads it when it binds; the first golden image lacked it (finding B4).
-  - Acceptance lines `adsp`, `cdsp`, `fwload`, `gpu`, `pcieprobe` check all of it.
+- **The install's answer, revised after R1c (3 Oct; proven in R1d .. r2g):**
+  - the SoCCP / ADSP / CDSP stack goes **into** the initramfs: `qcom_q6v5_pas` with the kits' early stack (glink, the
+    protection-domain mapper, QRTR, the battery manager) and the tablet's ADSP / CDSP firmware (private, like the
+    image). The charger co-processor, pmic_glink and the USB-C port are up before the network disk or the root are
+    used: in R1b they came only after switch_root, and UCSI's registration then dropped the USB link 5 s after the disk
+    connected. The rehearsal also waits for the USB-C port before it carries the disk;
+  - dracut `omit_drivers` keeps out what needs firmware from the root and is not needed early: ath10k / 11k / 12k,
+    Iris / Venus, the Bluetooth UART (the first design of round 6 also omitted the remote processors; withdrawn);
+  - `add_drivers` for `pwrseq_qcom_wcn` and `pci_pwrctrl_pwrseq` (shortens the PCIe probe deferrals);
+  - the GPU microcode trio (`gen80200_sqe` / `gmu` / `aqe`, linux-firmware's set by the owner's decision, taken from
+    Fedora's `qcom-firmware`) in the initramfs. MSM is built in and loads it when it binds; the first golden image
+    lacked it (finding B4).
+  - Acceptance lines `adsp` (SoCCP attached, ADSP and CDSP running), `cdsp`, `fwload`, `gpu`, `pcieprobe` check all of
+    it (r2g: all PASS, pcieprobe CHECK with 11 attempts).
 - **Kit vs installed boot.** The RAM kits unpack the module tree after boot and load an early list. Since 2 Oct they
   also re-trigger udev for driverless devices ("coldplug"), as an installed boot does. Without that, the sound card
   waited for the DP audio codec and never appeared (runs 83 / 87).

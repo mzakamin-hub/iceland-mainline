@@ -152,8 +152,9 @@ ABL
  -> dracut initramfs with the module "90iceland":
       sets every UFS block device read-only except userdata (and its LUN as a whole),
       attaches a partitioned loop device over userdata (direct I/O, 4 KiB blocks) -> loop0p1..p3;
-      carries the GPU microcode; leaves the root-firmware drivers (remote processors, Wi-Fi, BT, video) to the root
-      (omit_drivers), so they load after switch_root when /lib/firmware is reachable
+      carries the GPU microcode and the SoCCP / ADSP / CDSP stack with the tablet's DSP firmware (since R1c: the charger
+      co-processor and USB-C must be up before the root is used); Wi-Fi, BT and video stay out (omit_drivers) and load
+      after switch_root when /lib/firmware is reachable
  -> Fedora root: btrfs subvolume "root" on loop0p3, /boot (ext4) loop0p2, ESP (FAT32) loop0p1; SELinux enforcing
  -> first boot: systemd-repart grows the root partition to the whole userdata, growfs grows btrfs
 ```
