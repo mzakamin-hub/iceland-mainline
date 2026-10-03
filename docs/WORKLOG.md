@@ -2986,3 +2986,171 @@ regexes) -> q85 if klog finds fixes. Owner checks: H1-H3 (chgsafe), installed su
 - review CONFIRMED commit x (privacy clean) with a scope note; docs dropped the loop-3 / r2i tools -> RC1-only, 1291
   paths. Commit x run next (run 101-112, RC1-NOTES, RELEASE-NOTES, install guide at q85 / r2i, matrix 169 runs / 94
   kernels / queue 0188).
+
+### 2026-10-03 about 12:05-12:20 - parallel: kit 114, commit x pushed, matrix, q86 building (owner: "do parallel actions")
+- **Kit 114** (q85, lc2-check, 12:05-12:08): NOT RUN in 5 s - "cpio: command not found" in lc2check.sh (kit 113 had
+  cpio only through librpm's builddep): a test-tool bug; camfix fixing (kit 117 next).
+- debugger CONFIRMED F43 (abffeeaf, k9 434ddeed; every ath12k site and the r2i timeline checked; F11's COUNTRY=US does
+  not switch 11d off), F11 (34d0d046), F44 (fc9acafa), F05 (fe74e32b), F46-F50, B18; non-blocking amendments to klog.
+- **Commit x** (RC1 only, 1291 paths): iceland-mainline **9002850** "campaign 2 (x): RC q85 - runs 101-112, rehearsals
+  r2h / r2i, docs, matrix" (1294 files changed); matrix 169 runs / 94 kernels / queue 0001-0188, 64 / 13 / 6 / 2 of 85.
+  Matrix page republished (version 44). save-project (patched priv / keyfile guards) running.
+- **q86 build started 12:18** (preflight PASS; tree f1b0acda; workflows klog = k9 no11d).
+- **q86 BUILT** (12:18-12:34): 1833a6deb42d, 7.3.0-rc4-iceland-00327-g1833a6deb42d (iceland 0188 + k9 no11d); preflight
+  40 PASS 0 FAIL; manifest PASS, 0 warnings, dtb = q85. K2 kernel-iceland-...00327.g1833a6deb42d-1 built (20 PASS;
+  builder split GO=pkg into PKG_STEPS); K3 waits for main (5.5 GB copy OK'd, run during kit 116); P1 0.20 / TIN wait for
+  the libcamera decision. Review + debugger re-confirmed F43 d6ef954f / F11 b8eabb27 (k9 434ddeed unchanged).
+- **Kit 115** (q86; klogp + klog43ab, 12:21-12:26): klogp as kit 110 (f11 / f12 / f20 FAIL, f22 CHECK = kit rootfs;
+  f18 PASS); **klog43ab A/B PASS - A enable_11d N: 11d starts 0, country refusals 0 | B (ath12k reloaded, enable_11d=1):
+  starts 4, refusals 2 | A2 N: starts 0, refusals 0** -> the firmware 802.11d scan is off with k9 and comes back with
+  enable_11d=1. Ledger `next.sh kit 115`: F43 A/B PASS; F43 G2 until kit 116's "klog-f43o: PASS owner network" line.
+- Kit 117 (q85, lc2check with camfix's python unpacker) started right after; kit 116 (q86, f43o on the owner's
+  network) next. install: R2J-COMMANDS.md (B run 118, LIBCAMERA_REL selector, optional f43o inside r2j).
+- **Kit 117** (q85, lc2check, 12:27-12:31, 80 s of test): unpacked by python; camera stack 2 / 2, 2 sensors; cam -l
+  system 2 / iceland2 2; **F05 rear + front UnitCellSize = 1120x1120, 'No static properties' 0**; captures rear / front
+  on iceland2 rc 0, 10 frames each; WirePlumber on iceland2; F44 cross test both ways 30 buffers with 0 'Failed to
+  setup link' / 0 'Format negotiation failed (-16)' but rc 255 (record expects rc 0) -> asked camfix.
+- Kit 116 (q86, klog43o on the owner's network, ~45 min) started about 12:33; the keyfile goes by
+  wf/builder/push-klog-wifi.sh (scp to /run/klog-wifi.src, 600, sizes only) once ssh is up. Tablet 75 %, 27.8 C.
+- camfix: kit 117's F44 rc 255 = gst-launch's error exit ("pw.core ... error -32: target not found": WirePlumber never
+  linked the non-portal pipewiresrc), so F44 was NOT exercised (no regression either; f44-cross.sh fixed to print the
+  error); F05 PROVEN on iceland2. **Main's decision: libcamera iceland2 ships in P1 0.20**; F44's proof moves to r2j
+  (root cam front then Snapshot, and the reverse, on the installed image). Review re-pinned F05 abdbf6b5 / F44 af839fc6.
+- iceland2 rpms stashed (/mnt/c/platform-tools/rpms/libcamera, iceland1 kept); accept-iceland2.py applied to both
+  accept.sh copies (f081d750, camstack wants iceland2 + EGL + F05 + F44 markers).
+- **Packages for the final candidate:** K3 q86 kernel-iceland-...00327.g1833a6deb42d.1-1 (PASS; D: unchanged 2.446 GB),
+  **P1 iceland-pkg-0.20.tgz 1e44ae55** (iceland-mainline 9002850), TIN 17 files with libcamera 0.7.1-1.fc44.iceland2
+  (LIBCAMERA_REL), NEXT-K2P1U1 2 PASS (p1 tin) + K2 / K3 PASS, **COUPLING q86 PASS**, manifest-q86 PASS.
+- Kit 116 (owner network, klog43o) running since 12:35; keyfile pushed (600, 275 bytes). B run 118 prepared (stage0
+  served, genwf-install-b.py 118 q86); its chain starts only after kit 116 ends (the chain stops old runners).
+
+### 2026-10-03 about 12:46-13:00 - kit 116 phase A PASS; SAVE POINT (owner: limit almost consumed)
+- **Kit 116 (q86, owner network) phase A: "klog-f43o: PASS owner network: 6/6 connects, 4-way handshakes 8, beacon
+  losses 0, auth/assoc timeouts 0, reason-4 drops 0, state after the 10 min hold: 100 (connected)"** = F43's
+  expected-once line; phases B (enable_11d=1, expect FAIL) and A2 were running at the save.
+- debugger: F05 / F44 re-verdicts CONFIRMED; r2j camlink rebuilt around Snapshot (both orders forced by
+  last-camera-id = PipeWire node.description).
+- Owner: "save everything ... logs automatically at a repo ... recall the bypass charging agent on resume". Done:
+  session-independent watcher an/autosave.sh -> local git repo ~/mainline/build/an/autosave (masked kit 116 results +
+  ledger next.sh kit 116; never pushed - kit journals hold the SSID); run scripts kept in ~/mainline/build/an/resume/;
+  RESUME-2026-10-03-1300.md written (+ pointer at the top of HANDOVER.md and STATE.md); memory updated.
+- **Kit 116 phase B (ath12k reloaded with enable_11d=1) ALSO PASSED: "klog-f43o: PASS owner network: 6/6 connects,
+  4-way handshakes 6, beacon losses 0, timeouts 0, reason-4 drops 0, connected after the 10 min hold".** The A/B on the
+  owner's network did NOT reproduce r2i's failure, so the 11d cause of F43 is NOT proven (k9 is harmless: A passes,
+  kit 115 shows the scan off). To check on resume (klog + debugger): did the 11d scan really start in phase B
+  (klog-f43o-B.txt counts), and does r2i's failure need the accept's `--rescan yes`, the TKIP group rekey (~100 s) or
+  the weak 2.4 GHz signal; r2j with f43o on the installed image is the decisive test. F43 stays open (not G3).
+- ~13:10 owner: "spin a planner cascading to the team the below once we resume" (open problems; hardware present but
+  not proven; CPU 4.5 / 4.6 GHz vs LineageOS / OxygenOS / our benchmarks; stock 60 °C gear policy vs LineageOS /
+  OxygenOS / ours; stock thermal model data; sensor service as root). Brief written: PLANNER-BRIEF-2026-10-03.md
+  (+ wf/planner/BRIEF.md); RESUME step 0 = spin the planner; HANDOVER / STATE pointer updated.
+- ~13:15 owner: "do as many parallel actions simultaneously and consolidate actions to save time and finish this in
+  short time" and **"confirm using stocks 60c loop" = owner decision: stock 60 / 61 °C skin loop with its gear
+  policy** (replaces 48 / 51 °C; stock values, rule 13). Planner brief item 4 -> implement + prove; memory + RESUME +
+  brief updated.
+
+### 2026-10-03 13:20 - RESUME: kit 116 result, B run 118 started, planner + bypass agent spun (parallel)
+- Autosave repo (~/mainline/build/an/autosave, local git, 3 commits 13:14): **kit 116 done - f43o A PASS 6/6 (8
+  handshakes), B (enable_11d=1) PASS 6/6, A2 PASS 6/6 -> "klog43o: A/B FAIL ... B PASS"**: the owner's network
+  connects and holds on q86 in all phases; r2i's failure NOT reproduced -> F43's 11d cause unproven (ledger: F43 G2,
+  k116 FAIL = the A/B rule). save-project 13:00 done (privacy scan clean). klog asked: did 11d start in B, what differs
+  from r2i (accept rescan, TKIP rekey, bgscan at 44 %, image vs kit rootfs), a decisive r2j test.
+- Tablet 75 %, 28.7 C; stage0 build still served (empty ov-build); relay tcp-relay-118.log; **B run 118 chain started
+  ~13:22** (q86 + P1 0.20 + libcamera iceland2).
+- In parallel: **planner agent spun** (Opus) with PLANNER-BRIEF-2026-10-03.md (6 items + 60 °C decision + bypass +
+  loop-3 close -> wf/planner/PLAN.md); **bypass agent recalled** to implement bypass charging (review fixes, port to
+  P1 0.20 / q86, kit part, records; charging safety first; reviewers main / review / chgsafe / bypass review /
+  debugger); install asked for golden + r2j (MAX 2400 with f43o inside); debugger ready for r2j.
+- 13:30 second save (usage limit): B run 118 running; r2j scripts in an/resume (score118, commit118, r2j-pc, r2j-f43); planner + bypass agents working (wf/planner/PLAN.md, wf/bypass).
+- 13:30 B run 118 scored: B-RUN: 31 PASS, 0 FAIL;B118-RC: PASS 0;; REFUSED 0
+- 13:35 B run 118 PASS 31/0 + B118-RC 8/8; planner PLAN.md + MESSAGES.md done; bypass guard port diff ready for review (relay pending). Third save.
+
+### 2026-10-03 about 13:45 - owner's answers O1-O4; golden from B118; loop-4 plan cascaded
+- **O1** bypass charging into the image: YES if it passes every charging / power / charge-limit check. **O2** the stock
+  thermal model file: generate on the tablet at install time AND it may be shipped and committed (owner's override for
+  this file; private repos). **O3** keep the Wi-Fi keyfile until r2k. **O4** CPU top steps only in Performance mode.
+- Golden commit from B run 118 started (an/resume/commit118.sh); planner's MESSAGES.md blocks sent to the agents with the
+  answers; bypass guard-port diff relayed to the safety reviewer + chgsafe.
+- 13:55 owner: "switch every fable agent to opus 5.5" -> debugger / chgsafe / sleeppower / r1debug re-spawned on Opus (ids in RESUME + wf/planner/TEAM-CONTEXT.md); golden from B118 committed (stage0 + 174718 blocks, D: unchanged); planner MESSAGES blocks + O1-O4 sent to all agents; bypass port sent to the safety reviewer + review + new chgsafe; r2j setup (serve golden r2j, MAX 2400 head, preboot) running.
+
+### 2026-10-03 about 13:45-13:55 - r2j (final build q86 + P1 0.20 + libcamera iceland2)
+- Golden from B118 (stage0 + 174718 blocks); serve golden r2j; head-20261003-134205 MAX 2400; preboot 42 / 0 (with
+  --expect-max 2400; r1debug's own run 43 / 0). First rehearse.ps1 start STOPPED before touching the tablet (the B118
+  relay still held port 10809) -> relay stopped, restarted; r2j booted 13:47 (answers after 40 s, session limit 2400 s).
+- **INSTALL-ACCEPT r2j: 45 PASS, 0 FAIL, 1 CHECK (apps) in 108 s.** **klog passive 14 / 14 PASS on the final image**
+  (f11 firmware refusals 0 = k9 active; f18 no -16, mbhc exercised; f20 2 probe attempts; f31 benign).
+- Debugger suite (new Opus debugger) and klog's f43o on the owner's network (2.4 GHz pinned, fresh scans, 420 s hold
+  through rekeys) running in parallel from 13:53.
+- Team: hwinv inventory refreshed against q86 + hwproof part; camfix camdelay2 part; bypass kit part ready (GO by the
+  safety reviewer, review CONFIRMED the guard port: 886 PASS / 0 FAIL); review CONFIRMED thermal6061 for build + K120
+  (ship gated on K120 thermala + thermaln or with the model) and F42 benign; install F51 (b118 nbd -104 = the kit's own
+  disconnect after build1a, benign); klog item 3: LineageOS paths (CPUCP FAST vendor protocol 0x80 likely missing; Android
+  caps prime by WALT IPC levels); r1debug postsession fixed (r2i = SYSTEMD-SHUTDOWN, owner power-off).
+- r2j continued: **FEDTEST r2j 33 PASS, 2 FAIL (snapshot, camlink), 5 CHECK (clock crashes sound kmsg fixes), 1 SKIP**:
+  PASS cameras, camprops (**F05: UnitCellSize 1120x1120 both, 0 'No static properties'**), camfix-f2 (**F02 full size
+  both**), f6, f39, video, gpu, dsp, pcie; snapshot / camlink: Snapshot alive, 0 cores, 0 link failures but NO stream -
+  camfix: Snapshot never called the camera portal (0 ashpd / OpenPipeWireRemote lines vs r2i 12 / 4) -> libcamera
+  configure never reached (not 0005); debugger checking the screen / window state live.
+- **klog f43o on the owner's network in r2j (installed image q86, 2.4 GHz pinned, fresh scans, 420 s hold): PASS 6/6,
+  6 handshakes, 0 beacon losses, 0 timeouts, 0 drops, connected after the hold; 11d starts 0, refusals 0, group
+  rekeys 0** (first try skipped: /run/klog-wifi.src not copied outside a kit; fixed by hand). Keyfile deleted from the
+  tablet; kept on the PC until r2k (O3). F43 -> "not reproduced with k9, k9 kept (stock-equal)"; TKIP rekey = r2k watch.
+- PC in parallel: kit 119 generated (cputurbo pkg2 sensoruser rotpkg camdelay2 hwproof hwinv bypass thermalb; P1 0.20
+  installed by the kits again - the 0.16 glob bug since 0.17 fixed); q87 plan (iceland 0189 + skin6061: dt-skin-6061.py
+  30579948, review + chgsafe confirmed); sleeppower A1 script (review: yes with fixes), thermal parts (chgsafe R1 / R2 for
+  K120); install item 6 sensor-user (hexagonrpcd as fastrpc, exposure 9.4 -> 2.5) + O2 model-at-install plan (sleeppower
+  agrees); chgsafe GO bypass K119.
+- **r2j Snapshot / camlink resolved (debugger, live): the FAILs were the session state, not iceland2 / 0005.** From 154
+  to 746 s GNOME Shell was out of user mode (lock / unlock-dialog: its NM agent re-registered at 748.99 s, AccountsService
+  password-mode read at 747.04 s; ScreenSaver.GetActive / LockedHint never showed it), so Snapshot (which streams only
+  when its window is shown) never called AccessCamera / OpenPipeWireRemote. From 750 s: 9 / 9 Snapshot starts streamed.
+  **Re-run of the suite's steps at ~14:01 (tag r2jc): PASS snapshot (F01: stream running, 0 cores) and PASS camlink both
+  orders (F44: real triggers, root cam rc 0, Snapshot on the forced other camera, 0 'Failed to setup link') on libcamera
+  iceland2** -> F01, F44, F05, F02 proven on the final image. Suite fix for r2k: require the Shell's Mode = user before
+  Snapshot; a Snapshot that never asks for the camera gives CHECK, not FAIL.
+- klog F43.json 427f8496 ("not reproduced with k9 on the owner's network, k9 kept"; G3 additionally needs an f43o with
+  >= 2 group rekeys in r2k, or the 25-min r2k_test closes it as not reproduced); tablet.sh dff85c42 (reads
+  /run/klog-wifi.src; KLOG_F43_REKEYS / CAP).
+- **Queue 0189 PUSHED** (14:18): iceland-linux **67adee0** "iceland: 0189 ath12k: the firmware 802.11d scan off by
+  default (kernel q86)", QUEUE-VERIFIED (tree f1b0acda), base out-config-base-0189. The queue message and k9's commit
+  message were reworded first so neither claims F43's cause as proven (klog .msg 993a48cc: "in one rehearsal ...
+  not reproduced since ... matches the vendor driver's g11dSupportEnabled=0").
+- Team (14:05-14:18): review CONFIRMED F43 59e3ea53 (ath12k debug lines of klog's own debug window benign; level-7
+  kmsg lines now skipped by the ledger), F51, thermal6061 on dt-skin-6061.py 30579948 (also chgsafe), sleeppower's kit
+  parts; sensor-user REJECTED (review + debugger: the hub registry is 0600 root:root, fastrpc cannot read it) -> fix
+  for K120; klog tablet.sh 62f3eb91 (one cleanup trap removes every keyfile copy); sleeppower sp-thermal a7f60d21
+  (emul_temp reset + fcc link + chgsafe R1 / R2; GO), A1 7ccc3221, gpucool-trips 3d20bcc7 (chgsafe: confirm with
+  R-G1); bypass-pkg.py 4d2b6054 (README test lines); kit 119 final: cputurbo pkg2 rotpkg camdelay2 hwproof hwinv
+  bypass thermalb (sensoruser dropped to K120).
+- r2j ended early by main (ssh systemctl reboot 14:18:36, all planned tests done; no keyfile copy left on the tablet);
+  Android back 14:18:53, relay refused 0, nothing written; bootloader PSHOLD / Hard Reset; r1debug postsession:
+  SYSTEMD-SHUTDOWN with --owner-action (main's reboot), rc 0. Tablet 75 %, 32.5 C. Ledger asked for `next.sh
+  rehearsal r2j q86`; A1 (sleeppower's read-only Android check, A1_ADB_ROOT=1) running; kit 119 next.
+- Debugger verdicts all exactly "confirmed" now (thermal6061 / bypass-v2 / F42 / F43 / F44 / F51 / F01 / F05; details in
+  verdict_detail); review CONFIRMED klog tablet.sh 62f3eb91 (0 keyfile copies after a normal end / TERM / HUP / INT)
+  and bypass-pkg.py 4d2b6054. Builder: q87 dry preflight 51 / 0; P1 0.21 source-number clash (item 6 vs bypass both
+  Source111) -> both patchers number from max + 1; THERMALCONF gate (Balanced offset 0, chgsafe's condition for 60 / 61).
+
+### 2026-10-03 about 14:19-14:25 - A1 (Android read), ledger r2j 55 / 0, kit 119 + q87 in parallel
+- **A1** (sleeppower's read-only Android check, adb root then unroot; output wf/sleeppower/priv/a1/20261003-141921,
+  private): Android's cpu7 policy6 cpuinfo / scaling max 4608000 with boost 1; pinned 10 s loop cur_freq max 4.608 GHz;
+  NOT pinned: cpu6 + cpu7 both 4.608 GHz, effective 4277 MHz, 1371 migrations (the heavy thread moves between the prime
+  cores = cpucp_fast + WALT) -> item 3: Android reaches 4.6 GHz; the missing piece is likely CPUCP FAST (vendor protocol
+  0x80), sleeppower's explanation + a stock-only fix proposal by 15:00 (O4: Performance only).
+- **Ledger r2j (base r2g, 69 records): PASS 55, FAIL 0, await 1 (F43, record changed after the run), n/a 13** after:
+  the face-down sound waiver (F23 / F42, waivers.json "r2j"), camfix F05 f1f2bb90 (expected = the suite's camprops PASS
+  line), klog F42 bfdf173c (the "no slave alert found.spurious interrupt" line is the same IRQ pass as the clash, 9 us
+  before it). Board: G0 6, G1 12, G2 1 (F43: needs r2k's >= 2 group rekeys), G3 41, G4 2 (F11 via 0189 67adee0, F18).
+  F01 / F02 / F17 G3; F05 / F44 r2j PASS, G3 once the builder's P1 0.20 / iceland2 manifest names them.
+- **Kit 119** (q86; cputurbo pkg2 rotpkg camdelay2 hwproof hwinv bypass thermalb) started 14:21:50; **q87 preflight +
+  build started after K119's prep** (iceland 0189 + skin6061 dt-skin-6061.py 30579948). bypass-pkg.py 67cc3708 (sources
+  numbered from max + 1; combo tests with item 6 all 0 failed). Review's item-5 licensing note on the thermal model
+  (vendor IP, no personal data; private repo only with a NOTICE; never the decoded configs or the key).
+- F44 / F01 re-checked after camfix found a self-matching regex (the suite's "CHECK fixes" line quotes the expected
+  regexes): F44 re-pinned a99c6652 (expected "fedtest-[a-z0-9]+: PASS snapshot: "); **both proven by the debugger's
+  same-boot re-run r2jc** (kmsg-r2j.log: "camfix-F44: root front then user rear: snapshot running, Failed-to-setup-link
+  0 ... via Built-in Back Camera:active", the rear-then-front one via the front camera, "fedtest-r2jc: PASS snapshot:
+  ... camera stream running"; 0 "Failed to setup link" / -16 / cores in the whole boot). r2j's ledger check 55 / 0
+  stands. Ledger asked to never match inside regex-quoting summary lines.
+- Commit y (loop 3: runs 113-118, r2j results, 0189 67adee0, LOOP3-NOTES, matrix 176 runs / 95 kernels / queue 0189;
+  466 paths, guards pass, owner SSID / PSK not staged) run next.

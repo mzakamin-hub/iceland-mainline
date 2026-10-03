@@ -1,3 +1,5 @@
+> **RESUME HERE (3 Oct 2026 ~13:00): read `RESUME-2026-10-03-1300.md` first, then spin the planner with `PLANNER-BRIEF-2026-10-03.md`** - loop 3 (q86 + P1 0.20) in progress, kit 116 results in `~/mainline/build/an/autosave`, then B run 118 -> r2j -> queue 0189; on resume recall the bypass charging agent to implement the feature.
+
 # OnePlus Pad 4 mainline Linux - hand-over (2 Oct 2026, about 21:00; state table and workflows updated about 23:30)
 
 > **SAVE POINT 3 Oct 2026 02:45 (newest; read first):** the last block of `WORKLOG.md` ("SAVE POINT before a compaction") has the exact state, what is running (r2g + fedtest until about 02:58), the night's results (r2g 42 / 1 / 1; q83 = the final-build kernel; chgsafe v2 ready) and the next steps 1-8 (q84 -> kit 106 -> B 107 -> R2-final -> queue 0175-0179 -> commit x). The tables below are from 2 Oct 23:30.

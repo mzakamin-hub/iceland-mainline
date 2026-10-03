@@ -1,3 +1,5 @@
+> **RESUME HERE (3 Oct 2026 ~13:00): read `RESUME-2026-10-03-1300.md` first, then spin the planner with `PLANNER-BRIEF-2026-10-03.md`** - loop 3 (q86 + P1 0.20) in progress, kit 116 results in `~/mainline/build/an/autosave`, then B run 118 -> r2j -> queue 0189; on resume recall the bypass charging agent to implement the feature.
+
 # OnePlus Pad 4 ("iceland") mainline Linux - project state
 
 Saved 2026-10-01 from the Claude Code session that owns the project (the PC session). Read this first, then the last
