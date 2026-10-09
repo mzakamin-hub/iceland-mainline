@@ -2,7 +2,7 @@
 
 Before doing anything, read in this order:
 
-0. `HANDOVER.md` - updated 2 Oct 2026 21:00: the exact state, every workflow with its next
+0. `HANDOVER.md` - the exact state, every workflow with its next
    action, the method (agents prepare, the main session runs the tests), the prompt template, the lessons.
 1. `STATE.md` - the goal, the user's hard rules (RAM boot only, private data, commit rules, "hold the tablet"), where
    everything lives, how a test run works.
@@ -21,7 +21,7 @@ Standing orders from the user:
 - The live work is in WSL (`~/mainline`); this folder is a snapshot plus the log. Refresh the snapshot with
   `build/save-project.sh` + `save-project-fix.sh` after larger changes.
 
-How the work is organised since 2 Oct 2026 (the user's orders, see `HANDOVER.md` section 1):
+How the work is organised since 2 Oct 2026 
 
 - One background agent ("workflow") per open topic prepares on the PC only (analysis, candidates, a tablet test)
   in WSL `~/mainline/build/wf/<name>/`; the main session reviews, builds, runs the test in a RAM kit run, and sends
@@ -48,8 +48,6 @@ Hard-won rules for test scripts (details in `WORKLOG.md`):
 - The camera bus / driver tests need the sensor hub configured first (parts `pkg2` + `rotpkg start`).
 - A kit description must not contain a quote character; the queue is verified from the local kernel repository
   (`queue-0084.sh`), the GitHub clone of `prepare.sh` can stall.
-
-Added 2 Oct 2026 evening (details in `HANDOVER.md` section 6 and WORKLOG from entry 44):
 
 - **Ask the owner to connect the tablet and wait for their go before ANY tablet action** (they recharge it
   unplugged); never leave a run chain waiting on `adb devices` in the background. Use they/them for the owner.

@@ -1,4 +1,4 @@
-> **RESUME HERE (3 Oct 2026 ~13:00): read `RESUME-2026-10-03-1300.md` first, then spin the planner with `PLANNER-BRIEF-2026-10-03.md`** - loop 3 (q86 + P1 0.20) in progress, kit 116 results in `~/mainline/build/an/autosave`, then B run 118 -> r2j -> queue 0189; on resume recall the bypass charging agent to implement the feature.
+> **RESUME HERE (3 Oct 2026, latest 17:16): read `RESUME-2026-10-03-1300.md` (last section "UPDATE 17:16 - IMAGE HELD") first** - loop 3 (q86 + P1 0.20) in progress, kit 116 results in `~/mainline/build/an/autosave`, then B run 118 -> r2j -> queue 0189; on resume recall the bypass charging agent to implement the feature.
 
 # OnePlus Pad 4 ("iceland") mainline Linux - project state
 
@@ -18,7 +18,7 @@ go-ahead (phase 4 target: Fedora with GNOME - never pmOS / Debian / Ubuntu again
 - "make the test fully automated without needing my check, if an items needs myself to check deferr it for now".
   Runs about 10 minutes ("60 mins is too long make it only for 10 mins").
 - Rule 13: every hardware value comes from Pad 4 stock sources (stock DT, firmware logs, LineageOS logcat).
-- Private - never commit or upload: proprietary firmware and stock ACDB / XML / TFA files; the partition backup
+- the partition backup
   `C:\OnePlusPad4\backups\20260927-1933-unknown`; every carve in `build/fwsuper` (dtbo, stockdtb, x-vendor, x-odm,
   x-system_ext, x-my_product, x-persist, x-dsp, sensors-root, *.img, vendor_dlkm_a.img, x-vendor_dlkm); the camera
   trace, timeline and register tables (`build/camtrace`, `C:\OnePlusPad4\camtrace`, `build/camdrv/*-regs.h`);

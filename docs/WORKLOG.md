@@ -3154,3 +3154,119 @@ regexes) -> q85 if klog finds fixes. Owner checks: H1-H3 (chgsafe), installed su
   stands. Ledger asked to never match inside regex-quoting summary lines.
 - Commit y (loop 3: runs 113-118, r2j results, 0189 67adee0, LOOP3-NOTES, matrix 176 runs / 95 kernels / queue 0189;
   466 paths, guards pass, owner SSID / PSK not staged) run next.
+- **q87 BUILT** (~14:35): 70d40415c60b, 7.3.0-rc4-iceland-00328-g70d40415c60b = iceland 0189 + skin6061 (queue 0190);
+  preflight 50 / 0 (after review re-pinned thermal6061 on its DT inputs only), manifest-q87 PASS (34 checks); dtb vs q86
+  only skin-alert0 48000 -> 60000 and skin-alert1 51000 -> 61000; modules 1001, 0 new / 0 gone. K2 / K3 q87 building.
+- thermal6061 record d86522d2 (image part = Balanced offset 0 patcher thermalconf-offset0.py 5e059628; chgsafe's
+  condition) - review + debugger CONFIRMED; sp-thermal.sh frozen at 543d85e1 (chgsafe GO; thermala / thermaln enforce
+  offset 0). manifest-p1-0.20.json (16 checks) names F05 + F44 -> **ledger: F05, F44 G3**; board G0 7, G1 10, G2 1 (F43),
+  G3 43, G4 2.
+- **Kit 119 pkg2: the 0.20 device RPM did not build** (rc 1 in 5 s): the 0.20 spec compiles the sensors' SELinux
+  module (checkpolicy + policycoreutils), which the kit's pkg2 dnf list lacked (the B run's devrpm step has them, so
+  B118 / the image are fine). gen-kit106 now adds the spec's BuildRequires to pkg2 (K120 gets it). In K119
+  iceland-device is not installed: cputurbo / hwproof (non-hub) / bypass (adds its own guard) valid; the hub-dependent
+  parts (camdelay2, the gyroscope step, thermalb) repeat in K120.
+- K119 cputurbo (q86): boost 0 eff 4255 MHz, boost 1 4237 MHz (cur max 4.608 GHz but no effective gain), both phases
+  hit the part's 100 C abort; Android A1: pinned cpu7 only ~3.94 GHz effective, unpinned 4.28 GHz with 1371
+  migrations -> the turbo steps are not sustained on Android either (sleeppower's item-3 write-up by 15:00).
+- **Commit y PUSHED** (14:33): iceland-mainline **6213410** "campaign 2 (y): loop 3 - q86 802.11d off, libcamera
+  iceland2, runs 113-118" (470 files; the first run aborted on a false positive in its own tooling - a psk-assignment literal in
+  the y scripts; fixed at the source, the global guard unchanged; owner SSID / PSK not staged).
+- ~14:35 owner: "save everything for compacting" -> RESUME-2026-10-03-1300.md "UPDATE 14:35", memory, HANDOVER / STATE
+  pointer, scripts in an/resume. Kit 119 running (camdelay2 at 14:31:51), K2 / K3 q87 building.
+- 14:40 K119: hwproof rng FAIL (debugger), gyro waived (no package), hwinv PASS. Item 3 answered by sleeppower (top
+  steps not sustained on either OS; perf-noturbo.py gated on K120 cputurbo2). Builder: bypass proof on the installed
+  0.21 = accept-bypass.sh in B121 + r2k accepts; ITEM6 skips to 0.22 if not confirmed in time.
+- **Kit 119 DONE** (14:38, q86; bundle ~/mainline/build/area-combo-119; the tablet went back to Android):
+  - cputurbo: boost no gain.
+  - pkg2: FAIL (BuildRequires; fixed for K120).
+  - rotpkg: no package.
+  - camdelay2: 8 / 8 DELAY=2 (test environment only).
+  - hwproof: wdt / llcc / bwmon / gpi / qfprom / usbdp / jack PASS, **rng FAIL**, gyro waived.
+  - hwinv: PASS (0 new).
+  - bypass: behaviour PASS in full (cut at 58 C USB -> 0 mA in 3 s); **unit FAIL test_guard_kernel_limit 2 cases
+    ("input suspend lever MISSING")**.
+  - thermalb: excluded.
+  - Ledger k119: board unchanged (G0 7, G1 10, G2 1, G3 43, G4 2).
+    - F11 / F43 lines flagged (setregdomain "Could not determine country"; no klog part) -> debugger to call n/a or real.
+  - Handed to debugger, camfix, hwinv, bypass, chgsafe and ledger. Bypass is out of 0.21 until the unit failure is
+    explained (O1).
+- 15:00 K119 follow-ups:
+  - bypass unit FAIL root-caused as test-only (run dir name contains "kernel"; tablet.sh 99e36ba7); waiting for the
+    chgsafe + bypass review verdicts.
+  - camfix: iceland3 (gain delay 2) prepared, proof = K120 early-write camdelay2.
+  - review CONFIRMED sensor-user round 2 (ITEM6 in 0.21).
+  - cputurbo2 re-pinned for review's ABBA condition.
+- 15:10 Correction to the K119 entry: pkg2's device RPM failed on "%changelog not in descending chronological
+  order", not on BuildRequires (those installed).
+  - Builder fixes it in 0.21 + adds an F44 rpm gate.
+  - Bypass: chgsafe GO + bypass review GO -> into 0.21 (O1 met: every check green, the unit FAIL proven test-only).
+  - rng: the kit's bar was too strict (hardware statistics normal).
+- 15:20 Matrix republished (version 45, matrix-k119.py: watchdog / LLCC / bwmon / GPI / QFPROM ok; rng + bypass
+  part; gyro todo). Debugger: K119 rng = the test's bar (smccc_trng by design), F11 / F43 n/a for kits (scoped in
+  the ledger). Bypass: GO from chgsafe + bypass review -> 0.21.
+- 15:40 Corrected again: K119 pkg2's fatal error WAS the missing checkmodule (checkpolicy); the %changelog order
+  message is non-fatal (B118 printed it too).
+  - Both are fixed for 0.21; pkg-install.py's today-date stamp goes to install.
+  - sp-thermal restore fix: review's C1 (daemon state file must be gone for the WARN) + C2 (PT >= 1080) + chgsafe's
+    58 C rule -> sleeppower.
+- (note: the entries labelled 15:00-15:40 above were written between 14:36 and 14:45 real clock.)
+- 14:56 **Kit 120 started** on q87 + iceland-device 0.21 (offset 0, sensor-user, bypass, hardened test, changelog
+  fix) after the owner connected the tablet.
+  - Timeline call (owner 14:48): scope frozen to one build; every agent committed times; all verdicts were in by
+    14:55.
+  - 0.21 and the kit came ~35 min ahead of the builder's commitment; thermalb dropped (expects 48/51).
+- 15:05 Snapshot fix:
+  - The 12:53 save-project chain had been stuck since 13:14 in save-project-wf.sh, copying wf/klog/wt (a kernel git
+    worktree: 95,989 files, 1.8 GB) to the project folder; my 14:34 re-run was killed by its 1500 s timeout.
+  - Stopped the old chain by PID and removed the partial copy workflows/klog/wt (the source in WSL is untouched).
+  - save-project-wf.sh now excludes */wt/* and */.git/*; the snapshot is re-run in the background.
+- **Kit 120 DONE** (14:57-15:19, q87 + iceland-device 0.21; bundle ~/mainline/build/area-combo-120, 226 files;
+  tablet back in Android, 73 %, 34 C):
+  - pkg2 PASS (0.21 built on the tablet); pkggate PASS (0.21, guard active, OFFSET_BALANCED=0).
+  - cputurbo2: undecided (boost no gain) -> Performance profile unchanged (O4).
+  - chgsafe: PASS on the 0.21 guard (unit / lever / guard / restore).
+  - klogp: f11 / f12 / f20 FAIL, f22 CHECK -> klog judges.
+  - sensoruser: FAIL - no sensor reading, permissions OK, late attach 380-510 s after the ADSP start -> B121 decides
+    item 6 (fallback 0.22 ready).
+  - rotpkg: no accel sample; hwproof2: rng PASS (round 2), gyro FAIL (hub not up).
+  - camdelay2e: early writes give exposure 1 -> iceland3 NOT shipped.
+  - librpm3 PASS; lc2check3 short (camfix checks).
+  - thermala PASS (model; skin peak 52.1 C, restore 1 s); thermaln PASS (no model; skin peak 54.3 C, restore 1 s);
+    60 C not reached, daemon gears 5-6, kernel states 0; daemon sha unchanged.
+  - Next: chgsafe 60/61 go / no-go -> B121 (q87 or q86) with 0.21 + iceland2.
+- 15:30 **B run 121** (q87 + 0.21 + iceland2): B-RUN 31 PASS / 2 FAIL - the thermal model is absent. build1a's carve
+  of system_ext_a failed (erofs: no valid superblock at the LP extent; the tablet's slot-a system_ext is no longer
+  stock).
+  - Owner chose to fix first: the image gets the PC decode of the owner's backup (O2); B122 follows.
+  - check-b112 PASS (q87 kernel, 0.21); REFUSED 0.
+- 15:56 **B run 122** (q87 + 0.21 + iceland2 + the thermal model from the PC decode of the owner's backup): B-RUN
+  33 PASS / 0 FAIL; check-b112 PASS; REFUSED 0. fwx logs that system_ext_a's extent holds ext4 (no longer stock).
+  Golden committed from B122 at 15:58 (ov-build-b122 kept).
+- 16:02-16:3x **Rehearsal r2k** (golden of B122, MAX 2400): INSTALL-ACCEPT 50 PASS / 1 FAIL.
+  - **Item 6 PROVEN:** rotate + sensoruser, with all 4 sensors as fastrpc.
+  - thermalmodel / thermalpolicy (60/61/70, offset 0, daemon active) / pkgversion / camstack / apps 25 / cmdline
+    PASS.
+  - **FAIL bypass:** the extension is disabled - Fedora's org.gnome.shell.gschema.override sorts after our 90_
+    override. A package bug; fix zz_.
+  - klog passive: all PASS except **F18 reopened** (one -EBUSY burst at 15.83 s = a race after k8's guard; k10
+    prepared + reviewed for the next build; RC waiver <= 1 burst / boot).
+  - FEDTEST 36/2/6/1: sensoruser FAIL = the step's timing (fixed test-side); snapshot / camlink not reached (the
+    session sat behind the Shell unlock prompt until 379 s = F53 root cause; a Snapshot test at 621 s streamed);
+    **F42 reopened** (parity + clash at stream start, sound PASS); core = F08.
+  - f43o running with CAP 1080.
+- 16:22 **Owner:** fix the bypass toggle only.
+  - 0.22 = frozen 0.21 + override-fix-patch.py a60c6fb7 (iceland-pkg-0.22.tgz 3ebdd993; reviewed by review, chgsafe
+    and bypass review).
+  - B123 ready.
+  - r2l will be the final rehearsal (shell-mode.sh v2 f03c7ef6 reviewed).
+  - Upstream research agent started (Linux 7.4 / approved-not-merged).
+- 16:44-17:01 **r2l (final rehearsal)**: accept 51/0 (bypass ACTIVE, item 6, thermal); FEDTEST 38/1/5/1; NEW F54
+  WirePlumber abort (libcamera stop race), F55 q6apm capture timeouts (4/6 fresh opens empty after a clean pipewire
+  restart), F57 dpu vblank, F58 battmgr -110, F59 gnome-shell Source ID. Owner: fresh-boot test r2m before final.
+  Fable agents flashguide (owner's flash / restore script) + upstream2 (rows 3 / 4) started. 17:10 save point.
+- 17:12 usage limit reached; state saved (RESUME 'UPDATE 17:12'). r2m running; queue 0190 dry PASS.
+- 17:06-17:16 **r2m (fresh boot of golden B123)**: accept 51/0; **mic fresh opens 3 of 10 EMPTY + 1 APM timeout at
+  213 s** -> F55 (ADSP stall) is present in a fresh session -> **the image is HELD** (owner's rule). Loop 5 first
+  item: F55 (klog micfresh phases a / k / s). Chgsafe: r2l failed-read audit = 1 gap G1 (next build, not a blocker).
+- 20:18 queue 0190 pushed (iceland-linux 2afea47); r2m postsession done; the Fable agents resumed.

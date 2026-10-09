@@ -1,4 +1,4 @@
-> **RESUME HERE (3 Oct 2026 ~13:00): read `RESUME-2026-10-03-1300.md` first, then spin the planner with `PLANNER-BRIEF-2026-10-03.md`** - loop 3 (q86 + P1 0.20) in progress, kit 116 results in `~/mainline/build/an/autosave`, then B run 118 -> r2j -> queue 0189; on resume recall the bypass charging agent to implement the feature.
+> **RESUME HERE (3 Oct 2026, latest 17:16): read `RESUME-2026-10-03-1300.md` (last section "UPDATE 17:16 - IMAGE HELD") first** - loop 3 (q86 + P1 0.20) in progress, kit 116 results in `~/mainline/build/an/autosave`, then B run 118 -> r2j -> queue 0189; on resume recall the bypass charging agent to implement the feature.
 
 # OnePlus Pad 4 mainline Linux - hand-over (2 Oct 2026, about 21:00; state table and workflows updated about 23:30)
 
@@ -13,20 +13,14 @@ hardware, boot and partitions, build-your-own, porting, history, install review)
 ## 1. What the owner has ordered (in force)
 
 Earlier orders (still in force; full text in the 10:00 version of this file in git history and in WORKLOG):
-"Test and debug ... until completed and totally green, update constantly the feature matrix and a work log";
-"continue till all workflows are completed and green"; "once all working flows are green, update accordingly the
-project knowledge and make sure the repos are updated"; keep iterating without asking for confirmation where the
-owner said so (quick wins, telemetry, NPU cooling).
+"Test and debug ... until completed and totally green, update constantly the feature matrix and a work log"; keep iterating without asking for confirmation where the owner said so (quick wins, telemetry, NPU cooling).
 
 Orders of 2 Oct afternoon / evening (verbatim):
 - "update feature matrix with everything commited" (several times: after every proven result, rebuild + publish).
 - "add another workflow to list all hardware that has no drivers or not working on the tablet" (done: wf/hwinv).
 - "start combined workflows for items from 1 till 9, keep iterating without asking for my confirmation" (done:
   quick wins, queued 0125-0138).
-- "proceed with 1 and 3" (UAS in the queue configs; the USB-C upstream fixes): done.
 - "check all errors in kmsg during booting and put a plan to resolve": done, `docs/BOOT-LOG-PLAN.md`.
-- "no dual boot for now but prepare a plan for it with the best safety precautions" -> the install stays
-  Fedora-only; the install agent writes `wf/install/DUALBOOT-PLAN.md` (plan only).
 - "also fix pcie timeout and device tree gaps" + "spin a different agent specifically for pcie timeout, device
   tree gaps and bypass charging" -> the "hwfix" agent (wf/bootfix + wf/bypass).
 - "yes lets test" = the write-2 probe FIRST (U-Boot into boot_b while Android's data is intact; undo =
