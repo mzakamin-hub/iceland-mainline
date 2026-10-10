@@ -4,7 +4,7 @@
 # No firmware and no binaries: configuration files and small scripts only.
 
 Name:           iceland-device
-Version:        0.23
+Version:        0.25
 Release:        1%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
@@ -136,6 +136,8 @@ Source119:      zz_iceland-device.gschema.override
 # the processed microphone (owner, 9 Oct 2026): PipeWire's echo-cancel with the WebRTC backend (pipewire-libs ships
 # aec/libspa-aec-webrtc.so); fail-safe: a module that does not load leaves the raw UCM source the default
 Source120:      60-iceland-mic-processing.conf
+# update policy (0.24): read-only list of the upgrades offered, held back by the hold file and skipped by the resolver
+Source121:      iceland-update-check
 
 Requires:       kernel-iceland
 Requires:       bluez
@@ -351,6 +353,7 @@ install -Dm0644 %{SOURCE117} %{buildroot}/usr/share/gnome-shell/extensions/icela
 install -Dm0644 %{SOURCE118} %{buildroot}/usr/share/gnome-shell/extensions/iceland-bypass@oneplus-pad4/metadata.json
 install -Dm0644 %{SOURCE119} %{buildroot}/usr/share/glib-2.0/schemas/zz_iceland-device.gschema.override
 install -Dm0644 %{SOURCE120} %{buildroot}/usr/share/pipewire/pipewire.conf.d/60-iceland-mic-processing.conf
+install -Dm0755 %{SOURCE121} %{buildroot}/usr/bin/iceland-update-check
 install -d %{buildroot}/var/lib/iceland/trial
 
 %posttrans
@@ -468,6 +471,7 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 %config(noreplace) /etc/iceland/refresh.conf
 %config(noreplace) /etc/iceland/battery-guard.conf
 /usr/bin/iceland-npu
+/usr/bin/iceland-update-check
 /usr/lib/systemd/system/iceland-npu-off.service
 /usr/libexec/iceland/iceland-wifi-country
 /usr/lib/systemd/system/iceland-wifi-country.service
@@ -560,6 +564,27 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/pipewire/pipewire.conf.d/60-iceland-mic-processing.conf
 
 %changelog
+* Sat Oct 10 2026 mzak <mzak.amin@gmail.com> - 0.25-1
+- microphone: the processed source can be turned off with a PipeWire drop-in: the echo-cancel module of
+  60-iceland-mic-processing.conf now carries condition = [ { iceland.mic-processing = !false } ], so a file with
+  context.properties = { iceland.mic-processing = false } in /etc/pipewire/pipewire.conf.d/ (every account) or
+  ~/.config/pipewire/pipewire.conf.d/ (one account) skips it after a PipeWire restart; without such a file nothing
+  changes. The header's earlier advice (a same-name copy with an empty context.modules) was wrong: PipeWire loads
+  every drop-in of all three directories and appends their module lists
+
+* Sat Oct 10 2026 mzak <mzak.amin@gmail.com> - 0.24-1
+- update policy: alsa-ucm (Fedora's ALSA UCM data) is held in the three Fedora repositories like libcamera
+  (50-iceland-fedora-hold.repo): the tablet's sound profile includes its shared lib/card-init.conf, lib/ctl-remap.conf
+  and codecs/wcd939x/init.conf, so a Fedora update could change the audio without a rehearsal (or conflict with our
+  UCM files); our UCM now changes only through iceland-device. alsa-ucm requires alsa-lib >= its version: alsa-lib
+  keeps updating
+- update policy: dnf best=False and skip_broken=True (80-iceland-kernel.conf): an upgrade that cannot be resolved
+  with the holds is skipped and the rest of the update goes ahead instead of the whole update failing (dnf,
+  dnf5daemon / GNOME Software). Example: a Fedora PipeWire whose pipewire-plugin-libcamera needs a newer libcamera
+  than the held one keeps the whole PipeWire set (exact-version sub-packages) at the installed version
+- iceland-update-check (new, read-only): lists the upgrades offered now, those held back by the hold file and (as
+  root) those the resolver skips
+
 * Sat Oct 10 2026 mzak <mzak.amin@gmail.com> - 0.23-1
 - battery guard, bypass service, thermal daemon: a sysfs attribute that exists but cannot be read (qcom_battmgr
   answers over pmic_glink; while the ADSP stalls a read fails with -110) is now unknown, never the benign value: an

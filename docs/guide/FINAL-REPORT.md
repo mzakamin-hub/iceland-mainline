@@ -1,5 +1,7 @@
 # OnePlus Pad 4 - mainline Linux + Fedora 44 GNOME: final report of 3 Oct 2026
 
+**Update 10 Oct 2026 (final package):** the image is still HELD. The final install package (q89b-024-b130) is built from the golden of B run 130 (kernel q89b + iceland-device 0.24 + libcamera iceland4), the build the confirmation rehearsal r2w booted (accept 51 / 0 / 0); offline content check 84 PASS / 0 FAIL. Open before the install: the write-2 probe C0, the owner's decisions 1 and 3, Part A step 6 with the AVB proof, the update / rollback rehearsals. See LOOP5-NOTES.md.
+
 **Update 10 Oct 2026 (loop 5):** the image is still HELD. The candidate is kernel q89b (Linux 7.3-rc6, iceland-linux branch iceland-7.3-rc6-q89b) + iceland-device 0.23 + libcamera iceland4; r2v passed the F55 replay for the second time, but the image becomes final only after a clean fresh-boot rehearsal with the fixed checkers, the cable-out idle test and the owner's items. See LOOP5-NOTES.md.
 
 3 Oct 2026, 17:30 (docs workflow). Status of the image: HELD (the fresh-boot test r2m: 3 of 10 mic opens empty, F55). The

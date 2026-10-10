@@ -1,0 +1,37 @@
+#!/bin/bash
+# iceland-update-check (iceland-device 0.24): what Fedora's updates offer and what waits. Read-only: it installs
+# nothing and changes no setting.
+#   1. the upgrades dnf (and GNOME Software) would apply now: dnf5 check-upgrade
+#   2. the upgrades held back by /usr/share/dnf5/repos.override.d/50-iceland-fedora-hold.repo (GRUB, shim, firmware,
+#      the sensor programs, libcamera, alsa-ucm): check-upgrade again with the three Fedora repositories' excludes
+#      disabled (--setopt=disable_excludes=...), minus list 1. They come through the local repository after a RAM
+#      rehearsal.
+#   3. as root only: the upgrades the resolver skips (best=False / skip_broken=True in
+#      /usr/share/dnf5/libdnf.conf.d/80-iceland-kernel.conf), e.g. a PipeWire built against a newer libcamera:
+#      "dnf5 upgrade --assumeno" (answers no, nothing is installed), its "Skipping" lines.
+# The main excludes (Fedora's kernels, boot loaders) stay in force in every list: they are never upgrades here.
+# Exit 0; 1 when dnf5 could not read the repositories.
+set -u
+HOLD_REPOS="fedora,updates,updates-testing"
+DNF=${ICELAND_DNF:-dnf5}
+list() {   # name.arch version, one per line, sorted
+	local out rc
+	out=$("$DNF" -q check-upgrade "$@" 2>/dev/null); rc=$?
+	[ "$rc" = 0 ] || [ "$rc" = 100 ] || return 1
+	printf '%s\n' "$out" | awk 'NF >= 2 && $1 ~ /\.(aarch64|noarch|x86_64|i686|src)$/ { print $1, $2 }' | sort -u
+}
+show() { if [ -n "$1" ]; then printf '%s\n' "$1" | sed 's/^/  /'; else echo "  (none)"; fi; }
+now=$(list) || { echo "iceland-update-check: dnf5 check-upgrade failed (no network or repositories?)" >&2; exit 1; }
+all=$(list --setopt=disable_excludes="$HOLD_REPOS") || all=$now
+nown=$(printf '%s\n' "$now" | awk 'NF { print $1 }' | sort -u)
+held=$(printf '%s\n' "$all" | awk 'NF' | while read -r na v; do
+	printf '%s\n' "$nown" | grep -qxF "$na" || echo "$na $v"; done)
+echo "== upgrades offered now (dnf upgrade / GNOME Software):"; show "$now"
+echo "== held back by 50-iceland-fedora-hold.repo (come through the local repository after a RAM rehearsal):"; show "$held"
+if [ "$(id -u)" = 0 ]; then
+	sk=$("$DNF" upgrade --assumeno 2>&1 | awk '/^Skipping/ { on = 1; print; next } on && /^[ \t]/ { print; next } { on = 0 }')
+	echo "== skipped by the resolver (cannot be installed with the holds; the rest updates):"; show "$sk"
+else
+	echo "== (the resolver's skipped upgrades: run as root - sudo iceland-update-check)"
+fi
+exit 0

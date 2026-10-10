@@ -17,11 +17,23 @@
 #   camera start). Its libcamera and libcamera-ipa are installed with this package (the install image) and lie in
 #   the local repository: with Fedora's held nothing else updates libcamera. Fedora 44 stays on 0.7.1; a newer
 #   Fedora libcamera comes as a rebuild through the local repository after a RAM rehearsal.
+#   pipewire-plugin-libcamera links libcamera by soname: a Fedora PipeWire built against a newer libcamera cannot
+#   be installed while libcamera is held; that upgrade (the whole PipeWire set: its sub-packages require
+#   pipewire-libs of the exact version-release) is then skipped, not fatal (best=False, skip_broken=True in
+#   /usr/share/dnf5/libdnf.conf.d/80-iceland-kernel.conf; iceland-update-check lists what waits).
+# - alsa-ucm (0.24): the ALSA UCM data (Fedora's alsa-lib.spec, sub-package alsa-ucm = alsa-ucm-conf). Our sound
+#   profile (/usr/share/alsa/ucm2/Qualcomm/kaanapali/OnePlus-Pad4/ + conf.d/kaanapali/oneplus-OnePlusPad4.conf)
+#   includes three of its shared files - lib/card-init.conf, lib/ctl-remap.conf, codecs/wcd939x/init.conf (the
+#   WCD9395 microphone codec's init) - so a Fedora alsa-ucm update can change the tablet's audio without a rehearsal,
+#   and an alsa-ucm that ships the same paths would conflict with this package's files. Held, our UCM and the files
+#   it includes change only through iceland-device (or a rehearsed alsa-ucm in the local repository). The exact
+#   name on purpose: alsa-ucm-utils (alsa-utils.spec: the alsaucm tool) is not UCM data. alsa-ucm requires only
+#   alsa-lib >= its own version, so alsa-lib keeps updating.
 [fedora]
-excludepkgs=grub2-*,shim-*,linux-firmware*,*-firmware,iio-sensor-proxy*,hexagonrpc*,libssc*,libcamera*
+excludepkgs=grub2-*,shim-*,linux-firmware*,*-firmware,iio-sensor-proxy*,hexagonrpc*,libssc*,libcamera*,alsa-ucm
 
 [updates]
-excludepkgs=grub2-*,shim-*,linux-firmware*,*-firmware,iio-sensor-proxy*,hexagonrpc*,libssc*,libcamera*
+excludepkgs=grub2-*,shim-*,linux-firmware*,*-firmware,iio-sensor-proxy*,hexagonrpc*,libssc*,libcamera*,alsa-ucm
 
 [updates-testing]
-excludepkgs=grub2-*,shim-*,linux-firmware*,*-firmware,iio-sensor-proxy*,hexagonrpc*,libssc*,libcamera*
+excludepkgs=grub2-*,shim-*,linux-firmware*,*-firmware,iio-sensor-proxy*,hexagonrpc*,libssc*,libcamera*,alsa-ucm

@@ -89,3 +89,99 @@ display with q89b's DT fix (rear 0 / front 0). Closed.
    56 bytes, + 0002-0005 the RFC with ALIGN 4); not built (q89c, owner's call); the upstream reply draft is not sent.
 8. Owner items: F18 headset plug, the cable-out idle test, wall-charger checks W1-W8, the 60 / 61 C skin trip under real
    load. Fedora 45 (release 20 Oct 2026): rebuild and rehearse before lifting the release pin.
+
+## Update 10 Oct 2026 (commit ab): r2w, the final install package, iceland-device 0.24 / 0.25
+
+Status of the image: **still HELD** (candidate; the final install package is built, but nothing is installed and the
+install-day steps below are open). The owner runs every write.
+
+### iceland-device 0.24 and 0.25
+
+| Version | Tarball sha256 | What | Status |
+|---|---|---|---|
+| 0.24 | 63fdd58a | 0.23 + `alsa-ucm` held in fedora / updates / updates-testing (our UCM includes its shared files); `80-iceland-kernel.conf` `best=False` + `skip_broken=True` (a held libcamera makes dnf skip the pipewire-plugin-libcamera update instead of failing the transaction: the plug-in pins pipewire-libs = V-R); `/usr/bin/iceland-update-check` (read-only: offered / held back / skipped); tests/test_update_policy.py (37 checks). README tests 29 / 0, chgsafe 1049 / 0 | **in the image**, rehearsed in r2w |
+| 0.25 | 1bbea0c6 | 0.24 + the processed-microphone off switch: the module carries `condition = [ { iceland.mic-processing = !false } ]` (PipeWire 1.6.9 conf.c), so a drop-in `context.properties = { iceland.mic-processing = false }` in `/etc/pipewire/pipewire.conf.d/` (all accounts) or `~/.config/pipewire/pipewire.conf.d/` (one account) turns it off; the drop-in header's wrong "empty context.modules" advice corrected. README 29 / 0, chgsafe 1052 / 0 | **NOT rehearsed**; meant to ship after the install as the first update through `iceland-local` (this also exercises update U1) |
+
+`packaging/iceland-device` of this repository is now the 0.25 tarball's content; the image carries 0.24.
+
+### B run 130 and the confirmation rehearsal r2w (q89b + 0.24 + libcamera iceland4)
+
+- B run 130: 33 PASS, 0 FAIL; golden committed (175 086 overlay blocks).
+- r2w, session clean (orderly end, PSHOLD / SYSOK, postsession rc 0):
+  - INSTALL-ACCEPT 51 PASS, 0 FAIL, 0 CHECK; F55 replay PASS (the third clean replay in a row: 0 q6apm timeouts,
+    0 Format block, 0 battmgr -110); readfail 69 / 0; Bluetooth works (3 devices; -84 once per setup).
+  - Owner echo: processed -31.5 / raw -42.1 dBFS rms (processed default at boot); micgain v PASS, e PASS (ERLE
+    20.8 dB, 0 clips / dropouts, CPU 7.4 %), f PASS (fail-safe: backend missing -> raw default, 0 processed nodes).
+  - Update policy (part upd): all PASS - best=0, skip_broken=1, alsa-ucm and libcamera* held, the helper installed,
+    the UCM files owned only by iceland-device.
+  - Cameras Rotation 0 / 0.
+  - Checker level: micgain t "FAIL" with the delta 2.03 dB inside +-0.75 - another condition fails (the tone is
+    about 1 dB above the noise floor: noise-limited) -> checker fix; part a CHECK: processed louder, but its spread
+    14.1 dB vs raw 6.2 dB (the AGC ramps up on loud speech) -> review the AGC settings.
+
+### The final install package (PC, private)
+
+Built 10 Oct 2026 07:25-07:32 with `wf/final/tools/run-final.sh q89b-024-b130 130 FINAL` from the B run 130 golden
+(body sha256 6e54a84d99a01abf...). The package stays in WSL (`~/mainline/build/wf/final/q89b-024-b130/`): the image
+holds this tablet's firmware, its stock Bluetooth address and its thermal model, so the images are never committed.
+Its `MANIFEST.json`, `VERIFY.txt` and `SHA256SUMS` are in `relay/results/pc-016-020/wf/final/q89b-024-b130/`, the
+tooling in `.../wf/final/tools/`, the owner's guide in `.../wf/final/GUIDE.md`, the reviewed flash script in
+`.../wf/final/flashguide-r2/` (63 PASS / 0 FAIL with fake fastboot / adb).
+
+| File | Bytes | sha256 |
+|---|---|---|
+| `fedora-iceland.sparse.img` (Android sparse v1, unpacks to 237 159 641 088 = userdata) | 4 865 088 816 | 44e7853423414294268f40b3f283a09a921b01bae990711a12f5f5f014b686b2 |
+| `u-boot-iceland.img` (install build, no AVB footer; RAM boot only) | 536 576 | fb2bed8d947e3084d34d0934bef448d506f34412b5b16ed4e3c332a16fe95318 |
+| `MANIFEST.json` (status FINAL) | 8 189 | 0c52f3b13b19f6bacdc2d0b2a5d68f500dea514bc2cce157e621f68c1e9a52b2 |
+| `VERIFY.txt` | 8 910 | 1328665b41eaabe9908639004cae2ead240a6a595f69f733d285c99585d9acec |
+
+Offline content check (`verify-image.sh`, read-only): **84 PASS, 0 FAIL** - the 80 checks of the B129 dry run
+(only kernel-iceland, every exclusion file, the fwupd guard, node.linger, UCM 98, SELinux enforcing; no rehearsal
+arguments, machine-id uninitialized, no ssh keys / Wi-Fi networks / pairings / user account, no network name on the
+raw disk) + four for 0.24 (alsa-ucm in all three hold sections, best=False, skip_broken=True,
+`/usr/bin/iceland-update-check` owned by iceland-device). iceland-device 0.24: all 95 packaged files equal the
+package's digests. MANIFEST evidence: B run 130 `B-RUN: 33 PASS, 0 FAIL`, r2w `INSTALL-ACCEPT: 51 PASS, 0 FAIL, 0 CHECK`;
+the kernel rpm file's header equals the installed one. The B129 dry run (NOT FINAL) was deleted after this package
+verified.
+
+### The update policy (installed system, iceland-device 0.24)
+
+- Fedora 44 updates as normal (GNOME Software / `dnf upgrade`); before every transaction a read-only btrfs snapshot of
+  the root (3 kept) with a GRUB "Roll back" entry each; `/home`, `/var`, `/boot` are not rolled back.
+- Held from Fedora: all Fedora kernels and their pieces, dracut rescue / generic, akmods / dkms, fwupd's capsule
+  parts, bootupd, systemd-boot, unsigned shim, U-Boot images (`80-iceland-kernel.conf`, global); from the Fedora
+  repositories `grub2-*`, `shim-*`, `linux-firmware*`, `*-firmware`, `libcamera*`, `iio-sensor-proxy*`, `hexagonrpc*`,
+  `libssc*` and (0.24) `alsa-ucm` (`50-iceland-fedora-hold.repo`). Protected: iceland-device, grub2-efi-aa64, shim-aa64.
+- dnf5 `best=False`, `skip_broken=True` (0.24): a package that cannot update because of a hold is skipped, not a
+  failed transaction; `iceland-update-check` shows what is offered, held back and skipped.
+- Release pinned to 44 (`51-iceland-fedora-44-pin.repo`), the system upgrade blocked by polkit; Fedora 45 only after
+  its own rehearsal (release target 20 Oct 2026).
+- fwupd stays, with the UEFI capsule, SCSI and UFS plugins disabled.
+- Kernels and the device package come only from the tablet's local repository `iceland-local`, filled by
+  `iceland-repo-sync` (every rpm checked against the repository's SHA256SUMS); 3 kernels kept, a new kernel becomes
+  the default only after it started once. The first such update is meant to be iceland-device 0.25.
+
+### Kernel queue
+
+iceland-linux branch `iceland-7.3-rc6-q89b`: follow-up commit tagged `q89b-1` - patches 0195-0199 (PSCI OSI) now carry
+their upstream author (Ulf Hansson <ulf.hansson@oss.qualcomm.com>, from 81f1099186fd, 9e8dff8e0978, 2224d686e788,
+6d3080bfe007, 65705b18162b) instead of "From: mzak"; contents equal upstream (patch-id), the trailers unchanged. The
+applied tree is unchanged (TREE_AFTER_0002_iceland f1c7fa5d8607); tag `q89b` stays on the tested commit.
+
+### Open items (after r2w)
+
+1. **F54 camera cycles in r2w**: cycles 1-11 "stream no", 12-40 stream (29 / 40; r2v 40 / 40, r2u 39 / 40), 0 fatal:
+   the first camera starts right after the orientation test did not stream for about 11 cycles -> investigate (camera
+   start right after camrot phase 2 / the sensor hub?).
+2. **f18-wcd**: "wcd939x ASoC error (-16)" at register 0x3125, 13 lines at 15 s (old F18 class; r2u 2, r2v 0).
+3. **SoundWire** "clsh detected" 4 / wcd9390 parity 2 on the rc6 base (audio works).
+4. **AGC spread** of the processed microphone (14.1 dB vs raw 6.2 dB) and the noise-limited micgain t checker.
+5. **Install-day decisions and steps**: C0 (the write-2 probe) has never run; owner decisions 1 (AVB footer on the
+   install U-Boot) and 3 (`boot_b`; `recovery_b` is not scripted); Part A step 6 and the AVB proof redone on the day.
+6. **Update / rollback rehearsals** (U1-U3, R1b, R2b, R3, R4) not run for this kernel / package set; the return to
+   stock (`flash super`, `-w`) only dry-run.
+7. **Flash-script gaps** (flashguide-r2, not fixed): Write1 accepts `recovery_b` but Write2 refuses it; a 3800 mV
+   battery reading stands in for "above 60 %"; the image is hashed and then re-read by path over `\\wsl.localhost`, so
+   no build may run during the install.
+8. PSCI OSI deep idle not judged (USB 2 us QoS; needs a cable-out run); the kernel rpm was rebuilt with the same NVR
+   (bump the release next time); Bluetooth -84 cosmetic (bt84 candidates not queued); the corrected F55 RFC unbuilt.

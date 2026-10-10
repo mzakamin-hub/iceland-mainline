@@ -5,8 +5,8 @@ binaries. `./build-rpm.sh OUT` builds `iceland-device-*.noarch.rpm` (rpmbuild; t
 
 | File | Installed as | Why |
 |---|---|---|
-| `80-iceland-kernel.conf` | `/usr/share/dnf5/libdnf.conf.d/` | dnf never installs Fedora's kernels (no Pad 4 support), a rescue initramfs, modules for other kernels (akmods / dkms), fwupd's EFI parts or other boot loaders; iceland-device, GRUB and shim cannot be removed; kernel-iceland keeps three versions |
-| `50-iceland-fedora-hold.repo` | `/usr/share/dnf5/repos.override.d/` | Fedora's updates do not replace GRUB, shim, firmware, the sensor programs or libcamera (ours come from the local repository after a RAM rehearsal). Decision (generator `iceland-device-apps.py`: `HOLD_BOOT_FIRMWARE`); on a tablet an empty file of the same name in `/etc/dnf/repos.override.d/` masks it |
+| `80-iceland-kernel.conf` | `/usr/share/dnf5/libdnf.conf.d/` | dnf never installs Fedora's kernels (no Pad 4 support), a rescue initramfs, modules for other kernels (akmods / dkms), fwupd's EFI parts or other boot loaders; iceland-device, GRUB and shim cannot be removed; kernel-iceland keeps three versions; an upgrade that cannot be resolved with the holds is skipped, the rest updates (`best=False`, `skip_broken=True`; also for GNOME Software through dnf5daemon) |
+| `50-iceland-fedora-hold.repo` | `/usr/share/dnf5/repos.override.d/` | Fedora's updates do not replace GRUB, shim, firmware, the sensor programs, libcamera or alsa-ucm (the UCM data our sound profile includes; ours come from the local repository after a RAM rehearsal). Decision (generator `iceland-device-apps.py`: `HOLD_BOOT_FIRMWARE`); on a tablet an empty file of the same name in `/etc/dnf/repos.override.d/` masks it |
 | `51-iceland-fedora-44-pin.repo` | `/usr/share/dnf5/repos.override.d/` | Fedora's repositories stay on release 44 until a new release has passed the RAM rehearsal (GNOME Software upgrades through dnf5daemon, which the polkit rule cannot stop). Decision (`PIN_RELEASE`); an empty file of the same name in `/etc/dnf/repos.override.d/` masks it |
 | `sleep-iceland.conf` | `/usr/lib/systemd/sleep.conf.d/60-iceland.conf` | s2idle, the SoC's only sleep state |
 | `logind-iceland.conf` | `/usr/lib/systemd/logind.conf.d/60-iceland.conf` | the cover: suspend on battery (opening it wakes), with a charger in lock the session and turn the screen off but stay awake (stock keeps its kernel awake while charging), nothing with an external display |
@@ -32,6 +32,7 @@ binaries. `./build-rpm.sh OUT` builds `iceland-device-*.noarch.rpm` (rpmbuild; t
 | `upower-iceland.conf` | `/usr/lib/systemd/system/upower.service.d/iceland.conf` | UPower starts after udev's first device scan: it reads the charge-limit thresholds only once |
 | `iceland-ssc-resume.service` | systemd unit | hexagonrpcd's unit stops for a suspend; this starts it again after the resume |
 | `iceland-npu`, `iceland-npu-off.service` | `/usr/bin/`, systemd unit | `iceland-npu on|off|status` for the CDSP (NPU). The kernel starts the CDSP at boot and it idles in its own sleep; a stopped CDSP leaves its CX / DDR votes behind and the SoC no longer reaches CX collapse in suspend until it runs again (deep-sleep runs 66 / 67), so the boot-time stop is opt-in: the unit acts only when `/etc/iceland/npu-off-at-boot` exists |
+| `iceland-update-check` | `/usr/bin/` | read-only: the upgrades dnf / GNOME Software would apply now, those the hold file keeps back and (as root) those the resolver skips (`dnf5 check-upgrade`, with the three Fedora repositories' excludes disabled, and `dnf5 upgrade --assumeno`) |
 | `59-iceland-storage-ro.rules`, `iceland-storage-ro` | `/usr/lib/udev/rules.d/`, `/usr/libexec/iceland/` | every partition of the internal storage read-only (kernel flag), hidden from the desktop; userdata (the Fedora disk) is the only exception |
 | `60-block-scheduler.rules`, `61-iceland-ufs-scheduler.rules`, `iceland-ufs-scheduler` | `/etc/udev/rules.d/`, `/usr/lib/udev/rules.d/`, `/usr/libexec/iceland/` | Fedora's bfq scheduler for the internal UFS LUNs, set one LUN at a time: they share one blk-mq tag set and the kernel refuses parallel changes (-EBUSY); the /etc copy is Fedora's rule without the UFS LUNs |
 | `iceland-carrier`, `module-setup.sh` (dracut module `90iceland`) | `/usr/lib/dracut/modules.d/90iceland/` | the initramfs finds the Fedora disk inside userdata (label `fedora`), sets the other partitions read-only before anything mounts, opens the disk as a loop device; rollback and rehearsal only when the boot entry asks |
@@ -109,6 +110,7 @@ python3 tests/test_guard_bypass_safety.py files/iceland-battery-guard
 python3 tests/test_guard_bypass_cut.py files/iceland-battery-guard
 python3 tests/test_readfail.py files/iceland-battery-guard files/iceland-bypassd files/iceland-thermal
 python3 tests/test_mic_processing.py files/60-iceland-mic-processing.conf iceland-device.spec ../../audio/ucm/OnePlus-Pad4/HiFi.conf
+python3 tests/test_update_policy.py files iceland-device.spec
 ```
 
 Still to add as the hardware work lands: ALSA UCM with volume caps (no speaker playback before TFA9865 protection),
