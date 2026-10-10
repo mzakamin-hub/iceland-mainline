@@ -185,3 +185,78 @@ applied tree is unchanged (TREE_AFTER_0002_iceland f1c7fa5d8607); tag `q89b` sta
    no build may run during the install.
 8. PSCI OSI deep idle not judged (USB 2 us QoS; needs a cable-out run); the kernel rpm was rebuilt with the same NVR
    (bump the release next time); Bluetooth -84 cosmetic (bt84 candidates not queued); the corrected F55 RFC unbuilt.
+
+## Update 10 Oct 2026 afternoon (commit ac): the install U-Boot, C0 #1-#4, test candidate q89c-tb, kit 132
+
+### The install U-Boot reset loop and its fix (iceland-u-boot 32c967f, patches 0008-0010)
+
+- **C0 #1** (12:4x, the final package's install U-Boot fb2bed8d, AVB-footered c39a24e6, in boot_b): FAIL. After one
+  `fastboot reboot` the tablet showed the unlocked warning and U-Boot's text and restarted about 7 times by itself;
+  ABL counted slot b from 7 down to 0 and marked it unbootable. UndoBootB at once (original boot_b 254ad805): Android
+  back with its data, flags exactly as before. Lesson: the RAM boot of the exact install U-Boot (guide step C0.0) had
+  been skipped - never skip it.
+- **Cause**: the install U-Boot could leave by itself (a power off with the cable in powers the tablet on again; a
+  reset is a new boot); each restart was a counted boot of slot b. **0008**: never reset or power off - a HOLD loop
+  that waits 60 s and starts fastboot again forever, `CONFIG_PANIC_HANG`, one `scsi scan`, no `efidebug` usage text.
+  RAM tests: the old U-Boot fb2bed8d and the fixed one (2bfba5f2) both PASS (no reset from ABL's fastboot).
+- **C0 #2** (13:55, 0008, footered 8729065f): U-Boot runs from boot_b and HOLDS (no loop), but no USB: "dwc3 ...
+  Reset Timed Out / failed to initialize core" - in a normal boot ABL does not start USB (it does only in its own
+  fastboot, where every RAM test had started). **0009**: U-Boot powers USB itself as Linux does - TCSR USB2 clkref,
+  PHY supplies L4F / L1D over RPMh, the PMIH0108 eUSB2 repeater on the second SPMI bus (L15B / L5B), USB30 master
+  200 MHz. RAM T-a v1 (usbcold diagnostic) FAILED only on its own diagnostic step (both reset lines left asserted);
+  T-a v2 PASS (fastboot from the cold state after 4 s), T-b v2 PASS (install build).
+- **C0 #3** (16:17, 0009, footered cb1b707e): U-Boot fastboot enumerated on the PC 7 s after a normal boot from boot_b.
+  Leaving it with the owner's keys cost 5 tries (retry 7 -> 2). **0010**: `fastboot reboot-bootloader` writes the
+  reboot reason 2 into PMK8850 SDAM 2 byte 0x48 bits 1-7 (the cell of Linux's nvmem-reboot-mode and of Android's
+  `adb reboot bootloader`), reads it back, resets only after the OKAY. RAM T-d PASS (ABL fastboot after 15 s, flags
+  unchanged).
+- **C0 #4** (17:41, v3 = 0008-0010, footered 4955ee98): PASS - boot_b -> U-Boot fastboot after 7 s (console clean)
+  -> `fastboot reboot-bootloader` -> ABL fastboot after 14 s with no key press; slot b retry 7 -> 6 (only the U-Boot
+  boot counted); UndoBootB -> LineageOS on slot b. Every C0 wrote only boot_b and restored it the same day.
+- v3 images (sha256): install 979b40767afba37367354cfe047994acff10b21831f7664933ee30c7dc89f94c, rehearsal
+  8a1b011cea5d16a82ca96eb3964b222300f8509f6bbd7962f073f6d938c3c096, usbcold (diagnostic, RAM only)
+  778e979cbdbb51293b5b6a316e79acd1c7e564563a7eb4fe3f9c7a32a53e6dc8; build checks 189 / 0. The images stay on the PC;
+  the queue, tooling and probes are in iceland-u-boot.
+- The C0 run scripts are kept as examples under relay/results/pc-016-020/wf/final/flashguide-r2/examples/
+  (`c0-loop.ps1` for C0 #3, `c0-v3.ps1` for C0 #4; no webcam). flash-iceland.ps1 now: Write1 refuses a decision 3
+  other than boot_b (recovery_b is not scripted), and the G1 backup check reads `SHA256SUMS-supplement.txt` (two GPT
+  partitions are named last_parti; the LUN-specific copies `<name>-<lun><index>.img` are preferred). Tests 63 / 0.
+
+### Test candidate q89c-tb + iceland-device 0.26 (NOT the shipping build)
+
+- Kernel q89c-tb = q89b + 0255-0265 from tb323fu-linux (Lenovo Legion Tab Gen 5, same SoC; author Joonhoe Kim):
+  iceland-linux branch `iceland-7.3-rc6-q89c-tb` (d2e2078), tag `q89c-tb`. tb 0036 dropped (our f_ncm fix
+  covers it), tb 0098 ported. Six of the patches carry no Signed-off-by of their author: test use only.
+- iceland-device 0.26 (4d9512f4) = 0.25 + sensor stop across suspend (system-sleep hook iceland-sensors), USB / PCIe
+  wakeup off (72-iceland-nowake.rules), systemd watchdog 30 s, dma-heap rule, GPU floor 160 MHz (= the lowest OPP,
+  no change). A CANDIDATE: packaging/iceland-device stays 0.25; 0.26 is in relay/results/pc-016-020/wf/tb5kit/cand026
+  with p1-026.py, mkp1manifest-026.py and manifest-p1-0.26.json (README tests 30 / 30, charging-safety 1093 / 0).
+- **B run 131**: golden committed (B130 golden backed up first).
+- **r2x** (rehearsal, 15:38): ABORTED by a tablet reset at 15:58: the test suspended the tablet (sensleep 30 s
+  s2idle) with its root on NBD; it never resumed, bootloader log "Reset by PSHOLD, Hard Reset". Same signature as
+  R2-final: **house rule - no suspend in a rehearsal session** (the r2y test set refuses suspend, pm_test and
+  the owner windows on a rehearsal boot, `iceland.rehearsal=`). Not the kernel (no q89c-tb patch touches audio or the NBD path; config,
+  DTB and command line = q89b), not 0.26. The audio DSP stall seen before it (APM CMD timeout after the mic part
+  restarted PipeWire) is the old F55 family. Before the abort: btaddr same x3, qrtr x2, dp-rpm, wifi-refill, dmaheap,
+  gpu-opp PASS. Parser fixes for gpu-up, the session user and wifi-scan are in the r2y set.
+- **Kit 132** (RAM root, 17:15): pkg / kernel / wake rules PASS (USB + PCIe wakeup off; charger, cover, power key,
+  RTC armed); pm_test freezer / devices / platform / full PASS (platform: dpu "enc35 timeout" / "frame done timed out"
+  lines); **9 suspends, 9 success, 0 fail**; gdsc 0256 / 0257 PASS; ucsi 0258 PASS; sens-assign PASS; owner windows:
+  cable out PASS (4 s), cable in PASS, cover CHECK (the power key was pressed in the window). ufs 0255 CHECK (no error
+  or hung task under 2.28 M random reads, 317 query rounds and 3 suspends, but no clock-scaling transition). **FAIL
+  sens-boot / sens-hook / sens-resume**: iio-sensor-proxy stuck "activating", no accelerometer after resume.
+  Hardware sleep counter +0 in both measured suspends.
+- **r2y** (rehearsal without suspend): stopped by the owner at 17:26 before results.
+
+### Open items (after commit ac)
+
+1. **Sensors on q89c-tb + 0.26**: iio-sensor-proxy stuck activating, no accelerometer after resume - a q89c-tb patch
+   or the 0.26 sleep hook (not yet known); q89b + 0.24 is not affected.
+2. **ufs 0255 not exercised**: no devfreq transition in kit 132; needs a load that makes the UFS scale.
+3. **Hardware sleep +0** in kit 132's suspends (deep sleep not reached or not counted on the RAM kit).
+4. **Cover wake** retest without a key press (kit 132 window was CHECK).
+5. **Slot marking from Fedora**: after the install, `qbootctl -m` (Fedora package) marks slot b successful; U-Boot
+   writes no GPT. Design only; the install-flow rehearsal with the v3 U-Boot is still to do.
+6. **Watchdog vs suspend**: qcom_wdt stops only in suspend_late, so a device-suspend stall of about 30 s could be
+   bitten by the 0.26 30 s watchdog - check before 0.26 ships.
+7. r2y remainder, the tb323fu "Try" items and the SuperTurtleDev items: the next kit / rehearsal (r2z).
