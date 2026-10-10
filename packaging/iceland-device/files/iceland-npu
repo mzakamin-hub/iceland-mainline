@@ -1,11 +1,15 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Start or stop the CDSP (the Hexagon NSP "NPU") on the OnePlus Pad 4. It is kept off unless something needs it
-# (FastRPC / QNN workloads, relay 012 C), to save power and keep it from blocking deep sleep.
+# Start or stop the CDSP (the Hexagon NSP "NPU") on the OnePlus Pad 4. The kernel starts it at boot when its
+# firmware is present and it then idles in its own sleep state; it is left running. A STOPPED CDSP leaves its CX and
+# DDR votes behind in the always-on processor and the SoC no longer reaches CX collapse in suspend until the CDSP
+# runs again (deep-sleep runs 66 / 67: CX collapse 97 % with it running idle, 0 % after a clean stop, back after a
+# restart). So "off" is for tests, and iceland-npu-off.service only acts when /etc/iceland/npu-off-at-boot exists.
 #   iceland-npu on | off | status
+# ICELAND_RP_ROOT (tests only): the remoteproc class directory, default /sys/class/remoteproc.
 set -eu
 rp=""
-for d in /sys/class/remoteproc/remoteproc*; do
+for d in ${ICELAND_RP_ROOT:-/sys/class/remoteproc}/remoteproc*; do
 	[ -e "$d/firmware" ] || continue
 	case "$(cat "$d/firmware")" in *cdsp*) rp=$d; break ;; esac
 done
@@ -13,7 +17,8 @@ done
 state=$(cat "$rp/state")
 case "${1:-status}" in
 on)	[ "$state" = running ] || echo start > "$rp/state"; echo "CDSP: $(cat "$rp/state")" ;;
-off)	[ "$state" != running ] || echo stop > "$rp/state"; echo "CDSP: $(cat "$rp/state")" ;;
+off)	[ "$state" != running ] || echo stop > "$rp/state"; echo "CDSP: $(cat "$rp/state")"
+	echo "iceland-npu: note - a stopped CDSP keeps the SoC out of CX collapse in suspend until it runs again (iceland-npu on)" >&2 ;;
 status)	echo "CDSP ($(basename "$rp")): $state" ;;
 *)	echo "usage: iceland-npu on|off|status" >&2; exit 2 ;;
 esac

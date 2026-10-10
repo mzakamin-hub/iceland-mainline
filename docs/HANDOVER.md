@@ -175,3 +175,14 @@ lines). The prompts of this session for install round 6, hwfix and docs (in the 
 3. With the owner's go: R1 (section 3), then the hwfix kernel (q79) and its kit, then the write-2 probe preparation
    with the owner.
 4. Log every step in `WORKLOG.md`, keep the matrix and both repositories current.
+
+## Loop 4 -> Loop 5 pointer (9 Oct 2026)
+
+Work continues in `C:\Users\lucne\OnePlusPad4-Loop5` (the loop 5 package: `START-HERE.md`, `RULES.md`, `NEXT-TESTS.md`,
+`STATE-AT-HANDOFF.md`, `WORKLOG.md`). Read that folder first; the sections above describe loop 4 and stay as history.
+
+State at the loop 4 -> loop 5 handoff:
+- The image is HELD, not final: the fresh-boot test r2m gave 3 of 10 empty microphone opens and one q6apm APM timeout (F55).
+- Commit z = iceland-mainline `a8739a6` (the fixed build, status held).
+- Queue 0190 = iceland-linux `2afea47` (kernel q87).
+- Loop 5 item 1 is F55 (klog). No tablet action until the owner connects the tablet and gives the go.

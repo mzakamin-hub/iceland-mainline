@@ -1,0 +1,66 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# dracut module "iceland" (initramfs): find the carrier of the Fedora disk and attach it as a partitioned loop
+# device, so that udev finds root=UUID=... on loop0p3 like on any disk.
+#   carrier = the partition labelled "fedora" if there is one (dual boot, U-Boot patch 0003 uses the same rule),
+#             else the partition labelled "userdata" (UFS LUN 0); iceland.carrier=LABEL overrides;
+#             in a rehearsal (iceland.rehearsal= on the command line) the network disk from iceland-rehearsal.
+# It only reads the carrier here (the GPT check); the loop device is what Fedora then reads and writes.
+# ICELAND_ROOT / ICELAND_CMDLINE: test hooks for the PC unit tests (empty on the tablet).
+R=${ICELAND_ROOT:-}
+cmdline=${ICELAND_CMDLINE:-$(cat /proc/cmdline)}
+log() { echo "iceland-carrier: $*" > "$R/dev/kmsg" 2>/dev/null; echo "iceland-carrier: $*"; }
+getarg() { local a; for a in $cmdline; do case $a in "$1="*) echo "${a#*=}"; return 0 ;; "$1") echo 1; return 0 ;; esac; done; return 1; }
+reboot_now() { log "rebooting (rehearsal safety)"; sleep 2; [ -n "$R" ] && exit 3; echo b > /proc/sysrq-trigger; }
+# Every UFS block device read-only before anything else opens one (59-iceland-storage-ro.rules does the same once
+# udev has processed the devices; this covers the time before it): in a rehearsal ALL of them - the Fedora disk is
+# on the PC -, otherwise all but the carrier partition and its LUN (a read-only LUN would make the carrier read-only).
+ufs_ro() { # ufs_ro [CARRIER_NAME]
+	local b n c=0
+	for b in "$R"/sys/class/block/sd*; do
+		[ -e "$b" ] || continue
+		case "$(readlink -f "$b")" in */1d84000.ufs/*) ;; *) continue ;; esac
+		n=${b##*/}
+		if [ -n "${1:-}" ] && { [ "$n" = "$1" ] || [ "$n" = "${1%%[0-9]*}" ]; }; then continue; fi
+		if [ -n "$R" ]; then echo "$n" >> "$R/setro.log"; else blockdev --setro "/dev/$n" 2>/dev/null; fi
+		c=$((c + 1))
+	done
+	log "$c internal UFS block devices set read-only${1:+ (writable: $1 and its LUN)}"
+}
+
+carrier=""
+if reh=$(getarg iceland.rehearsal); then
+	ufs_ro
+	carrier=$("$R/usr/libexec/iceland/iceland-rehearsal" "$reh") || reboot_now
+	case "$carrier" in /dev/nbd*) ;; *) log "rehearsal carrier $carrier is not the network disk: refused"; reboot_now ;; esac
+else
+	label=$(getarg iceland.carrier) || label=""
+	for i in $(seq 1 150); do
+		if [ -z "$label" ]; then
+			[ -e "$R/dev/disk/by-partlabel/fedora" ] && label=fedora
+			[ -e "$R/dev/disk/by-partlabel/userdata" ] && [ -z "$label" ] && label=userdata
+		fi
+		[ -n "$label" ] && [ -e "$R/dev/disk/by-partlabel/$label" ] && break
+		sleep 0.2
+	done
+	[ -n "$label" ] || { log "no partition labelled fedora or userdata"; exit 1; }
+	carrier=$(readlink -f "$R/dev/disk/by-partlabel/$label")   # ICELAND_INSTALL_ONLY (never in a rehearsal)
+	log "carrier: partition $label = $carrier"
+	ufs_ro "${carrier##*/}"
+fi
+[ -b "$carrier" ] || [ -n "$R" -a -f "$carrier" ] || { log "carrier $carrier is not a block device"; exit 1; }
+sig=$(dd if="$carrier" bs=4096 skip=1 count=1 2>/dev/null | head -c 8)
+if [ "$sig" != "EFI PART" ]; then
+	log "$carrier holds no Fedora disk (no GPT header in block 1 of 4096 bytes); nothing attached"
+	exit 1
+fi
+for b in "$R"/sys/block/loop*/loop/backing_file; do
+	[ -e "$b" ] || continue
+	if [ "$(cat "$b")" = "$carrier" ]; then
+		l=${b%/loop/backing_file}; log "already attached: ${l##*/}"; exit 0
+	fi
+done
+loop=$(losetup --find --show --partscan --direct-io=on "$carrier") || { log "losetup failed on $carrier"; exit 1; }
+n=${loop##*/}
+log "$carrier -> $loop: block size $(blockdev --getss "$loop" 2>/dev/null), direct I/O $(cat "$R/sys/block/$n/loop/dio" 2>/dev/null), partitions $(ls -d "$R/sys/block/$n/$n"p* 2>/dev/null | wc -l)"
+exit 0

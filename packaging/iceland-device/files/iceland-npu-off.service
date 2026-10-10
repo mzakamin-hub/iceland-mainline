@@ -1,7 +1,9 @@
 [Unit]
-Description=OnePlus Pad 4: keep the CDSP (NPU) off until something needs it
+Description=OnePlus Pad 4: stop the CDSP (NPU) at boot - opt-in, see /usr/bin/iceland-npu
 After=systemd-modules-load.service systemd-udev-settle.service
-ConditionPathExists=!/etc/iceland/npu-on-at-boot
+# Opt-in since deep-sleep run 66: a stopped CDSP leaves its own CX / DDR votes behind and the SoC no longer reaches
+# CX collapse in suspend until the CDSP runs again; a running, idle CDSP does not block it.
+ConditionPathExists=/etc/iceland/npu-off-at-boot
 
 [Service]
 Type=oneshot

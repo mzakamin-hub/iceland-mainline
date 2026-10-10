@@ -1,0 +1,70 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-device: the trial boot of a new kernel (see 96-iceland-trial.install).
+#   iceland-trial early    (iceland-trial-early.service, as soon as /boot is mounted) clear GRUB's next_entry
+#                          from Linux too: GRUB clears it itself when it can write /boot; this covers a GRUB
+#                          that could not, so a failing trial kernel is never booted twice.
+#   iceland-trial confirm  (iceland-boot-confirm.service) wait until the desktop has been up for 30 s (GNOME Shell
+#                          running: the login screen, first-boot setup or a session), then:
+#                          running kernel = the trial one -> it becomes the default (saved_entry) and the
+#                          device tree U-Boot loads from the EFI partition is that kernel's;
+#                          running kernel != the trial one -> the trial failed: logged, default unchanged.
+#   iceland-trial status
+# ICELAND_ROOT / ICELAND_EDITENV / ICELAND_UNAME / ICELAND_DESKTOP: PC test hooks.
+R=${ICELAND_ROOT:-}
+EDITENV=${ICELAND_EDITENV:-grub2-editenv}
+S=$R/var/lib/iceland/trial
+mkdir -p "$S"
+log() { echo "iceland-trial: $*"; logger -t iceland-trial "$*" 2>/dev/null || :; echo "$(date -u +%FT%TZ) $*" >> "$S/log"; }
+# the entry of the running kernel, whatever token it was written with (the image's entries carry the build's
+# machine id; a machine id generated at the first boot does not rename them)
+kv=${ICELAND_UNAME:-$(uname -r)}
+running=$(ls -1 "$R"/boot/loader/entries/*-"$kv".conf 2>/dev/null | grep -v '/iceland-rollback-' | head -n1)
+running=${running##*/}; running=${running%.conf}; running=${running:-unknown-$kv}
+pending=$(cat "$S/pending" 2>/dev/null)
+confirmed=$(cat "$S/confirmed" 2>/dev/null)
+
+desktop_up() { # gnome-shell running for at least 30 s and graphical.target reached
+	[ -n "${ICELAND_DESKTOP:-}" ] && return "$ICELAND_DESKTOP"
+	systemctl -q is-active graphical.target || return 1
+	local p
+	for p in $(pgrep -x gnome-shell); do
+		[ "$(ps -o etimes= -p "$p" | tr -d ' ')" -ge 30 ] 2>/dev/null && return 0
+	done
+	return 1
+}
+
+case "${1:-}" in
+early)
+	if [ -n "$pending" ]; then
+		$EDITENV - unset next_entry
+		log "trial boot of $pending: running $running"
+	fi
+	;;
+confirm)
+	[ -n "$pending" ] || exit 0
+	ok=1
+	for i in $(seq 1 120); do desktop_up && { ok=0; break; }; sleep 5; done
+	if [ "$ok" != 0 ]; then
+		log "desktop not reached within 10 minutes with $running: $pending NOT confirmed"
+		exit 1
+	fi
+	if [ "$running" = "$pending" ]; then
+		$EDITENV - set "saved_entry=$pending"
+		echo "$pending" > "$S/confirmed"; rm -f "$S/pending"
+		[ -x "$R/usr/lib/kernel/install.d/90-iceland-dtb.install" ] && ICELAND_DTB_CONFIRM=1 "$R/usr/lib/kernel/install.d/90-iceland-dtb.install" add "$kv" >/dev/null 2>&1
+		log "trial PASSED: $pending reached the desktop and is the default now"
+	else
+		$EDITENV - unset next_entry
+		echo "$pending" >> "$S/failed"; rm -f "$S/pending"
+		log "trial FAILED: $pending did not reach the desktop (this boot runs $running); the default stays $confirmed"
+	fi
+	;;
+status)
+	echo "running:   $running"; echo "confirmed: ${confirmed:-none}"; echo "pending:   ${pending:-none}"
+	echo "failed:    $(tr '\n' ' ' < "$S/failed" 2>/dev/null)"
+	$EDITENV - list 2>/dev/null | grep -E '^(saved_entry|next_entry)='
+	;;
+*) sed -n '3,12p' "$0"; exit 2 ;;
+esac
+exit 0

@@ -1,0 +1,43 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-device: GRUB settings for the installed OnePlus Pad 4 (run by %posttrans; idempotent).
+#  - GRUB_DEVICETREE: every boot entry loads its own kernel's device tree (/boot/dtb-<ver>/qcom/...); GRUB hands
+#    it to Linux through U-Boot's EFI_DT_FIXUP_PROTOCOL. PER_KERNEL_DT=0 in /etc/iceland/boot.conf turns it off:
+#    then U-Boot's copy on the EFI partition (90-iceland-dtb.install) is used for every entry.
+#  - the menu is shown for 3 s at every start (no auto-hide): the volume keys move, power selects, so an older
+#    kernel or a "Roll back to ..." entry can be chosen on the tablet without a PC.
+#  - $iceland_args at the end of every kernel-iceland entry's options: extra kernel arguments from grubenv
+#    (`grub2-editenv - set iceland_args="..."`; unset = nothing). The rehearsal sets it in its RAM-only copy.
+# ICELAND_ROOT / ICELAND_EDITENV: PC test hooks.
+R=${ICELAND_ROOT:-}
+EDITENV=${ICELAND_EDITENV:-grub2-editenv}
+PER_KERNEL_DT=1; TIMEOUT=3
+[ -r "$R/etc/iceland/boot.conf" ] && . "$R/etc/iceland/boot.conf"
+DT=qcom/kaanapali-oneplus-iceland.dtb
+g=$R/etc/default/grub
+setkv() { # setkv KEY VALUE (VALUE empty: remove the line)
+	if grep -q "^$1=" "$g" 2>/dev/null; then
+		if [ -n "$2" ]; then sed -i "s|^$1=.*|$1=$2|" "$g"; else sed -i "/^$1=/d" "$g"; fi
+	elif [ -n "$2" ]; then echo "$1=$2" >> "$g"; fi
+}
+if [ -f "$g" ]; then
+	if [ "$PER_KERNEL_DT" = 1 ]; then setkv GRUB_DEVICETREE "\"$DT\""; else setkv GRUB_DEVICETREE ""; fi
+	setkv GRUB_TIMEOUT "$TIMEOUT"
+fi
+$EDITENV - unset menu_auto_hide >/dev/null 2>&1 || :
+c=$R/etc/kernel/cmdline
+if [ -f "$c" ] && ! grep -q '\$iceland_args' "$c"; then
+	sed -i '1s/[[:space:]]*$/ $iceland_args/' "$c"
+fi
+for e in "$R"/boot/loader/entries/*iceland*.conf; do
+	[ -f "$e" ] || continue
+	case "$e" in */iceland-rollback-*) continue ;; esac
+	grep -q '^options .*\$iceland_args' "$e" || sed -i 's/^\(options .*\)$/\1 $iceland_args/' "$e"
+	v=$(sed -n 's/^version //p' "$e")
+	if [ "$PER_KERNEL_DT" = 1 ]; then
+		grep -q '^devicetree ' "$e" || { [ -e "$R/boot/dtb-$v/$DT" ] && echo "devicetree /dtb-$v/$DT" >> "$e"; }
+	else
+		sed -i '/^devicetree /d' "$e"
+	fi
+done
+exit 0

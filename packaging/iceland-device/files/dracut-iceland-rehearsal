@@ -1,0 +1,179 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# dracut module "iceland" (initramfs), REHEARSAL ONLY: does nothing unless the kernel command line has
+# iceland.rehearsal=nbd:HOST:PORT, which only the RAM-only rehearsal head (cand/rehearsal/mk-head.py) puts into
+# grubenv. Called by iceland-carrier; prints the carrier device (/dev/nbd0) on success.
+#   1. the USB gadget network exactly as the RAM test kits have it (NCM, 18d1:4ee1 "iceland-debug", tablet
+#      172.16.42.1, the PC gets 172.16.42.2 from busybox udhcpd) - the PC side is unchanged;
+#   2. the PC's disk (golden + a copy-on-write overlay on the PC) as /dev/nbd0 with 4096-byte blocks and no
+#      partition scan (the loop device scans it, as on the tablet);
+#   3. for the booted system, RAM-only files under /run: NetworkManager leaves usb0 alone, root's ssh key for
+#      the PC session (fetched from the PC), sshd started, and a guard that reboots the tablet (back to Android)
+#      if the network disk stops answering or the session passes iceland.rehearsal_max seconds (default 540).
+# What it writes: configfs (gadget), usb0's address, /run/*. Nothing on the tablet's storage.
+R=${ICELAND_ROOT:-}
+cmdline=${ICELAND_CMDLINE:-$(cat /proc/cmdline)}
+log() { echo "iceland-rehearsal: $*" > "$R/dev/kmsg" 2>/dev/null; echo "iceland-rehearsal: $*" >&2; }
+getarg() { local a; for a in $cmdline; do case $a in "$1="*) echo "${a#*=}"; return 0 ;; esac; done; return 1; }
+spec=$1
+case "$spec" in nbd:*:*) ;; *) log "unknown rehearsal spec '$spec'"; exit 1 ;; esac
+host=$(echo "$spec" | cut -d: -f2); port=$(echo "$spec" | cut -d: -f3)
+max=$(getarg iceland.rehearsal_max) || max=540
+keys=$(getarg iceland.rehearsal_keys) || keys="http://$host:8000/rehearsal/authorized_keys"
+RUN=$R/run/iceland-rehearsal; mkdir -p "$RUN"
+echo "$spec max=$max" > "$RUN/spec"
+[ -n "$R" ] && { echo /dev/nbd0; exit 0; }   # PC unit test stops here
+
+modprobe nbd nbds_max=2 max_part=0 || { log "no nbd module"; exit 1; }
+modprobe qcom_wdt 2>/dev/null
+# 1. gadget (same identity as tools/linux-ram/init netup())
+mountpoint -q /sys/kernel/config || mount -t configfs none /sys/kernel/config
+G=/sys/kernel/config/usb_gadget/g1
+mkdir -p $G/strings/0x409 $G/functions/ncm.usb0 $G/configs/c.1/strings/0x409
+echo 0x18d1 > $G/idVendor; echo 0x4ee1 > $G/idProduct
+echo iceland-debug > $G/strings/0x409/serialnumber
+echo OnePlus > $G/strings/0x409/manufacturer; echo "Pad 4 mainline debug" > $G/strings/0x409/product
+echo NCM > $G/configs/c.1/strings/0x409/configuration
+[ -e $G/configs/c.1/ncm.usb0 ] || ln -s $G/functions/ncm.usb0 $G/configs/c.1/
+udc=""
+for i in $(seq 1 60); do udc=$(ls /sys/class/udc 2>/dev/null | head -n1); [ -n "$udc" ] && break; sleep 0.5; done
+[ -n "$udc" ] || { log "no USB device controller"; exit 1; }
+echo "$udc" > $G/UDC
+for i in $(seq 1 40); do ip link set usb0 up 2>/dev/null && break; sleep 0.5; done
+ip addr add 172.16.42.1/24 dev usb0 2>/dev/null
+cat > "$RUN/udhcpd.conf" <<EOF
+start 172.16.42.2
+end 172.16.42.2
+interface usb0
+option subnet 255.255.255.0
+option lease 864000
+max_leases 1
+lease_file $RUN/udhcpd.leases
+EOF
+touch "$RUN/udhcpd.leases"
+busybox udhcpd "$RUN/udhcpd.conf" || log "udhcpd did not start (the PC needs 172.16.42.2 another way)"
+log "usb0 up on $udc"
+# USB-C first: the SoCCP's pmic-glink stack starts in this initramfs (qcom_q6v5_pas, as in the kits) and registers the
+# UCSI port within seconds; its first role report can bounce the gadget once (R1b). Wait for the port and a little
+# more, so a bounce happens while udhcpd runs and before the network disk is connected.
+for i in $(seq 1 60); do [ -e /sys/class/typec/port0 ] && break; sleep 0.5; done
+if [ -e /sys/class/typec/port0 ]; then log "USB-C port registered; settling 5 s"; else log "no USB-C port after 30 s (UCSI not up)"; fi
+sleep 5
+log "waiting for the PC at $host"
+# the PC is ready when its http port (the key server, needed below anyway) takes a TCP connection: Windows' firewall
+# drops the tablet's ICMP echo, so a ping never answers (R1b waited its full 120 s)
+t0=$(cut -d. -f1 /proc/uptime)
+for i in $(seq 1 120); do timeout 2 bash -c ": < /dev/tcp/$host/8000" 2>/dev/null && break; sleep 1; done
+log "the PC answers on $host:8000 after $(( $(cut -d. -f1 /proc/uptime) - t0 )) s"
+# opt-in: the kernel log to the PC over TCP (iceland.rehearsal_kmsg=PORT; kernel-iceland has no netconsole). This
+# copy lives until the switch to the real root; a RAM unit there takes over (below). Every connection replays the
+# ring buffer; the PC (kmsg-listen.py) keeps each line once.
+kp=$(getarg iceland.rehearsal_kmsg) || kp=""
+if [ -n "$kp" ]; then
+	( while :; do cat /dev/kmsg > "/dev/tcp/$host/$kp" 2>/dev/null; sleep 2; done ) < /dev/null > /dev/null 2>&1 &
+	log "kernel log stream to $host:$kp"
+fi
+# 2. the network disk
+opts=$(getarg iceland.nbd_opts | tr ',' ' ') || opts=""
+# no -persist: Fedora's nbd-client 3.27 parses it but never starts its reconnect loop (persist_mode is not set), so
+# a lost connection is not recovered - the rehearsal keeps the USB link from bouncing instead (see the head's args)
+nbd-client "$host" "$port" /dev/nbd0 -N iceland -b 4096 -t 120 -systemd-mark $opts >&2 || { log "nbd-client failed"; exit 1; }
+for i in $(seq 1 40); do [ "$(cat /sys/block/nbd0/size 2>/dev/null)" -gt 0 ] 2>/dev/null && break; sleep 0.5; done
+[ "$(cat /sys/block/nbd0/size 2>/dev/null)" -gt 0 ] 2>/dev/null || { log "nbd0 has no size"; exit 1; }
+log "nbd0: $(($(cat /sys/block/nbd0/size) / 2048)) MiB, block size $(blockdev --getss /dev/nbd0)"
+# 3. RAM-only setup for the booted system
+mkdir -p /run/NetworkManager/conf.d /run/systemd/system/multi-user.target.wants /run/systemd/system.conf.d \
+	/run/systemd/system/sysinit.target.wants
+printf '[keyfile]\nunmanaged-devices=interface-name:usb0\n' > /run/NetworkManager/conf.d/90-iceland-rehearsal.conf
+busybox wget -q -O "$RUN/authorized_keys" "$keys" || log "no ssh key from $keys (the PC session cannot log in)"
+# qcom apss-wdt on kaanapali takes 31 s at most: 1 min was refused ("Failed to set watchdog hardware timeout to 1min:
+# Invalid argument", R1d / R2 / R2-final), so the watchdog was never armed
+if [ -e /dev/watchdog0 ]; then
+	printf '[Manager]\nRuntimeWatchdogSec=30s\nRebootWatchdogSec=30s\n' > /run/systemd/system.conf.d/90-iceland-rehearsal.conf
+fi
+cat > "$RUN/setup.sh" <<'EOF'
+#!/bin/bash
+# rehearsal only (written by the initramfs into /run): root's key for the PC session, sshd
+install -d -m 700 /root/.ssh && install -m 600 /run/iceland-rehearsal/authorized_keys /root/.ssh/authorized_keys
+restorecon -R /root/.ssh 2>/dev/null
+systemctl start sshd.service
+echo "iceland-rehearsal: sshd $(systemctl is-active sshd)" > /dev/kmsg
+EOF
+cat > "$RUN/guard.sh" <<EOF
+#!/bin/bash
+# rehearsal only: the tablet goes back to Android (reboot) if the PC's disk stops answering or after the session
+# limit: the head's iceland.rehearsal_max ($max s), which /run/iceland-rehearsal/extend can lengthen but never shorten
+# (r2g: the probe's early extend, uptime + 600 = 625 s, had replaced the head's 1500 s). The effective limit is
+# logged at the start and whenever it or the extend value changes.
+max=$max; last=""
+while :; do
+	up=\$(cut -d. -f1 /proc/uptime)
+	ext=\$(cat /run/iceland-rehearsal/extend 2>/dev/null); case "\$ext" in ''|*[!0-9]*) ext="" ;; esac
+	lim=\$max; [ -n "\$ext" ] && [ "\$ext" -gt "\$lim" ] && lim=\$ext
+	if [ "\$lim|\$ext" != "\$last" ]; then
+		echo "iceland-rehearsal: session limit \$lim s (head \$max s, extend \${ext:-none}) at uptime \$up s" > /dev/kmsg; last="\$lim|\$ext"
+	fi
+	if [ "\$up" -ge "\$lim" ]; then echo "iceland-rehearsal: session limit \$lim s reached - reboot" > /dev/kmsg; sleep 1; echo b > /proc/sysrq-trigger; fi
+	# r2o: a dd stuck in D state on a stalled nbd ignores timeout's KILL, so the probe runs in the background and the
+	# guard never waits on it (it keeps logging and the session limit keeps working).
+	ok=""
+	if [ -e /sys/block/nbd0/pid ]; then
+		dd if=/dev/nbd0 of=/dev/null bs=4096 count=1 skip=\$((RANDOM * 8)) iflag=direct 2>/dev/null & p=\$!; i=0
+		while [ \$i -lt 20 ]; do
+			if ! kill -0 \$p 2>/dev/null; then wait \$p && ok=1; break; fi
+			sleep 1; i=\$((i + 1))
+		done
+		[ \$i -ge 20 ] && echo "iceland-rehearsal: nbd probe stuck after 20 s (pid \$p, state \$(cut -d' ' -f3 /proc/\$p/stat 2>/dev/null))" > /dev/kmsg
+	fi
+	if [ -n "\$ok" ]; then
+		systemd-notify WATCHDOG=1
+	else
+		echo "iceland-rehearsal: the PC's disk does not answer" > /dev/kmsg
+	fi
+	sleep 10
+done
+EOF
+chmod 755 "$RUN/setup.sh" "$RUN/guard.sh"
+cat > /run/systemd/system/iceland-rehearsal-setup.service <<'EOF'
+[Unit]
+Description=Rehearsal only: ssh for the PC session (RAM)
+After=local-fs.target network-pre.target
+[Service]
+Type=oneshot
+ExecStart=/run/iceland-rehearsal/setup.sh
+EOF
+cat > /run/systemd/system/iceland-rehearsal-guard.service <<'EOF'
+[Unit]
+Description=Rehearsal only: reboot if the PC's disk stops answering or the session is over
+DefaultDependencies=no
+[Service]
+ExecStart=/run/iceland-rehearsal/guard.sh
+WatchdogSec=60
+NotifyAccess=all
+FailureAction=reboot-immediate
+EOF
+cat > /run/systemd/system/iceland-rehearsal-dhcp.service <<'EOF'
+[Unit]
+Description=Rehearsal only: the PC's address on the USB link in the real root (RAM)
+DefaultDependencies=no
+Before=sysinit.target systemd-udev-trigger.service
+[Service]
+ExecStart=/bin/sh -c 'exec busybox udhcpd -f /run/iceland-rehearsal/udhcpd.conf'
+Restart=on-failure
+RestartSec=1
+EOF
+ln -sf ../iceland-rehearsal-dhcp.service /run/systemd/system/sysinit.target.wants/
+if [ -n "$kp" ]; then
+	cat > /run/systemd/system/iceland-rehearsal-kmsg.service <<EOF
+[Unit]
+Description=Rehearsal only: the kernel log to the PC over the USB link (RAM)
+DefaultDependencies=no
+Before=sysinit.target systemd-udev-trigger.service
+[Service]
+ExecStart=/bin/bash -c 'while :; do cat /dev/kmsg > /dev/tcp/$host/$kp 2>/dev/null; sleep 2; done'
+EOF
+	ln -sf ../iceland-rehearsal-kmsg.service /run/systemd/system/sysinit.target.wants/
+fi
+ln -sf ../iceland-rehearsal-setup.service /run/systemd/system/multi-user.target.wants/
+ln -sf ../iceland-rehearsal-guard.service /run/systemd/system/multi-user.target.wants/
+echo /dev/nbd0

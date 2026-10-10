@@ -56,6 +56,10 @@
 #    while temperatures move);
 #  - brightness is capped by lowering the backlight when it is above the cap and putting the user's value back
 #    when the cap is gone;
+#  - (0.23) the battery temperature comes from qcom_battmgr over pmic_glink; while the ADSP stalls its read fails
+#    (-110). A battery reading that exists but cannot be read is UNKNOWN, not "absent": the estimate then lacks its
+#    battery term (the models and the battery fallback drop out), so for that period the gear may rise but never
+#    goes down; it moves freely again once the battery reads. A battery that never existed keeps the old behaviour;
 #  - CHARGE_SHIFT=0 (thermal.conf): a negative mode offset (Performance, or a shifted Balanced) does not relax
 #    the charging cool-down: the charge cap is taken from the gear itself, as in stock's normal mode. Stock
 #    shifts it with the mode (CHARGE_SHIFT=1).
@@ -237,6 +241,7 @@ class Thermal:
         self.bl_wrote = None
         self.last = None           # (raw gear, effective gear, mode) of the last log line
         self.warned = set()
+        self.bat_unknown = False   # 0.23: the battery reading exists but failed in the last sample
 
     def warn_once(self, key, msg):
         if key not in self.warned:
@@ -280,6 +285,10 @@ class Thermal:
             if v is None and z == BATTERY:
                 b = rdint(BAT + "/temp")            # tenths of a degree C
                 v = b * 100 if b is not None else None
+                # 0.23: the zone or the supply exists, yet no reading: unknown (a glink timeout), not absent
+                self.bat_unknown = v is None and bool(p or os.path.exists(BAT + "/temp"))
+            elif z == BATTERY:
+                self.bat_unknown = False
             t[z] = v
         now = time.monotonic()
         if self.hist_t is not None and now - self.hist_t > 3 * period:
@@ -406,7 +415,13 @@ class Thermal:
             self.warn_once("blind", "no temperature can be read: the last gear stays")
         else:
             self.warned.discard("blind")
-            self.idx = level_step(self.idx, shell / 1000.0)
+            new = level_step(self.idx, shell / 1000.0)
+            if self.bat_unknown and src != "fake" and new < self.idx:
+                self.warn_once("batunk", "the battery temperature can't be read: the gear may rise, never fall, until it reads again")
+                new = self.idx                       # 0.23: unknown never relaxes a cap
+            elif not self.bat_unknown:
+                self.warned.discard("batunk")
+            self.idx = new
         raw = STATUS[self.idx] if self.idx >= 0 else -2
         profile = tuned_profile()
         mode = mode_of(profile)

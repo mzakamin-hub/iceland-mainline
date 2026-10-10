@@ -1,0 +1,12 @@
+[Unit]
+Description=OnePlus Pad 4: desktop notifications for the charging guard's safety stops
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecStart=/usr/libexec/iceland/iceland-charge-alert
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=graphical-session.target

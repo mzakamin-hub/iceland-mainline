@@ -73,7 +73,63 @@
 #  that cap and its own (temperature region, USB-C connector cool-down), so its own stock limits are never raised.
 #  OURS: a cap file older than 60 s is ignored (iceland-thermal rewrites it every 5 s): if that service stops, the
 #  guard goes on with its own limits. THERMAL_CAP=0 in the conf file: the cap file is not read.
-import glob, os, signal, subprocess, sys, syslog, time
+#  Bypass charging (stock oplus_chg_plc, Settings > Battery "Bypass charging" and its Quick Settings tile): with a
+#  charger in and a request of the bypass switch (/run/iceland/bypass-request, written by iceland-bypassd for the
+#  GNOME Quick Settings toggle), charging stops once the battery is at or above the chosen threshold (stock's picker
+#  begins at 20 %) and the tablet runs from the charger: the same charge_behaviour inhibit-charge the guard uses for
+#  its own stops, i.e. stock's output_suspend vote in buck mode (charging off, input kept). Like stock's simple
+#  strategy it holds the level: when the battery falls 1 % below the level the hold began at, charging resumes
+#  until that level is back. The request ends when its lease runs out (stock plc_support_timeout: 5 minutes unless
+#  renewed; the toggle renews it while the session is unlocked) and at unplug (stock), and it is never restored
+#  after a reboot (/run). Bypass is only one more reason to stop: every limit above still stops charging by itself,
+#  and nothing in bypass can make the charger charge. OURS: a request whose end lies more than 10 minutes ahead is
+#  not trusted (clock jump). BYPASS=0 in the conf file: requests are ignored and removed. The guard publishes what
+#  it does in /run/iceland/bypass-state for the toggle.
+#  OURS (bypass safety, wf/bypasssafe): when the guard stops while the only reason to stop charging is bypass, it
+#  writes "auto" (the kernel would keep an inhibit until the next reboot, also across unplugging); a fault in the
+#  bypass code ends the request and never the stock rules; a request that is not text or whose end time is not a
+#  finite number is not used.
+#  USB-C input cut (0.19): at a USB-C connector stop (temperature, gap, rise fast) and at the input over-limit stop
+#              stock does not only stop charging: its connector protection opens CC, suspends the charger input and
+#              discharges VBUS (oplus_mms_wired.c:2701-2741 oplus_usbtemp_dischg_action(): SET_TYPEC_MODE DISABLE,
+#              the WIRED_CHARGE_SUSPEND vote, the discharge GPIO); the input suspend is the firmware property
+#              OPLUS_USB_INPUT_CURRENT_LIMIT = 0 (oplus_hal_adsp.c:7785-7807 oplus_chg_8350_input_suspend()). With
+#              kernel-iceland's lever (qcom-battmgr-usb/input_current_limit: 0 = input suspended, any other value
+#              = allowed; the limit itself always stays the kernel's stock value) the guard suspends the input as
+#              well, so that the system's load no longer flows through the hot connector; CC is NOT opened (the USB
+#              data link stays, as with stock's own plain "charge suspend" vote) and nothing discharges VBUS.
+#              Release as stock recovers (oplus_mms_wired.c:2563-2602 oplus_usbtemp_recover_func(), run at the CC
+#              detect change :5207-5221): once the cable is out, the hottest connector reading is below 55 C
+#              (USB_55C) and no connector rule fires any more; while the cable stays in, stock keeps the stop
+#              (its recover interval is 4 hours, :341) and so does the guard (until the unplug, as its latch).
+#              While the guard holds the suspend the firmware may report the charger offline: "a cable is in" is
+#              then the kernel's present (the port's CID, kernel-iceland; unreadable = in, absent = online decides).
+#              A guard that starts (a restart) and finds the input cut with the cable in keeps it as a latched
+#              connector stop (stock holds until the CC detect change). VBUS over-voltage
+#              stops charging only (stock UOVP_VOTER output suspend, oplus_chg_wired.c:546). INPUT_SUSPEND=0 in
+#              the conf file, or a kernel without the lever: charging off only, as before 0.19. The guard never
+#              writes a current value of its own: the release writes back what it read before the suspend
+#              (or 500 mA, stock's value after its unsuspend at boot, oplus_hal_adsp.c:9622-9649), and the kernel
+#              applies its stock limit for the charger type whatever is written.
+#  Desktop notice (0.19): a stop for a safety reason (USB-C connector, input current, charger voltage, battery
+#              temperature outside the charging window, battery over-voltage, an unreadable battery sensor) and
+#              its end are written to /run/iceland/charge-alert (one event with a sequence number); the GNOME user
+#              service iceland-charge-alert shows them as desktop notifications (no privilege path: root writes a
+#              world-readable file, the user's session reads it). The charge limit, the float-voltage stop and the
+#              recharge wait are not events (expected behaviour). Stock shows NOTIFY_BAT_OVER_TEMP / _LOW_TEMP,
+#              NOTIFY_CHARGER_OVER_VOL, NOTIFY_BAT_OVER_VOL and its usbtemp warning in its UI
+#              (oplus_chg_comm.c:5721-5893, include/oplus_chg.h:202-228).
+#  Failed reads (0.23, OURS): qcom_battmgr answers a sysfs read from the ADSP over pmic_glink; while the ADSP stalls a
+#              read fails (-110 ETIMEDOUT, seen in r2l). An attribute that exists but cannot be read is UNKNOWN, never
+#              the benign value: an unreadable online keeps the previous "cable in" decision (present decides when it
+#              reads; the first step counts as in), so no latch or input cut ends and no connector / VBUS check is
+#              skipped because of it; an unreadable input_current_limit never releases a cut (the release waits) and
+#              never drops a marker of this boot (the cut is adopted); an unreadable status, input current or
+#              capacity keeps the 3.3 V counter, the input over-limit count, the charge limit's and bypass's holds as
+#              they were; unreadable battery temperature / voltage still stop charging (as before). An attribute
+#              that does not exist keeps its old meaning (an older kernel).
+import errno
+import glob, math, os, signal, stat, subprocess, sys, syslog, time
 
 BAT = os.environ.get("ICELAND_BAT", "/sys/class/power_supply/qcom-battmgr-bat")
 USB = os.environ.get("ICELAND_USB", "/sys/class/power_supply/qcom-battmgr-usb")
@@ -111,11 +167,22 @@ THERMAL_CAP = os.environ.get("ICELAND_THERMAL_CAP", "/run/iceland/thermal-fcc-ma
 THERMAL_CAP_AGE = 60                      # OURS: an older cap file is stale (iceland-thermal rewrites it every 5 s)
 ICL_OVER_FACTOR, ICL_OVER_UA = 1.15, 50000   # OURS: measured input current above limit x 1.15 + 50 mA ...
 ICL_OVER_COUNT = 3                        # OURS: ... in this many readings in a row -> stop until unplugged
+RUN = os.environ.get("ICELAND_RUN", "/run/iceland")
+BYPASS_REQ = RUN + "/bypass-request"      # written by iceland-bypassd (root only)
+BYPASS_STATE = RUN + "/bypass-state"      # what the guard does about it, for the toggle
+BYPASS_MIN = 20                           # stock: the threshold picker begins at 20 % (bypass_charge_seekbar_picker_begin)
+BYPASS_DROP = 1                           # stock simple strategy: the level fell -> charge again (1 % steps here)
+BYPASS_LEASE_MAX = 600                    # OURS: a request ending more than this far ahead is not trusted
 STATUS_S = 600                            # OURS: a status line every 10 min while a charger is in
 INHIBIT_ARGS = ["--who=iceland-battery-guard", "--why=a charger is connected: the charging guard has to stay awake (as on stock)",
                 "--mode=block", "sleep", "infinity"]   # after "systemd-inhibit --what=..." (awake_what())
 LID_SAFE = ("lock", "ignore")             # logind lid actions with a charger in that keep the tablet awake
 LID_RECHECK_S = 60                        # OURS: logind's lid setting is read again this often while a charger is in
+RUN = os.environ.get("ICELAND_RUN", "/run/iceland")
+ALERT = RUN + "/charge-alert"             # the last safety event, for iceland-charge-alert (the GNOME user service)
+USB_RELEASE_T = 55.0                      # stock USB_55C: the input cut ends below it once the cable is out
+ICL_RELEASE_UA = 500000                   # the release value when the limit read before the cut is unknown (stock's 500 mA at boot)
+CUT_MARK = RUN + "/input-cut"             # exists while a guard of this boot holds the input cut (tmpfs: gone at every boot)
 
 def rd(path, default=None):
     try:
@@ -123,6 +190,25 @@ def rd(path, default=None):
             return f.read().strip()
     except OSError:
         return default
+
+class _Unknown:
+    """an attribute that exists but cannot be read now (a glink timeout, -110): neither a value nor absent"""
+    def __repr__(self):
+        return "UNKNOWN"
+UNKNOWN = _Unknown()
+
+def rdx(path):
+    """the attribute's text; None when it does not exist (an older kernel: the old meaning applies); UNKNOWN when it
+    exists but the read fails (EIO / ETIMEDOUT while the ADSP stalls): the caller keeps its previous decision"""
+    try:
+        with open(path) as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return None
+    except OSError as e:
+        if e.errno == errno.ENOENT:
+            return None
+        return UNKNOWN
 
 def wr(path, value):
     if DRYRUN:
@@ -178,7 +264,7 @@ def conf():
 
 def num(text):
     """an integer sysfs value, or None"""
-    return int(text) if text and text.lstrip("-").isdigit() else None
+    return int(text) if isinstance(text, str) and text.lstrip("-").isdigit() else None   # UNKNOWN / None: None
 
 def selected(text):
     """the selected word of a sysfs choice ("Unknown [SDP] DCP" -> "SDP")"""
@@ -189,11 +275,18 @@ def selected(text):
 def kernel_limit():
     """the kernel's own charge limit, (end, start) in percent as charge_control_end_threshold and
     charge_control_start_threshold read (end 100 = off); None when the kernel has none or it can't be read"""
-    e = rd(BAT + "/charge_control_end_threshold")
-    s = rd(BAT + "/charge_control_start_threshold", "0")
+    global _klimit_last
+    e = rdx(BAT + "/charge_control_end_threshold")
+    s = rdx(BAT + "/charge_control_start_threshold")
+    if e is UNKNOWN or s is UNKNOWN:       # 0.23: a failed read keeps the last thresholds read (else: unknown)
+        return _klimit_last if _klimit_last is not None else UNKNOWN
+    s = "0" if s is None else s
     if e is None or not e.isdigit() or not s.isdigit():
+        _klimit_last = None
         return None
-    return int(e), int(s)
+    _klimit_last = (int(e), int(s))
+    return _klimit_last
+_klimit_last = None
 
 def limit_from_kernel():
     """the kernel's thresholds if the guard is to follow them, else None (LIMIT_SOURCE=conf in CONF: never)"""
@@ -243,6 +336,8 @@ def charge_limit():
     off. From the kernel's thresholds if it has them (the kernel starts again BELOW its start threshold), else from
     CONF (off: CHARGE_LIMIT 0/100/absent or unusable); LIMIT_SOURCE=conf: always from CONF"""
     k = limit_from_kernel()
+    if k is UNKNOWN:
+        return UNKNOWN                 # 0.23: the kernel's thresholds can't be read and none was read before
     if k is not None:
         end, start = k
         if not 0 < end < 100:
@@ -260,11 +355,58 @@ def charge_limit():
         return None
     return lim, max(0, min(res, lim - 1))
 
+def read_bypass():
+    """the bypass switch's request: (threshold, until) with until in seconds since the epoch, "bad" if the file
+    can't be used, None if there is none (BYPASS=0 is handled by Guard.bypass_stop)"""
+    try:
+        with open(BYPASS_REQ, "rb") as f:
+            raw = f.read(4096)
+    except OSError:
+        return None
+    try:
+        txt = raw.decode("ascii")
+    except UnicodeDecodeError:
+        return "bad"
+    kv = dict(l.split("=", 1) for l in txt.splitlines() if "=" in l)
+    try:
+        thr, until = int(kv.get("threshold", "")), float(kv.get("until", ""))
+    except ValueError:
+        return "bad"
+    if not BYPASS_MIN <= thr <= 100 or not math.isfinite(until):
+        return "bad"
+    return thr, until
+
 def behaviour(value):
     """charge_behaviour as the kernel shows it ("[auto] inhibit-charge") or as a plain word"""
     if value and "[" in value:
         return value[value.index("[") + 1:value.index("]")]
     return value
+
+def lever_present():
+    """kernel-iceland's input suspend lever: qcom-battmgr-usb/input_current_limit is a writable attribute"""
+    try:
+        return bool(stat.S_IMODE(os.stat(USB + "/input_current_limit").st_mode) & 0o200)
+    except OSError:
+        return False
+
+def alert_class(stop):
+    """the class of a safety stop the user should see, or None: no stop, or an expected one (the charge limit,
+    the float-voltage stop, the recharge wait)"""
+    if not stop:
+        return None
+    if stop.startswith("USB connector"):
+        return "connector"
+    if stop.startswith("input current"):
+        return "input"
+    if stop.startswith("VBUS"):
+        return "charger"
+    if "outside -10..53 C" in stop:
+        return "battery"
+    if stop.startswith("over-voltage"):
+        return "voltage"
+    if "unreadable" in stop:
+        return "sensor"
+    return None
 
 def region(temp, prev):
     """stock region index; leaving the current region needs HYST_T of margin (OURS)"""
@@ -324,6 +466,34 @@ class Guard:
         self.icl_over = 0          # readings in a row with the input current above its limit
         self.was_plugged = None    # the charger state of the previous step (status line)
         self.status_at = None      # when the status line was last written
+        self.bp_level = None       # bypass: the level the hold began at (None = not holding)
+        self.bp_topup = False      # bypass: charging again because the level fell BYPASS_DROP below bp_level
+        self.bp_state = None       # bypass: the state file's last content
+        self.bp_only = False       # bypass: the last decision stopped charging for bypass alone (release_bypass)
+        self.bp_end = None         # bypass: why the last request ended (state file "ended=", S4)
+        self.suspended = None      # the input cut written successfully; None = unknown (read at the first decision)
+        self.icl_before = None     # input_current_limit as read before the cut (written back at the release)
+        self.cut_why = None        # the latch reason that cuts the input (connector, input current); None = no cut
+        self.lever_at = None       # when a missing or failed input lever was last reported
+        self.alert_seq = 0         # the number of the last event written to ALERT
+        self.alert_cls = None      # the class of the safety stop in force (its event was written); None = none
+        self.alert_read = False    # ALERT read once, to continue an earlier guard's numbering
+        self.alert_fail = False    # the last ALERT write failed (said once)
+        self.plugged_last = None   # 0.23: the last "a cable is in" decision (kept while online can't be read)
+        self.unknown_at = {}       # 0.23: attribute -> when its failed read was last reported (once per REWARN_S)
+        self.soc_unknown = False   # 0.23: capacity exists but could not be read this step
+
+    def unreadable(self, what, means):
+        """0.23: say once per REWARN_S that an attribute exists but cannot be read, and what the guard does instead"""
+        now = time.monotonic()
+        last = self.unknown_at.get(what)
+        if last is None or now - last >= REWARN_S:
+            log("iceland-battery-guard: %s can't be read (glink / ADSP?): %s" % (what, means))
+            self.unknown_at[what] = now
+
+    def readable(self, what):
+        if self.unknown_at.pop(what, None) is not None:
+            log("iceland-battery-guard: %s can be read again" % what, syslog.LOG_NOTICE)
 
     def keep_awake(self, on, quiet=False):
         """stock keeps the kernel awake while a charger is in; here: a logind block on sleep, and on the lid switch
@@ -408,7 +578,10 @@ class Guard:
 
     def input_over(self, plugged):
         """OURS: the measured input current is above the limit the firmware reports, several readings in a row"""
-        lim = num(rd(USB + "/input_current_limit")); cur = num(rd(USB + "/current_now"))
+        lr = rdx(USB + "/input_current_limit"); cr = rdx(USB + "/current_now")
+        if plugged and (lr is UNKNOWN or cr is UNKNOWN):
+            return None            # 0.23: a failed read neither counts nor resets the readings in a row
+        lim = num(lr); cur = num(cr)
         if plugged and lim and cur is not None and cur > lim * ICL_OVER_FACTOR + ICL_OVER_UA:
             self.icl_over += 1
         else:
@@ -422,9 +595,10 @@ class Guard:
         zones = usb_zones()
         have = {"charge_behaviour": os.path.exists(BAT + "/charge_behaviour"),
                 "constant_charge_current_max": os.path.exists(BAT + "/constant_charge_current_max"),
+                "input suspend lever": lever_present(),
                 "usb-therm zone": bool(zones),
-                "battery voltage": rd(BAT + "/voltage_now") is not None,
-                "USB voltage": rd(USB + "/voltage_now") is not None}
+                "battery voltage": rdx(BAT + "/voltage_now") is not None,   # 0.23: unreadable now is not MISSING
+                "USB voltage": rdx(USB + "/voltage_now") is not None}
         missing = [k for k, ok in have.items() if not ok]
         log("iceland-battery-guard: inputs " + ", ".join("%s %s" % (k, "ok" if ok else "MISSING") for k, ok in have.items()),
             syslog.LOG_WARNING if missing else syslog.LOG_NOTICE)
@@ -432,17 +606,27 @@ class Guard:
         log("iceland-battery-guard: USB-C zones %s; charge limit %s%s; awake while a charger is in: %s; "
             "thermal charge cap %s" % (
             " ".join(sorted(zones)) or "none",
+            "unknown (the kernel's thresholds can't be read now)" if lim is UNKNOWN else
             "%d %% (resume at %d %%)" % lim if lim else "off",
-            ", from the kernel's thresholds" if limit_from_kernel() is not None else "",
+            ", from the kernel's thresholds" if limit_from_kernel() not in (None, UNKNOWN) else "",
             "off (KEEP_AWAKE=0)" if conf().get("KEEP_AWAKE", "1") == "0" else "on",
             "off (THERMAL_CAP=0)" if conf().get("THERMAL_CAP", "1") == "0" else
             "%d mA" % tcap if tcap else "none now (%s)" % THERMAL_CAP), syslog.LOG_NOTICE)
         log("iceland-battery-guard: with a charger in the block covers %s (%s)" % awake_what(), syslog.LOG_NOTICE)
+        log("iceland-battery-guard: bypass charging %s (requests in %s)" % (
+            "off (BYPASS=0)" if conf().get("BYPASS", "1") == "0" else "allowed", BYPASS_REQ), syslog.LOG_NOTICE)
         return missing
 
     def limit_stop(self, soc):
         """the charge limit's stop reason, or None"""
         lim = charge_limit()
+        if lim is UNKNOWN or (soc is None and self.soc_unknown and lim is not None):
+            # 0.23: the thresholds or the level can't be read now: the hold stays as it was
+            if self.limit_hold and lim is not UNKNOWN:
+                return "charge limit %d %% (resumes at %d %%)" % lim
+            if self.limit_hold:
+                return "charge limit (held: the kernel's thresholds can't be read now)"
+            return None
         if lim is None or soc is None:
             self.limit_hold = None
             return None
@@ -455,6 +639,96 @@ class Guard:
         if self.limit_hold:
             return "charge limit %d %% (resumes at %d %%)" % lim
         return None
+
+    def drop_bypass(self, why):
+        """end the bypass request (unplug, lease, BYPASS=0, a bad file)"""
+        if DRYRUN:
+            print("DRYRUN: remove %s" % os.path.basename(BYPASS_REQ), flush=True)
+        try:
+            os.remove(BYPASS_REQ)
+        except OSError:
+            pass
+        self.bp_end = why
+        log("iceland-battery-guard: bypass charging ended: %s" % why, syslog.LOG_NOTICE)
+
+    def bypass_publish(self, req, plugged, soc, hold):
+        """/run/iceland/bypass-state for the toggle, rewritten at every step (its age tells the toggle that the
+        guard runs; a tmpfs write every 5 / 15 s)"""
+        lines = ["requested=%d" % (req is not None), "threshold=%s" % (req[0] if req else ""),
+                 "until=%s" % ("%.0f" % req[1] if req else ""), "plugged=%d" % bool(plugged),
+                 "soc=%s" % ("" if soc is None else soc), "holding=%d" % bool(hold),
+                 "level=%s" % ("" if self.bp_level is None else self.bp_level), "topup=%d" % self.bp_topup,
+                 "ended=%s" % (self.bp_end or "").replace("\n", " ")]
+        text = "\n".join(lines) + "\n"
+        try:
+            os.makedirs(RUN, exist_ok=True)
+            with open(BYPASS_STATE + ".tmp", "w") as f:
+                f.write(text)
+            os.chmod(BYPASS_STATE + ".tmp", 0o644)
+            os.replace(BYPASS_STATE + ".tmp", BYPASS_STATE)
+            self.bp_state = text
+        except OSError:
+            pass                   # the toggle then shows no state; charging decisions do not depend on it
+
+    def bypass_stop(self, plugged, soc):
+        """bypass charging: the hold reason, or None. Only ever a reason to stop: at or above the threshold the level
+        is held (stock simple strategy: 1 % lower -> charge until the level is back); ends at unplug and expiry"""
+        req = read_bypass()
+        end = None
+        if req is not None:
+            if conf().get("BYPASS", "1") == "0":
+                end = "BYPASS=0 in the configuration"
+            elif req == "bad":
+                end = "the request file can't be used"
+            elif not plugged:
+                end = "the charger was unplugged"
+            elif self.usb_latched or self.cut_why or self.suspended:
+                end = "a charger-input safety stop is in force (%s)" % (self.cut_why or self.usb_why or "input cut")
+            elif req[1] <= time.time():
+                end = "the request was not renewed (5-minute lease, as stock)"
+            elif req[1] - time.time() > BYPASS_LEASE_MAX:
+                end = "the request's end time is not plausible"
+        if end:
+            self.drop_bypass(end)
+            req = None
+        if req is not None:
+            self.bp_end = None
+        if req is not None and soc is None and self.soc_unknown and self.bp_level is not None:
+            # 0.23: the level can't be read now: a hold in force stays (and a top-up goes on) until it reads again
+            hold = not self.bp_topup
+            self.bypass_publish(req, plugged, soc, hold)
+            return "bypass charging: holding at %d %% (threshold %d %%)" % (self.bp_level, req[0]) if hold else None
+        if req is None or soc is None:
+            self.bp_level, self.bp_topup = None, False
+            self.bypass_publish(req, plugged, soc, False)
+            return None
+        thr = req[0]
+        if self.bp_level is not None and thr > self.bp_level:
+            self.bp_level, self.bp_topup = None, False      # a higher threshold: charge up to it first
+        if self.bp_level is None:
+            if soc >= thr:
+                self.bp_level = soc
+                log("iceland-battery-guard: bypass charging: holding at %d %% (threshold %d %%), the tablet runs "
+                    "from the charger" % (soc, thr), syslog.LOG_NOTICE)
+        elif soc <= self.bp_level - BYPASS_DROP:
+            self.bp_topup = True
+        elif soc >= self.bp_level:
+            self.bp_topup = False
+        hold = self.bp_level is not None and not self.bp_topup
+        self.bypass_publish(req, plugged, soc, hold)
+        if hold:
+            return "bypass charging: holding at %d %% (threshold %d %%)" % (self.bp_level, thr)
+        return None
+
+    def release_bypass(self):
+        """the guard stops: a stop that was bypass's alone must not outlive it - the kernel keeps an inhibit until it
+        is written again, also across unplugging - so charging is allowed again; any other stop stays (OURS)"""
+        if not (self.bp_only and self.inhibited):
+            return
+        self.bp_only = False
+        if os.path.exists(BAT + "/charge_behaviour") and wr(BAT + "/charge_behaviour", "auto"):
+            self.inhibited = False
+            log("iceland-battery-guard: stopping: bypass charging's hold released, charging allowed", syslog.LOG_NOTICE)
 
     def inhibit(self, on, why=""):
         cb = BAT + "/charge_behaviour"
@@ -476,6 +750,140 @@ class Guard:
         self.inhibited = on
         self.warned_at = None
 
+    def attached(self, online):
+        """a cable is in: the firmware's online, or - while this guard holds the input cut, when the firmware may
+        report the charger offline - the kernel's present (the port's CID, kernel-iceland). A present that exists
+        but cannot be read (a glink error) counts as IN: the cut must not end because of a read failure (stock
+        holds its stop until the CC detect change). A kernel without the attribute leaves it to online.
+        0.23: online None = it exists but cannot be read (-110): UNKNOWN, never "unplugged" - present decides when it
+        reads, else the previous decision stays (the first step: in), so no latch, cut or check ends on a failed read"""
+        p = USB + "/present"
+        if online is None:
+            pv = rdx(p)
+            if pv is not None and pv is not UNKNOWN:
+                self.unreadable("qcom-battmgr-usb/online", "the port's present decides whether a cable is in")
+                return pv != "0"
+            keep = True if self.plugged_last is None else self.plugged_last
+            self.unreadable("qcom-battmgr-usb/online", "a cable counts as %s (the previous decision; latches and the "
+                            "input cut stay)" % ("in" if keep else "out"))
+            return keep
+        self.readable("qcom-battmgr-usb/online")
+        if online or not self.suspended:
+            return online
+        if not os.path.exists(p):
+            return online
+        return rd(p) != "0"
+
+    def suspend_input(self, on, why=""):
+        """stock's input suspend at a connector / input-current stop (header "USB-C input cut") through
+        kernel-iceland's qcom-battmgr-usb/input_current_limit: 0 = cut; the value read before the cut (else
+        ICL_RELEASE_UA) = allowed again. No lever (older kernel) or INPUT_SUSPEND=0: charging off stays the only
+        lever, said once per REWARN_S"""
+        p = USB + "/input_current_limit"
+        if on and conf().get("INPUT_SUSPEND", "1") == "0":
+            on = False
+        cur = rdx(p)
+        now = time.monotonic()
+        if cur is UNKNOWN:
+            # 0.23: the lever exists but can't be read now (-110): a cut is never given back on a failed read (the
+            # release waits), and a cut that is due is written anyway (the safe direction; icl_before stays)
+            ours = self.suspended or os.path.exists(CUT_MARK)
+            if not on:
+                if ours:
+                    self.unreadable("qcom-battmgr-usb/input_current_limit", "the input cut stays, the release waits")
+                return
+            if self.suspended:
+                return             # ours, written before: kept
+            self.unreadable("qcom-battmgr-usb/input_current_limit", "the input cut is written without reading it first")
+        elif cur is not None:
+            self.readable("qcom-battmgr-usb/input_current_limit")
+        if cur is None or (on and not lever_present()):
+            if on and (self.lever_at is None or now - self.lever_at >= REWARN_S):
+                log("iceland-battery-guard: no input suspend lever (%s): the stop (%s) only switches charging off" % (p, why))
+                self.lever_at = now
+            return
+        if on and cur == "0" and self.suspended:
+            return                 # ours, in force
+        if not on and cur != "0":
+            self.suspended = False # the input is allowed: nothing of ours in force
+            return
+        if not on and not self.suspended and not os.path.exists(CUT_MARK):
+            self.suspended = False # a 0 that is not ours (no cut of this boot: the firmware's own value): left to the kernel
+            return
+        if on:
+            if cur != "0" and cur is not UNKNOWN:
+                self.icl_before = cur
+            self.mark(why, True)   # the marker FIRST: a guard that dies between the two writes leaves no cut without it
+            ok = wr(p, "0")
+            back = None
+            if not ok:
+                self.mark(why, False)
+        else:
+            back = self.icl_before if self.icl_before and self.icl_before.isdigit() and int(self.icl_before) > 0 else str(ICL_RELEASE_UA)
+            ok = wr(p, back)
+        if not ok:
+            if self.lever_at is None or now - self.lever_at >= REWARN_S:
+                if on:
+                    log("iceland-battery-guard: must cut the charger input (%s) but can't; unplug the charger" % why, syslog.LOG_CRIT)
+                else:
+                    log("iceland-battery-guard: can't give the charger input back yet (the kernel or the firmware refused "
+                        "the release); tried again every step")
+                self.lever_at = now
+            return                 # not cached: the next step tries again
+        if self.suspended != on:   # said at the change only (a lever whose read-back lags would otherwise repeat it)
+            if on:
+                log("iceland-battery-guard: charger input cut: %s (the tablet runs from its battery until the cable is "
+                    "out and the connector reads below %.0f C)" % (why, USB_RELEASE_T))
+            else:
+                log("iceland-battery-guard: charger input allowed again (input_current_limit %s)" % back, syslog.LOG_NOTICE)
+        self.suspended = on
+        self.lever_at = None
+        if not on:
+            self.mark(why, False)
+
+    def mark(self, why, on):
+        """this boot's marker of the cut (CUT_MARK on tmpfs): a guard restarted within the boot adopts the cut only
+        with it; written before the cut, removed when the cut write fails and after the release"""
+        try:
+            if on:
+                os.makedirs(RUN, mode=0o755, exist_ok=True)
+                with open(CUT_MARK, "w") as f:
+                    f.write("%s\n%d\n" % (why, int(time.time())))
+            elif os.path.exists(CUT_MARK):
+                os.remove(CUT_MARK)
+        except OSError as e:
+            log("iceland-battery-guard: can't keep %s: %s" % (CUT_MARK, e))
+
+    def alert(self, stop, plugged):
+        """one event per change of the safety stop in force into ALERT (header "Desktop notice"): a stop the user
+        should see begins or changes its class (kind stop), or ends (kind resume; plugged says whether the cable
+        is still in)"""
+        cls = alert_class(stop)
+        if not self.alert_read:
+            self.alert_read = True
+            for line in (rd(ALERT, "") or "").splitlines():
+                if line.startswith("seq=") and line[4:].isdigit():
+                    self.alert_seq = int(line[4:])     # continue an earlier guard's numbering
+        if cls == self.alert_cls:
+            return
+        prev, self.alert_cls = self.alert_cls, cls
+        self.alert_seq += 1
+        why = stop if cls else ("charger unplugged" if not plugged else "charging allowed again")
+        text = "seq=%d\nkind=%s\nclass=%s\nwhy=%s\ninput=%s\nplugged=%d\nat=%d\n" % (
+            self.alert_seq, "stop" if cls else "resume", cls or prev, why.replace("\n", " "),
+            "suspended" if self.suspended else "kept", 1 if plugged else 0, int(time.time()))
+        try:
+            os.makedirs(RUN, mode=0o755, exist_ok=True)
+            with open(ALERT + ".tmp", "w") as f:
+                f.write(text)
+            os.chmod(ALERT + ".tmp", 0o644)
+            os.replace(ALERT + ".tmp", ALERT)
+            self.alert_fail = False
+        except OSError as e:
+            if not self.alert_fail:
+                log("iceland-battery-guard: can't write %s: %s" % (ALERT, e))
+            self.alert_fail = True
+
     def set_fcc(self, ma):
         if self.fcc == ma:
             return
@@ -485,14 +893,38 @@ class Guard:
             self.fcc = ma          # cached only on success: a failed write is retried next step
 
     def step(self):
-        t = rd(BAT + "/temp"); v = rd(BAT + "/voltage_now"); st = rd(BAT + "/status", "")
-        temp = int(t) / 10.0 if t and t.lstrip("-").isdigit() else None   # tenths of a degree C
-        volt = int(v) / 1e6 if v and v.isdigit() else None                 # uV
-        plugged = rd(USB + "/online", "0") == "1"
+        t = rd(BAT + "/temp"); v = rd(BAT + "/voltage_now"); st = rdx(BAT + "/status")
+        st = "" if st is None else st      # absent: as before; UNKNOWN (0.23): the 3.3 V counter is kept below
+        temp = int(t) / 10.0 if t and t.lstrip("-").isdigit() else None   # tenths of a degree C (unreadable: a stop)
+        volt = int(v) / 1e6 if v and v.isdigit() else None                 # uV (unreadable: a stop)
+        o = rdx(USB + "/online")
+        online = None if o is UNKNOWN else o == "1"   # 0.23: None = unknown (attached() keeps the decision), never "out"
         vb = rd(USB + "/voltage_now")
         vbus = int(vb) / 1e6 if vb and vb.isdigit() else None               # uV
-        c = rd(BAT + "/capacity")
-        soc = int(c) if c and c.isdigit() else None
+        # a cut left by an earlier guard of THIS boot (a restart; CUT_MARK is on tmpfs, the kernel's state is fresh at
+        # every boot, and the lever also reads 0 when the firmware's own limit is 0, e.g. before the first attach):
+        # stock holds its stop until the unplug and the connector below 55 C, so the cut is adopted as a latched
+        # connector stop at the first decision, BEFORE "a cable is in" is decided (with the cut adopted, present
+        # decides it: a firmware that reports the charger offline while suspended must not turn this into an in-cable
+        # release); the normal path then keeps or releases it. A marker without a cut in the kernel is stale.
+        if self.suspended is None and os.path.exists(CUT_MARK):
+            icl = rdx(USB + "/input_current_limit")
+            if icl == "0" or icl is UNKNOWN:  # 0.23: an unreadable lever with this boot's marker: the cut is adopted
+                self.suspended = True
+                self.usb_latched = True
+                self.usb_why = self.cut_why = "USB connector was too hot before this guard started (input cut found at start)"
+                log("iceland-battery-guard: the charger input was cut before this guard started: kept until the cable "
+                    "is out and the connector reads below %.0f C" % USB_RELEASE_T, syslog.LOG_NOTICE)
+            else:
+                try:
+                    os.remove(CUT_MARK)
+                except OSError:
+                    pass
+        plugged = self.attached(online)
+        self.plugged_last = plugged
+        c = rdx(BAT + "/capacity")
+        self.soc_unknown = c is UNKNOWN    # 0.23: the charge limit's and bypass's holds stay as they were
+        soc = int(c) if c and c is not UNKNOWN and c.isdigit() else None
         ut = usb_therm()
         self.keep_awake(plugged)
         if plugged and ut is None:
@@ -508,7 +940,9 @@ class Guard:
         elif temp is not None and temp >= T_POWEROFF:
             log("iceland-battery-guard: battery %.1f C, powering off" % temp, syslog.LOG_CRIT)
             run(["systemctl", "poweroff"])
-        if st == "Discharging" and volt is not None and volt < V_UV:
+        if st is UNKNOWN:
+            pass                   # 0.23: status can't be read now: the low-voltage count is neither raised nor reset
+        elif st == "Discharging" and volt is not None and volt < V_UV:
             self.uv_count += 1
             if self.uv_count >= UV_COUNT:
                 log("iceland-battery-guard: battery %.3f V < %.2f V, powering off" % (volt, V_UV), syslog.LOG_CRIT)
@@ -524,16 +958,20 @@ class Guard:
         why = usb_stop(ut, temp)
         if not why and plugged and ut is not None and self.prev_ut is not None and ut - self.prev_ut >= USB_RISE_FAST:
             why = "USB connector rose %.1f C in one step (%.1f C)" % (ut - self.prev_ut, ut)
-        if not why and plugged and vbus is not None and vbus > VBUS_OV:
+        cut = why                  # the connector stops cut the input (stock's usbtemp action); VBUS over-voltage does not
+        if not why and (plugged or online is None) and vbus is not None and vbus > VBUS_OV:
             why = "VBUS %.2f V above %.1f V" % (vbus, VBUS_OV)
         over = self.input_over(plugged)
         if not why and over:
             why = over
+            cut = over             # OURS: the input over-limit stop cuts the input too (the input is what misbehaves)
         if plugged:
             self.prev_ut = ut
         if why:
             self.usb_latched = True
             self.usb_why = why
+            if cut:
+                self.cut_why = cut
 
         # charging decision
         stop = None
@@ -559,9 +997,24 @@ class Guard:
         limit = self.limit_stop(soc)
         if stop is None:
             stop = limit
+        try:
+            bypass = self.bypass_stop(plugged, soc)  # only ever one more reason to stop
+        except Exception as e:                       # OURS: a fault in bypass ends bypass, never the stock rules
+            bypass = None
+            self.bp_level, self.bp_topup = None, False
+            self.drop_bypass("internal error (%s: %s)" % (type(e).__name__, e))
+        self.bp_only = stop is None and bypass is not None and not self.usb_latched
+        if stop is None:
+            stop = bypass
         if self.usb_latched:
             stop = why or "%s (unplug to reset)" % (self.usb_why or "USB connector was too hot")
         self.inhibit(stop is not None, stop or "")
+        # the input cut lasts until the cable is out, the connector reads below USB_RELEASE_T (stock's recover)
+        # and no connector rule fired this step
+        if self.cut_why and not plugged and not cut and (ut is None or ut < USB_RELEASE_T):
+            self.cut_why = None
+        self.suspend_input(self.cut_why is not None, self.cut_why or "")
+        self.alert(stop, plugged)
 
         if temp is not None:
             self.cooling = usb_cool(ut, temp, self.cooling)
@@ -591,6 +1044,8 @@ def main():
                 return 0
             time.sleep(5 if plugged else 15)
     finally:
+        if not ONESHOT:
+            g.release_bypass()            # OURS: a hold that was bypass's alone ends with the guard
         g.keep_awake(False, quiet=True)   # the guard stops: give the block back
 
 if __name__ == "__main__":

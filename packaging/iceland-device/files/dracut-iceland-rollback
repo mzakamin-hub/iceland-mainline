@@ -1,0 +1,29 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# dracut module "iceland" (initramfs): iceland.rollback=NAME (only on a "Roll back to ..." boot entry written by
+# iceland-snapshot) makes the read-only snapshot NAME the root before the root is mounted:
+#   top-level subvolume: root -> root.before-rollback-DATE (kept), snapshots/NAME -> new writable root.
+# Undo: boot the rescue kit or this system and swap the two names back (iceland-snapshot rollback NAME also works
+# from a running system). Any failure leaves the root as it was. Writes only inside the Fedora btrfs.
+R=${ICELAND_ROOT:-}
+cmdline=${ICELAND_CMDLINE:-$(cat /proc/cmdline)}
+log() { echo "iceland-rollback: $*" > "$R/dev/kmsg" 2>/dev/null; echo "iceland-rollback: $*"; mkdir -p "$R/run/iceland"; echo "$(date -u +%FT%TZ) $*" >> "$R/run/iceland/rollback.log"; }
+getarg() { local a; for a in $cmdline; do case $a in "$1="*) echo "${a#*=}"; return 0 ;; esac; done; return 1; }
+name=$(getarg iceland.rollback) || exit 0
+case "$name" in *[!A-Za-z0-9._-]*|'') log "refusing snapshot name '$name'"; exit 0 ;; esac
+uuid=$(getarg root | sed -n 's/^UUID=//p')
+[ -n "$uuid" ] || { log "no root=UUID= on the command line"; exit 0; }
+dev=$(readlink -f "$R/dev/disk/by-uuid/$uuid")
+T=$R/run/iceland-top; mkdir -p "$T"
+mount -t btrfs -o subvolid=5,noatime "$dev" "$T" || { log "cannot mount the top level of $dev"; exit 0; }
+trap 'umount "$T" 2>/dev/null' EXIT
+if ! btrfs subvolume show "$T/snapshots/$name" >/dev/null 2>&1; then log "no snapshot $name"; exit 0; fi
+stamp=$(date -u +%Y%m%d-%H%M%S)
+mv "$T/root" "$T/root.before-rollback-$stamp" || { log "cannot move the root aside"; exit 0; }
+if btrfs subvolume snapshot "$T/snapshots/$name" "$T/root" >/dev/null; then
+	log "root is now snapshot $name; the previous root is root.before-rollback-$stamp"
+else
+	mv "$T/root.before-rollback-$stamp" "$T/root"
+	log "snapshot of $name failed; root unchanged"
+fi
+exit 0

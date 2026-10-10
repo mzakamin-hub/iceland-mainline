@@ -1,0 +1,134 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-device: btrfs snapshots of the root before every package transaction, and their "Roll back" entries.
+#   iceland-snapshot pre [REASON]      before a dnf / GNOME Software transaction (libdnf5 actions plugin)
+#   iceland-snapshot post              after it: refresh the rollback boot entries (kernels may have changed)
+#   iceland-snapshot create [REASON]   by hand
+#   iceland-snapshot list | entries | prune
+#   iceland-snapshot rollback NAME     make snapshot NAME the root from the next boot on (old root kept)
+# Snapshots: read-only, in the top level of the Fedora btrfs as snapshots/root-YYYYmmdd-HHMMSS-REASON, with a
+# .info file; the newest KEEP (default 3, /etc/iceland/snapshot.conf) are kept. /home and /var are separate
+# subvolumes and are not rolled back; /boot (kernels) is ext4 and not rolled back either: a rollback entry
+# boots the newest kernel whose modules are in that snapshot and whose files are still in /boot.
+# Entry for snapshot N: /boot/loader/entries/iceland-rollback-N.conf, title "Roll back to DATE (REASON)", options
+# = /etc/kernel/cmdline + iceland.rollback=N (the initramfs does the swap, see dracut module iceland).
+# Writes only inside the Fedora btrfs and /boot/loader/entries. ICELAND_ROOT: PC test prefix.
+set -u
+R=${ICELAND_ROOT:-}
+KEEP=3
+[ -r "$R/etc/iceland/snapshot.conf" ] && . "$R/etc/iceland/snapshot.conf"
+ENTRIES=$R/boot/loader/entries
+TOP=$R/run/iceland-snapshot/top
+log() { logger -t iceland-snapshot "$*" 2>/dev/null; echo "iceland-snapshot: $*"; }
+
+top_mount() {
+	[ -n "$R" ] && { mkdir -p "$TOP/snapshots"; return 0; }   # test mode: TOP is a plain directory
+	local src
+	src=$(findmnt -n -o SOURCE / | sed 's/\[.*//')
+	[ "$(findmnt -n -o FSTYPE /)" = btrfs ] || { log "the root is not btrfs: no snapshots"; return 1; }
+	mkdir -p "$TOP"
+	mountpoint -q "$TOP" || mount -t btrfs -o subvolid=5,noatime "$src" "$TOP" || return 1
+	mkdir -p "$TOP/snapshots"
+}
+top_umount() { [ -n "$R" ] || umount "$TOP" 2>/dev/null; }
+
+snap_make() { # src dst (read-only snapshot)
+	if [ -n "$R" ]; then mkdir -p "$2"; cp -a "$1/." "$2/" 2>/dev/null; return 0; fi
+	btrfs subvolume snapshot -r "$1" "$2" >/dev/null
+}
+snap_delete() {
+	if [ -n "$R" ]; then rm -rf "$1"; return 0; fi
+	btrfs property set -ts "$1" ro false 2>/dev/null; btrfs subvolume delete "$1" >/dev/null
+}
+
+list_snaps() { ls -1d "$TOP"/snapshots/root-* 2>/dev/null | grep -v '\.info$' | sort; }
+
+create() {
+	local reason=${1:-manual} name
+	reason=$(echo "$reason" | tr -c 'A-Za-z0-9._-' '-' | cut -c1-24 | sed 's/-*$//')
+	name=root-$(date -u +%Y%m%d-%H%M%S)-${reason:-manual}
+	top_mount || return 1
+	snap_make "$TOP/root" "$TOP/snapshots/$name" || { log "snapshot failed"; top_umount; return 1; }
+	{
+		echo "date=$(date -u +%FT%TZ)"
+		echo "reason=$reason"
+		echo "kernel=$(uname -r)"
+		echo "default=$(grub2-editenv - list 2>/dev/null | sed -n 's/^saved_entry=//p')"
+		echo "command=$(tr '\0' ' ' < /proc/$PPID/cmdline 2>/dev/null | cut -c1-200)"
+	} > "$TOP/snapshots/$name.info"
+	log "snapshot $name"
+	prune
+	entries
+	top_umount
+}
+
+prune() {
+	local all n i
+	mapfile -t all < <(list_snaps)
+	n=${#all[@]}
+	for ((i = 0; i < n - KEEP; i++)); do
+		snap_delete "${all[$i]}" && rm -f "${all[$i]}.info" && log "pruned ${all[$i]##*/}"
+	done
+}
+
+cmdline_opts() {
+	if [ -s "$R/etc/kernel/cmdline" ]; then grep -v '^#' "$R/etc/kernel/cmdline" | tr -s ' \n' ' '; else
+		tr ' ' '\n' < /proc/cmdline | grep -v -e '^BOOT_IMAGE=' -e '^initrd=' -e '^iceland.rollback=' | tr '\n' ' '; fi
+}
+
+entries() {
+	mkdir -p "$ENTRIES"
+	rm -f "$ENTRIES"/iceland-rollback-*.conf
+	local s name ver v kv title opts dt
+	opts=$(cmdline_opts)
+	for s in $(list_snaps); do
+		name=${s##*/}
+		# newest kernel with modules in the snapshot AND a vmlinuz in /boot
+		kv=""
+		for v in $(ls -1 "$s/usr/lib/modules" 2>/dev/null | sort -V -r); do
+			[ -e "$R/boot/vmlinuz-$v" ] && { kv=$v; break; }
+		done
+		[ -n "$kv" ] || { log "no kernel for $name in /boot: no entry"; continue; }
+		title="Roll back to $(echo "$name" | sed 's/^root-\([0-9]\{8\}\)-\([0-9]\{6\}\)-\(.*\)$/\1 \2 (\3)/')"
+		dt=""; [ -e "$R/boot/dtb-$kv/qcom/kaanapali-oneplus-iceland.dtb" ] && dt="devicetree /dtb-$kv/qcom/kaanapali-oneplus-iceland.dtb"
+		{
+			echo "title $title"
+			echo "version 0~iceland.rollback.${name#root-}"
+			echo "linux /vmlinuz-$kv"
+			echo "initrd /initramfs-$kv.img"
+			echo "options ${opts% } iceland.rollback=$name"
+			[ -n "$dt" ] && echo "$dt"
+			echo "grub_users \$grub_users"
+			echo "grub_arg --unrestricted"
+			echo "grub_class fedora"
+		} > "$ENTRIES/iceland-rollback-$name.conf"
+	done
+}
+
+rollback_now() {
+	local name=$1 stamp
+	case "$name" in *[!A-Za-z0-9._-]*|'') echo "bad name"; return 1 ;; esac
+	top_mount || return 1
+	[ -d "$TOP/snapshots/$name" ] || { log "no snapshot $name"; top_umount; return 1; }
+	stamp=$(date -u +%Y%m%d-%H%M%S)
+	# the running root keeps running until the reboot; the next boot mounts subvol=root = the snapshot
+	mv "$TOP/root" "$TOP/root.before-rollback-$stamp" || { top_umount; return 1; }
+	if [ -n "$R" ]; then cp -a "$TOP/snapshots/$name" "$TOP/root"; else btrfs subvolume snapshot "$TOP/snapshots/$name" "$TOP/root" >/dev/null; fi || {
+		mv "$TOP/root.before-rollback-$stamp" "$TOP/root"; top_umount; return 1; }
+	log "rollback to $name at the next boot; the current root is kept as root.before-rollback-$stamp"
+	top_umount
+}
+
+rc=0
+case "${1:-}" in
+	# a failed snapshot must not stop the transaction: "pre" always ends with 0 (logged above)
+	pre) [ "${ICELAND_NO_SNAPSHOT:-0}" = 1 ] && exit 0; create "${2:-dnf}" || log "no snapshot before this transaction" ;;
+	post) top_mount && { entries; top_umount; } ;;
+	create) create "${2:-manual}" || rc=1 ;;
+	list) top_mount && { for s in $(list_snaps); do echo "${s##*/}  $(tr '\n' ' ' < "$s.info" 2>/dev/null)"; done; top_umount; } ;;
+	entries) top_mount && { entries; top_umount; } ;;
+	prune) top_mount && { prune; entries; top_umount; } ;;
+	rollback) rollback_now "${2:-}" || rc=1 ;;
+	*) sed -n '3,9p' "$0"; exit 2 ;;
+esac
+exit $rc

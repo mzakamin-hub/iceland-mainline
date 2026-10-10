@@ -1,5 +1,7 @@
 # OnePlus Pad 4 - mainline Linux + Fedora 44 GNOME: final report of 3 Oct 2026
 
+**Update 10 Oct 2026 (loop 5):** the image is still HELD. The candidate is kernel q89b (Linux 7.3-rc6, iceland-linux branch iceland-7.3-rc6-q89b) + iceland-device 0.23 + libcamera iceland4; r2v passed the F55 replay for the second time, but the image becomes final only after a clean fresh-boot rehearsal with the fixed checkers, the cable-out idle test and the owner's items. See LOOP5-NOTES.md.
+
 3 Oct 2026, 17:30 (docs workflow). Status of the image: HELD (the fresh-boot test r2m: 3 of 10 mic opens empty, F55). The
 result fields are filled in from that test, the queue push of the skin trips (0190), the
 ledger's G3 check of r2l and commit z. **Nothing has been installed on the tablet.** Every result is from RAM boots

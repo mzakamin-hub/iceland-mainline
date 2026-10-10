@@ -1,0 +1,14 @@
+# iceland-device: refresh the persistent clock stamp every 15 minutes (a power loss then costs at most 15 minutes of
+# clock; the shutdown save in iceland-clock.service covers the normal case).
+[Unit]
+Description=OnePlus Pad 4: refresh the persistent clock stamp
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+AccuracySec=1min
+Persistent=false
+Unit=iceland-clock-save.service
+
+[Install]
+WantedBy=timers.target

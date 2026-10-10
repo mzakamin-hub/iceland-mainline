@@ -1,0 +1,25 @@
+# iceland-device: SELinux module for the OnePlus Pad 4's sensors (wf/fedtest).
+#
+# The accelerometer, light, proximity and compass sensors sit behind the ADSP's sensor hub; iio-sensor-proxy (Fedora's
+# build with SSC support, via libssc) talks to it over the QRTR socket family (AF_QIPCRTR). Fedora 44's targeted
+# policy gives iiosensorproxy_t no qipcrtr_socket rules: in enforcing mode the socket create is denied, the daemon
+# logs "QRTR bus unavailable. Make sure access to AF_QIPCRTR address family is granted", exits with "No sensors",
+# restarts until the start limit and stays failed (rehearsal R2: 60 denials, rotate FAIL; R1d in permissive mode:
+# 7 denials of {create getopt getattr} on qipcrtr_socket, {read open getattr} on /etc/passwd and the dac_read_search
+# capability, rotate PASS). Raw module syntax (no refpolicy interfaces needed): checkmodule -M -m + semodule_package.
+module iceland_sensors 1.0;
+
+require {
+	type iiosensorproxy_t;
+	type passwd_file_t;
+	class qipcrtr_socket { create bind connect getattr setattr getopt setopt read write ioctl shutdown sendto recvfrom listen accept };
+	class file { read open getattr };
+	class capability dac_read_search;
+}
+
+# the QRTR socket to the sensor hub (libssc): create / bind / send / receive, options, close
+allow iiosensorproxy_t self:qipcrtr_socket { create bind connect getattr setattr getopt setopt read write ioctl shutdown sendto recvfrom listen accept };
+# libssc / glib look the running user up
+allow iiosensorproxy_t passwd_file_t:file { read open getattr };
+# seen alongside the socket denials in permissive mode (R1d)
+allow iiosensorproxy_t self:capability dac_read_search;

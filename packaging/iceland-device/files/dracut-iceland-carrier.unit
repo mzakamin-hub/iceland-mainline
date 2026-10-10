@@ -1,0 +1,17 @@
+# dracut module "iceland": attach the Fedora disk that lies inside userdata (or, in a rehearsal, on the PC)
+[Unit]
+Description=OnePlus Pad 4: attach the Fedora disk inside userdata
+DefaultDependencies=no
+After=systemd-udevd.service systemd-udev-trigger.service
+Before=initrd-root-device.target sysroot.mount
+ConditionPathExists=/etc/initrd-release
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/iceland/iceland-carrier
+StandardOutput=journal+console
+TimeoutStartSec=150
+# a stop of this unit never takes the processes it started with it (r1debug's R1b review): in a rehearsal that is
+# nbd-client, which carries the root disk
+KillMode=process

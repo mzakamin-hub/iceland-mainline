@@ -3270,3 +3270,42 @@ regexes) -> q85 if klog finds fixes. Owner checks: H1-H3 (chgsafe), installed su
   213 s** -> F55 (ADSP stall) is present in a fresh session -> **the image is HELD** (owner's rule). Loop 5 first
   item: F55 (klog micfresh phases a / k / s). Chgsafe: r2l failed-read audit = 1 gap G1 (next build, not a blocker).
 - 20:18 queue 0190 pushed (iceland-linux 2afea47); r2m postsession done; the Fable agents resumed.
+
+- 9 Oct 2026: commit z DONE (iceland-mainline a8739a6, pushed, guard 0 hits; status HELD; queue 0190 = iceland-linux 2afea47). Result fields in LOOP4-NOTES / FINAL-REPORT filled.
+  Handoff package created: C:\Users\lucne\OnePlusPad4-Loop5 (CLAUDE.md, RULES.md, NEXT-TESTS.md, STATE-AT-HANDOFF.md, agents/BRIEFS.md, wsl-snapshot/, docs/history/). Loop 5 continues there; F55 first.
+
+- 9 Oct 2026 (later): **upstream scan for Kaanapali** (patchwork.kernel.org / linuxtv API, qcom *-for-7.4 + msm-next fetched
+  into WSL ~/mainline/research/qcom74.git, linux-next 20261008). Mainline = 7.3-rc7; qcom 7.4 pulls tagged.
+  In 7.4 (qcom): GPU DT (A840 + SMMU + QFPROM + cooling, = our infiniti 0006-0011), GCC CX power domain (new to us),
+  PCIe WAKE# polarity fix. msm-next 7.4: A840 CLX, RPMh dependency-vote fixes (= our 0146/0149), GMU FW timeout, DP HPD
+  serialise / PUSH_IDLE / link-training fixes, DPU dual-intf fixes (slave encoder order, compressed INTF width, CRTC bw).
+  In 7.3-rc after our rc4 base: dsi byte-clock rounding after reparent (not in queue). Under review: CAMSS v19 (changes
+  requested), iris v4, DP controller v1 (Reviewed-by Dmitry), INT2 GDSC v2 (changes requested; we carry our own 0022/0026),
+  UFS AXI FORCE_MEM_CORE_ON (Reviewed-by Abel), I2C strong pull-up, BCL v4, audio-PD memory-region, CDSP FastRPC ext CB.
+  **F55 lead**: RFC 8 Oct "ASoC: qcom: q6apm: recover PCM from failed data receipts" + "abort prepare when stopping the
+  graph fails" (Zhang Jiaxi, 4 patches) - candidate for the klog micfresh item. Nothing built or run.
+
+- 10 Oct 2026: **full upstream scan by hardware block** (patchwork kernel.org + linuxtv, ~110 keywords from
+  wf/hwinv INVENTORY; 22 maintainer trees fetched to WSL ~/mainline/research/trees + qcom74.git; infiniti master
+  vs our pin: rebased on 7.3-rc4, 21 commits new to us (IPA / modem / NFC not ours); map220v unchanged since 17 Aug;
+  Mesa nothing A8xx-specific). Report: docs/UPSTREAM-SCAN-2026-10-10.md (20 top picks, per-block lists, drops at the
+  7.4 rebase). Nothing built or run.
+
+- 10 Oct 2026: **r2t results of the scan marked** in docs/UPSTREAM-SCAN-2026-10-10.md (new section 0), from the Loop 5
+  session (kernel q89 = v7.3-rc6 + 0001-0199 + scan additions 0201-0254). Correction: mainline was v7.3-rc6, not
+  rc7 (the 9 Oct entry misread a "net-7.3-rc7" merge tag). Regressions, dropped for q89b / r2u: q6apm RFC 0202-0205
+  (rejects the ADSP's 56-byte read-done payload, every mic open empty) and DW9800K update 0253 (chip ID 0xfe vs
+  0xEB, lens unbound, no camera). Booted clean with no kmsg errors: DPU quad-pipe 0206-0213 (refresh switching not
+  tested), GCC CX 0228-0229, BT H:4 0215, the rest. Several scan items were already in rc6 or already carried.
+- 10 Oct 2026 (later): r2t correction from the Loop 5 session (full kmsg scan vs q88 r2m / r2o / r2s), marked in
+  the scan report section 0: also NOT WORKING: GPU CLX 0244-0245 (GMU HFI GX_BW_PERF_VOTE timeout, gpu hw init
+  -110; GPU did not start, pending confirmation in q89b) and wcd939x per-channel port switches 0254 (SWR bus clsh x4,
+  codec parity error x2). BT H:4 reassembly 0215: no effect (-84 still x2). Display / quad-pipe only lightly tested
+  (no GPU acceleration). q89b = q89 minus 0202-0205, 0244, 0245, 0253, 0254.
+- 10 Oct 2026: **r2u results** (q89b = q89 minus 0202-0205, 0244, 0245, 0253, 0254; fresh boot 04:45-05:06) marked
+  in the scan report section 0. Confirmed breakers (function back without them): q6apm RFC 0202-0205 (root cause:
+  kernel struct data_cmd_rsp_rd_sh_mem_ep_data_buffer_done_v2 has the V1 60-byte layout, SPF V2 sends 56 bytes;
+  corrected series in WSL wf/f55rfc/patches, not sent), DW9800K 0253 (cameras back, 40 cycles 0 crashes), GPU CLX
+  0244-0245 (GPU back). Cleared: 0254 is not the cause of the SWR clsh / wcd9390 parity lines (still x11 / x4
+  without it: open item of the rc6 base; 0254 untested). F55 replay PASSED on q89b (first clean fresh-boot replay,
+  not yet proof). BT -84 cause = our own WCN7860 baud patch (no flush); cosmetic.

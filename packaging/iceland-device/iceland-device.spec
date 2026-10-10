@@ -4,7 +4,7 @@
 # No firmware and no binaries: configuration files and small scripts only.
 
 Name:           iceland-device
-Version:        0.17
+Version:        0.23
 Release:        1%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
@@ -14,11 +14,58 @@ BuildRequires:  m4
 BuildRequires:  alsa-utils
 # alsatplg (Fedora ships it apart from alsa-utils)
 BuildRequires:  alsa-topology-utils
+# the SELinux module (checkmodule, semodule_package)
+BuildRequires:  checkpolicy
+BuildRequires:  policycoreutils
+Requires(post): policycoreutils
+Requires(postun): policycoreutils
 Source0:        80-iceland-kernel.conf
 # Fedora's repositories: GRUB, shim, firmware and the sensor programs held; the release pinned (dnf5 repository
 # overrides; an empty file of the same name in /etc/dnf/repos.override.d masks either)
 Source60:       50-iceland-fedora-hold.repo
 Source61:       51-iceland-fedora-44-pin.repo
+# install plan (wf/install): read-only internal storage, the root inside userdata, snapshots, trial boots
+Source62:       59-iceland-storage-ro.rules
+Source63:       iceland-storage-ro
+Source64:       dracut-iceland-module-setup.sh
+Source65:       dracut-iceland-carrier
+Source66:       dracut-iceland-rehearsal
+Source67:       dracut-iceland-rollback
+Source68:       dracut-iceland-carrier.unit
+Source69:       dracut-iceland-rollback.unit
+Source70:       91-iceland-install-dracut.conf
+Source71:       iceland-snapshot
+Source72:       iceland-snapshot.actions
+Source73:       snapshot.conf
+Source74:       96-iceland-trial.install
+Source75:       iceland-trial
+Source76:       iceland-trial-early.service
+Source77:       iceland-boot-confirm.service
+Source78:       iceland-grub-setup
+Source79:       boot.conf
+Source80:       iceland-protected.conf
+Source81:       iceland-fwupd-guard
+# charging safety (wf/chgsafe): the GNOME user service that shows the guard's safety stops as desktop notifications
+Source82:       iceland-charge-alert
+Source83:       iceland-charge-alert.service
+# systemd preset (wf/fedtest): keeps the iceland units enabled through the first boot's preset-all
+Source106:      50-iceland.preset
+# storage: the UFS LUNs' I/O scheduler one LUN at a time (r2g: parallel writes got -EBUSY)
+Source107:      60-block-scheduler.rules
+Source108:      61-iceland-ufs-scheduler.rules
+Source109:      iceland-ufs-scheduler
+# sensors: the DSP file tree readable by group fastrpc (hexagonrpcd's user)
+Source110:      iceland-dsp-tree.conf
+# SELinux (wf/fedtest): iio-sensor-proxy's QRTR socket to the sensor hub (R2 enforcing: no rotation without it)
+Source105:      iceland_sensors.te
+# sound at boot (wf/fedtest): shadows alsa-lib's modprobe install hook that fails without a sequencer
+Source104:      dist-alsa.conf
+# the persistent clock (wf/fedtest): the PMIC RTC cannot be set; PID 1 restores the clock from the mtime of
+# /var/lib/systemd/timesync/clock at boot, and these keep that stamp current (timer + shutdown)
+Source100:      iceland-clock
+Source101:      iceland-clock.service
+Source102:      iceland-clock.timer
+Source103:      iceland-clock-save.service
 Source1:        sleep-iceland.conf
 Source2:        journald-iceland.conf
 Source3:        49-iceland-no-system-upgrade.rules
@@ -75,11 +122,26 @@ Source51:       iceland-thermal.service
 Source52:       thermal.conf
 # what logind does when the cover closes: suspend on battery, lock (screen off, awake) with a charger in
 Source53:       logind-iceland.conf
+Source111:       iceland-regdomain
+# bypass charging (wf/bypass): the Quick Settings toggle (a GNOME Shell extension), its D-Bus service with the
+# polkit action, and the guard's bypass rule (iceland-battery-guard, battery-guard.conf)
+Source112:      iceland-bypassd
+Source113:      iceland-bypass.service
+Source114:      org.iceland.Bypass.service
+Source115:      org.iceland.Bypass.conf
+Source116:      org.iceland.bypass.policy
+Source117:      bypass-extension.js
+Source118:      bypass-metadata.json
+Source119:      zz_iceland-device.gschema.override
+# the processed microphone (owner, 9 Oct 2026): PipeWire's echo-cancel with the WebRTC backend (pipewire-libs ships
+# aec/libspa-aec-webrtc.so); fail-safe: a module that does not load leaves the raw UCM source the default
+Source120:      60-iceland-mic-processing.conf
 
 Requires:       kernel-iceland
 Requires:       bluez
 Requires:       python3
 Requires:       python3-gobject
+Requires:       polkit
 Requires:       createrepo_c
 Requires:       curl
 Requires:       iw
@@ -93,10 +155,24 @@ Requires:       iio-sensor-proxy >= 3.9-10
 # for the camera permission (GNOME backend) and the document portal's FUSE helper
 Requires:       libcamera-ipa
 Requires:       pipewire-plugin-libcamera
+# 51-iceland-camera.conf disables a V4L2 device: WirePlumber 0.5.16 / 0.5.17 then stall their event dispatcher (no camera
+# source); fixed upstream in 0.5.18 (65519a1, wf/gpuisp)
+Requires:       wireplumber >= 0.5.18
 Requires:       xdg-desktop-portal-gnome
 Requires:       fuse3
+Requires:       btrfs-progs
+Requires:       libdnf5-plugin-actions
+Requires:       grub2-tools
+Requires:       util-linux
+Requires:       nbd
+Requires:       busybox
 Recommends:     snapshot
-Recommends:     pipewire-gstreamer
+# F1 (wf/fedtest, r2g 3 Oct 2026): GNOME Snapshot died with SIGBUS in pipewire 1.6.2's GStreamer device provider
+# (libgstpipewire re-adds its metadata listener when the portal re-announces the default metadata); fixed upstream
+# in PipeWire 1.6.8 (gst: device-provider: don't re-add metadata listener on permission change). The floor pulls
+# Fedora 44's pipewire update (1.6.9) into the image; pipewire-libs moves with it (exact-version subpackages).
+Requires:       pipewire-gstreamer >= 1.6.8
+Requires:       pipewire-libs >= 1.6.8
 Requires(posttrans): grubby
 
 %description
@@ -120,7 +196,12 @@ Settings that make Fedora 44 work safely on the OnePlus Pad 4 with the kernel-ic
   and the charge limit: it follows the kernel's thresholds (GNOME's "Preserve Battery Health", 85 % / 80 %,
   switched on at the first installation) or, on a kernel without them, /etc/iceland/battery-guard.conf; it keeps
   the tablet awake while a charger is in (as stock does), writes what was plugged in to the journal, and takes
-  the charge-current cap of iceland-thermal when that is lower than its own;
+  the charge-current cap of iceland-thermal when that is lower than its own; at a USB-C connector stop (too hot,
+  far above the battery, warming fast) and at an input over-limit stop it also switches the charger input off
+  through kernel-iceland's qcom-battmgr-usb/input_current_limit (as stock's connector protection does: the tablet
+  runs from its battery, nothing flows through the hot connector; back once the cable is out and the connector
+  is below 55 C), and the GNOME session shows every safety stop and its end as a desktop notification
+  (iceland-charge-alert, a user service reading /run/iceland/charge-alert: no privilege path);
 - iceland-thermal applies stock's skin temperature policy (20 temperature gears: CPU, GPU, brightness and
   charging limits per gear, GNOME's power modes as stock's mode offsets; /etc/iceland/thermal.conf). It only
   ever lowers limits; the kernel's thermal zones stay underneath. The shell temperature model is a private local
@@ -129,8 +210,13 @@ Settings that make Fedora 44 work safely on the OnePlus Pad 4 with the kernel-ic
 - the panel runs 60 Hz on battery and 120 Hz on AC (iceland-refresh, /etc/iceland/refresh.conf); live
   refresh-rate changes need kernel queue patch 0058 (RELIGHT=1 switches the display off and on after every
   change, for older kernels only);
-- the CDSP (NPU) stays off until `iceland-npu on`;
+- the CDSP (NPU) runs from boot and idles by itself; the boot-time stop (iceland-npu-off.service) is opt-in
+  through /etc/iceland/npu-off-at-boot, because a stopped CDSP keeps the SoC out of CX collapse in suspend
+  until it runs again (iceland-npu on|off|status);
 - the Wi-Fi regulatory country comes from /etc/iceland/wifi-country (written at install: the owner's country);
+- the clock survives reboots without a settable RTC: iceland-clock keeps the mtime of
+  /var/lib/systemd/timesync/clock current (every 15 min and at shutdown); systemd's PID 1 takes it as the lower bound
+  of the system time at boot, so rpm's signature checks and TLS work before the first NTP sync
 - sound: the Pad 4 AudioReach topology (TDM speakers, stream gain capped until speaker protection exists) and the
   ALSA UCM profile (speakers + internal microphones for PipeWire/GNOME);
 - GNOME's power modes (tuned-ppd) map to Pad 4 profiles: schedutil with the frequency floors of stock's own
@@ -144,6 +230,11 @@ Settings that make Fedora 44 work safely on the OnePlus Pad 4 with the kernel-ic
   /dev/fastrpc-adsp appears; iio-sensor-proxy waits until the accelerometer answers; hexagonrpcd is started again
   after a suspend. Needs the tablet's own DSP file tree in /usr/share/qcom/kaanapali/OnePlus/iceland (extracted
   at install time, never shipped).
+- bypass charging, as stock's: a "Bypass Charging" toggle in GNOME's Quick Settings (threshold from 20 %); with a
+  charger in, charging stops at the threshold and the tablet runs from the charger, the level held within 1 % by
+  iceland-battery-guard; it ends at unplug, at a charger-input safety stop and 5 minutes after the toggle stops
+  renewing it (screen locked), and every charging limit still applies (iceland-bypassd, polkit
+  org.iceland.bypass.set: the user at the tablet).
 
 %prep
 %setup -q -c -T
@@ -152,6 +243,9 @@ tar -xzf %{SOURCE21}
 tar -xzf %{SOURCE22}
 
 %build
+# the sensors' SELinux module (raw module syntax, no policy headers needed)
+checkmodule -M -m -o iceland_sensors.mod %{SOURCE105}
+semodule_package -o iceland_sensors.pp -m iceland_sensors.mod
 # the Pad 4 AudioReach topology: upstream m4 + our overlay (TDM speakers, capped stream gain)
 cp -a audio/topology/. audioreach-topology/
 (cd audioreach-topology && m4 -I . OnePlus-Pad4.m4 > OnePlus-Pad4.conf && alsatplg -c OnePlus-Pad4.conf -o OnePlus-Pad4-tplg.bin)
@@ -182,6 +276,7 @@ install -Dm0755 %{SOURCE16} %{buildroot}/usr/bin/iceland-npu
 install -Dm0644 %{SOURCE17} %{buildroot}/usr/lib/systemd/system/iceland-npu-off.service
 install -Dm0755 %{SOURCE18} %{buildroot}/usr/libexec/iceland/iceland-wifi-country
 install -Dm0644 %{SOURCE19} %{buildroot}/usr/lib/systemd/system/iceland-wifi-country.service
+install -Dm0644 %{SOURCE111} %{buildroot}/etc/sysconfig/regdomain
 install -Dm0644 audioreach-topology/OnePlus-Pad4-tplg.bin %{buildroot}/usr/lib/firmware/qcom/kaanapali/OnePlus-Pad4-tplg.bin
 install -Dm0644 audio/ucm/OnePlus-Pad4/OnePlus-Pad4.conf %{buildroot}/usr/share/alsa/ucm2/Qualcomm/kaanapali/OnePlus-Pad4/OnePlus-Pad4.conf
 install -Dm0644 audio/ucm/OnePlus-Pad4/HiFi.conf %{buildroot}/usr/share/alsa/ucm2/Qualcomm/kaanapali/OnePlus-Pad4/HiFi.conf
@@ -197,10 +292,14 @@ install -Dm0644 %{SOURCE25} %{buildroot}/usr/share/iceland/machine-info
 install -Dm0644 %{SOURCE26} %{buildroot}/usr/lib/udev/rules.d/81-iceland-ssc.rules
 install -Dm0644 %{SOURCE27} %{buildroot}/usr/lib/systemd/system/iio-sensor-proxy.service.d/iceland.conf
 install -Dm0644 %{SOURCE28} %{buildroot}/usr/lib/systemd/system/hexagonrpcd-adsp-sensorspd.service.d/iceland.conf
+install -Dm0644 %{SOURCE110} %{buildroot}/usr/lib/tmpfiles.d/iceland-dsp-tree.conf
 install -Dm0755 %{SOURCE29} %{buildroot}/usr/libexec/iceland/iceland-ssc-wait
 install -Dm0644 %{SOURCE30} %{buildroot}/usr/lib/systemd/system/iceland-ssc-resume.service
 install -Dm0644 %{SOURCE31} %{buildroot}/usr/share/libcamera/ipa/simple/sc1320cs.yaml
 install -Dm0644 %{SOURCE34} %{buildroot}/usr/share/libcamera/ipa/simple/sc820cs.yaml
+install -Dm0644 %{SOURCE107} %{buildroot}/etc/udev/rules.d/60-block-scheduler.rules
+install -Dm0644 %{SOURCE108} %{buildroot}/usr/lib/udev/rules.d/61-iceland-ufs-scheduler.rules
+install -Dm0755 %{SOURCE109} %{buildroot}/usr/libexec/iceland/iceland-ufs-scheduler
 install -Dm0644 %{SOURCE35} %{buildroot}/usr/share/wireplumber/wireplumber.conf.d/51-iceland-camera.conf
 install -Dm0755 %{SOURCE36} %{buildroot}/usr/libexec/iceland/iceland-camera-focus
 install -Dm0644 %{SOURCE37} %{buildroot}/usr/lib/systemd/system/iceland-camera-focus.service
@@ -210,10 +309,55 @@ install -Dm0644 %{SOURCE32} %{buildroot}/usr/lib/udev/hwdb.d/61-iceland-battery.
 install -Dm0644 %{SOURCE33} %{buildroot}/usr/lib/systemd/system/upower.service.d/iceland.conf
 install -Dm0755 %{SOURCE50} %{buildroot}/usr/libexec/iceland/iceland-thermal
 install -Dm0644 %{SOURCE51} %{buildroot}/usr/lib/systemd/system/iceland-thermal.service
+install -Dm0644 %{SOURCE106} %{buildroot}/usr/lib/systemd/system-preset/50-iceland.preset
+install -Dm0644 iceland_sensors.pp %{buildroot}/usr/share/selinux/packages/iceland/iceland_sensors.pp
+install -Dm0644 %{SOURCE105} %{buildroot}/usr/share/selinux/packages/iceland/iceland_sensors.te
+install -Dm0644 %{SOURCE104} %{buildroot}/etc/modprobe.d/dist-alsa.conf
+install -Dm0755 %{SOURCE100} %{buildroot}/usr/libexec/iceland/iceland-clock
+install -Dm0644 %{SOURCE101} %{buildroot}/usr/lib/systemd/system/iceland-clock.service
+install -Dm0644 %{SOURCE102} %{buildroot}/usr/lib/systemd/system/iceland-clock.timer
+install -Dm0644 %{SOURCE103} %{buildroot}/usr/lib/systemd/system/iceland-clock-save.service
 install -Dm0644 %{SOURCE52} %{buildroot}/etc/iceland/thermal.conf
 install -Dm0644 %{SOURCE53} %{buildroot}/usr/lib/systemd/logind.conf.d/60-iceland.conf
 
+install -Dm0644 %{SOURCE62} %{buildroot}/usr/lib/udev/rules.d/59-iceland-storage-ro.rules
+install -Dm0755 %{SOURCE63} %{buildroot}/usr/libexec/iceland/iceland-storage-ro
+install -Dm0755 %{SOURCE64} %{buildroot}/usr/lib/dracut/modules.d/90iceland/module-setup.sh
+install -Dm0755 %{SOURCE65} %{buildroot}/usr/lib/dracut/modules.d/90iceland/iceland-carrier
+install -Dm0755 %{SOURCE66} %{buildroot}/usr/lib/dracut/modules.d/90iceland/iceland-rehearsal
+install -Dm0755 %{SOURCE67} %{buildroot}/usr/lib/dracut/modules.d/90iceland/iceland-rollback
+install -Dm0644 %{SOURCE68} %{buildroot}/usr/lib/dracut/modules.d/90iceland/iceland-carrier.service
+install -Dm0644 %{SOURCE69} %{buildroot}/usr/lib/dracut/modules.d/90iceland/iceland-rollback.service
+install -Dm0644 %{SOURCE70} %{buildroot}/usr/lib/dracut/dracut.conf.d/91-iceland-install.conf
+install -Dm0755 %{SOURCE71} %{buildroot}/usr/libexec/iceland/iceland-snapshot
+install -Dm0644 %{SOURCE72} %{buildroot}/etc/dnf/libdnf5-plugins/actions.d/iceland-snapshot.actions
+install -Dm0644 %{SOURCE73} %{buildroot}/etc/iceland/snapshot.conf
+install -Dm0755 %{SOURCE74} %{buildroot}/usr/lib/kernel/install.d/96-iceland-trial.install
+install -Dm0755 %{SOURCE75} %{buildroot}/usr/libexec/iceland/iceland-trial
+install -Dm0644 %{SOURCE76} %{buildroot}/usr/lib/systemd/system/iceland-trial-early.service
+install -Dm0644 %{SOURCE77} %{buildroot}/usr/lib/systemd/system/iceland-boot-confirm.service
+install -Dm0755 %{SOURCE78} %{buildroot}/usr/libexec/iceland/iceland-grub-setup
+install -Dm0644 %{SOURCE79} %{buildroot}/etc/iceland/boot.conf
+install -Dm0644 %{SOURCE80} %{buildroot}/etc/dnf/protected.d/iceland-device.conf
+install -Dm0755 %{SOURCE81} %{buildroot}/usr/libexec/iceland/iceland-fwupd-guard
+install -Dm0755 %{SOURCE82} %{buildroot}/usr/libexec/iceland/iceland-charge-alert
+install -Dm0644 %{SOURCE83} %{buildroot}/usr/lib/systemd/user/iceland-charge-alert.service
+install -Dm0755 %{SOURCE112} %{buildroot}/usr/libexec/iceland/iceland-bypassd
+install -Dm0644 %{SOURCE113} %{buildroot}/usr/lib/systemd/system/iceland-bypass.service
+install -Dm0644 %{SOURCE114} %{buildroot}/usr/share/dbus-1/system-services/org.iceland.Bypass.service
+install -Dm0644 %{SOURCE115} %{buildroot}/usr/share/dbus-1/system.d/org.iceland.Bypass.conf
+install -Dm0644 %{SOURCE116} %{buildroot}/usr/share/polkit-1/actions/org.iceland.bypass.policy
+install -Dm0644 %{SOURCE117} %{buildroot}/usr/share/gnome-shell/extensions/iceland-bypass@oneplus-pad4/extension.js
+install -Dm0644 %{SOURCE118} %{buildroot}/usr/share/gnome-shell/extensions/iceland-bypass@oneplus-pad4/metadata.json
+install -Dm0644 %{SOURCE119} %{buildroot}/usr/share/glib-2.0/schemas/zz_iceland-device.gschema.override
+install -Dm0644 %{SOURCE120} %{buildroot}/usr/share/pipewire/pipewire.conf.d/60-iceland-mic-processing.conf
+install -d %{buildroot}/var/lib/iceland/trial
+
 %posttrans
+# install plan: GRUB settings (per-kernel device tree, visible menu, $iceland_args), trial-boot units, udev
+/usr/libexec/iceland/iceland-grub-setup || :
+systemctl enable iceland-trial-early.service iceland-boot-confirm.service >/dev/null 2>&1 || :
+[ -d /run/systemd/system ] && udevadm control --reload >/dev/null 2>&1 || :
 # kernel-iceland is the default kernel and new kernel-iceland versions become the default
 cat > /etc/sysconfig/kernel <<'EOT'
 # written by iceland-device
@@ -235,6 +379,12 @@ systemctl stop iceland-ssc-hold.service >/dev/null 2>&1 || :
 if [ -d /run/systemd/system ]; then udevadm control --reload >/dev/null 2>&1 || :; udevadm trigger --action=add -s dma_heap >/dev/null 2>&1 || :; fi
 # the skin temperature policy starts at boot, like the guard
 systemctl enable iceland-thermal.service >/dev/null 2>&1 || :
+# the sensors' SELinux module: into the policy store; loaded at once on a booted system, else at the next boot
+if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/enforce ]; then semodule -i /usr/share/selinux/packages/iceland/iceland_sensors.pp >/dev/null 2>&1 || :
+else semodule -n -i /usr/share/selinux/packages/iceland/iceland_sensors.pp >/dev/null 2>&1 || :; fi
+# the persistent clock: enabled here (no Fedora preset names it); the stamp is saved once now if the clock is trusted
+systemctl enable iceland-clock.service iceland-clock.timer >/dev/null 2>&1 || :
+[ -d /run/systemd/system ] && /usr/libexec/iceland/iceland-clock save >/dev/null 2>&1 || :
 # logind reads the cover settings again (a reload, not a restart: a restart would end the sessions)
 if [ -d /run/systemd/system ]; then systemctl kill -s HUP systemd-logind.service >/dev/null 2>&1 || :; fi
 # the charge limit starts switched on ("Preserve Battery Health": before 0.17 the guard's 85 % limit was always on).
@@ -249,7 +399,11 @@ if [ -d /run/systemd/system ]; then udevadm control --reload >/dev/null 2>&1 || 
 # a running guard or thermal policy takes the new version at once (both start at boot; an installation alone
 # does not start them)
 if [ -d /run/systemd/system ]; then systemctl daemon-reload >/dev/null 2>&1 || :; systemctl try-restart iceland-battery-guard.service iceland-thermal.service >/dev/null 2>&1 || :; fi
-systemctl --global enable iceland-refresh.service >/dev/null 2>&1 || :
+systemctl --global enable iceland-refresh.service iceland-charge-alert.service >/dev/null 2>&1 || :
+# bypass charging: the bus reads the D-Bus policy of iceland-bypassd again (the service starts on demand); a running
+# one takes the new version. polkit sees the new action by itself; the GSettings override is compiled by glib2's
+# file trigger; GNOME Shell loads the extension at the next login.
+if [ -d /run/systemd/system ]; then systemctl reload dbus-broker.service >/dev/null 2>&1 || systemctl reload dbus.service >/dev/null 2>&1 || :; systemctl try-restart iceland-bypass.service >/dev/null 2>&1 || :; fi
 # GNOME's power modes -> the Pad 4 tuned profiles (edits tuned-ppd's mapping between marker lines)
 /usr/bin/iceland-power-profiles apply >/dev/null 2>&1 || :
 # an empty local repository, so dnf doesn't complain before the first iceland-repo-sync
@@ -266,6 +420,7 @@ done
 chmod 644 "$mi" 2>/dev/null; restorecon "$mi" >/dev/null 2>&1 || :
 
 %triggerin -- fwupd
+/usr/libexec/iceland/iceland-fwupd-guard || :
 # fwupd plug-ins that could write boot code, EFI variables, the storage's own firmware (UFS = scsi) or GPIOs: off
 f=/etc/fwupd/fwupd.conf
 dis="uefi_capsule;uefi_dbx;uefi_db;uefi_kek;uefi_pk;uefi_mok;uefi_sbat;uefi_recovery;uefi_esrt;android_boot;scsi;emmc;mtd;nvme;gpio;vbe;bootupd"
@@ -282,10 +437,15 @@ if [ -f "$f" ]; then
 fi
 
 %preun
-[ "$1" -eq 0 ] && systemctl --global disable iceland-refresh.service >/dev/null 2>&1; [ "$1" -eq 0 ] && systemctl disable iceland-camera-focus.service iceland-ssc-resume.service iceland-wifi-country.service iceland-npu-off.service iceland-battery-guard.service iceland-bdaddr.service >/dev/null 2>&1 || :
+[ "$1" -eq 0 ] && systemctl disable iceland-trial-early.service iceland-boot-confirm.service >/dev/null 2>&1 || :
+[ "$1" -eq 0 ] && systemctl --global disable iceland-refresh.service iceland-charge-alert.service >/dev/null 2>&1; [ "$1" -eq 0 ] && systemctl disable iceland-camera-focus.service iceland-ssc-resume.service iceland-wifi-country.service iceland-npu-off.service iceland-battery-guard.service iceland-bdaddr.service >/dev/null 2>&1 || :
 # the thermal policy hands its limits back when it stops
 [ "$1" -eq 0 ] && systemctl disable --now iceland-thermal.service >/dev/null 2>&1 || :
+if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/enforce ]; then semodule -r iceland_sensors >/dev/null 2>&1 || :; else semodule -n -r iceland_sensors >/dev/null 2>&1 || :; fi; fi
+[ "$1" -eq 0 ] && systemctl disable --now iceland-clock.timer iceland-clock.service >/dev/null 2>&1 || :
 [ "$1" -eq 0 ] && /usr/bin/iceland-power-profiles reset >/dev/null 2>&1 || :
+# bypass charging ends with the package (the running guard gives charging back at its next step)
+[ "$1" -eq 0 ] && { systemctl stop iceland-bypass.service >/dev/null 2>&1; rm -f /run/iceland/bypass-request; } || :
 
 %files
 /usr/share/dnf5/libdnf.conf.d/80-iceland-kernel.conf
@@ -311,6 +471,7 @@ fi
 /usr/lib/systemd/system/iceland-npu-off.service
 /usr/libexec/iceland/iceland-wifi-country
 /usr/lib/systemd/system/iceland-wifi-country.service
+%config(noreplace) /etc/sysconfig/regdomain
 /usr/lib/firmware/qcom/kaanapali/OnePlus-Pad4-tplg.bin
 %dir /usr/share/alsa/ucm2/Qualcomm/kaanapali/OnePlus-Pad4
 /usr/share/alsa/ucm2/Qualcomm/kaanapali/OnePlus-Pad4/OnePlus-Pad4.conf
@@ -332,10 +493,14 @@ fi
 /usr/lib/systemd/system/iio-sensor-proxy.service.d/iceland.conf
 %dir /usr/lib/systemd/system/hexagonrpcd-adsp-sensorspd.service.d
 /usr/lib/systemd/system/hexagonrpcd-adsp-sensorspd.service.d/iceland.conf
+/usr/lib/tmpfiles.d/iceland-dsp-tree.conf
 /usr/libexec/iceland/iceland-ssc-wait
 /usr/lib/systemd/system/iceland-ssc-resume.service
 /usr/share/libcamera/ipa/simple/sc1320cs.yaml
 /usr/share/libcamera/ipa/simple/sc820cs.yaml
+%config(noreplace) /etc/udev/rules.d/60-block-scheduler.rules
+/usr/lib/udev/rules.d/61-iceland-ufs-scheduler.rules
+/usr/libexec/iceland/iceland-ufs-scheduler
 /usr/share/wireplumber/wireplumber.conf.d/51-iceland-camera.conf
 /usr/libexec/iceland/iceland-camera-focus
 /usr/lib/systemd/system/iceland-camera-focus.service
@@ -346,10 +511,147 @@ fi
 /usr/lib/systemd/system/upower.service.d/iceland.conf
 /usr/libexec/iceland/iceland-thermal
 /usr/lib/systemd/system/iceland-thermal.service
+/usr/lib/systemd/system-preset/50-iceland.preset
+%dir /usr/share/selinux/packages/iceland
+/usr/share/selinux/packages/iceland/iceland_sensors.pp
+/usr/share/selinux/packages/iceland/iceland_sensors.te
+%config(noreplace) /etc/modprobe.d/dist-alsa.conf
+/usr/libexec/iceland/iceland-clock
+/usr/lib/systemd/system/iceland-clock.service
+/usr/lib/systemd/system/iceland-clock.timer
+/usr/lib/systemd/system/iceland-clock-save.service
 %config(noreplace) /etc/iceland/thermal.conf
 /usr/lib/systemd/logind.conf.d/60-iceland.conf
 
+%dir /usr/lib/dracut/modules.d/90iceland
+%dir /etc/dnf/libdnf5-plugins/actions.d
+%dir /var/lib/iceland/trial
+/usr/lib/udev/rules.d/59-iceland-storage-ro.rules
+/usr/libexec/iceland/iceland-storage-ro
+/usr/lib/dracut/modules.d/90iceland/module-setup.sh
+/usr/lib/dracut/modules.d/90iceland/iceland-carrier
+/usr/lib/dracut/modules.d/90iceland/iceland-rehearsal
+/usr/lib/dracut/modules.d/90iceland/iceland-rollback
+/usr/lib/dracut/modules.d/90iceland/iceland-carrier.service
+/usr/lib/dracut/modules.d/90iceland/iceland-rollback.service
+/usr/lib/dracut/dracut.conf.d/91-iceland-install.conf
+/usr/libexec/iceland/iceland-snapshot
+%config(noreplace) /etc/dnf/libdnf5-plugins/actions.d/iceland-snapshot.actions
+%config(noreplace) /etc/iceland/snapshot.conf
+/usr/lib/kernel/install.d/96-iceland-trial.install
+/usr/libexec/iceland/iceland-trial
+/usr/lib/systemd/system/iceland-trial-early.service
+/usr/lib/systemd/system/iceland-boot-confirm.service
+/usr/libexec/iceland/iceland-grub-setup
+%config(noreplace) /etc/iceland/boot.conf
+%config(noreplace) /etc/dnf/protected.d/iceland-device.conf
+/usr/libexec/iceland/iceland-fwupd-guard
+/usr/libexec/iceland/iceland-charge-alert
+/usr/lib/systemd/user/iceland-charge-alert.service
+/usr/libexec/iceland/iceland-bypassd
+/usr/lib/systemd/system/iceland-bypass.service
+/usr/share/dbus-1/system-services/org.iceland.Bypass.service
+/usr/share/dbus-1/system.d/org.iceland.Bypass.conf
+/usr/share/polkit-1/actions/org.iceland.bypass.policy
+%dir /usr/share/gnome-shell/extensions/iceland-bypass@oneplus-pad4
+/usr/share/gnome-shell/extensions/iceland-bypass@oneplus-pad4/extension.js
+/usr/share/gnome-shell/extensions/iceland-bypass@oneplus-pad4/metadata.json
+/usr/share/glib-2.0/schemas/zz_iceland-device.gschema.override
+/usr/share/pipewire/pipewire.conf.d/60-iceland-mic-processing.conf
+
 %changelog
+* Sat Oct 10 2026 mzak <mzak.amin@gmail.com> - 0.23-1
+- battery guard, bypass service, thermal daemon: a sysfs attribute that exists but cannot be read (qcom_battmgr
+  answers over pmic_glink; while the ADSP stalls a read fails with -110) is now unknown, never the benign value: an
+  unreadable usb online keeps the previous "cable in" decision, an unreadable input limit never releases a cut,
+  unreadable status / current / capacity keep the counters and holds as they were (chgsafe G1)
+- microphone: UCM TX_DEC0/1 Volume 98 (was 96, +2 dB), which matches stock's measured recording level (-37.5 dBFS;
+  96 gave about -39.6); ADC1/2 stay at 14
+- microphone: a processed source "Internal microphones (voice processing)" (PipeWire drop-in
+  60-iceland-mic-processing.conf: echo-cancel with the WebRTC backend - AGC, noise suppression, high-pass, echo
+  cancellation against the speakers); the default for accounts without a stored choice, the raw source stays; a
+  module or library that does not load leaves the raw source the default
+  (its capture stream waits for the ALSA microphone with node.linger: WirePlumber 0.5 destroyed it at every
+  PipeWire start because the microphone appears after the module, r2t / r2u)
+- rehearsal guard: the nbd read check runs in the background and the guard waits at most 20 s for it, so a read
+  stuck in D state (which ignores KILL) no longer hangs the guard; it logs "nbd probe stuck" and "the PC's disk does
+  not answer" instead of going silent until its watchdog (r2o)
+
+* Sat Oct 03 2026 mzak <mzak.amin@gmail.com> - 0.22-1
+- bypass charging: the GSettings override that enables the Quick Settings toggle is now
+  zz_iceland-device.gschema.override and keeps Fedora's background-logo entry: as 90_... it sorted before
+  Fedora's org.gnome.shell.gschema.override, which won, and new accounts had the toggle off (r2k accept)
+
+* Sat Oct 03 2026 mzak <mzak.amin@gmail.com> - 0.21-1
+- bypass charging (stock "Bypass charging", oplus_chg_plc): a "Bypass Charging" toggle in GNOME's Quick Settings
+  (GNOME Shell extension iceland-bypass@oneplus-pad4, enabled by a GSettings override) with a threshold menu from
+  20 % (stock's picker); the D-Bus service iceland-bypassd (org.iceland.Bypass, polkit org.iceland.bypass.set: the
+  active session's user, no password) writes the request; iceland-battery-guard holds the level from the
+  threshold with charging off and the input kept (charge_behaviour inhibit-charge = stock's output_suspend vote),
+  charges again when the level falls 1 % (stock simple strategy), ends bypass at unplug, at a charger-input safety
+  stop (USB-C latch / input cut) and 5 minutes without renewal (stock plc_support_timeout; the toggle renews it
+  every minute while the session is unlocked), never restores it after a reboot; every stock limit, the input cut
+  and the charge limit still stop charging (BYPASS=0: off). Safety (wf/bypasssafe): a hold that was bypass's alone
+  ends with the guard, a fault in the bypass code ends bypass and never the stock rules, a request that is not
+  text or has no finite end is not used
+- tests: test_guard_bypass.py, test_bypassd.py, test_guard_bypass_safety.py, test_guard_bypass_cut.py
+- sensors: hexagonrpcd runs as the upstream user fastrpc with systemd hardening (no capabilities, read-only
+  system, no network, only /dev/fastrpc-adsp); it never writes (it refuses write opens itself); the DSP file
+  tree goes to group fastrpc at boot (tmpfiles.d/iceland-dsp-tree.conf: stock's registry files are 0600)
+
+* Sat Oct 03 2026 mzak <mzak.amin@gmail.com> - 0.20-1
+- cameras: local libcamera 0.7.1-1.fc44.iceland2 = iceland1 + SmartSens sensor properties (F05) +
+  simple-pipeline link state without cache (F44); installed from the tablet inputs like iceland1
+
+* Fri Oct 02 2026 mzak <mzak.amin@gmail.com> - 0.19-1
+- cameras / Snapshot (F1, r2g): Requires pipewire-gstreamer >= 1.6.8 and pipewire-libs >= 1.6.8 - GNOME Snapshot
+  crashed (SIGBUS in the PipeWire GStreamer device provider: the metadata listener re-added when the camera
+  portal re-announces the default metadata); fixed in PipeWire 1.6.8, Fedora 44 ships 1.6.9
+- clock: iceland-clock keeps /var/lib/systemd/timesync/clock current (every 15 min and at shutdown);
+  systemd advances the clock to it at boot (the PMIC RTC cannot be set): rpm's signatures, TLS and the
+  logs have a sane time before NTP (R1d / R2 started at systemd's built-in 2026-03-13)
+- sound: /etc/modprobe.d/dist-alsa.conf shadows alsa-lib's install hook with a softdep on snd-seq: a kernel
+  without the sequencer no longer loses the sound card at boot (R1d / R2)
+- SELinux: module iceland_sensors for iio-sensor-proxy's QRTR socket to the sensor hub (R2 enforcing: no
+  rotation, 60 denials)
+- 50-iceland.preset: the first boot's preset-all keeps the iceland units enabled (Fedora's default preset
+  would disable them)
+- kernel command line: iceland-cmdline no longer adds clk_ignore_unused pd_ignore_unused
+  regulator_ignore_unused but removes them: every install rehearsal booted without them (the call ran
+  before kernel-iceland's entry existed) with everything working, and that is the lower-power state
+- storage: the internal UFS LUNs get Fedora's bfq scheduler one at a time (61-iceland-ufs-scheduler.rules,
+  /etc/udev/rules.d/60-block-scheduler.rules without them): they share one blk-mq tag set and parallel
+  changes failed with "Device or resource busy" on 4-5 of the 6 LUNs at every boot
+- cameras: the tuning files carry stock's colour-correction matrices (5 rear / 6 front colour
+  temperatures) besides the black level (the owner's decision, 3 Oct 2026; private repository only)
+- iceland-battery-guard: at a USB-C connector stop (57 / 69 C, the gap rules, rise fast) and at the input
+  over-limit stop the guard also cuts the charger input through kernel-iceland's
+  qcom-battmgr-usb/input_current_limit (0 = stock's OPLUS_USB_INPUT_CURRENT_LIMIT 0, the input suspend of
+  stock's connector protection; CC stays closed, the USB data link stays), so that the system's load no longer
+  flows through the hot connector; released once the cable is out, the connector reads below 55 C (stock's
+  USB_55C recover rule) and no connector rule fires, by writing back the limit read before (the kernel applies
+  its stock limit whatever is written: the guard never raises a current). VBUS over-voltage stays a charging
+  stop only (stock). INPUT_SUSPEND=0 or a kernel without the lever: charging off only, as before.
+- iceland-charge-alert (GNOME user service): desktop notifications for the guard's safety stops (USB-C
+  connector, input current, charger voltage, battery temperature window, battery over-voltage, unreadable
+  sensor) and their end; the guard writes one event per change to /run/iceland/charge-alert, the user's session
+  reads it (no privilege path); one notification per event, a repeated stop within 2 minutes is not shown again
+- tests: test_guard_input_suspend.py, test_charge_alert.py
+
+* Fri Oct 02 2026 mzak <mzak.amin@gmail.com> - 0.18-1
+- cameras: Fedora's libcamera updates held (50-iceland-fedora-hold.repo): the tablet keeps the local
+  libcamera 0.7.1-1.fc44.iceland1 (GPU software ISP: border scaling, EGL probe with CPU fallback, the
+  EGL context destroyed at stop): libcamera and libcamera-ipa from the local repository
+- cameras: Requires wireplumber >= 0.5.18: with 0.5.16 / 0.5.17 the camera rule (51-iceland-camera.conf) stalls
+  WirePlumber's event dispatcher and GNOME Camera gets no camera (area-combo-84; upstream 65519a1)
+- install plan: every internal UFS partition read-only except userdata (udev, also in the initramfs);
+  dracut module iceland: the root is a loop device over the Fedora disk inside userdata (rehearsal over
+  the USB network and snapshot rollback only when their boot entry asks); a btrfs snapshot of the root
+  before every package transaction (3 kept) with "Roll back to ..." boot entries; a new kernel-iceland
+  boots once as a trial and becomes the default when the desktop is reached; GRUB loads each kernel's own
+  device tree, shows its menu 3 s; iceland-device and the last kernel-iceland are protected from removal;
+  fwupd's storage-firmware plugins (scsi, ufs) are disabled next to the UEFI capsule one
+
 * Fri Oct 02 2026 mzak <mzak.amin@gmail.com> - 0.17-1
 - cameras: iceland-ssc-hold.service and its Wants= line are gone: the kernel keeps the level shifters of the
   camera bus on (queue 0084-0086; area-combo-44: both sensors answer with the sensor hub configured and idle)

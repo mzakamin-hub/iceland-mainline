@@ -1,0 +1,22 @@
+# iceland-device: the tablet's internal storage is read-only for Fedora, except the one partition Fedora lives in
+# (INSTALL-PLAN section 2, "seat belts"). Installed in /usr/lib/udev/rules.d and in the initramfs.
+#
+# Internal storage = the block devices of the UFS controller (DEVPATH .../1d84000.ufs/...): six LUNs sda..sdf with
+# 151 partitions, all 4096-byte blocks. For each of them:
+#   - udisks and GNOME Disks leave it alone (UDISKS_IGNORE, UDISKS_SYSTEM);
+#   - the kernel's read-only flag is set (BLKROSET through iceland-storage-ro), so every write fails with EROFS:
+#     every partition except "userdata", every whole LUN except the one that holds "userdata" (a read-only
+#     whole disk makes all its partitions read-only, userdata included; that LUN's own partition table is
+#     protected by the rest: no tool here writes it, udisks ignores it, U-Boot never writes).
+# Fedora's root is a loop device over userdata (dracut module "iceland"); loop devices are not matched here.
+# The flag can only be lifted by root on purpose (blockdev --setrw); any "change" event sets it again.
+ACTION!="add|change", GOTO="iceland_storage_end"
+SUBSYSTEM!="block", GOTO="iceland_storage_end"
+KERNEL!="sd*", GOTO="iceland_storage_end"
+DEVPATH!="*/1d84000.ufs/*", GOTO="iceland_storage_end"
+ENV{UDISKS_IGNORE}="1", ENV{UDISKS_SYSTEM}="1", ENV{UDISKS_AUTO}="0"
+ENV{DEVTYPE}=="partition", ENV{ID_PART_ENTRY_NAME}=="userdata", ENV{ICELAND_STORAGE}="fedora", GOTO="iceland_storage_end"
+ENV{DEVTYPE}=="partition", ATTR{partition}=="?*", ENV{PARTNAME}=="userdata", ENV{ICELAND_STORAGE}="fedora", GOTO="iceland_storage_end"
+ENV{ICELAND_STORAGE}="read-only"
+RUN+="/usr/libexec/iceland/iceland-storage-ro $devnode $env{DEVTYPE}"
+LABEL="iceland_storage_end"

@@ -1,13 +1,28 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Kernel options kernel-iceland still needs (the ABL/U-Boot boot state is kept until every driver takes over):
-# added to every boot entry and to /etc/kernel/cmdline for future kernels. Idempotent.
+# Kernel options of kernel-iceland's boot entries. Up to 0.18 this added clk_ignore_unused pd_ignore_unused
+# regulator_ignore_unused (keep the boot loader's clocks, power domains and regulators on until every driver takes
+# over). Every install rehearsal (R1d, R2, R2-final, r2g; 2-3 Oct 2026) booted without them - the call ran before
+# kernel-iceland's entry existed - with display, touch, Wi-Fi, Bluetooth, sound and both cameras working, and the
+# unused clocks, power domains and regulators then switch off: the better power state. So the installed system
+# boots as rehearsed: this removes the three from every boot entry and from /etc/kernel/cmdline (future kernels),
+# should an older package or a hand edit have put them there. Idempotent.
+# ICELAND_ROOT (tests only): the root to work on.
+R=${ICELAND_ROOT:-}
 ARGS="clk_ignore_unused pd_ignore_unused regulator_ignore_unused"
-if command -v grubby >/dev/null 2>&1; then grubby --update-kernel=ALL --args="$ARGS" >/dev/null 2>&1 || :; fi
-f=/etc/kernel/cmdline
-[ -f "$f" ] || exit 0
-line=$(cat "$f")
-for a in $ARGS; do
-	case " $line " in *" $a "*) ;; *) line="$line $a" ;; esac
+strip() { # stdin: one options line -> without ARGS, single spaces
+	l=" $(cat) "
+	for a in $ARGS; do l=$(printf '%s' "$l" | sed "s/ $a / /g; s/ $a / /g"); done
+	printf '%s\n' "$l" | sed 's/  */ /g; s/^ //; s/ $//'
+}
+for e in "$R"/boot/loader/entries/*.conf; do
+	[ -f "$e" ] || continue
+	grep -q -E '^options .*(clk|pd|regulator)_ignore_unused' "$e" || continue
+	o=$(sed -n 's/^options //p' "$e" | head -n 1 | strip)
+	t=$(mktemp) && sed "s|^options .*|options $o|" "$e" > "$t" && cat "$t" > "$e"; rm -f "$t"
 done
-printf '%s\n' "$line" > "$f"
+f=$R/etc/kernel/cmdline
+[ -f "$f" ] || exit 0
+grep -q -E '(clk|pd|regulator)_ignore_unused' "$f" || exit 0
+l=$(head -n 1 "$f" | strip)
+printf '%s\n' "$l" > "$f"

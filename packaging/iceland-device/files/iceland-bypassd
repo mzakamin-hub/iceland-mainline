@@ -1,0 +1,206 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# iceland-bypassd: the D-Bus system service org.iceland.Bypass behind the "Bypass Charging" toggle in GNOME's Quick
+# Settings on the OnePlus Pad 4 (stock: Settings > Battery > Bypass charging and its Quick Settings tile).
+#
+# It only writes a request for iceland-battery-guard; the guard is the one writer of charge_behaviour and decides
+# (bypass = one more reason to stop charging, never a reason to charge; every stock limit and the charge limit still
+# apply). Started by D-Bus activation (iceland-bypass.service), runs as root.
+#
+#   Enable(u threshold)   bypass on, hold from <threshold> % (20..100; stock's picker begins at 20 %); needs a charger
+#   Disable()             bypass off
+#   Refresh()             renew the lease of an active request (stock plc_support_timeout: 5 minutes; the toggle
+#                         renews it every minute while the session is unlocked)
+#   SetThreshold(u)       the threshold for the next Enable (kept in /var/lib/iceland/bypass-threshold); also applied
+#                         to an active request
+#   GetState() -> a{sv}   requested, threshold, until, plugged, holding, level, soc, guard (the guard's state file is
+#                         fresh), lease (s); no authorization needed
+#   Changed               signal after every change made through this service
+# Enable / Disable / Refresh / SetThreshold need the polkit action org.iceland.bypass.set (active local sessions:
+# yes, no password; others: no). Files: /run/iceland/bypass-request (threshold=, until= epoch seconds; root 0644),
+# read: /run/iceland/bypass-state (written by the guard), /sys/class/power_supply/qcom-battmgr-usb/online.
+# 0.23: an online that exists but cannot be read (-110 while the ADSP stalls) is UNKNOWN: Enable is refused
+# (org.iceland.Bypass.Error.ChargerUnknown, try again), GetState shows plugged false; bypass never starts on a failed read.
+import errno, os, sys, syslog, time
+
+RUN = os.environ.get("ICELAND_RUN", "/run/iceland")
+REQ = RUN + "/bypass-request"
+STATE = RUN + "/bypass-state"
+PREF = os.environ.get("ICELAND_BYPASS_PREF", "/var/lib/iceland/bypass-threshold")
+USB = os.environ.get("ICELAND_USB", "/sys/class/power_supply/qcom-battmgr-usb")
+LEASE_S = int(os.environ.get("ICELAND_BYPASS_LEASE", "300"))   # stock oplus,plc_support_timeout 300000 ms
+THR_MIN, THR_MAX, THR_DEFAULT = 20, 100, 20                     # stock: the picker begins at 20 %, default 20
+STATE_FRESH_S = 30                                               # the guard writes its state at least every 15 s
+BUS_NAME, OBJ_PATH, IFACE = "org.iceland.Bypass", "/org/iceland/Bypass", "org.iceland.Bypass"
+ACTION = "org.iceland.bypass.set"
+XML = """<node>
+  <interface name="org.iceland.Bypass">
+    <method name="Enable"><arg type="u" name="threshold" direction="in"/></method>
+    <method name="Disable"/>
+    <method name="Refresh"/>
+    <method name="SetThreshold"><arg type="u" name="threshold" direction="in"/></method>
+    <method name="GetState"><arg type="a{sv}" name="state" direction="out"/></method>
+    <signal name="Changed"/>
+  </interface>
+</node>"""
+
+class Refused(Exception):
+    """a request this service turns down: (D-Bus error name, message)"""
+
+def rd(path, default=None):
+    try:
+        with open(path) as f:
+            return f.read().strip()
+    except OSError:
+        return default
+
+def log(msg, prio=syslog.LOG_NOTICE):
+    syslog.syslog(prio, msg)
+
+def write_atomic(path, text):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path + ".tmp", "w") as f:
+        f.write(text)
+    os.chmod(path + ".tmp", 0o644)
+    os.replace(path + ".tmp", path)
+
+def clamp(thr):
+    return max(THR_MIN, min(THR_MAX, int(thr)))
+
+def charger():
+    """True / False from qcom-battmgr-usb/online; None when it exists but cannot be read (0.23: unknown)"""
+    try:
+        with open(USB + "/online") as f:
+            return f.read().strip() == "1"
+    except OSError as e:
+        return False if e.errno == errno.ENOENT else None
+
+def plugged():
+    return charger() is True
+
+def pref():
+    v = rd(PREF, "")
+    return clamp(v) if v.isdigit() else THR_DEFAULT
+
+def read_request():
+    """(threshold, until) of the active request, or None"""
+    kv = dict(l.split("=", 1) for l in (rd(REQ, "") or "").splitlines() if "=" in l)
+    try:
+        return int(kv["threshold"]), float(kv["until"])
+    except (KeyError, ValueError):
+        return None
+
+def write_request(thr, now=None):
+    now = time.time() if now is None else now
+    write_atomic(REQ, "threshold=%d\nuntil=%.0f\n" % (thr, now + LEASE_S))
+
+def enable(thr):
+    c = charger()
+    if c is None:
+        raise Refused("org.iceland.Bypass.Error.ChargerUnknown", "the charger state can't be read now; try again")
+    if not c:
+        raise Refused("org.iceland.Bypass.Error.NoCharger", "bypass charging needs a charger")
+    thr = clamp(thr)
+    write_atomic(PREF, "%d\n" % thr)
+    write_request(thr)
+    log("iceland-bypassd: bypass charging on, hold from %d %%" % thr)
+
+def disable():
+    try:
+        os.remove(REQ)
+        log("iceland-bypassd: bypass charging off")
+    except FileNotFoundError:
+        pass
+
+def refresh():
+    req = read_request()
+    if req is None:
+        raise Refused("org.iceland.Bypass.Error.NotActive", "bypass charging is off")
+    write_request(req[0])
+
+def set_threshold(thr):
+    thr = clamp(thr)
+    write_atomic(PREF, "%d\n" % thr)
+    req = read_request()
+    if req is not None:
+        write_atomic(REQ, "threshold=%d\nuntil=%.0f\n" % (thr, req[1]))
+
+def state():
+    """the toggle's view: plain Python values (the D-Bus layer wraps them)"""
+    req = read_request()
+    st = dict(l.split("=", 1) for l in (rd(STATE, "") or "").splitlines() if "=" in l)
+    try:
+        fresh = time.time() - os.stat(STATE).st_mtime < STATE_FRESH_S   # the guard rewrites it at every step
+    except OSError:
+        fresh = False
+    num = lambda k: int(st[k]) if st.get(k, "").lstrip("-").isdigit() else -1
+    return {"requested": req is not None, "threshold": req[0] if req else pref(), "until": int(req[1]) if req else 0,
+            "plugged": plugged(), "holding": st.get("holding") == "1" and fresh, "level": num("level"),
+            "soc": num("soc"), "guard": fresh, "lease": LEASE_S}
+
+# ---------------------------------------------------------------------------------------------------- D-Bus layer
+def main():
+    from gi.repository import Gio, GLib
+    syslog.openlog("iceland-bypassd")
+    node = Gio.DBusNodeInfo.new_for_xml(XML)
+    loop = GLib.MainLoop()
+    types = {"requested": "b", "threshold": "u", "until": "t", "plugged": "b", "holding": "b", "level": "i",
+             "soc": "i", "guard": "b", "lease": "u"}
+
+    session = os.environ.get("ICELAND_BYPASS_SESSION_BUS") == "1"   # PC tests only: a private session bus
+
+    def authorized(conn, sender):
+        if session:
+            return os.environ.get("ICELAND_BYPASS_TEST_ALLOW") == "1"
+        subject = GLib.Variant("(sa{sv})", ("system-bus-name", {"name": GLib.Variant("s", sender)}))
+        try:
+            r = conn.call_sync("org.freedesktop.PolicyKit1", "/org/freedesktop/PolicyKit1/Authority",
+                               "org.freedesktop.PolicyKit1.Authority", "CheckAuthorization",
+                               GLib.Variant.new_tuple(subject, GLib.Variant("s", ACTION), GLib.Variant("a{ss}", {}),
+                                                      GLib.Variant("u", 1), GLib.Variant("s", "")),
+                               GLib.VariantType.new("((bba{ss}))"), Gio.DBusCallFlags.NONE, 30000, None)
+            return bool(r.unpack()[0][0])
+        except GLib.Error as e:
+            log("iceland-bypassd: polkit check failed: %s" % e.message, syslog.LOG_WARNING)
+            return False
+
+    def on_call(conn, sender, path, iface, method, params, inv):
+        try:
+            if method == "GetState":
+                st = state()
+                inv.return_value(GLib.Variant("(a{sv})", ({k: GLib.Variant(types[k], v) for k, v in st.items()},)))
+                return
+            if not authorized(conn, sender):
+                raise Refused("org.iceland.Bypass.Error.NotAuthorized", "not allowed (polkit %s)" % ACTION)
+            if method == "Enable":
+                enable(params.unpack()[0])
+            elif method == "Disable":
+                disable()
+            elif method == "Refresh":
+                refresh()
+            elif method == "SetThreshold":
+                set_threshold(params.unpack()[0])
+            else:
+                raise Refused("org.freedesktop.DBus.Error.UnknownMethod", method)
+            inv.return_value(None)
+            conn.emit_signal(None, OBJ_PATH, IFACE, "Changed", None)
+        except Refused as e:
+            inv.return_dbus_error(e.args[0], e.args[1])
+        except (OSError, ValueError) as e:
+            inv.return_dbus_error("org.iceland.Bypass.Error.Failed", str(e))
+
+    def on_bus(conn, name):
+        conn.register_object(OBJ_PATH, node.interfaces[0], on_call, None, None)
+
+    def on_lost(conn, name):
+        log("iceland-bypassd: lost the bus name %s" % name, syslog.LOG_WARNING)
+        loop.quit()
+
+    bus = Gio.BusType.SESSION if session else Gio.BusType.SYSTEM
+    Gio.bus_own_name(bus, BUS_NAME, Gio.BusNameOwnerFlags.NONE, on_bus, None, on_lost)
+    loop.run()
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())

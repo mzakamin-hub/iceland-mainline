@@ -1,0 +1,33 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-device: make one internal UFS block device read-only (called by 59-iceland-storage-ro.rules).
+#   iceland-storage-ro DEVNODE disk|partition
+# A whole disk is left writable only when one of its partitions is "userdata" (the disk Fedora lives on): a
+# read-only whole disk would make userdata read-only too. Logs one line to the kernel log either way.
+# ICELAND_ROOT: test prefix for /sys (PC unit tests); empty on the tablet.
+dev=$1; type=$2
+name=${dev##*/}
+R=${ICELAND_ROOT:-}
+log() { echo "iceland-storage: $*" > "$R/dev/kmsg" 2>/dev/null || echo "iceland-storage: $*"; }
+[ -n "$dev" ] || exit 0
+if [ "$type" = disk ]; then
+	for p in "$R/sys/class/block/$name/$name"*; do
+		[ -e "$p/partition" ] || continue
+		if grep -qx 'PARTNAME=userdata' "$p/uevent" 2>/dev/null; then
+			log "$name holds userdata: the whole LUN stays writable, its other partitions are read-only"
+			exit 0
+		fi
+	done
+fi
+part=$(sed -n 's/^PARTNAME=//p' "$R/sys/class/block/$name/uevent" 2>/dev/null)
+if [ -n "$R" ]; then
+	echo "$name" >> "$R/setro.log"   # test mode: record instead of the ioctl
+	exit 0
+fi
+blockdev --setro "$dev" 2>/dev/null
+if [ "$(blockdev --getro "$dev" 2>/dev/null)" = 1 ]; then
+	log "$name${part:+ ($part)} read-only"
+else
+	log "$name${part:+ ($part)}: could NOT be made read-only"
+	exit 1
+fi

@@ -1,0 +1,7 @@
+{
+  "uuid": "iceland-bypass@oneplus-pad4",
+  "name": "Bypass Charging",
+  "description": "OnePlus Pad 4: a Quick Settings toggle for bypass charging (iceland-device). With a charger in, charging stops at the chosen threshold and the tablet runs from the charger.",
+  "shell-version": ["50"],
+  "url": "https://github.com/mzakamin-hub/iceland-mainline"
+}

@@ -1,0 +1,13 @@
+# iceland-device: a trial kernel becomes the default once the desktop has been up with it for 30 s
+[Unit]
+Description=OnePlus Pad 4: confirm a kernel trial when the desktop is up
+After=graphical.target display-manager.service
+ConditionPathExists=/var/lib/iceland/trial/pending
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/iceland/iceland-trial confirm
+TimeoutStartSec=11min
+
+[Install]
+WantedBy=graphical.target

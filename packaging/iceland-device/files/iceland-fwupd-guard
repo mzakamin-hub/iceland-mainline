@@ -1,0 +1,18 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-device: fwupd must never update anything on this tablet. Besides the UEFI capsule path (already off),
+# its "scsi" and "ufs" plugins can send firmware to storage devices (SCSI WRITE BUFFER); on the Pad 4 that is the
+# internal UFS. Adds them to DisabledPlugins in /etc/fwupd/fwupd.conf (called by the fwupd trigger; idempotent).
+# ICELAND_ROOT: PC test prefix.
+f=${ICELAND_ROOT:-}/etc/fwupd/fwupd.conf
+[ -f "$f" ] || exit 0
+for p in uefi_capsule scsi ufs; do
+	if grep -q '^DisabledPlugins=' "$f"; then
+		grep -q "^DisabledPlugins=\(.*;\)\{0,1\}$p\(;.*\)\{0,1\}$" "$f" || sed -i "s/^DisabledPlugins=\(.*\)$/DisabledPlugins=\1;$p/; s/^DisabledPlugins=;/DisabledPlugins=/" "$f"
+	elif grep -q '^\[fwupd\]' "$f"; then
+		sed -i "0,/^\[fwupd\]/s//[fwupd]\nDisabledPlugins=$p/" "$f"
+	else
+		printf '[fwupd]\nDisabledPlugins=%s\n' "$p" >> "$f"
+	fi
+done
+exit 0

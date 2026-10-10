@@ -1,0 +1,20 @@
+# iceland-device: the persistent clock stamp (see /usr/libexec/iceland/iceland-clock). At boot: the fallback restore
+# (PID 1 has normally done it from the stamp's mtime already) and a first save once the clock is trusted; at
+# shutdown (ExecStop, while /var is still mounted): the last save. iceland-clock.timer repeats the save every 15 min.
+[Unit]
+Description=OnePlus Pad 4: persistent clock stamp (the PMIC RTC cannot be set)
+DefaultDependencies=no
+RequiresMountsFor=/var/lib/systemd/timesync
+After=local-fs.target systemd-remount-fs.service
+Before=time-set.target sysinit.target shutdown.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/iceland/iceland-clock restore
+ExecStart=-/usr/libexec/iceland/iceland-clock save
+ExecStop=/usr/libexec/iceland/iceland-clock save
+
+[Install]
+WantedBy=sysinit.target

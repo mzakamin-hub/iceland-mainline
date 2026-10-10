@@ -204,3 +204,14 @@ Results from the last two days (full text in `docs/results/` and `docs/repo-docs
 - `scripts/research/` - the matrix update scripts.
 - `kernel/queue/` - iceland-linux patches 0001-0063, `configs/`, `kernel.pin`, `scripts/`, `README.md`.
 - `kernel/session/` - the DMABUF_DEBUG config fix (92047dc), the debug-print patch (q37d, never queue), git log heads.
+
+## Loop 4 -> Loop 5 pointer (9 Oct 2026)
+
+Work continues in `C:\Users\lucne\OnePlusPad4-Loop5` (the loop 5 package: `START-HERE.md`, `RULES.md`, `NEXT-TESTS.md`,
+`STATE-AT-HANDOFF.md`, `WORKLOG.md`). Read that folder first; the sections above describe loop 4 and stay as history.
+
+State at the loop 4 -> loop 5 handoff:
+- The image is HELD, not final: the fresh-boot test r2m gave 3 of 10 empty microphone opens and one q6apm APM timeout (F55).
+- Commit z = iceland-mainline `a8739a6` (the fixed build, status held).
+- Queue 0190 = iceland-linux `2afea47` (kernel q87).
+- Loop 5 item 1 is F55 (klog). No tablet action until the owner connects the tablet and gives the go.

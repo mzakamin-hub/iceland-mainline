@@ -1,0 +1,16 @@
+[Unit]
+Description=OnePlus Pad 4 bypass charging switch (D-Bus service of the Quick Settings toggle)
+Documentation=file:///usr/libexec/iceland/iceland-bypassd
+
+[Service]
+Type=dbus
+BusName=org.iceland.Bypass
+ExecStart=/usr/libexec/iceland/iceland-bypassd
+# it writes only /run/iceland/bypass-request and /var/lib/iceland/bypass-threshold
+RuntimeDirectory=iceland
+RuntimeDirectoryPreserve=yes
+StateDirectory=iceland
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes

@@ -1,0 +1,171 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# iceland-charge-alert (GNOME user service): desktop notifications for the charging guard's safety stops.
+#
+# iceland-battery-guard (root) writes its last safety event to /run/iceland/charge-alert, world-readable, one event
+# per file: seq (a number that only grows), kind stop|resume, class (connector, input, charger, battery, voltage,
+# sensor), why (the guard's own words), input suspended|kept (whether the charger input was switched off),
+# plugged 0|1, at (epoch). This service runs in the user's session, watches that file (inotify through Gio) and
+# shows the event through org.freedesktop.Notifications: a stop stays on screen (critical urgency) until the user
+# dismisses it or the stop ends; the end shows "Charging resumed" for a few seconds while the cable is still in, or
+# just closes the stop's notification when the cable is out. Root never runs anything in the session and the
+# session only reads a file: no privilege path. One notification per event number (the last one shown is kept in
+# $XDG_RUNTIME_DIR/iceland-charge-alert.state, so a restart of this service shows nothing twice), the same stop
+# again within REPEAT_S (a restarting guard) is not shown again, and the guard itself writes an event only when the
+# stop in force changes: no storms. Without a session nothing runs here, and the guard does not depend on it.
+import os, sys, time
+
+ALERT = os.environ.get("ICELAND_ALERT", "/run/iceland/charge-alert")
+STATE = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "iceland-charge-alert.state")
+APP = "OnePlus Pad 4"
+ICON = "battery-caution-symbolic"
+REPEAT_S = 120
+URGENCY_NORMAL, URGENCY_CRITICAL = 1, 2
+RESUME_MS = 10000
+TITLE = {"connector": "Charging stopped: USB-C connector too hot",
+         "input": "Charging stopped: the charger draws too much current",
+         "charger": "Charging stopped: charger voltage too high",
+         "battery": "Charging paused: battery temperature",
+         "voltage": "Charging stopped: battery voltage too high",
+         "sensor": "Charging stopped: battery sensor unreadable"}
+ADVICE = {"connector": "Unplug the charger and let the connector cool down.",
+          "input": "Unplug the charger; try another cable or charger.",
+          "charger": "Unplug the charger; it is not safe to use.",
+          "battery": "Charging resumes by itself once the battery is back inside -10..53 C.",
+          "voltage": "Unplug the charger. If this repeats, the battery needs a check.",
+          "sensor": "Charging stays off until the battery temperature and voltage can be read again."}
+INPUT_CUT = "The charger input is switched off: the tablet runs from its battery."
+
+def read(path):
+    try:
+        with open(path) as f:
+            return f.read()
+    except OSError:
+        return ""
+
+def parse_event(text):
+    """the event file as a dict, or None when it is not one (an integer seq and a known kind are needed)"""
+    ev = {}
+    for line in (text or "").splitlines():
+        if "=" in line:
+            k, v = line.split("=", 1)
+            ev[k.strip()] = v.strip()
+    if not ev.get("seq", "").isdigit() or ev.get("kind") not in ("stop", "resume"):
+        return None
+    ev["seq"] = int(ev["seq"])
+    return ev
+
+def decide(ev, last, now=None):
+    """what to do for an event, given the last state {seq, id, class, kind, at}: None (nothing to show),
+    ("notify", summary, body, urgency, replaces_id, timeout_ms) or ("close", id)"""
+    now = time.time() if now is None else now
+    if ev is None or ev["seq"] <= last.get("seq", 0):
+        return None
+    cls = ev.get("class", "")
+    nid = last.get("id", 0)
+    if ev["kind"] == "stop":
+        if last.get("kind") == "stop" and last.get("class") == cls and nid and now - last.get("at", 0) < REPEAT_S:
+            return None            # the same stop again (a restarted guard): one notification is enough
+        body = ev.get("why", "")
+        if ev.get("input") == "suspended":
+            body += "\n" + INPUT_CUT
+        body += "\n" + ADVICE.get(cls, "Unplug the charger.")
+        return ("notify", TITLE.get(cls, "Charging stopped for safety"), body, URGENCY_CRITICAL, nid, 0)
+    if not nid:
+        return None                # nothing of ours on screen
+    if ev.get("plugged") == "0":
+        return ("close", nid)
+    return ("notify", "Charging resumed", ev.get("why", "charging allowed again"), URGENCY_NORMAL, nid, RESUME_MS)
+
+def load_state():
+    st = {}
+    for line in read(STATE).splitlines():
+        if "=" in line:
+            k, v = line.split("=", 1)
+            st[k.strip()] = v.strip()
+    out = {"seq": int(st["seq"]) if st.get("seq", "").isdigit() else 0,
+           "id": int(st["id"]) if st.get("id", "").isdigit() else 0,
+           "class": st.get("class", ""), "kind": st.get("kind", "")}
+    try:
+        out["at"] = float(st.get("at", "0"))
+    except ValueError:
+        out["at"] = 0.0
+    return out
+
+def save_state(st):
+    try:
+        with open(STATE + ".tmp", "w") as f:
+            f.write("seq=%d\nid=%d\nclass=%s\nkind=%s\nat=%.0f\n" % (st.get("seq", 0), st.get("id", 0),
+                                                                     st.get("class", ""), st.get("kind", ""), st.get("at", 0)))
+        os.replace(STATE + ".tmp", STATE)
+    except OSError as e:
+        print("iceland-charge-alert: can't keep the state in %s: %s" % (STATE, e), flush=True)
+
+class Alert:
+    def __init__(self):
+        from gi.repository import Gio, GLib
+        self.Gio, self.GLib = Gio, GLib
+        self.bus = Gio.bus_get_sync(Gio.BusType.SESSION)
+        self.notif = Gio.DBusProxy.new_sync(self.bus, Gio.DBusProxyFlags.DO_NOT_LOAD_PROPERTIES, None,
+                                            "org.freedesktop.Notifications", "/org/freedesktop/Notifications",
+                                            "org.freedesktop.Notifications", None)
+        self.last = load_state()
+        self.retry = None
+        d = Gio.File.new_for_path(os.path.dirname(ALERT))
+        self.mon = d.monitor_directory(Gio.FileMonitorFlags.NONE, None)
+        self.mon.connect("changed", lambda *a: self.check())
+
+    def notify(self, summary, body, urgency, replaces, timeout):
+        v = self.GLib.Variant("(susssasa{sv}i)", (APP, replaces, ICON, summary, body, [],
+                                                 {"urgency": self.GLib.Variant("y", urgency)}, timeout))
+        return self.notif.call_sync("Notify", v, 0, 5000, None).unpack()[0]
+
+    def close(self, nid):
+        self.notif.call_sync("CloseNotification", self.GLib.Variant("(u)", (nid,)), 0, 5000, None)
+
+    def check(self):
+        ev = parse_event(read(ALERT))
+        if ev is None or ev["seq"] <= self.last.get("seq", 0):
+            return False
+        act = decide(ev, self.last)
+        try:
+            if act and act[0] == "notify":
+                nid = self.notify(*act[1:])
+                self.last.update(id=nid, kind=ev["kind"], at=time.time())
+                self.last["class"] = ev.get("class", "")
+                print("iceland-charge-alert: event %d %s shown (id %d): %s" % (ev["seq"], ev["kind"], nid, act[1]), flush=True)
+            elif act and act[0] == "close":
+                self.close(act[1])
+                self.last.update(id=0, kind=ev["kind"])
+                print("iceland-charge-alert: event %d %s: notification %d closed" % (ev["seq"], ev["kind"], act[1]), flush=True)
+            else:
+                print("iceland-charge-alert: event %d %s (%s): nothing to show" % (ev["seq"], ev["kind"], ev.get("why", "")), flush=True)
+        except Exception as e:     # the notification service is not there (yet): try again in a while
+            print("iceland-charge-alert: event %d not shown (%s), trying again" % (ev["seq"], e), flush=True)
+            if self.retry is None:
+                self.retry = self.GLib.timeout_add_seconds(15, self.retry_check)
+            return False
+        self.last["seq"] = ev["seq"]
+        save_state(self.last)
+        return False
+
+    def retry_check(self):
+        self.retry = None
+        self.check()
+        return False
+
+def main():
+    try:
+        from gi.repository import GLib
+    except ImportError as e:
+        print("iceland-charge-alert: python3-gobject missing (%s)" % e, flush=True)
+        return 1
+    a = Alert()
+    print("iceland-charge-alert: watching %s (last event shown: %d)" % (ALERT, a.last.get("seq", 0)), flush=True)
+    a.check()
+    GLib.MainLoop().run()
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())

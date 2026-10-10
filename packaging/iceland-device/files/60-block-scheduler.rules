@@ -1,0 +1,12 @@
+# iceland-device: replaces systemd-udev's /usr/lib/udev/rules.d/60-block-scheduler.rules (a rules file of the same
+# name under /etc wins). Fedora's rule (systemd f44 dist-git, 60-block-scheduler.rules) writes "bfq" to every disk's
+# queue/scheduler, each disk in its own udev worker, all at once. The tablet's six UFS LUNs (sda-sdf, SCSI host 0)
+# share one blk-mq tag set, and the kernel changes a scheduler only under a trylock of that set's update_nr_hwq_lock
+# (block/elevator.c elv_iosched_store(): -EBUSY), so the parallel writes fail on some LUNs at random (R1d 5, R2 4,
+# R2-final 5, r2g 4 of 6: "Failed to write "bfq" to sysfs attribute "queue/scheduler" ... Device or resource busy").
+# The rule is Fedora's for every other disk; the UFS LUNs get bfq one at a time from 61-iceland-ufs-scheduler.rules.
+
+ACTION=="add", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", \
+  KERNEL=="mmcblk*[0-9]|msblk*[0-9]|mspblk*[0-9]|sd*[!0-9]|sr*", \
+  DEVPATH!="*/1d84000.ufs/*", \
+  ATTR{queue/scheduler}="bfq"

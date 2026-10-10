@@ -1,0 +1,8 @@
+# iceland-device: the Pad 4's own GNOME Shell extension (the "Bypass Charging" Quick Settings toggle) is on by
+# default. glib-compile-schemas applies the override files in name order, the last one wins: Fedora's
+# org.gnome.shell.gschema.override (gnome-shell-extension-background-logo) sets this key too, so this file is named to
+# sort after every Fedora override ("zz_") and keeps Fedora's entry (r2k, 3 Oct: under the name 90_... Fedora's list won
+# and the toggle was off for new accounts). A user who changes the extension list (GNOME's Extensions app) keeps their
+# own list from then on.
+[org.gnome.shell]
+enabled-extensions=['background-logo@fedorahosted.org', 'iceland-bypass@oneplus-pad4']

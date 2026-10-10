@@ -1,0 +1,57 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# kernel-install plugin (iceland-device): a new kernel-iceland is booted ONCE as a trial, and becomes the
+# default only when the system has reached the desktop with it (iceland-trial confirm).
+# Runs after Fedora's 20-grub.install / 95-set-boot-entry.install, which have just written the entry and made it
+# saved_entry (UPDATEDEFAULT=yes). This plugin puts saved_entry back to the last CONFIRMED entry and sets GRUB's
+# one-shot next_entry to the new one. GRUB boots next_entry once and clears it; a trial kernel that never
+# reaches the desktop therefore leaves the confirmed kernel as the default for the next power-on.
+#   state: /var/lib/iceland/trial/confirmed (BLS id), /var/lib/iceland/trial/pending (BLS id of the trial)
+# The very first kernel-iceland (the image build) has nothing to fall back to: it is confirmed at once.
+# ICELAND_ROOT / ICELAND_EDITENV: PC test hooks (an editenv stand-in writing a file).
+COMMAND="$1"; KERNEL_VERSION="$2"
+R=${ICELAND_ROOT:-}
+EDITENV=${ICELAND_EDITENV:-grub2-editenv}
+S=$R/var/lib/iceland/trial
+case "$KERNEL_VERSION" in *-iceland*) ;; *) exit 0 ;; esac
+MACHINE_ID=${KERNEL_INSTALL_MACHINE_ID:-$(cat "$R/etc/machine-id" 2>/dev/null)}
+[ -n "$MACHINE_ID" ] || exit 0
+id="$MACHINE_ID-$KERNEL_VERSION"
+entries=$R/boot/loader/entries
+mkdir -p "$S"
+log() { echo "96-iceland-trial: $*"; logger -t iceland-trial "$*" 2>/dev/null || :; }
+case "$COMMAND" in
+add)
+	[ -e "$entries/$id.conf" ] || { log "no boot entry $id.conf: nothing to do"; exit 0; }
+	confirmed=$(cat "$S/confirmed" 2>/dev/null)
+	if [ -z "$confirmed" ] || [ ! -e "$entries/$confirmed.conf" ]; then
+		echo "$id" > "$S/confirmed"; rm -f "$S/pending"
+		$EDITENV - set "saved_entry=$id"
+		log "$KERNEL_VERSION: first kernel-iceland, confirmed and default"
+		exit 0
+	fi
+	[ "$confirmed" = "$id" ] && { $EDITENV - set "saved_entry=$id"; exit 0; }   # reinstall of the confirmed one
+	$EDITENV - set "saved_entry=$confirmed"
+	$EDITENV - set "next_entry=$id"
+	echo "$id" > "$S/pending"
+	log "$KERNEL_VERSION: trial boot once at the next start; default stays $confirmed until the desktop is reached"
+	;;
+remove)
+	# entries of this version written under another token (the image was built with the build machine's id;
+	# the installed system generates its own at the first boot, and 20-grub.install removes only its own)
+	for e in "$entries"/*-"$KERNEL_VERSION".conf; do
+		[ -e "$e" ] || continue
+		case "${e##*/}" in iceland-rollback-*|"$id.conf") ;; *) rm -f "$e"; log "removed ${e##*/}" ;; esac
+	done
+	if [ "$(cat "$S/pending" 2>/dev/null)" = "$id" ]; then
+		rm -f "$S/pending"; $EDITENV - unset next_entry
+		log "$KERNEL_VERSION removed before its trial"
+	fi
+	if [ "$(cat "$S/confirmed" 2>/dev/null)" = "$id" ]; then
+		# the confirmed kernel goes (dnf keeps three): the newest remaining entry becomes the confirmed one
+		new=$(ls -1 "$entries"/"$MACHINE_ID"-*iceland*.conf 2>/dev/null | grep -v "/$id.conf$" | sed 's|.*/||; s|\.conf$||' | sort -V | tail -n1)
+		if [ -n "$new" ]; then echo "$new" > "$S/confirmed"; $EDITENV - set "saved_entry=$new"; log "confirmed is now $new"; fi
+	fi
+	;;
+esac
+exit 0

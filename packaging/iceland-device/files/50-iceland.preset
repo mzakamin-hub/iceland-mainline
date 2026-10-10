@@ -1,0 +1,19 @@
+# iceland-device: systemd preset for the Pad 4 units (wf/fedtest).
+#
+# Fedora's 99-default-disable.preset says "disable *" for anything no preset names. On the first boot of an image
+# (empty /etc/machine-id) PID 1 runs "preset-all": in rehearsals R1d / R2 that ran while / was still read-only and
+# failed ("Failed to preset all unit ... Read-only file system"), which by accident kept the iceland-* units the
+# build had enabled; on a system where it succeeds, every iceland unit would be DISABLED (R2: "systemctl preset-all
+# --dry-run" lists them all as "Removed"). This file makes the presets agree with the package's enable calls, so
+# preset-all, "systemctl preset" and the first boot all keep them.
+enable iceland-trial-early.service
+enable iceland-boot-confirm.service
+enable iceland-battery-guard.service
+enable iceland-npu-off.service
+enable iceland-wifi-country.service
+enable iceland-ssc-resume.service
+enable iceland-camera-focus.service
+enable iceland-thermal.service
+enable iceland-bdaddr.service
+enable iceland-clock.service
+enable iceland-clock.timer

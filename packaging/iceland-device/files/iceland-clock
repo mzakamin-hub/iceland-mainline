@@ -1,0 +1,50 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# iceland-clock: a persistent clock for the OnePlus Pad 4 without a usable RTC.
+#
+# The PMIC's RTC (rtc-pm8xxx, pmk8850 rtc@6100) counts from its own epoch and cannot be set by Linux: the stock
+# device tree has no "allow-set-time", the kernel's offset store (an nvmem cell or the UEFI RTCInfo variable) is not
+# wired on this board, and U-Boot's EFI runtime cannot write variables. At boot the kernel sets the system clock from
+# it (1970-03-03 in rehearsals R1d / R2); systemd's PID 1 then advances the clock to the newest of its built-in epoch
+# (2026-03-13 on Fedora 44), the mtime of /usr/lib/clock-epoch and the mtime of /var/lib/systemd/timesync/clock
+# (src/core/clock-warp.c, clock_apply_epoch(); called in the initramfs and again after the switch to the real root,
+# main.c: clock_apply_epoch(!skip_setup) with skip_setup false for --switched-root). Fedora uses chrony, so nothing
+# keeps that file: with no network the tablet boots on 2026-03-13 and rpm refuses Fedora's signatures ("not alive").
+#
+# This program keeps the timesync stamp current: "save" sets its mtime to now (never backwards); it runs from
+# iceland-clock.timer every 15 min and from iceland-clock.service's ExecStop at shutdown. "restore" is the fallback
+# for a systemd without the epoch logic: if the stamp is newer than the clock, the clock is set to it (PID 1 has done
+# this already on Fedora 44, so it normally finds nothing to do). "status" prints both. Nothing here writes the RTC.
+# The installer may seed the stamp with the build time, so even the first boot is after Fedora 44's signatures.
+#
+# Usage: iceland-clock save|restore|status
+# Environment (tests): ICELAND_CLOCK_FILE (default /var/lib/systemd/timesync/clock), ICELAND_CLOCK_NOW (epoch seconds
+# instead of the clock), ICELAND_CLOCK_DRY=1 (restore prints instead of setting the clock).
+set -eu
+F=${ICELAND_CLOCK_FILE:-/var/lib/systemd/timesync/clock}
+now() { if [ -n "${ICELAND_CLOCK_NOW:-}" ]; then echo "$ICELAND_CLOCK_NOW"; else date +%s; fi; }
+mtime() { stat -c %Y "$F" 2>/dev/null || echo 0; }
+# the clock is trusted for a save once it is past systemd's epoch: before that it is the kernel's RTC reading
+MIN=1773360000   # 2026-03-13T00:00:00Z, Fedora 44's systemd epoch (R1d / R2: "System time advanced to built-in epoch")
+case ${1:-status} in
+save)
+	n=$(now); m=$(mtime)
+	if [ "$n" -lt "$MIN" ]; then echo "iceland-clock: clock $n is before the epoch, not saved" >&2; exit 0; fi
+	if [ "$n" -le "$m" ]; then echo "iceland-clock: stamp $m is not older than the clock $n, kept"; exit 0; fi
+	d=$(dirname "$F"); [ -d "$d" ] || mkdir -p "$d"
+	touch -d "@$n" "$F"
+	echo "iceland-clock: stamp saved ($n)" ;;
+restore)
+	n=$(now); m=$(mtime)
+	if [ "$m" -le "$n" ]; then echo "iceland-clock: clock $n is at or past the stamp $m, nothing to do"; exit 0; fi
+	if [ "${ICELAND_CLOCK_DRY:-0}" = 1 ]; then echo "iceland-clock: would set the clock from $n to $m"; exit 0; fi
+	date -u -s "@$m" > /dev/null
+	echo "iceland-clock: clock set from $n to $m (stamp $F)" ;;
+status)
+	n=$(now); m=$(mtime)
+	echo "clock: $n ($(date -u -d "@$n" +%FT%TZ 2>/dev/null))"
+	if [ "$m" = 0 ]; then echo "stamp: none ($F)"; else echo "stamp: $m ($(date -u -d "@$m" +%FT%TZ 2>/dev/null), $F, $((n - m)) s old)"; fi
+	for r in /sys/class/rtc/rtc0; do [ -r $r/since_epoch ] && echo "rtc: $(cat $r/date 2>/dev/null) $(cat $r/time 2>/dev/null) (raw, not settable on this board)"; done ;;
+*) echo "usage: iceland-clock save|restore|status" >&2; exit 2 ;;
+esac

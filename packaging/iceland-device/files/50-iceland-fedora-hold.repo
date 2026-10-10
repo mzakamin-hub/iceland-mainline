@@ -12,11 +12,16 @@
 #   the hardware must be rehearsed first, like a kernel.
 # - iio-sensor-proxy, hexagonrpc, libssc: our builds with the sensor-hub support (packaging/sensors); Fedora's
 #   iio-sensor-proxy has none, an update to it would end auto-rotate.
+# - libcamera*: our build with the GPU software-ISP fixes (wf/gpuisp: border scaling, EGL probe with CPU fallback,
+#   the EGL context destroyed at stop - with Fedora's, WirePlumber keeps 19773 KiB more GPU memory after every
+#   camera start). Its libcamera and libcamera-ipa are installed with this package (the install image) and lie in
+#   the local repository: with Fedora's held nothing else updates libcamera. Fedora 44 stays on 0.7.1; a newer
+#   Fedora libcamera comes as a rebuild through the local repository after a RAM rehearsal.
 [fedora]
-excludepkgs=grub2-*,shim-*,linux-firmware*,*-firmware,iio-sensor-proxy*,hexagonrpc*,libssc*
+excludepkgs=grub2-*,shim-*,linux-firmware*,*-firmware,iio-sensor-proxy*,hexagonrpc*,libssc*,libcamera*
 
 [updates]
-excludepkgs=grub2-*,shim-*,linux-firmware*,*-firmware,iio-sensor-proxy*,hexagonrpc*,libssc*
+excludepkgs=grub2-*,shim-*,linux-firmware*,*-firmware,iio-sensor-proxy*,hexagonrpc*,libssc*,libcamera*
 
 [updates-testing]
-excludepkgs=grub2-*,shim-*,linux-firmware*,*-firmware,iio-sensor-proxy*,hexagonrpc*,libssc*
+excludepkgs=grub2-*,shim-*,linux-firmware*,*-firmware,iio-sensor-proxy*,hexagonrpc*,libssc*,libcamera*
