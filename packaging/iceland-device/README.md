@@ -111,6 +111,12 @@ python3 tests/test_guard_bypass_cut.py files/iceland-battery-guard
 python3 tests/test_readfail.py files/iceland-battery-guard files/iceland-bypassd files/iceland-thermal
 python3 tests/test_mic_processing.py files/60-iceland-mic-processing.conf iceland-device.spec ../../audio/ucm/OnePlus-Pad4/HiFi.conf
 python3 tests/test_update_policy.py files iceland-device.spec
+python3 tests/test_platform_defaults.py files iceland-device.spec
+python3 tests/test_speaker_protection.py files iceland-device.spec ../../audio/ucm/OnePlus-Pad4/HiFi.conf
+python3 tests/test_wifi_mac.py files iceland-device.spec
+python3 tests/test_slot_mark.py files iceland-device.spec
+python3 tests/test_bdaddr.py files
+python3 tests/test_stock_levels.py files iceland-device.spec ../../audio/ucm/OnePlus-Pad4/HiFi.conf ../../audio/topology/OnePlus-Pad4.m4
 ```
 
 Still to add as the hardware work lands: ALSA UCM with volume caps (no speaker playback before TFA9865 protection),

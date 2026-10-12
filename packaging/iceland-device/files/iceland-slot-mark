@@ -1,0 +1,66 @@
+#!/bin/bash
+# iceland-device 0.27r5: mark the running Android A/B slot "successful" after a GOOD boot, with Fedora's qbootctl
+# (linux-msm/qbootctl). ABL counts every boot of a slot that is not marked successful against its retry count and
+# marks the slot unbootable at 0 (C0 #1, 10 Oct: retry 0 + unbootable after one unmarked boot sequence); the install
+# U-Boot does not write the GPT (usbinit, 10 Oct), so Fedora marks the slot once it is really up.
+#   iceland-slot-mark mark        (iceland-slot-mark.service) wait for a good boot, the guards, then "qbootctl -m"
+#                                 once for the current slot - only when it is not marked successful yet
+#   iceland-slot-mark --dry-run   the guards + the read-only slot dump + what "mark" would do; never writes
+#   iceland-slot-mark status      the read-only slot dump only ("qbootctl" without arguments: reads the GPT read-only)
+# Guards (each SKIPS with a log line and exit 0; nothing is written):
+#   - the kernel command line has iceland.rehearsal= (install rehearsal, NBD root) or iceland.noslotmark
+#   - / is not on the tablet's own storage (/dev/sd*, /dev/disk/*, /dev/mapper/*): a RAM kit (rootfs / tmpfs /
+#     overlay) or an NBD root never marks anything
+#   - /etc/iceland/slot-mark-off exists (the owner's off switch)
+# A good boot = systemd reports running (or degraded) within 5 min and graphical.target is active, then 30 s more.
+# Test hooks (tests/test_slot_mark.py): ICELAND_CMDLINE ICELAND_ROOTSRC ICELAND_QBOOTCTL ICELAND_SYSTEMCTL
+# ICELAND_SLOTMARK_OFF ICELAND_WAIT ICELAND_SETTLE.
+set -u
+MODE=${1:-mark}
+CMDLINE=${ICELAND_CMDLINE:-/proc/cmdline}; QB=${ICELAND_QBOOTCTL:-qbootctl}; SC=${ICELAND_SYSTEMCTL:-systemctl}
+OFF=${ICELAND_SLOTMARK_OFF:-/etc/iceland/slot-mark-off}; WAIT=${ICELAND_WAIT:-300}; SETTLE=${ICELAND_SETTLE:-30}
+ROOTSRC=${ICELAND_ROOTSRC-$(findmnt -n -o SOURCE / 2>/dev/null)}
+log() { echo "iceland-slot-mark: $*"; }
+why_skip() {
+	local c=" $(tr '\n' ' ' < "$CMDLINE" 2>/dev/null) " rs=${ROOTSRC%%\[*}
+	case "$c" in *" iceland.rehearsal="*) echo "a rehearsal boot (iceland.rehearsal= on the kernel command line)"; return ;; esac
+	case "$c" in *" iceland.noslotmark "*|*" iceland.noslotmark=1 "*) echo "iceland.noslotmark on the kernel command line"; return ;; esac
+	[ -e "$OFF" ] && { echo "the off switch $OFF exists"; return; }
+	case "$rs" in /dev/sd[a-z]*|/dev/disk/*|/dev/mapper/*) ;; *) echo "/ is on '${ROOTSRC:-unknown}', not on the tablet's storage (RAM kit or NBD root)"; return ;; esac
+	echo ""
+}
+dump() { "$QB" 2>&1; }
+cur_ok() {   # the current slot's "Successful" from the read-only dump: 1 / 0 / ?
+	dump | awk '/^Current slot:/ {c=$3} /^SLOT / {s=$2; sub(":", "", s)} /Successful/ && s == c {print $3; f=1} END{if (!f) print "?"}'; }
+need_qb() { command -v "$QB" > /dev/null 2>&1 || { log "FAIL qbootctl is missing ($QB): the slot cannot be marked"; exit 1; }; }
+case "$MODE" in
+status)
+	need_qb; dump; exit 0 ;;
+--dry-run|dry-run)
+	need_qb; w=$(why_skip)
+	log "dry run: slots (read-only): $(dump | tr '\n\t' '  ' | tr -s ' ')"
+	if [ -n "$w" ]; then log "dry run: would SKIP: $w"; else log "dry run: would mark the current slot successful (qbootctl -m) after a good boot; current slot successful now: $(cur_ok)"; fi
+	exit 0 ;;
+mark) ;;
+*) echo "usage: iceland-slot-mark [mark|--dry-run|status]"; exit 2 ;;
+esac
+w=$(why_skip)
+[ -n "$w" ] && { log "SKIP: $w - nothing marked, nothing written"; exit 0; }
+need_qb
+n=0; st=""
+while :; do
+	st=$($SC is-system-running 2>/dev/null)
+	case "$st" in running|degraded) break ;; esac
+	[ $n -ge "$WAIT" ] && { log "FAIL not a good boot: system state '$st' after $WAIT s - the slot is NOT marked"; exit 1; }
+	sleep 5; n=$((n + 5))
+done
+$SC is-active --quiet graphical.target || { log "FAIL not a good boot: graphical.target is not active (system $st) - the slot is NOT marked"; exit 1; }
+sleep "$SETTLE"
+log "good boot (system $st, graphical.target active); slots before: $(dump | tr '\n\t' '  ' | tr -s ' ')"
+case "$(cur_ok)" in
+1) log "the current slot is already marked successful - nothing written"; exit 0 ;;
+esac
+out=$("$QB" -m 2>&1); rc=$?
+log "qbootctl -m rc $rc: $(echo "$out" | tr '\n' ' ')"
+[ $rc = 0 ] || { log "FAIL the slot could not be marked"; exit 1; }
+log "slots after: $(dump | tr '\n\t' '  ' | tr -s ' ')"

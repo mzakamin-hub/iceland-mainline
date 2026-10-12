@@ -1,0 +1,8 @@
+# /usr/lib/udev/rules.d/74-iceland-wifi-mac.rules (iceland-device 0.27)
+#
+# Keep the Wi-Fi address stable across boots: iceland-wifi-mac "apply" runs before NetworkManager takes the interface
+# and sets a fixed address only when the installer provided one (/etc/iceland/wifimac), the kernel marks the
+# firmware's address random, or an earlier boot saw the firmware's address change (/etc/iceland/wifimac-fixed); with a
+# stable firmware address it changes nothing. iceland-wifi-mac-check.service (pulled in here) records a hash of the
+# firmware's address per boot and makes that decision. Off switch: /etc/iceland/wifimac-keep.
+ACTION=="add", SUBSYSTEM=="net", ENV{DEVTYPE}=="wlan", RUN+="/usr/libexec/iceland/iceland-wifi-mac apply $name", TAG+="systemd", ENV{SYSTEMD_WANTS}+="iceland-wifi-mac-check.service"

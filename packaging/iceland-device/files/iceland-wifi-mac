@@ -1,0 +1,84 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# iceland-wifi-mac: keep the Wi-Fi address of the OnePlus Pad 4 stable across boots (iceland-device 0.27).
+#
+# The WCN7860's address comes from its firmware (ath12k: the WMI ready event, reported as the permanent address). On a
+# phone platform the host normally provisions it from the persist partition; without that the firmware may hand out a
+# different address on every boot, and the home network then sees a new device each time. While the firmware's
+# address is stable this program changes NOTHING. A fixed address is used only when
+#   a) the installer wrote the tablet's own address to /etc/iceland/wifimac (as /etc/iceland/bdaddr for Bluetooth), or
+#   b) the kernel marks the address random (addr_assign_type 1), or
+#   c) the firmware's address changed between two boots ("check" found it and wrote /etc/iceland/wifimac-fixed).
+# The fixed address is /etc/iceland/wifimac when present, else a locally administered unicast address derived from
+# /etc/machine-id (the same on every boot of this installation, different per installation).
+#   apply IFACE  udev (74-iceland-wifi-mac.rules), before NetworkManager takes the interface: sets the fixed address
+#                when a), b) or c) holds. Writes no file (udev's SELinux domain).
+#   check        iceland-wifi-mac-check.service, once per boot: stores a hash of the firmware's address (salted with
+#                the machine id; the address itself is never stored or logged) in /var/lib/iceland; when it differs
+#                from the previous boot's, writes /etc/iceland/wifimac-fixed and applies the fixed address at once
+#                (the link is cycled once: NetworkManager reconnects).
+#   status       prints the decision for every Wi-Fi interface (no address printed).
+# Off switch: /etc/iceland/wifimac-keep (the firmware's address is always used; "check" still records its hash).
+# Environment (tests): ICELAND_WIFIMAC_SYS (/sys/class/net), ICELAND_WIFIMAC_STATE (/var/lib/iceland),
+# ICELAND_WIFIMAC_ETC (/etc/iceland), ICELAND_WIFIMAC_MACHINE_ID (/etc/machine-id), ICELAND_WIFIMAC_DRY=1 (no change).
+set -u
+SYS=${ICELAND_WIFIMAC_SYS:-/sys/class/net}; ST=${ICELAND_WIFIMAC_STATE:-/var/lib/iceland}
+ETC=${ICELAND_WIFIMAC_ETC:-/etc/iceland}; MID=${ICELAND_WIFIMAC_MACHINE_ID:-/etc/machine-id}; DRY=${ICELAND_WIFIMAC_DRY:-0}
+say() { echo "iceland-wifi-mac: $*"; }
+mid=$(tr -d ' \n' < "$MID" 2>/dev/null)
+valid() { echo "$1" | grep -Eq '^[0-9a-f]{2}(:[0-9a-f]{2}){5}$' && [ "$1" != 00:00:00:00:00:00 ] && [ $(( 0x$(echo "$1" | cut -c1-2) & 1 )) = 0 ]; }
+derived() { # locally administered (bit 1 set), unicast (bit 0 clear), from the machine id
+	h=$(printf 'iceland-wifi-mac:%s' "$mid" | sha256sum | cut -c1-12)
+	printf '%02x:%s:%s:%s:%s:%s\n' $(( (0x$(echo "$h" | cut -c1-2) & 0xfc) | 0x02 )) \
+		$(echo "$h" | cut -c3-4) $(echo "$h" | cut -c5-6) $(echo "$h" | cut -c7-8) $(echo "$h" | cut -c9-10) $(echo "$h" | cut -c11-12)
+}
+# decide IFACE -> sets WANT (empty = keep the firmware's address) and WHY
+decide() {
+	WANT=""; WHY="firmware address kept"
+	[ -e "$ETC/wifimac-keep" ] && { WHY="$ETC/wifimac-keep present: firmware address kept"; return; }
+	if [ -r "$ETC/wifimac" ]; then
+		w=$(tr -d ' \n' < "$ETC/wifimac" | tr 'A-F' 'a-f')
+		if valid "$w"; then WANT=$w; WHY="the installer's address ($ETC/wifimac)"; return; fi
+		say "$1: $ETC/wifimac is not a unicast address, ignored"
+	fi
+	typ=$(cat "$SYS/$1/addr_assign_type" 2>/dev/null || echo 0)
+	if [ "$typ" = 1 ]; then WHY="the kernel marks the firmware's address random"
+	elif [ -e "$ETC/wifimac-fixed" ]; then WHY="the firmware's address changed between boots ($ETC/wifimac-fixed)"
+	else WHY="firmware address stable (type $typ): kept"; return; fi
+	[ -n "$mid" ] || { WHY="$WHY, but no machine id: firmware address kept"; return; }
+	WANT=$(derived)
+}
+setaddr() { # IFACE ADDR
+	[ "$(tr 'A-F' 'a-f' < "$SYS/$1/address")" = "$2" ] && { say "$1: at the fixed address already ($WHY)"; return 0; }
+	[ "$DRY" = 1 ] && { say "$1: DRY: would set the fixed address ($WHY)"; return 0; }
+	if ip link set dev "$1" address "$2" 2>/dev/null; then say "$1: fixed address set ($WHY)"; return 0; fi
+	ip link set dev "$1" down 2>/dev/null; ip link set dev "$1" address "$2" 2>/dev/null; rc=$?; ip link set dev "$1" up 2>/dev/null
+	[ $rc = 0 ] && say "$1: fixed address set, link cycled ($WHY)" || say "$1: could not set the fixed address, rc $rc ($WHY)"
+	return 0
+}
+wifis() { for d in "$SYS"/*; do [ -d "$d/wireless" ] || [ -d "$d/phy80211" ] && basename "$d"; done; }
+case ${1:-status} in
+apply)
+	IF=${2:-}; case "$IF" in ''|*/*|.*) say "usage: iceland-wifi-mac apply IFACE"; exit 2 ;; esac
+	[ -r "$SYS/$IF/address" ] || { say "$IF: no such interface"; exit 0; }
+	decide "$IF"; [ -n "$WANT" ] && setaddr "$IF" "$WANT" || say "$IF: $WHY" ;;
+check)
+	for IF in $(wifis); do
+		# the firmware's address: the permanent one when ethtool knows it, else the current one before any change
+		perm=$(ethtool -P "$IF" 2>/dev/null | awk '{print $NF}' | tr 'A-F' 'a-f')
+		valid "$perm" || perm=$(tr 'A-F' 'a-f' < "$SYS/$IF/address")
+		hs=$(printf '%s:%s' "$mid" "$perm" | sha256sum | cut -c1-16)
+		f="$ST/wifi-mac.$IF.seen"; seen=$(cat "$f" 2>/dev/null)
+		if [ "$DRY" != 1 ]; then mkdir -p "$ST" 2>/dev/null; [ "$seen" = "$hs" ] || printf '%s\n' "$hs" > "$f"; fi
+		if [ -n "$seen" ] && [ "$seen" != "$hs" ] && [ ! -e "$ETC/wifimac-fixed" ] && [ ! -e "$ETC/wifimac-keep" ]; then
+			say "$IF: the firmware's address differs from the previous boot's: using a fixed address from now on"
+			[ "$DRY" = 1 ] || { mkdir -p "$ETC" && : > "$ETC/wifimac-fixed"; }
+		else say "$IF: firmware address $( [ -z "$seen" ] && echo 'recorded (first boot)' || { [ "$seen" = "$hs" ] && echo 'same as the previous boot' || echo 'differs (decision already made)'; } )"; fi
+		decide "$IF"; [ -n "$WANT" ] && setaddr "$IF" "$WANT"
+	done ;;
+status)
+	for IF in $(wifis); do decide "$IF"; say "$IF: $WHY$( [ -n "$WANT" ] && echo ', fixed address in use' )"; done ;;
+*) say "usage: iceland-wifi-mac apply IFACE | check | status"; exit 2 ;;
+esac
+exit 0

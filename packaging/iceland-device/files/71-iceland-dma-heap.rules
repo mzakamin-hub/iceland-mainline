@@ -11,3 +11,9 @@
 # Fedora's 70-libcamera.rules gives every dma_heap node to the group "video" (0660); this rule runs after it and
 # takes the CMA heaps back to root. Programs running as root (and the kernel's own users of CMA) are not affected.
 SUBSYSTEM=="dma_heap", KERNEL!="system", GROUP="root", MODE="0600"
+#
+# The system heap itself for the group "video" (0660), as 70-libcamera.rules does today (libcamera 0.7.1 iceland4
+# ships it): stated here as well, so the cameras keep working if a later libcamera package drops or changes that rule
+# (tb323fu-linux, same SoC, 70-tb323fu-dma-heap.rules: without the system heap camera apps find no camera). The same
+# result as before on the current packages.
+SUBSYSTEM=="dma_heap", KERNEL=="system", GROUP="video", MODE="0660"

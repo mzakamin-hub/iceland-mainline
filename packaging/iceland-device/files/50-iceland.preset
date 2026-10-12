@@ -8,6 +8,7 @@
 # preset-all, "systemctl preset" and the first boot all keep them.
 enable iceland-trial-early.service
 enable iceland-boot-confirm.service
+enable iceland-slot-mark.service
 enable iceland-battery-guard.service
 enable iceland-npu-off.service
 enable iceland-wifi-country.service

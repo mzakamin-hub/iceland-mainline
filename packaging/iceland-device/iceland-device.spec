@@ -4,8 +4,8 @@
 # No firmware and no binaries: configuration files and small scripts only.
 
 Name:           iceland-device
-Version:        0.25
-Release:        1%{?dist}
+Version:        0.28
+Release:        2%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -138,6 +138,23 @@ Source119:      zz_iceland-device.gschema.override
 Source120:      60-iceland-mic-processing.conf
 # update policy (0.24): read-only list of the upgrades offered, held back by the hold file and skipped by the resolver
 Source121:      iceland-update-check
+# platform defaults (0.26, from the tb323fu-linux review): no USB / PCIe wakeup, the GPU floor at boot, the sensor
+# stream stopped across a suspend, systemd feeds the hardware watchdog
+Source122:      72-iceland-nowake.rules
+Source123:      73-iceland-gpu-devfreq.rules
+Source124:      iceland-sensors-sleep
+Source125:      iio-sensor-proxy-iceland-sleep.conf
+Source126:      watchdog-iceland.conf
+# speaker protection (0.27, from the tb323fu-linux review): a filter chain that only takes level away
+Source127:      62-iceland-speakers.conf
+Source128:      62-iceland-speaker-raw.conf
+# Wi-Fi address kept stable across boots (0.27): changes nothing while the firmware's address is stable
+Source129:      iceland-wifi-mac
+Source130:      74-iceland-wifi-mac.rules
+Source131:      iceland-wifi-mac-check.service
+# 0.27r5: mark the Android A/B slot successful after a good boot (qbootctl -m; never in a RAM kit / rehearsal)
+Source132:      iceland-slot-mark
+Source133:      iceland-slot-mark.service
 
 Requires:       kernel-iceland
 Requires:       bluez
@@ -147,6 +164,9 @@ Requires:       polkit
 Requires:       createrepo_c
 Requires:       curl
 Requires:       iw
+Requires:       ethtool
+Requires:       qbootctl
+Requires:       iproute
 Requires:       alsa-utils
 Requires:       tuned-ppd
 # the sensor programs (packaging/sensors; not in Fedora 44, iio-sensor-proxy there has no SSC support)
@@ -160,6 +180,7 @@ Requires:       pipewire-plugin-libcamera
 # 51-iceland-camera.conf disables a V4L2 device: WirePlumber 0.5.16 / 0.5.17 then stall their event dispatcher (no camera
 # source); fixed upstream in 0.5.18 (65519a1, wf/gpuisp)
 Requires:       wireplumber >= 0.5.18
+Requires:       ladspa-swh-plugins
 Requires:       xdg-desktop-portal-gnome
 Requires:       fuse3
 Requires:       btrfs-progs
@@ -251,7 +272,7 @@ semodule_package -o iceland_sensors.pp -m iceland_sensors.mod
 # the Pad 4 AudioReach topology: upstream m4 + our overlay (TDM speakers, capped stream gain)
 cp -a audio/topology/. audioreach-topology/
 (cd audioreach-topology && m4 -I . OnePlus-Pad4.m4 > OnePlus-Pad4.conf && alsatplg -c OnePlus-Pad4.conf -o OnePlus-Pad4-tplg.bin)
-grep -q 'max "2056"' audioreach-topology/OnePlus-Pad4.conf
+grep -q 'max "8192"' audioreach-topology/OnePlus-Pad4.conf
 
 
 %install
@@ -354,12 +375,25 @@ install -Dm0644 %{SOURCE118} %{buildroot}/usr/share/gnome-shell/extensions/icela
 install -Dm0644 %{SOURCE119} %{buildroot}/usr/share/glib-2.0/schemas/zz_iceland-device.gschema.override
 install -Dm0644 %{SOURCE120} %{buildroot}/usr/share/pipewire/pipewire.conf.d/60-iceland-mic-processing.conf
 install -Dm0755 %{SOURCE121} %{buildroot}/usr/bin/iceland-update-check
+install -Dm0644 %{SOURCE122} %{buildroot}/usr/lib/udev/rules.d/72-iceland-nowake.rules
+install -Dm0644 %{SOURCE123} %{buildroot}/usr/lib/udev/rules.d/73-iceland-gpu-devfreq.rules
+install -Dm0755 %{SOURCE124} %{buildroot}/usr/lib/systemd/system-sleep/iceland-sensors
+install -Dm0644 %{SOURCE125} %{buildroot}/usr/lib/systemd/system/iio-sensor-proxy.service.d/iceland-sleep.conf
+install -Dm0644 %{SOURCE126} %{buildroot}/usr/lib/systemd/system.conf.d/60-iceland-watchdog.conf
+install -Dm0644 %{SOURCE127} %{buildroot}/usr/share/pipewire/pipewire.conf.d/62-iceland-speakers.conf
+install -Dm0644 %{SOURCE128} %{buildroot}/usr/share/wireplumber/wireplumber.conf.d/62-iceland-speaker-raw.conf
+install -Dm0755 %{SOURCE129} %{buildroot}/usr/libexec/iceland/iceland-wifi-mac
+install -Dm0644 %{SOURCE130} %{buildroot}/usr/lib/udev/rules.d/74-iceland-wifi-mac.rules
+install -Dm0644 %{SOURCE131} %{buildroot}/usr/lib/systemd/system/iceland-wifi-mac-check.service
+install -Dm0755 %{SOURCE132} %{buildroot}/usr/libexec/iceland/iceland-slot-mark
+install -Dm0644 %{SOURCE133} %{buildroot}/usr/lib/systemd/system/iceland-slot-mark.service
 install -d %{buildroot}/var/lib/iceland/trial
 
 %posttrans
 # install plan: GRUB settings (per-kernel device tree, visible menu, $iceland_args), trial-boot units, udev
 /usr/libexec/iceland/iceland-grub-setup || :
 systemctl enable iceland-trial-early.service iceland-boot-confirm.service >/dev/null 2>&1 || :
+systemctl enable iceland-slot-mark.service >/dev/null 2>&1 || :
 [ -d /run/systemd/system ] && udevadm control --reload >/dev/null 2>&1 || :
 # kernel-iceland is the default kernel and new kernel-iceland versions become the default
 cat > /etc/sysconfig/kernel <<'EOT'
@@ -380,6 +414,9 @@ systemctl stop iceland-ssc-hold.service >/dev/null 2>&1 || :
 # the DMA heap permissions (71-iceland-dma-heap.rules) at once; a running WirePlumber keeps the heap it has open
 # until the user's next login
 if [ -d /run/systemd/system ]; then udevadm control --reload >/dev/null 2>&1 || :; udevadm trigger --action=add -s dma_heap >/dev/null 2>&1 || :; fi
+# 0.26: the wakeup defaults (72-iceland-nowake.rules) and the GPU floor (73-iceland-gpu-devfreq.rules) at once; the
+# watchdog drop-in (system.conf.d) takes effect at the next boot
+if [ -d /run/systemd/system ]; then udevadm trigger --action=change -s devfreq -s pci >/dev/null 2>&1 || :; udevadm trigger --action=change -s platform --sysname-match=a600000.usb >/dev/null 2>&1 || :; fi
 # the skin temperature policy starts at boot, like the guard
 systemctl enable iceland-thermal.service >/dev/null 2>&1 || :
 # the sensors' SELinux module: into the policy store; loaded at once on a booted system, else at the next boot
@@ -441,6 +478,7 @@ fi
 
 %preun
 [ "$1" -eq 0 ] && systemctl disable iceland-trial-early.service iceland-boot-confirm.service >/dev/null 2>&1 || :
+[ "$1" -eq 0 ] && systemctl disable iceland-slot-mark.service >/dev/null 2>&1 || :
 [ "$1" -eq 0 ] && systemctl --global disable iceland-refresh.service iceland-charge-alert.service >/dev/null 2>&1; [ "$1" -eq 0 ] && systemctl disable iceland-camera-focus.service iceland-ssc-resume.service iceland-wifi-country.service iceland-npu-off.service iceland-battery-guard.service iceland-bdaddr.service >/dev/null 2>&1 || :
 # the thermal policy hands its limits back when it stops
 [ "$1" -eq 0 ] && systemctl disable --now iceland-thermal.service >/dev/null 2>&1 || :
@@ -472,6 +510,18 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 %config(noreplace) /etc/iceland/battery-guard.conf
 /usr/bin/iceland-npu
 /usr/bin/iceland-update-check
+/usr/lib/udev/rules.d/72-iceland-nowake.rules
+/usr/lib/udev/rules.d/73-iceland-gpu-devfreq.rules
+/usr/lib/systemd/system-sleep/iceland-sensors
+/usr/lib/systemd/system/iio-sensor-proxy.service.d/iceland-sleep.conf
+/usr/lib/systemd/system.conf.d/60-iceland-watchdog.conf
+/usr/share/pipewire/pipewire.conf.d/62-iceland-speakers.conf
+/usr/share/wireplumber/wireplumber.conf.d/62-iceland-speaker-raw.conf
+/usr/libexec/iceland/iceland-wifi-mac
+/usr/lib/udev/rules.d/74-iceland-wifi-mac.rules
+/usr/lib/systemd/system/iceland-wifi-mac-check.service
+/usr/libexec/iceland/iceland-slot-mark
+/usr/lib/systemd/system/iceland-slot-mark.service
 /usr/lib/systemd/system/iceland-npu-off.service
 /usr/libexec/iceland/iceland-wifi-country
 /usr/lib/systemd/system/iceland-wifi-country.service
@@ -564,6 +614,53 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/pipewire/pipewire.conf.d/60-iceland-mic-processing.conf
 
 %changelog
+* Sun Oct 11 2026 mzak <mzak.amin@gmail.com> - 0.28-2
+- bluetooth: iceland-bdaddr v2 - a real power-on, power-off, then the own address, then wait for the index to come back
+  with it (v1 set the address inside the kernel's 2 s auto-off window after the controller setup; with bluez 5.87
+  the hci0 index then never came back: no powered controller for the whole boot, r139 / r139a); new test_bdaddr.py
+
+* Sun Oct 11 2026 mzak <mzak.amin@gmail.com> - 0.28-1
+- final release for the install image: the content of the rehearsed 0.27r6 tarball (sha256 7c1273d8) unchanged,
+  only the version raised; rehearsal tarballs 0.28rN map to Release N from now on
+
+* Sat Oct 10 2026 mzak <mzak.amin@gmail.com> - 0.27-1
+- speakers: protection in PipeWire (62-iceland-speakers.conf, adapted from tb323fu-linux, MIT): the sink
+  "Speakers" runs a 150 Hz 4th-order high-pass, a gentle compressor (0 dB makeup) and a
+  -3 dBFS look-ahead limiter (-3 dB input gain, 250 ms release) in front of the speaker; every stage only takes level away and the topology / UCM DSP cap
+  (0 dB = stock's stream ceiling) stays the hard ceiling. The direct speaker sink stays as "Speakers (direct, no protection filter)" with a low
+  priority (62-iceland-speaker-raw.conf). Fail-safe (ifexists nofail; Requires ladspa-swh-plugins); off switch:
+  context.properties = { iceland.speaker-protection = false } in a pipewire.conf.d drop-in
+- wifi: a stable Wi-Fi address (iceland-wifi-mac, 74-iceland-wifi-mac.rules, iceland-wifi-mac-check.service): nothing
+  changes while the firmware's address is stable; a fixed locally administered address from the machine id once it
+  changed between boots (or is marked random), or the installer's /etc/iceland/wifimac; only a salted hash of the
+  firmware's address is stored; off switch /etc/iceland/wifimac-keep
+- boot: iceland-slot-mark.service marks the Android A/B slot successful (qbootctl -m, Requires qbootctl) once the
+  desktop is up (system running / degraded, graphical.target active, +30 s), only when it is not marked yet; it skips
+  with a log line in install rehearsals (iceland.rehearsal=), with iceland.noslotmark or /etc/iceland/slot-mark-off,
+  and when / is not on the tablet's storage (RAM kits, NBD); iceland-slot-mark --dry-run / status only read
+- speakers (0.27r6, owner 11 Oct): the DSP stream cap is stock's ceiling, 0 dB (Q13 8192; was the -12 dB placeholder
+  2056): topology VOL_CTRL_MAX and the UCM pin; the chain's slow RMS cap (10:1 over -16 dBFS) is gone (one limiting
+  stage). Microphone unchanged at stock (ADC1/2 14, TX_DEC0/1 98 = stock's 84 + its 14 dB DSP recorder gain).
+  Every gain is at or below its stock counterpart (tests/test_stock_levels.py)
+- tests: test_speaker_protection.py, test_wifi_mac.py, test_slot_mark.py, test_stock_levels.py
+
+* Sat Oct 10 2026 mzak <mzak.amin@gmail.com> - 0.26-1
+- sleep: the sensor stream stops across a suspend: the system-sleep hook iceland-sensors stops iio-sensor-proxy
+  before the sleep and starts it again after the resume (the streaming accelerometer of the sensor hub kept the SoC
+  out of its deepest idle on the same SoC, tb323fu-linux); iio-sensor-proxy is killed 3 s after a stop that hangs
+  (TimeoutStopSec=3); a file /run/iceland/sensors-keep keeps the stream (tests)
+- wakeup: the USB controller (a600000.usb) and the Wi-Fi PCIe root port (0000:00:00.0) are no wakeup sources
+  (72-iceland-nowake.rules: a USB 2 hub woke the tablet at once on the same SoC); the charger (battery manager),
+  the cover, the power key and the RTC alarm keep waking it
+- watchdog: systemd feeds the hardware watchdog (qcom_wdt, /dev/watchdog0): RuntimeWatchdogSec=30s,
+  RebootWatchdogSec=30s (system.conf.d/60-iceland-watchdog.conf; the rehearsals' values; effective after the next
+  boot)
+- cameras: 71-iceland-dma-heap.rules also gives the system dma-heap to the group video (0660), as libcamera's
+  70-libcamera.rules does today, so the cameras do not depend on that rule
+- GPU: devfreq min_freq 160 MHz at boot (73-iceland-gpu-devfreq.rules; 160 MHz is the lowest operating point of
+  kernel-iceland's GPU table, so it documents the floor and changes nothing yet)
+- tests: test_platform_defaults.py
+
 * Sat Oct 10 2026 mzak <mzak.amin@gmail.com> - 0.25-1
 - microphone: the processed source can be turned off with a PipeWire drop-in: the echo-cancel module of
   60-iceland-mic-processing.conf now carries condition = [ { iceland.mic-processing = !false } ], so a file with

@@ -1,0 +1,16 @@
+# /usr/lib/udev/rules.d/72-iceland-nowake.rules (iceland-device)
+#
+# Neither the USB controller nor the Wi-Fi chip's PCIe root port wakes the tablet from suspend-to-idle (the same
+# defaults as tb323fu-linux, Lenovo Legion Tab Gen 5, same SoC):
+# - USB (a600000.usb, dwc3-qcom): with wakeup on, the controller arms its PHY line interrupts in host mode; a USB 2
+#   hub on the port then wakes the tablet the moment the sleep starts and is enumerated again after every resume.
+#   Off here: a USB keyboard or mouse on the port does not wake the tablet (the power key, the cover and the pogo
+#   keyboard still do).
+# - PCIe (0000:00:00.0, the root port of the WCN7860 Wi-Fi): WAKE# is not used (no Wake-on-WLAN is set up; Wi-Fi
+#   powers off for a suspend).
+# Not touched: the charger. A charger plugged in or pulled out wakes the tablet through the battery manager
+# (pmic_glink.power-supply.0, kernel-iceland's qcom_battmgr), not through the USB controller; the cover (gpio-keys
+# "Lid"), the power key and the RTC alarm keep their wakeup settings too.
+# Turn one back on at run time: echo enabled > /sys/devices/platform/soc@0/a600000.usb/power/wakeup
+ACTION=="add|change", SUBSYSTEM=="platform", KERNEL=="a600000.usb", ATTR{power/wakeup}=="enabled", ATTR{power/wakeup}="disabled"
+ACTION=="add|change", SUBSYSTEM=="pci", KERNEL=="0000:00:00.0", ATTR{power/wakeup}=="enabled", ATTR{power/wakeup}="disabled"

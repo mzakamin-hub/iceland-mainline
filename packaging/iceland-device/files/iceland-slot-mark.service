@@ -1,0 +1,13 @@
+# iceland-device 0.27r5: mark the Android boot slot successful once the desktop is up (qbootctl -m; skipped in RAM kits and rehearsals)
+[Unit]
+Description=OnePlus Pad 4: mark the Android boot slot successful after a good boot
+Documentation=file:///usr/libexec/iceland/iceland-slot-mark
+After=graphical.target display-manager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/iceland/iceland-slot-mark mark
+TimeoutStartSec=8min
+
+[Install]
+WantedBy=graphical.target

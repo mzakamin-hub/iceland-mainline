@@ -1,15 +1,30 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Apply the tablet's own Bluetooth address (stock persist.vendor.service.bdroid.bdaddr, written to
-# /etc/iceland/bdaddr by the installer; never shipped) to the WCN7860 controller.
-addr=$(tr -d ' \n' < /etc/iceland/bdaddr)
+# iceland-bdaddr v2 (iceland-device 0.28-2; proven in r139a row BTf, wf/final-fix). Sets the tablet's own Bluetooth
+# address from /etc/iceland/bdaddr.
+# Why v2 (r139, bluez 5.87): v1 ran "power off; public-addr; power on" as soon as the kernel index existed. While the
+# controller still sits in the kernel's 2 s auto-off window after its setup (HCI_UP + HCI_AUTO_OFF: not "powered" for
+# mgmt), "power off" is a no-op; Set Public Address then removes the index and queues power_on, which takes the
+# HCI_UP + HCI_AUTO_OFF shortcut in hci_power_on() and never sends Index Added again -> bluetoothd has no adapter for the
+# whole boot ("no powered controller"). bluez 5.86 had powered the adapter (AutoEnable) before v1's "power off"; 5.87's
+# slower start lost that race. v2 makes the sequence independent of bluetoothd's timing: a REAL power-on first (clears the
+# auto-off state), a real power-off (closes the controller), then the address, then it waits for the index to come back.
+addr=$(tr -d ' \n' < "${ICELAND_BDADDR_FILE:-/etc/iceland/bdaddr}")
 echo "$addr" | grep -Eq '^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$' || { echo "iceland-bdaddr: bad address in /etc/iceland/bdaddr" >&2; exit 1; }
-for i in $(seq 1 20); do
-	btmgmt --index 0 info >/dev/null 2>&1 && break
-	sleep 0.5
-done
-cur=$(btmgmt --index 0 info 2>/dev/null | sed -n 's/^hci0:.*addr \([0-9A-F:]*\).*/\1/p')
-[ "$(echo "$cur" | tr a-f A-F)" = "$(echo "$addr" | tr a-f A-F)" ] && exit 0
-btmgmt --index 0 power off >/dev/null 2>&1
-btmgmt --index 0 public-addr "$addr"
-btmgmt --index 0 power on >/dev/null 2>&1
+up() { btmgmt --index 0 info 2>/dev/null | grep -q 'addr '; }
+cur() { btmgmt --index 0 info 2>/dev/null | grep -o -E 'addr ([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}' | head -n 1 | cut -c6- | tr a-f A-F; }
+powered() { btmgmt --index 0 info 2>/dev/null | grep 'current settings:' | grep -q -w powered; }
+want=$(echo "$addr" | tr a-f A-F)
+i=0; until up; do i=$((i + 1)); [ $i -ge 40 ] && { echo "iceland-bdaddr: no hci0 index" >&2; exit 1; }; sleep 0.5; done
+# let bluetoothd take the adapter first (its own power-on must not interleave with the steps below)
+i=0; until bluetoothctl list 2>/dev/null | grep -q '^Controller'; do i=$((i + 1)); [ $i -ge 20 ] && break; sleep 0.5; done
+[ "$(cur)" = "$want" ] && exit 0
+btmgmt --index 0 power on > /dev/null 2>&1
+i=0; until powered; do i=$((i + 1)); [ $i -ge 20 ] && break; sleep 0.25; done
+btmgmt --index 0 power off > /dev/null 2>&1
+i=0; while powered; do i=$((i + 1)); [ $i -ge 20 ] && break; sleep 0.25; done
+btmgmt --index 0 public-addr "$addr" > /dev/null 2>&1 || { echo "iceland-bdaddr: Set Public Address refused" >&2; exit 1; }
+i=0; until [ "$(cur)" = "$want" ]; do i=$((i + 1)); [ $i -ge 40 ] && { echo "iceland-bdaddr: hci0 did not come back with the address" >&2; exit 1; }; sleep 0.5; done
+btmgmt --index 0 power on > /dev/null 2>&1
+echo "iceland-bdaddr: own address set (v2)"
+exit 0
