@@ -2,7 +2,7 @@
 
 Status 12 Oct 2026 (install candidate = final golden B145 = kernel q89d9 (Linux 7.3-rc6 + our queue; q89d8 + the Bluetooth -84 fix) + iceland-device 0.28-3 + iceland-firmware 11.A.38-2 + Fedora 44 stable refresh (1727 packages), minimal package holds. Final rehearsal r141 on B145: no regression against r139c / r140 over 36 rows, all product rows PASS; its two FAILs (the camera module check, which a session guard stopped, and a package-version check) are test expectations. Proven since 11 Oct: update and rollback including a rollback boot, the kernel update through rpm, hardware video encode and decode, the firmware package, and the sensors after a resume (kit 144). Open: the speaker level against stock (+9 dB make-up, the owner's choice; never-above-stock is not proven by measurement, so a listening check after the install), the install image from B145 (rebuilt and held; the owner runs the two writes), the permanent boot path (decision 3) and the owner's physical checks). Everything is tested by RAM boot; nothing is installed on the tablet yet.
 Legend: ✅ working · 🟡 in progress · ⬜ not started · ❌ not planned. Sorted by functionality.
-Totals: 79 working, 16 in progress, 6 not started, 3 not planned (104).
+Totals: 78 working, 17 in progress, 6 not started, 3 not planned (104).
 Next steps: 3 fixing now, 35 owner checks, 14 can be added, 13 can be tuned (listed at the end).
 
 ## Boot & platform (16/22 working)
@@ -133,16 +133,16 @@ Next steps: 3 fixing now, 35 owner checks, 14 can be added, 13 can be tuned (lis
 | Deep-sleep proof, overnight drain ≤ ~1 %/h | 🟡 In progress | 98 % of a 150 s sleep in CX collapse (area-combo-64), 95 % with everything an installed boot loads (-92); PSCI OS-initiated idle active. The USB latency request now follows the cable (kit 137), but deep cluster idle with the cable out and the overnight drain are not measured. | Owner check: one night unplugged (drain per hour); Tune: cpuidle_psci_domain.allow_cluster_off=0 only if an unexplained idle reset appears (the switch is in q89d8) |
 | Per-rail power telemetry (PMIC) | ✅ Working | Our hwmon driver for the PMK8850 telemetry gives energy and power of 7 rails, starts only when read and costs nothing in sleep (queue 0163-0166, area-combo-92). | Nothing |
 
-## Sensors & camera (5/7 working)
+## Sensors & camera (4/7 working)
 
 | Feature | Status | Notes | Next (fixing / add / tune / owner check) |
 |---|---|---|---|
 | Rear flash LEDs | ✅ Working | Both LED nodes work as a torch; stock's 'led-0' lights the rear camera's scene (area-combo-44). | Nothing |
 | Accelerometer, compass, light / proximity | ✅ Working | hexagonrpc, libssc and iio-sensor-proxy 3.9 (our builds, held: Fedora's 3.8 has no sensor-hub support); all four types appear at boot; sensor rows PASS in r138b, r138c and r139, r139a re-judged 11 of 11; C9a / C9b PASS in r139b and r139c. Since 0.26 the sensor stream stops across a sleep. | Owner check: the reading after the first suspend on the installed system (the resume unit in 0.28-3: kit 144, 3 of 3 with it, 0 of 3 before) |
 | Gyroscope (sensor hub) | ✅ Working | Read through the sensor hub: 24.4 Hz at rest, mean ~0 rad/s (r142, GY PASS; kit 119's step ran without the sensor services). The RGB colour sensor has no class in libssc. | Nothing |
-| Cameras (13 MP rear, 8 MP front) | ✅ Working | Rear SC1320CS and front SC820CS stream on Fedora's stock libcamera 0.7.1-1 (our patched build dropped, owner 11 Oct) in every r138b-r139c camera row; orientation from the DT (rotation 0 / 0, queue 0191) matches the display. B145's kernel-iceland ships the in-tree sc1320cs.ko (stripped digest 052334177c5a), and our private out-of-tree build is also made. Which one loads on the installed system is not verified yet; the r141 CAMDRV FAIL came from a session guard that stopped the tablet step, not from a missing module. | Fixing: verify which sc1320cs module loads on the installed system (in-tree or our private build) and ship one; Add: SuperTurtleDev's GPL SmartSens driver as a comparison |
+| Cameras (13 MP rear, 8 MP front) | ✅ Working | Rear SC1320CS and front SC820CS stream on Fedora's stock libcamera 0.7.1-1 (our patched build dropped, owner 11 Oct) in every r138b-r139c camera row; orientation from the DT (rotation 0 / 0, queue 0191) matches the display. B145's kernel-iceland ships the in-tree sc1320cs.ko (stripped digest 052334177c5a), and our private out-of-tree build is also made. Proven in r148c (12 Oct, B145): the LOADED sc1320cs is the in-tree build (build-id 6dc1057a54e8, sha256 052334177c5a), owned by kernel-iceland (rpm -V clean); both sensors bound (1-0010, 1-0036); no private build in /lib/modules, the initramfs or anywhere on the filesystem (offline check 19/0 too). | Add: SuperTurtleDev's GPL SmartSens driver as a comparison |
 | Camera focus (DW9800K / DW9714V motor) | 🟡 In progress | Fixed focus: the motor is held at stock's start position (queue 0087-0089); its mode / frequency registers read back as the vendor init sets them (kit 135; r139c: 0x02 = 0x02, 0x06 = 0x80, 0x07 = 0x79) and the rear camera streams 200 frames in the focus row (r138a-r139a). No autofocus in libcamera's simple pipeline; the upstream DW9800K update breaks it (chip ID 0xfe) and stays out. | Add: autofocus once upstream libcamera's simple pipeline has it |
-| Camera app on the installed image | ✅ Working | GNOME Camera (Snapshot) with both cameras; closing a camera no longer crashes WirePlumber (F54): 40 of 40 open / close cycles on stock libcamera in r138b, r138c, r139 and r139a. Image brightness is informational (r138c's dark frames were a dim room). | Owner check: sharpness and colours by eye; Tune: the simple-IPA yaml values (black level, colour); the sensor helper and static properties only through upstream libcamera |
+| Camera app on the installed image | 🟡 In progress | GNOME Camera (Snapshot) with both cameras; closing a camera rarely crashes WirePlumber (F54, upstream libcamera soft-ISP stop race: assertion queuedRequests_.empty() in stop()): 40 of 40 clean open / close cycles in r138b-r141, 1 crash in r148c's 40 (1 in 360 cycles over 9 runs; WirePlumber restarts and the camera opens again). Image brightness is informational (r138c's dark frames were a dim room). | Fixing: the soft-ISP stop race through upstream libcamera (candidate patch 0006, wf/camfix: complete the requests left waiting for metadata in stopDevice); Owner check: sharpness and colours by eye; Tune: the simple-IPA yaml values (black level, colour); the sensor helper and static properties only through upstream libcamera |
 | Haptics, modem, NFC, fingerprint | ❌ Not planned | Not on this tablet. | Nothing |
 
 ## Software & packaging (8/9 working)
@@ -165,7 +165,7 @@ Next steps: 3 fixing now, 35 owner checks, 14 can be added, 13 can be tuned (lis
 
 - **Native display 3392×2400, dual DSI + DSC** (Display & input): (watch) DPU 'vblank timeout' and 'commit done -110' lines during the idle dim (r139b: 2 in F54; r139c: 0)
 - **Hardware video decoding** (Graphics & compute): the GStreamer V4L2 colour patch for SD BT.601 hardware decode (not in the golden)
-- **Cameras (13 MP rear, 8 MP front)** (Sensors & camera): verify which sc1320cs module loads on the installed system (in-tree or our private build) and ship one
+- **Camera app on the installed image** (Sensors & camera): the soft-ISP stop race through upstream libcamera (candidate patch 0006, wf/camfix: complete the requests left waiting for metadata in stopDevice)
 
 ### Owner checks (35)
 
