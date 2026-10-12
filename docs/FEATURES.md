@@ -3,7 +3,7 @@
 Status 12 Oct 2026 (install candidate = final golden B145 = kernel q89d9 (Linux 7.3-rc6 + our queue; q89d8 + the Bluetooth -84 fix) + iceland-device 0.28-3 + iceland-firmware 11.A.38-2 + Fedora 44 stable refresh (1727 packages), minimal package holds. Final rehearsal r141 on B145: no regression against r139c / r140 over 36 rows, all product rows PASS; its two FAILs (the camera module check, which a session guard stopped, and a package-version check) are test expectations. Proven since 11 Oct: update and rollback including a rollback boot, the kernel update through rpm, hardware video encode and decode, the firmware package, and the sensors after a resume (kit 144). Open: the speaker level against stock (+9 dB make-up, the owner's choice; never-above-stock is not proven by measurement, so a listening check after the install), the install image from B145 (rebuilt and held; the owner runs the two writes), the permanent boot path (decision 3) and the owner's physical checks). Everything is tested by RAM boot; nothing is installed on the tablet yet.
 Legend: ✅ working · 🟡 in progress · ⬜ not started · ❌ not planned. Sorted by functionality.
 Totals: 79 working, 16 in progress, 6 not started, 3 not planned (104).
-Next steps: 2 fixing now, 35 owner checks, 14 can be added, 13 can be tuned (listed at the end).
+Next steps: 3 fixing now, 33 owner checks, 14 can be added, 13 can be tuned (listed at the end).
 
 ## Boot & platform (16/22 working)
 
@@ -113,8 +113,8 @@ Next steps: 2 fixing now, 35 owner checks, 14 can be added, 13 can be tuned (lis
 |---|---|---|---|
 | CPU frequencies and CPU limits (stock) | ✅ Working | Held at 105 °C under load; limits are released 4 s after a load ends (queue 0077, area-combo-38..40). | Nothing |
 | Board and flash thermistors | ✅ Working | Read and bound to stock's zones. | Nothing |
-| Skin and XO zones | ✅ Working | Skin throttles from 48 °C to stock's deepest gear, XO uses stock's 78 / 80 / 90 °C steps, the power-chip alarms limit at 95 °C (queue 0081-0083, area-combo-38, -40). | Owner check: see Skin temperature policy |
-| Skin temperature policy (stock gears) | 🟡 In progress | Stock's 20-gear shell-temperature policy runs as a daemon in iceland-device (only lowers limits); with stock's 60 °C loop it did 40 % more work under a 60 s load than today's 48 °C loop (area-combo-39). | Owner check: the 60 / 61 °C loop with this policy (recommended) or 48 °C as today |
+| Skin and XO zones | ✅ Working | Skin loop at stock's 60 / 61 °C (deepest gear 998400 / 883200 kHz + 342 MHz at once above 61 °C, 70 °C shuts down; since kernel q87, queue 0190), XO uses stock's 78 / 80 / 90 °C steps, the power-chip alarms limit at 95 °C, GPU 105 / 120 / 125 °C, CPU 105 / 112 / 114 °C; every trip walked up and released by emulation in rehearsal r150b (golden B145). | Nothing |
+| Skin temperature policy (stock gears) | 🟡 In progress | Stock's policy as shipped in B145: iceland-thermal applies stock's 20 temperature gears (CPU / GPU / brightness / charging caps, mode offsets +1 / 0 / -4) on stock's shell estimate (the model is made at install from the tablet's own stock partitions, never shipped), over the kernel's 60 / 61 °C loop; every gear, the mode offsets and the charge-cap handover to the battery guard = stock's table, and a 60 s all-core load stayed under every stock limit (rehearsal r150b); +40 % work against the old 48 °C loop (area-combo-39). Open: the brightness cap on the live GNOME session - in r150 / r150b the real backlight did not follow the gear cap (gsd-power logs abs_to_percentage max > min assertions and may write its own level back). | Fixing: the brightness cap vs gsd-power on the live session (probe: real backlight sampled while the daemon caps it) |
 | USB-C connector temperature zones | ✅ Working | usb-therm and stock's L / R pair read within a few °C of the board; the guard reads all three (area-thermal-2). | Owner check: the L / R rise under PD charging current |
 | GPU cooling | ✅ Working | Limited as on stock, 20 of 20 checks (area-combo-41); highest real GPU sensor 98 °C under load. | Nothing |
 | NPU / CDSP cooling | ✅ Working | Upstream QMI TMD cooling (queue 0117-0124) with stock's maps; throttles and releases exactly as stock (area-combo-75). | Nothing |
@@ -161,12 +161,13 @@ Next steps: 2 fixing now, 35 owner checks, 14 can be added, 13 can be tuned (lis
 
 ## Next steps
 
-### Fixing now (2)
+### Fixing now (3)
 
 - **Native display 3392×2400, dual DSI + DSC** (Display & input): (watch) DPU 'vblank timeout' and 'commit done -110' lines during the idle dim (r139b: 2 in F54; r139c: 0)
 - **Hardware video decoding** (Graphics & compute): the GStreamer V4L2 colour patch for SD BT.601 hardware decode (not in the golden)
+- **Skin temperature policy (stock gears)** (Thermal): the brightness cap vs gsd-power on the live session (probe: real backlight sampled while the daemon caps it)
 
-### Owner checks (35)
+### Owner checks (33)
 
 - **U-Boot (RAM boot and the install build)** (Boot & platform): decision 3, the permanent boot path (C0 #1 used up boot_b's retry count 7 -> 0; recovery_b needs its own plan)
 - **Internal storage (UFS 4)** (Boot & platform): the installed root on UFS (after the install)
@@ -192,8 +193,6 @@ Next steps: 2 fixing now, 35 owner checks, 14 can be added, 13 can be tuned (lis
 - **Bypass charging** (Power & charging): the toggle once (W1-W8)
 - **Low-battery current limiting (BCL)** (Power & charging): one run-down to 5 %
 - **Pen charging** (Power & charging): the pen on the magnet side for ~90 s
-- **Skin and XO zones** (Thermal): see Skin temperature policy
-- **Skin temperature policy (stock gears)** (Thermal): the 60 / 61 °C loop with this policy (recommended) or 48 °C as today
 - **USB-C connector temperature zones** (Thermal): the L / R rise under PD charging current
 - **Suspend (s2idle)** (Sleep & power saving): the first suspends on the installed system (the night unplugged: Deep-sleep row)
 - **Wake by lid, keyboard, charger** (Sleep & power saving): cover wake from s2idle (deferred physical check); decide whether the volume keys wake it
