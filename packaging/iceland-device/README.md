@@ -6,7 +6,7 @@ binaries. `./build-rpm.sh OUT` builds `iceland-device-*.noarch.rpm` (rpmbuild; t
 | File | Installed as | Why |
 |---|---|---|
 | `80-iceland-kernel.conf` | `/usr/share/dnf5/libdnf.conf.d/` | dnf never installs Fedora's kernels (no Pad 4 support), a rescue initramfs, modules for other kernels (akmods / dkms), fwupd's EFI parts or other boot loaders; iceland-device, GRUB and shim cannot be removed; kernel-iceland keeps three versions; an upgrade that cannot be resolved with the holds is skipped, the rest updates (`best=False`, `skip_broken=True`; also for GNOME Software through dnf5daemon) |
-| `50-iceland-fedora-hold.repo` | `/usr/share/dnf5/repos.override.d/` | Fedora's updates do not replace GRUB, shim, firmware, the sensor programs, libcamera or alsa-ucm (the UCM data our sound profile includes; ours come from the local repository after a RAM rehearsal). Decision (generator `iceland-device-apps.py`: `HOLD_BOOT_FIRMWARE`); on a tablet an empty file of the same name in `/etc/dnf/repos.override.d/` masks it |
+| `50-iceland-fedora-hold.repo` | `/usr/share/dnf5/repos.override.d/` | Fedora's updates do not replace GRUB, shim, firmware, the sensor programs, libcamera or alsa-ucm (the UCM data our sound profile includes; ours come from the local repository after a RAM rehearsal), and a same-named Fedora package can never replace ours (`kernel-iceland*`, `iceland-*`: only `iceland-local` supplies them). Decision (generator `iceland-device-apps.py`: `HOLD_BOOT_FIRMWARE`); on a tablet an empty file of the same name in `/etc/dnf/repos.override.d/` masks it |
 | `51-iceland-fedora-44-pin.repo` | `/usr/share/dnf5/repos.override.d/` | Fedora's repositories stay on release 44 until a new release has passed the RAM rehearsal (GNOME Software upgrades through dnf5daemon, which the polkit rule cannot stop). Decision (`PIN_RELEASE`); an empty file of the same name in `/etc/dnf/repos.override.d/` masks it |
 | `sleep-iceland.conf` | `/usr/lib/systemd/sleep.conf.d/60-iceland.conf` | s2idle, the SoC's only sleep state |
 | `logind-iceland.conf` | `/usr/lib/systemd/logind.conf.d/60-iceland.conf` | the cover: suspend on battery (opening it wakes), with a charger in lock the session and turn the screen off but stay awake (stock keeps its kernel awake while charging), nothing with an external display |
@@ -30,7 +30,7 @@ binaries. `./build-rpm.sh OUT` builds `iceland-device-*.noarch.rpm` (rpmbuild; t
 | `71-iceland-dma-heap.rules` | `/usr/lib/udev/rules.d/` | the CMA dma-heaps (32 MiB) for root only: libcamera's software ISP in the desktop session then allocates its frames from the system heap; four 1080p frames do not fit into CMA (GNOME Camera failed with "Format negotiation failed") |
 | `61-iceland-battery.hwdb` | `/usr/lib/udev/hwdb.d/` | `CHARGE_LIMIT=80,85` for the battery: the thresholds UPower writes when GNOME's "Preserve Battery Health" is selected (UPower's default would be 75 / 80) |
 | `upower-iceland.conf` | `/usr/lib/systemd/system/upower.service.d/iceland.conf` | UPower starts after udev's first device scan: it reads the charge-limit thresholds only once |
-| `iceland-ssc-resume.service` | systemd unit | hexagonrpcd's unit stops for a suspend; this starts it again after the resume |
+| `iceland-ssc-resume.service` | systemd unit | hexagonrpcd's unit stops for a suspend; this starts it again after the resume, and iio-sensor-proxy when the sleep hook stopped it (outside the suspend transaction) |
 | `iceland-npu`, `iceland-npu-off.service` | `/usr/bin/`, systemd unit | `iceland-npu on|off|status` for the CDSP (NPU). The kernel starts the CDSP at boot and it idles in its own sleep; a stopped CDSP leaves its CX / DDR votes behind and the SoC no longer reaches CX collapse in suspend until it runs again (deep-sleep runs 66 / 67), so the boot-time stop is opt-in: the unit acts only when `/etc/iceland/npu-off-at-boot` exists |
 | `iceland-update-check` | `/usr/bin/` | read-only: the upgrades dnf / GNOME Software would apply now, those the hold file keeps back and (as root) those the resolver skips (`dnf5 check-upgrade`, with the three Fedora repositories' excludes disabled, and `dnf5 upgrade --assumeno`) |
 | `59-iceland-storage-ro.rules`, `iceland-storage-ro` | `/usr/lib/udev/rules.d/`, `/usr/libexec/iceland/` | every partition of the internal storage read-only (kernel flag), hidden from the desktop; userdata (the Fedora disk) is the only exception |
@@ -117,6 +117,8 @@ python3 tests/test_wifi_mac.py files iceland-device.spec
 python3 tests/test_slot_mark.py files iceland-device.spec
 python3 tests/test_bdaddr.py files
 python3 tests/test_stock_levels.py files iceland-device.spec ../../audio/ucm/OnePlus-Pad4/HiFi.conf ../../audio/topology/OnePlus-Pad4.m4
+python3 tests/test_speaker_default.py files iceland-device.spec
+python3 tests/test_ssc_resume.py files iceland-device.spec
 ```
 
 Still to add as the hardware work lands: ALSA UCM with volume caps (no speaker playback before TFA9865 protection),

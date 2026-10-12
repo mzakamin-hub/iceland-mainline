@@ -1,0 +1,13 @@
+[Unit]
+Description=OnePlus Pad 4: the protected Speakers sink as the configured default output (a user's own choice is kept)
+After=pipewire.service wireplumber.service
+PartOf=pipewire.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/iceland/iceland-speaker-default
+TimeoutStartSec=60
+
+[Install]
+WantedBy=wireplumber.service

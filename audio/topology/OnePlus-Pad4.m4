@@ -7,11 +7,13 @@ include(`util/route.m4')
 include(`util/mixer.m4')
 include(`audioreach/tokens.m4')
 dnl
-dnl OnePlus Pad 4: the stream gain into the speakers (MultiMedia1/2/5 -> PRIMARY_TDM_RX_0 -> 6x TFA9865) is capped,
-dnl because there is no speaker protection yet (the TFA9865 container is not loaded). Q13 linear gain, 8192 = 0 dB.
-dnl PLACEHOLDER (rule 13): 2056 = -12.0 dB until the stock volume limits are known (relay 018 item 9); the kernel
-dnl keeps writes and the power-up gain within this maximum (candidate patch in relay/answers/pc-026-s8-s9/).
-define(`VOL_CTRL_MAX', `2056')dnl
+dnl OnePlus Pad 4: the stream gain into the speakers (MultiMedia1/2/5 -> PRIMARY_TDM_RX_0 -> 6x TFA9865) is capped.
+dnl Q13 linear gain, 8192 = 0 dB. 0.27r6 (owner, 11 Oct 2026): the cap is STOCK's ceiling, 8192 = 0 dB (stock's PAL sets
+dnl the stream volume as a linear 0..1.0 factor: odm resourcemanager.xml config_volume; never above unity), raised from
+dnl the -12 dB placeholder 2056; the protection is the PipeWire chain in front (62-iceland-speakers.conf). The kernel
+dnl keeps writes and the power-up gain within this maximum (audioreach: keep the volume control within the topology's
+dnl maximum). Never above stock: tests/test_stock_levels.py.
+define(`VOL_CTRL_MAX', `8192')dnl
 #
 # Stream SubGraph  for MultiMedia Playback
 #

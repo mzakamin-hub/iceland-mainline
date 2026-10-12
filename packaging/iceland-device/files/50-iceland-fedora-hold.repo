@@ -28,12 +28,17 @@
 #   and an alsa-ucm that ships the same paths would conflict with this package's files. Held, our UCM and the files
 #   it includes change only through iceland-device (or a rehearsed alsa-ucm in the local repository). The exact
 #   name on purpose: alsa-ucm-utils (alsa-utils.spec: the alsaucm tool) is not UCM data. alsa-ucm requires only
-#   alsa-lib >= its own version, so alsa-lib keeps updating.
+#   alsa-lib >= its own version, so alsa-lib keeps updating.# - kernel-iceland*, iceland-* (0.28-3, from rehearsal r142): our own packages (the kernel, iceland-device, and
+#   iceland-firmware - that one was already under *-firmware). Fedora ships none of these names; should a Fedora
+#   repository ever carry one, dnf would compare versions over all enabled repositories, and iceland-local's priority
+#   10 wins only while that repository carries the name (an installed system whose iceland-local was never synced has
+#   none). Excluded here, our packages come only from iceland-local.
+
 [fedora]
-excludepkgs=grub2-*,shim-*,linux-firmware*,*-firmware,iio-sensor-proxy*,hexagonrpc*,libssc*,libcamera*,alsa-ucm
+excludepkgs=grub2-*,shim-*,linux-firmware*,*-firmware,iio-sensor-proxy*,hexagonrpc*,libssc*,libcamera*,alsa-ucm,kernel-iceland*,iceland-*
 
 [updates]
-excludepkgs=grub2-*,shim-*,linux-firmware*,*-firmware,iio-sensor-proxy*,hexagonrpc*,libssc*,libcamera*,alsa-ucm
+excludepkgs=grub2-*,shim-*,linux-firmware*,*-firmware,iio-sensor-proxy*,hexagonrpc*,libssc*,libcamera*,alsa-ucm,kernel-iceland*,iceland-*
 
 [updates-testing]
-excludepkgs=grub2-*,shim-*,linux-firmware*,*-firmware,iio-sensor-proxy*,hexagonrpc*,libssc*,libcamera*,alsa-ucm
+excludepkgs=grub2-*,shim-*,linux-firmware*,*-firmware,iio-sensor-proxy*,hexagonrpc*,libssc*,libcamera*,alsa-ucm,kernel-iceland*,iceland-*

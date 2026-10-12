@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        2%{?dist}
+Release:        3%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -145,9 +145,13 @@ Source123:      73-iceland-gpu-devfreq.rules
 Source124:      iceland-sensors-sleep
 Source125:      iio-sensor-proxy-iceland-sleep.conf
 Source126:      watchdog-iceland.conf
-# speaker protection (0.27, from the tb323fu-linux review): a filter chain that only takes level away
+# speaker protection (0.27, from the tb323fu-linux review; 0.28-3: make-up up to stock's measured loudness, the raw
+# speaker sink named as unprotected, the raw mic named, the protected sink as the configured default output)
 Source127:      62-iceland-speakers.conf
 Source128:      62-iceland-speaker-raw.conf
+Source134:      63-iceland-mic-raw.conf
+Source135:      iceland-speaker-default
+Source136:      iceland-speaker-default.service
 # Wi-Fi address kept stable across boots (0.27): changes nothing while the firmware's address is stable
 Source129:      iceland-wifi-mac
 Source130:      74-iceland-wifi-mac.rules
@@ -181,6 +185,8 @@ Requires:       pipewire-plugin-libcamera
 # source); fixed upstream in 0.5.18 (65519a1, wf/gpuisp)
 Requires:       wireplumber >= 0.5.18
 Requires:       ladspa-swh-plugins
+# iceland-speaker-default (0.28-3): pw-cli / pw-metadata
+Requires:       pipewire-utils
 Requires:       xdg-desktop-portal-gnome
 Requires:       fuse3
 Requires:       btrfs-progs
@@ -382,6 +388,9 @@ install -Dm0644 %{SOURCE125} %{buildroot}/usr/lib/systemd/system/iio-sensor-prox
 install -Dm0644 %{SOURCE126} %{buildroot}/usr/lib/systemd/system.conf.d/60-iceland-watchdog.conf
 install -Dm0644 %{SOURCE127} %{buildroot}/usr/share/pipewire/pipewire.conf.d/62-iceland-speakers.conf
 install -Dm0644 %{SOURCE128} %{buildroot}/usr/share/wireplumber/wireplumber.conf.d/62-iceland-speaker-raw.conf
+install -Dm0644 %{SOURCE134} %{buildroot}/usr/share/wireplumber/wireplumber.conf.d/63-iceland-mic-raw.conf
+install -Dm0755 %{SOURCE135} %{buildroot}/usr/libexec/iceland/iceland-speaker-default
+install -Dm0644 %{SOURCE136} %{buildroot}/usr/lib/systemd/user/iceland-speaker-default.service
 install -Dm0755 %{SOURCE129} %{buildroot}/usr/libexec/iceland/iceland-wifi-mac
 install -Dm0644 %{SOURCE130} %{buildroot}/usr/lib/udev/rules.d/74-iceland-wifi-mac.rules
 install -Dm0644 %{SOURCE131} %{buildroot}/usr/lib/systemd/system/iceland-wifi-mac-check.service
@@ -439,7 +448,7 @@ if [ -d /run/systemd/system ]; then udevadm control --reload >/dev/null 2>&1 || 
 # a running guard or thermal policy takes the new version at once (both start at boot; an installation alone
 # does not start them)
 if [ -d /run/systemd/system ]; then systemctl daemon-reload >/dev/null 2>&1 || :; systemctl try-restart iceland-battery-guard.service iceland-thermal.service >/dev/null 2>&1 || :; fi
-systemctl --global enable iceland-refresh.service iceland-charge-alert.service >/dev/null 2>&1 || :
+systemctl --global enable iceland-refresh.service iceland-charge-alert.service iceland-speaker-default.service >/dev/null 2>&1 || :
 # bypass charging: the bus reads the D-Bus policy of iceland-bypassd again (the service starts on demand); a running
 # one takes the new version. polkit sees the new action by itself; the GSettings override is compiled by glib2's
 # file trigger; GNOME Shell loads the extension at the next login.
@@ -479,7 +488,7 @@ fi
 %preun
 [ "$1" -eq 0 ] && systemctl disable iceland-trial-early.service iceland-boot-confirm.service >/dev/null 2>&1 || :
 [ "$1" -eq 0 ] && systemctl disable iceland-slot-mark.service >/dev/null 2>&1 || :
-[ "$1" -eq 0 ] && systemctl --global disable iceland-refresh.service iceland-charge-alert.service >/dev/null 2>&1; [ "$1" -eq 0 ] && systemctl disable iceland-camera-focus.service iceland-ssc-resume.service iceland-wifi-country.service iceland-npu-off.service iceland-battery-guard.service iceland-bdaddr.service >/dev/null 2>&1 || :
+[ "$1" -eq 0 ] && systemctl --global disable iceland-refresh.service iceland-charge-alert.service iceland-speaker-default.service >/dev/null 2>&1; [ "$1" -eq 0 ] && systemctl disable iceland-camera-focus.service iceland-ssc-resume.service iceland-wifi-country.service iceland-npu-off.service iceland-battery-guard.service iceland-bdaddr.service >/dev/null 2>&1 || :
 # the thermal policy hands its limits back when it stops
 [ "$1" -eq 0 ] && systemctl disable --now iceland-thermal.service >/dev/null 2>&1 || :
 if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/enforce ]; then semodule -r iceland_sensors >/dev/null 2>&1 || :; else semodule -n -r iceland_sensors >/dev/null 2>&1 || :; fi; fi
@@ -517,6 +526,9 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/lib/systemd/system.conf.d/60-iceland-watchdog.conf
 /usr/share/pipewire/pipewire.conf.d/62-iceland-speakers.conf
 /usr/share/wireplumber/wireplumber.conf.d/62-iceland-speaker-raw.conf
+/usr/share/wireplumber/wireplumber.conf.d/63-iceland-mic-raw.conf
+/usr/libexec/iceland/iceland-speaker-default
+/usr/lib/systemd/user/iceland-speaker-default.service
 /usr/libexec/iceland/iceland-wifi-mac
 /usr/lib/udev/rules.d/74-iceland-wifi-mac.rules
 /usr/lib/systemd/system/iceland-wifi-mac-check.service
@@ -614,6 +626,21 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/pipewire/pipewire.conf.d/60-iceland-mic-processing.conf
 
 %changelog
+* Mon Oct 12 2026 mzak <mzak.amin@gmail.com> - 0.28-3
+- speakers: louder, toward stock (the owner's choice, 12 Oct; stock's loudness is the aim, not a measured proof): the
+  compressor's make-up gain is
+  9 dB (owner-chosen; never-above-stock not proven by measurement - references inconclusive; cap 14 dB), the limiter runs at 0 dB input / -1 dBFS (was -3 / -3); the high-pass stays
+  150 Hz; the DSP stream (0 dB) and the amplifiers stay at stock; tests/stock_loudness.json records the cap
+- speakers: the raw ALSA sink is "Speakers (raw, unprotected)" (priority 100); iceland-speaker-default (user unit)
+  makes the protected "Speakers" the configured default output unless the account chose another one
+- microphone: the raw source is "Internal microphones (raw)"; the processed source stays the default
+- tests: test_stock_levels / test_speaker_protection follow the rule; new test_speaker_default.py
+- sensors (A52, kit 144): the sleep hook only stops iio-sensor-proxy and leaves its mark; iceland-ssc-resume.service
+  (after suspend.target, outside the suspend transaction) starts hexagonrpcd-adsp-sensorspd and, with the mark,
+  iio-sensor-proxy (the hook's own start inside systemd-suspend left the accelerometer 0/3; 3/3 now); new test_ssc_resume.py
+- updates (r142): kernel-iceland* and iceland-* excluded from the three Fedora repositories, so a same-named Fedora
+  package can never replace ours (iceland-firmware was held by *-firmware already); test_update_policy checks the names
+
 * Sun Oct 11 2026 mzak <mzak.amin@gmail.com> - 0.28-2
 - bluetooth: iceland-bdaddr v2 - a real power-on, power-off, then the own address, then wait for the index to come back
   with it (v1 set the address inside the kernel's 2 s auto-off window after the controller setup; with bluez 5.87

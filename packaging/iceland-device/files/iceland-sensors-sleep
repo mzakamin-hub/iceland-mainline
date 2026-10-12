@@ -5,8 +5,10 @@
 # iio-sensor-proxy (with libssc) keeps the accelerometer of the ADSP's sensor hub (SSC) streaming for the automatic
 # rotation as long as a client holds it (GNOME does). The hub then sends samples all through suspend-to-idle and keeps
 # the SoC out of its deepest idle (tb323fu-linux, same SoC: about 36 wakes a second). Stop the proxy before the sleep
-# and start it again after the resume (no-block: its ExecStartPre waits until the accelerometer answers;
-# hexagonrpcd, which stops for the suspend by itself, is started again by iceland-ssc-resume.service).
+# and leave the mark /run/iceland/sensors-stopped; iceland-ssc-resume.service (ordered after suspend.target, outside
+# the suspend transaction) starts hexagonrpcd, which stops for the suspend by itself, and - with the mark - the proxy.
+# 0.28-3 (A52, kit 144): this hook's post step used to start the proxy itself, inside systemd-suspend, while
+# hexagonrpcd (Conflicts=suspend.target) was still down: the accelerometer came back 0/3; from the unit 3/3.
 # GNOME sees the proxy leave the bus and come back and claims the accelerometer again.
 # Test switch: a file /run/iceland/sensors-keep keeps the stream across the sleep (the hook does nothing).
 [ -e /run/iceland/sensors-keep ] && exit 0
@@ -15,9 +17,5 @@ pre)	systemctl is-active -q iio-sensor-proxy.service && {
 		mkdir -p /run/iceland && : > /run/iceland/sensors-stopped
 		systemctl stop iio-sensor-proxy.service
 	} ;;
-post)	if [ -e /run/iceland/sensors-stopped ]; then
-		rm -f /run/iceland/sensors-stopped
-		systemctl start --no-block iio-sensor-proxy.service
-	fi ;;
 esac
 exit 0

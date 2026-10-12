@@ -1,0 +1,23 @@
+ath12k/WCN7860/hw2.0/Notice.txt	-	-	NOTICE (vendor licence text; theirs only)
+ath12k/WCN7860/hw2.0/amss.bin	5ba62f274607e6e3e358de8c78d5fb20458db97ef78468f234ea007d537171de	23811bd6abe91a89ef00057e0a4d2e85ea3d0defcad377334cdef987ec4df820	DIFFER (4 of 5 segments equal)
+ath12k/WCN7860/hw2.0/aux_ucode.bin	fab89fe01f335af669474050d57085049f5792dbc3d2db9044c4d51bd979172b	4db9df6fdac982752f71c513f174da7e22307a769a9d49fd336b054919c9451e	DIFFER (bytes) / segments MATCH
+ath12k/WCN7860/hw2.0/board.bin	b51db68389a12012d87d00b7173346683a089981c2cd436d46bb005e7ed37b74	355578ce4162b885c9371e8df7eac20bb4bcd28c8b9d11cf0bdd5114ec6cfe3c	DIFFER (0 of 1 segments equal)
+ath12k/WCN7860/hw2.0/m3.bin	820648a3cbeb480dfa071ab5d5847abb165209eb9a7e119a2f349b36c93f3c42	c1a1295b1808ba204676c03967aea91effc5d85b55a9d269ba858c5e80c92b9c	DIFFER (0 of 1 segments equal)
+ath12k/WCN7860/hw2.0/qdss.cfg	4683d8683437a11172723dc5820801aaaf5eb082336875a7664142582cc90cbb	4683d8683437a11172723dc5820801aaaf5eb082336875a7664142582cc90cbb	MATCH
+ath12k/WCN7860/hw2.0/regdb.bin	5d115d782d89689bd79f9992aafd60ef8f7b079c5f6d59dc24131962debcfe14	365026525f6a9a1ebf0668b8c61fb1300bfdb2450148e994b9a4ca66257e7e43	DIFFER (24278 vs 24278 bytes)
+novatek/novatek_nt36536_fw.bin	8af06234a9f4f779c341a3cecc0258bc4b0b1a3cc0884b9eadad3173489eaedd	5e9d96517199ce11d44db90436e5835fed7982031102f52a74b7230ad64d83e2	DIFFER (258048 vs 253952 bytes)
+qca/gngbtfw20.mbn (ours: qca/brhbtfw20.mbn)	74ee832cd724fb6a4391bc06f4b0d9697d36b460e7f4b14fb6bc14b69e7cc287	74ee832cd724fb6a4391bc06f4b0d9697d36b460e7f4b14fb6bc14b69e7cc287	MATCH
+qca/gngbtnv20.bin (ours: qca/brhbtnv20.bin)	9671c2f0c1a860d0c4955e0427c51b0f8ae177b73fb2a933b838102a5f055698	9671c2f0c1a860d0c4955e0427c51b0f8ae177b73fb2a933b838102a5f055698	MATCH
+qcom/gen80200_aqe.fw	ed7916ca84e663d63fa94b0d40cc8c222e362e6cff860c539a8cca30d3721b68	-	THEIRS ONLY: Fedora qcom-firmware ships the GPU microcode (owner decision 2 Oct)
+qcom/gen80200_gmu.bin	06f4484fa06f91638aa4ae2412051bcddffdad69a7e2f83849c72412e6daa44d	-	THEIRS ONLY: Fedora qcom-firmware ships the GPU microcode (owner decision 2 Oct)
+qcom/gen80200_sqe.fw	e2d4e74282f50e40788b83b9ba4a5f5894c7975ed356c03a0161372d78f12932	-	THEIRS ONLY: Fedora qcom-firmware ships the GPU microcode (owner decision 2 Oct)
+qcom/kaanapali/OnePlus-Pad4-tplg.bin	11b78ff1037690499ecbc539d2ca19cde8ca0a86f62e6df00083fb88b0e967c7	-	THEIRS ONLY: ALSA topology: built from source by iceland-device
+qcom/kaanapali/iceland/adsp.mbn	75c4de7550088bf3cff68e87448fb16e95f3a48121be2acb526b2cd99b8fcfa6	781512dbb6d9958d7e7eb50862000db867bea9e8b0e27cad87ffc94c6bc536af	DIFFER (15 of 50 segments equal)
+qcom/kaanapali/iceland/adsp_dtb.mbn	e15bee4c704d85d93a791896ca4df2fa48dc214429e538184d21b60efdd904b0	09e35c4294fd3b3d25146603538c5e858af7e13a5d60a639f495783d397c448a	DIFFER (bytes) / segments MATCH
+qcom/kaanapali/iceland/cdsp.mbn	c4ef6766af657160986b20687d01292aaf555385aba0c6441a988416ed31cb56	5e5fa6eb8b61eae77d23ebf7f868b45419bbb65d7358ed99010bab68fe88791d	DIFFER (7 of 14 segments equal)
+qcom/kaanapali/iceland/cdsp_dtb.mbn	9fcf515c516d454f0caad131cbf14b131fb2ff8920ad9dee3e572e166ab8bb97	6aedd298727f336a19e5215e8b629002f5caea0073fcaf6a9bcae9804f44e19e	DIFFER (bytes) / segments MATCH
+qcom/kaanapali/iceland/gen80200_zap.mbn	df0470f962723f4898b7b92e5679444e1add6d21d10259855f68e5c1baad1808	d185bfc9a819394537775a9facd49a6136f1fc66b848ea3de4e4e04ce9053db0	DIFFER (bytes) / segments MATCH
+qcom/kaanapali/iceland/soccp.mbn	a52887de4e8daee9eca5943fab363df6eb2c24ce9e16a56efc759f0308e7a029	26b6eb2d6be52a2921257fd6f85673eb985e83433328cdf5b3b87ca759ae2eab	segments DIFFER
+qcom/kaanapali/iceland/soccp_dtb.mbn	ab680d1bc13f68bf3316e72c673508963cb68c5c165d93369fee9a8efe64b556	-	NOT EXTRACTED (soccp_dtb: no such partition on this unit; not loaded by Linux)
+qcom/kaanapali/iceland/vpu40_2v.mbn	6e031a6eb135749e2ae73567e10a097c78dedd4b7a1208c2d2779cf36eb9037e	69d4e2154ca1704a751922d2b6e4680539c995d1e85dcf07ab349a009a411abc	DIFFER (5 of 10 segments equal)
+# summary: 22 files in theirs; MATCH=3, DIFFER=12, THEIRS ONLY=4, NOT EXTRACTED=1, NOTICE=1
