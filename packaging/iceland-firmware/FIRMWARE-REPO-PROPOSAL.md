@@ -1,8 +1,9 @@
-# Proposal: the dedicated firmware repository `iceland-firmware` (NOT created yet)
+# The dedicated firmware repository `iceland-firmware` (created 12 Oct 2026)
 
-Status 12 Oct 2026: a proposal only. Nothing was created or pushed. This directory (`packaging/iceland-firmware/`)
+Status 12 Oct 2026: CREATED by the owner's decision: https://github.com/mzakamin-hub/iceland-firmware - created 12 Oct 2026, public, commit c40c33e, tag + release 11.A.38-2 (RPM sha256 14833f719be4... = the package pinned in golden B145, + SRPM). Pre-push checks: sha256
+278/278, privacy check 0 hits, owner Wi-Fi guard 0, no registry / unit-data names / MAC-like strings. This directory (`packaging/iceland-firmware/`)
 holds the package's text parts (spec, manifest, exclusions, notices); the firmware files themselves never enter
-iceland-mainline (its blob guards stay). Creating the repository and choosing its visibility is the owner's step.
+iceland-mainline (its blob guards stay). The text below is the original proposal, kept as the record of the layout and the checks.
 
 ## Why a separate repository
 
@@ -41,7 +42,8 @@ B145; r145 / r145b and r141 FP1-FP4 PASS).
 
 ## After it exists
 
-- iceland-device / the installer may then fetch the package from that repository's releases instead of the local
-  repository; until then the PC's local repository (`iceland-repo-sync`) carries it, as in golden B145.
+- Next (separate tested change, NOT in the held install image): iceland-device / the installer fetch the package from
+  that repository's releases with an sha256 pin instead of only the PC's local repository; until then the local
+  repository (`iceland-repo-sync`) carries it, as in golden B145.
 - A later stock release (e.g. 11.A.40) = a new MANIFEST + a release bump; if `gen80200_zap.mbn` or
   `novatek_nt36536_fw.bin` change, the spec must add a posttrans `dracut -f --regenerate-all` (see the spec header).

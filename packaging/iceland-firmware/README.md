@@ -3,8 +3,8 @@
 Generic firmware of the OnePlus Pad 4 (OPD2514, "iceland"; Snapdragon 8 Elite Gen 5 / kaanapali) for mainline Linux,
 taken from the stock software release 11.A.38 and packaged for Fedora (`iceland-firmware.spec`).
 
-Proposed repository: `mzakamin-hub/iceland-firmware` (dedicated, firmware only; the kernel and project repositories
-keep their blob guards). Layout:
+Repository: https://github.com/mzakamin-hub/iceland-firmware (dedicated, firmware only; created 12 Oct 2026, public, commit c40c33e, tag + release 11.A.38-2 (RPM sha256 14833f719be4... = the package pinned in golden B145, + SRPM)).
+The kernel and project repositories keep their blob guards. Layout:
 
     iceland-firmware.spec        RPM spec (noarch; files under /usr/lib/firmware/updates and
                                  /usr/share/qcom/kaanapali/OnePlus/iceland)
