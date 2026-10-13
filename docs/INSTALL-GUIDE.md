@@ -3,10 +3,11 @@
 Written 2 Oct 2026, revised the same evening (install workflow round 7: the write-2 probe C0 first, the review's
 R-1 / R-2 / R-4 / R-8 / R-9 points, the slot-retry finding). This is the step-by-step companion of
 `docs/INSTALL-PLAN.md` (the reasons are there; the steps are here). **Edition: 3 Oct 2026, release candidate 1 (kernel q85 = queue 0001-0188, iceland-device 0.19, rehearsal r2i 46 / 0 / 0)**: adds the
-first-boot setup note (Part C step 4) and section 11 (known issues and what this build fixes). **Final edition 12 Oct 2026 (afternoon): the final golden B145 (kernel q89d9 + iceland-device 0.28-3 +
-iceland-firmware 11.A.38-2), accepted after the final rehearsal r141 / r141u / r141ub; the install image is rebuilt
-from B145 and HELD for your two writes (section 0.1, Part B, section 10). The speaker level is your choice (+9 dB):
-a listening check follows the install.** On 10 Oct the install-day steps ran: the read-only checks, and four
+first-boot setup note (Part C step 4) and section 11 (known issues and what this build fixes). **Final edition 13 Oct 2026 (morning): the final golden B147 (kernel q89e = v7.3-rc7 + iceland-device 0.28-5 +
+iceland-firmware 11.A.38-3), accepted after the final rehearsal r156 / r156u / r156ub (only FAIL: the known F54
+libcamera race, accepted by you); the install image is rebuilt from B147 and HELD for your two writes (section 0.1,
+Part B, section 10). It replaces the B145 image of 12 Oct. The speaker level is your choice (+9 dB): a listening
+check follows the install.** On 10 Oct the install-day steps ran: the read-only checks, and four
 C0 probes that wrote `boot_b` and undid it the same day. No `userdata` write has been done and Fedora is not installed.
 Every write is done by you, one command at a time, after its own checks.
 
@@ -37,20 +38,25 @@ Sources: the Loop 5 log (`OnePlusPad4-Loop5\WORKLOG.md`, `R138-TRACKER.md`, `STA
 | G13 the rehearsal cannot touch the storage | **closed** (a U-Boot build without UFS support, the read-only rule in the initramfs, a network-disk-only carrier, the self-check) | Part B |
 | G14 sleep drain known | open; no measurement in the Loop 5 log. Not a safety gate | leaving the tablet asleep for days |
 | G6-G8 charging, low battery, thermal | the owner's rule is recorded (10 Oct): attended charging with the 80 % limit (WORKLOG, 10 Oct 08:3x). The protective parts are not re-tested in the Loop 5 log | leaving the tablet alone on a charger |
-| Kernel `kernel-iceland`: **q89d9** (final) | **final**: q89d8 (`up3-qd6`) + 0291 Bluetooth hci_qca: the WCN7860 baudrate-change RX burst dropped (`9e7350a6ab`; no more "Frame reassembly failed (-84)" at every Bluetooth power-on), `7.3.0-rc6-iceland-00414-g9e7350a6ab86`, on rc6, 0 build warnings. r146 / r146b: BT84 PASS (0 lines over 5 setups) + the kernel-update path; in golden B145. Pushed 12 Oct to the private iceland-linux repository: branch `iceland-7.3-rc6-q89d9` (commit `a2c12cb`, on top of `iceland-7.3-rc6-q89d8` `bdae4ee`), tag `q89d9`. N1 (SoundWire) and N2 (hci_qca IBS) were tested and dropped | Part B, install |
-| Device package `iceland-device` **0.28-3** (mk9, `25273c65`) | **final**, in golden B145: 0.28-2 (Fedora slot marking `iceland-slot-mark` = `qbootctl -m` once after a good boot, only when the slot is not yet marked, skipped in kits and rehearsals; audio at stock 0 dB; `iceland-bdaddr` v2) + the speaker loudness item: a compressor make-up gain of **+9 dB (your choice, 12 Oct; within the 14 dB cap; that it stays at or below stock is NOT proven by measurement - both Android comparisons were inconclusive)**, limiter 0 dB in / -1 dBFS out, HPF 150 Hz 4th order, amplifiers and DSP stream at stock; only the protected "Speakers" and the processed microphone are listed (the raw ones renamed "... (raw, unprotected)") + the sensor resume unit (A52: hexagonrpcd and iio-sensor-proxy back after a resume, kit 144 3/3) + Fedora's repositories never offer `kernel-iceland*` / `iceland-*`. 37 package tests. `qbootctl` 0.2.2-2 from Fedora; the real `qbootctl -m` runs first on the installed system | Part B, install |
-| `iceland-firmware` **11.A.38-2** (new) | in golden B145, held; published in https://github.com/mzakamin-hub/iceland-firmware (created 12 Oct 2026, public, commit c40c33e, tag + release 11.A.38-2 (RPM sha256 14833f719be4... = the package pinned in golden B145, + SRPM)): the tablet's GENERIC stock 11.A.38 firmware as a package (278 files: ADSP / CDSP, GPU zap, video, WCN7860 Wi-Fi / Bluetooth, touch, the sensor hub tree as root:fastrpc 0750 / 0640), byte-identical to what the installer extracts. Unit-specific data (the sensor calibration registry from `persist`, the Bluetooth address, the extraction record) is not in it and stays extracted from your tablet. r145 / r145b: `rpm -V` clean on both boots, 0 firmware load failures; r141 FP1-FP4 PASS | Part B, install |
-| libcamera | **Fedora stock `0.7.1-1.fc44`** (F44 stable; 0.7.1-2 is only in updates-testing), updated by Fedora (not held). In r139c F54 40/40 and both cameras stream | Part B |
-| Golden (B run) | **B145 = the final golden** (committed 12 Oct 11:11; B-RUN 33/0, its judge check-b144 4/0 with check-b142 14/0): q89d9 + iceland-device 0.28-3 + iceland-firmware 11.A.38-2 + the Fedora 44 stable refresh of B143, 1727 packages, manifest `9b752df5f7e1`, body `fce4bd794fb9`. **Minimal holds** (refresh): kernel, kernel-core, kernel-modules*, kernel-iceland, iio-sensor-proxy, hexagonrpc, libssc, iceland-device, iceland-firmware; shim + GRUB, libcamera, qbootctl and Fedora's firmware packages come from Fedora (signatures checked). **Final rehearsal r141 / r141u / r141ub on B145 (12 Oct 12:14-13:00): accepted, NO-REGRESSION against r139c / r140 over 36 rows** (r141: 64 rows, 48 PASS, 1 FAIL, 3 CHECK, 11 INFO, 1 DEFERRED; r141u 23 PASS, 1 FAIL, 2 CHECK; r141ub 7/7 PASS). Both FAILs are test expectations, fixed in the test scripts since: CAMDRV (the module check ran behind a session guard and listed nothing; B145's `kernel-iceland` ships the in-tree `sc1320cs.ko`, digest = the stripped in-tree build) and PK (expected 0.28-2) | the install image |
-| Install image on C: | **rebuilt from B145 on 12 Oct (13:17), HELD** (nothing written to the tablet; you run the two writes): `C:\OnePlusPad4\final\fedora-iceland.sparse.img`, 6,034,694,960 bytes, SHA-256 `0e65a4d54111cbc84cf3d9ec93c903b8038864e7921505c05c00e7f90aed7ae4`, unpacked 237,159,641,088 bytes (= `userdata`), 32,104 chunks; it replaced B130's image in place (B130's package stays in WSL `wf/final/q89b-024-b130`). Package files: `SHA256SUMS`, `MANIFEST.json`, `VERIFY.txt`, `golden.json`, `u-boot-iceland-v3.img`; `flashguide\record.json` now names this image's hash (the old one kept as `record.json.pre-b145`). **Offline content check (`VERIFY.txt`): 98 PASS, 1 FAIL**: q89d9 kernel / initramfs / BLS entry, iceland-device 0.28-3, iceland-firmware 11.A.38-2, the minimal hold file exactly, `kernel-iceland*` / `iceland-*` never offered by Fedora, slot marking enabled (unit shipped, preset enable, no off switch, no `iceland.noslotmark`, qbootctl installed), the first-boot setup not done and not disabled, no user, no autologin, no rehearsal arguments / units / dconf keys, empty machine-id, no SSH keys, no Wi-Fi networks, no journal, root locked, make-up 9 dB, owner Wi-Fi guard 0 hits on the raw disk. The FAIL: `/var/lib/systemd/random-seed` (32 bytes) left by the B run's boots - not unit data and not a secret of yours; systemd replaces it at the first boot and the kernel is seeded by the hardware RNG (r142 RN PASS). The PC session can remove it in a later golden; it does not block the install. Private by design (as every install image): the tablet's own firmware extraction, its Bluetooth address and its thermal model | write 1 |
-| Install U-Boot | **v3**: install build `979b4076` (patches 0008-0010: no self power-off or reset, USB up without ABL, `fastboot reboot-bootloader`). Footered `4955ee98` (AVB-PROOF PASS, rot-equal; made from 10 Oct's `boot_b`, re-made on the install day by Part A step 6); `record.json` points to v3. The B145 package lists `u-boot-iceland-v3.img` in its `SHA256SUMS`; the older `u-boot-iceland.img` (`fb2bed8d`) on C: is not part of it and is not used | write 2 |
+| Kernel `kernel-iceland`: **q89e** (final, 13 Oct) | **final, in golden B147**: `7.3.0-rc7-iceland-00412-g4917dfb48aab` = q89d9 rebased onto v7.3-rc7 (411 patches kept unchanged, 3 dropped because they are merged upstream, 0 conflicts; config and device tree unchanged; 0 build warnings) + one video-driver fix (iris: SD video signalled as BT.601 6/6/6 and decoded colour codes mapped consistently; r156 VE-601 PASS). Five queue patches by Joonhoe Kim carry a provenance note (docs/PROVENANCE.md). Kernel rpm `03903142`. r155 / r156: NO-REGRESSION against r141. The q89d9 row below is the previous final (B145) | Part B, install |
+| Kernel `kernel-iceland`: q89d9 (B145, superseded by q89e) | q89d8 (`up3-qd6`) + 0291 Bluetooth hci_qca: the WCN7860 baudrate-change RX burst dropped (`9e7350a6ab`; no more "Frame reassembly failed (-84)" at every Bluetooth power-on), `7.3.0-rc6-iceland-00414-g9e7350a6ab86`, on rc6, 0 build warnings. r146 / r146b: BT84 PASS (0 lines over 5 setups) + the kernel-update path; in golden B145. Pushed 12 Oct to the private iceland-linux repository: branch `iceland-7.3-rc6-q89d9` (commit `a2c12cb`, on top of `iceland-7.3-rc6-q89d8` `bdae4ee`), tag `q89d9`. N1 (SoundWire) and N2 (hci_qca IBS) were tested and dropped | Part B, install |
+| Device package `iceland-device` **0.28-5** (`7e361fe2`, 13 Oct) | **final, in golden B147**: 0.28-3 (row below) + 0.28-4: the **minimal hold file** (Fedora's repositories hold back only `iio-sensor-proxy*`, `hexagonrpc*`, `libssc*`, `alsa-ucm`, `kernel-iceland*`, `iceland-*`; GRUB, shim, Fedora's firmware and libcamera update from Fedora), the firmware fetch helper `iceland-firmware-fetch` with its sha256 pin list (`/usr/share/iceland/firmware-pins.tsv`: 11.A.38-2, 11.A.38-3), **`BRIGHTNESS=0`** in `/etc/iceland/thermal.conf` (the thermal service never writes the backlight: GNOME's own brightness fought a sysfs cap, r151; the brightness cap comes back as a kernel clamp in the ktz8869 driver, a later tested change), the microphone decimators TX_DEC0 / TX_DEC1 back to stock's 84 + 0.28-5: **the microphone chain** - echo canceller (`iceland_mic_aec`, hidden) -> a limiter stage `61-iceland-mic-gain.conf` (+14 dB after the echo canceller, ceiling -1 dBFS) -> "Internal microphones (voice processing)" (`iceland_mic_processed`, the default). r156: speech level -40.0 dBFS (r141 -40.4), 0 clipped samples in 9 processed recordings, raw capture clipping 215 samples (r141: 68,749) | Part B, install |
+| Device package `iceland-device` 0.28-3 (mk9, `25273c65`, B145) | in golden B145: 0.28-2 (Fedora slot marking `iceland-slot-mark` = `qbootctl -m` once after a good boot, only when the slot is not yet marked, skipped in kits and rehearsals; audio at stock 0 dB; `iceland-bdaddr` v2) + the speaker loudness item: a compressor make-up gain of **+9 dB (your choice, 12 Oct; within the 14 dB cap; that it stays at or below stock is NOT proven by measurement - both Android comparisons were inconclusive)**, limiter 0 dB in / -1 dBFS out, HPF 150 Hz 4th order, amplifiers and DSP stream at stock; only the protected "Speakers" and the processed microphone are listed (the raw ones renamed "... (raw, unprotected)") + the sensor resume unit (A52: hexagonrpcd and iio-sensor-proxy back after a resume, kit 144 3/3) + Fedora's repositories never offer `kernel-iceland*` / `iceland-*`. 37 package tests. `qbootctl` 0.2.2-2 from Fedora; the real `qbootctl -m` runs first on the installed system | Part B, install |
+| `iceland-firmware` **11.A.38-3** (13 Oct) | **in golden B147**, held: 11.A.38-2 (row below) + ONE non-firmware file, stock's shell-temperature model for the thermal service, `/etc/iceland/thermal-model.json` (sha256 `4f476a7d4b0b9c52`; decoded, generic, published by your decision of 12 Oct; the encrypted vendor inputs, the key and the decoder stay unpublished). RPM `297669a0` = tag and GitHub release 11.A.38-3 of the iceland-firmware repository. r153 / r156: FP1-FP4 PASS, the model owned by the package and read by the thermal service | Part B, install |
+| `iceland-firmware` 11.A.38-2 (B145) | in golden B145, held; published in https://github.com/mzakamin-hub/iceland-firmware (created 12 Oct 2026, public, commit c40c33e, tag + release 11.A.38-2 (RPM sha256 14833f719be4... = the package pinned in golden B145, + SRPM)): the tablet's GENERIC stock 11.A.38 firmware as a package (278 files: ADSP / CDSP, GPU zap, video, WCN7860 Wi-Fi / Bluetooth, touch, the sensor hub tree as root:fastrpc 0750 / 0640), byte-identical to what the installer extracts. Unit-specific data (the sensor calibration registry from `persist`, the Bluetooth address, the extraction record) is not in it and stays extracted from your tablet. r145 / r145b: `rpm -V` clean on both boots, 0 firmware load failures; r141 FP1-FP4 PASS | Part B, install |
+| libcamera | **Fedora stock `0.7.1-1.fc44`** (F44 stable; 0.7.1-2 is only in updates-testing), updated by Fedora (not held). In r139c F54 40/40 and both cameras stream. **Known issue F54** (accepted by you): a rare WirePlumber abort when a camera stream stops (libcamera's soft-ISP stop race, upstream issues #320 / #335, not fixed upstream): r156 G4 1 of 40 cycles, r148c 1 of 40, r141 0 of 40; the cameras keep working after it. r152: 0.7.1-2 (updates-testing) 40/40 in both modes; it arrives as a normal Fedora update once stable | Part B |
+| Golden (B run) | **B147 = the final golden** (committed 13 Oct 06:02, first try; B-RUN 38/0, check-b142 14/0, its judge check-b147 6/0): q89e + iceland-device 0.28-5 + iceland-firmware 11.A.38-3 + the Fedora 44 stable refresh (B146 recipe, minimal holds), no random seed, **1727 packages, manifest `0c35227ddf92`, body `e294b240f98e`**. **Final rehearsal r156 / r156u / r156ub on B147 (13 Oct 06:0x-07:04): accepted** - r156: 64 rows, 47 PASS, **1 FAIL (G4 = the known F54 libcamera race, 1 of 40 cycles; accepted by you)**, 4 CHECK (test-side and measurement rows such as G2 test-tool denials, LP upright loopback, PV camera pre-grant), 11 INFO, 1 DEFERRED (your listening check); r156u 25 PASS, 0 FAIL, 1 CHECK; r156ub 7/7 PASS (rollback boot). PASS includes SPEECH, PCLIP, MICCHAIN, GAIN, ST (the microphone chain), SK 12/12 (stock skin policy 60 / 61 / 70 C), FFI / FF6 / FF7 (firmware fetch), FP1-FP4, VE-601 (SD video colours), REC, RNG, update / rollback. B146 (13 Oct 04:13, 0.28-4) stays committed but is not the install image (r155: speech 14 dB too low, fixed in 0.28-5) | the install image |
+| Golden (B run) of 12 Oct | B145 (superseded by B147; committed 12 Oct 11:11; B-RUN 33/0, its judge check-b144 4/0 with check-b142 14/0): q89d9 + iceland-device 0.28-3 + iceland-firmware 11.A.38-2 + the Fedora 44 stable refresh of B143, 1727 packages, manifest `9b752df5f7e1`, body `fce4bd794fb9`. **Minimal holds** (refresh): kernel, kernel-core, kernel-modules*, kernel-iceland, iio-sensor-proxy, hexagonrpc, libssc, iceland-device, iceland-firmware; shim + GRUB, libcamera, qbootctl and Fedora's firmware packages come from Fedora (signatures checked). **Final rehearsal r141 / r141u / r141ub on B145 (12 Oct 12:14-13:00): accepted, NO-REGRESSION against r139c / r140 over 36 rows** (r141: 64 rows, 48 PASS, 1 FAIL, 3 CHECK, 11 INFO, 1 DEFERRED; r141u 23 PASS, 1 FAIL, 2 CHECK; r141ub 7/7 PASS). Both FAILs are test expectations, fixed in the test scripts since: CAMDRV (the module check ran behind a session guard and listed nothing; B145's `kernel-iceland` ships the in-tree `sc1320cs.ko`, digest = the stripped in-tree build) and PK (expected 0.28-2) | the install image |
+| Install image on C: | **rebuilt from B147 on 13 Oct (07:17), HELD** (nothing written to the tablet; you run the two writes): `C:\OnePlusPad4\final\fedora-iceland.sparse.img`, **6,591,322,540 bytes, SHA-256 `09ea7f446f969f382739bd4797989c939891ac464e53611caaa7bbc7060a150a`**, unpacked 237,159,641,088 bytes (= `userdata`), 31,956 chunks (full read-back). It replaced B145's image in place (B145's package stays in WSL `wf/final/q89d9-0283-b145`; its small files on C: are kept as `*-b145`). Package files: `SHA256SUMS`, `MANIFEST.json`, `VERIFY.txt`, `golden.json`, `u-boot-iceland-v3.img`; `flashguide\record.json` now names this image's hash (the old one kept as `record.json.pre-b147`). **Offline content check (`VERIFY.txt`): 109 PASS, 0 FAIL**: q89e kernel / initramfs / BLS entry / device tree, one kernel tree, iceland-device 0.28-5 (113 files equal the package digests), iceland-firmware 11.A.38-3, the minimal hold file exactly (GRUB, shim, firmware, libcamera not held), `kernel-iceland*` / `iceland-*` never offered by Fedora, TX_DEC0/1 at 84, the microphone chain (61-iceland-mic-gain.conf: +14 dB limiter after the echo canceller, -1 dBFS), `BRIGHTNESS=0`, the fetch helper + pin of 11.A.38-3, the thermal model owned by iceland-firmware (sha `4f476a7d`, no private copy), slot marking enabled, the first-boot setup not done and not disabled, no user, no autologin, no rehearsal arguments / units / dconf keys, empty machine-id, no SSH keys, no Wi-Fi networks, no journal, **no random seed** (B145's only FAIL is gone), root locked, make-up 9 dB, owner Wi-Fi guard on the raw disk: SSID 0, keyfile 0 (its one structural match is a printf format string, as in B145). Private by design (as every install image): the tablet's own firmware extraction and its Bluetooth address (the thermal model is now generic and published) | write 1 |
+| Install image of 12 Oct (superseded, replaced on C: by B147's) | rebuilt from B145 on 12 Oct (13:17), was `C:\OnePlusPad4\final\fedora-iceland.sparse.img`, 6,034,694,960 bytes, SHA-256 `0e65a4d54111cbc84cf3d9ec93c903b8038864e7921505c05c00e7f90aed7ae4`, unpacked 237,159,641,088 bytes (= `userdata`), 32,104 chunks; it replaced B130's image in place (B130's package stays in WSL `wf/final/q89b-024-b130`). Package files: `SHA256SUMS`, `MANIFEST.json`, `VERIFY.txt`, `golden.json`, `u-boot-iceland-v3.img`; `flashguide\record.json` now names this image's hash (the old one kept as `record.json.pre-b145`). **Offline content check (`VERIFY.txt`): 98 PASS, 1 FAIL**: q89d9 kernel / initramfs / BLS entry, iceland-device 0.28-3, iceland-firmware 11.A.38-2, the minimal hold file exactly, `kernel-iceland*` / `iceland-*` never offered by Fedora, slot marking enabled (unit shipped, preset enable, no off switch, no `iceland.noslotmark`, qbootctl installed), the first-boot setup not done and not disabled, no user, no autologin, no rehearsal arguments / units / dconf keys, empty machine-id, no SSH keys, no Wi-Fi networks, no journal, root locked, make-up 9 dB, owner Wi-Fi guard 0 hits on the raw disk. The FAIL: `/var/lib/systemd/random-seed` (32 bytes) left by the B run's boots - not unit data and not a secret of yours; systemd replaces it at the first boot and the kernel is seeded by the hardware RNG (r142 RN PASS). The PC session can remove it in a later golden; it does not block the install. Private by design (as every install image): the tablet's own firmware extraction, its Bluetooth address and its thermal model | write 1 |
+| Install U-Boot | **v3**: install build `979b4076` (patches 0008-0010: no self power-off or reset, USB up without ABL, `fastboot reboot-bootloader`). Footered `4955ee98` (AVB-PROOF PASS, rot-equal; made from 10 Oct's `boot_b`, re-made on the install day by Part A step 6); `record.json` points to v3. The B147 package (as B145's) lists `u-boot-iceland-v3.img` in its `SHA256SUMS`; the older `u-boot-iceland.img` (`fb2bed8d`) on C: is not part of it and is not used | write 2 |
 | AVB footer for the install U-Boot (review R-1) | done for v3 (`4955ee98`); decision 1 = footer A (10 Oct). Re-made on the install day from the then-current `boot_b` by Part A step 6 | C0, write 2 |
 | C0 write-2 probe (`boot_b`, undone the same day each time) | **done, all undone.** #1 FAIL (`c39a24e6`, 10 Oct 12:4x): slot b unbootable with retry 0 after one boot; undone at once. #2 (`8729065f`, 13:55): U-Boot holds, no USB (dwc3 core reset timeout). #3 (`cb1b707e`, patch 0009, 16:17): U-Boot fastboot enumerates after 7 s from a normal boot. #4 PASS (`4955ee98`, patch 0010, 17:41): `fastboot reboot-bootloader` reaches the boot loader without a key press, flags unchanged | Parts C, D |
 | Your decisions (section 0.4) | answered on 10 Oct: 1, 2, 5; plan decisions 8-9 recorded; open: 3, 4, 7 (part), 8 (way back to LineageOS, in part) | Parts C and D |
 
-The install must not start while any line that is "needed for write 1" or "Part B" is open. As of 12 Oct (afternoon)
-those are: G3 (dry run), G4 and decision 3. The final golden, its rehearsal, G10 and the install image are done; the
-image is HELD for you. C0 is done (every probe undone); its lines are closed. After the install: the listening check
+The install must not start while any line that is "needed for write 1" or "Part B" is open. As of 13 Oct (morning)
+those are: G3 (dry run), G4 and decision 3. The final golden (B147), its rehearsal (r156), G10 and the install image
+(rebuilt from B147) are done; the image is HELD for you. C0 is done (every probe undone); its lines are closed. After the install: the listening check
 of the speakers (+9 dB, your choice) and the other deferred checks below.
 
 **Rehearsal record since 10 Oct** (RAM boots, nothing written to the tablet's storage):
@@ -95,6 +101,16 @@ of the speakers (+9 dB, your choice) and the other deferred checks below.
   update / rollback, video, gyroscope, RNG PASS; rollback boot 7/7. Two FAILs, both test expectations (CAMDRV, PK;
   section 0.1 golden line); CHECKs: test-tool SELinux denials, raw microphone clipping upright, a camera-portal
   pre-grant check, SD BT.601 video in stock GStreamer.
+- r148c / r150 / r150b / r151 / r152 / r153 (12-13 Oct, quiet change rehearsals on B145): the loaded camera module is
+  kernel-iceland's in-tree `sc1320cs` (no private build); stock skin temperature policy 60 / 61 / 70 C (SK 12/12);
+  the brightness probe (the sysfs cap fights GNOME -> `BRIGHTNESS=0` until a kernel clamp); libcamera 0.7.1-2 40/40;
+  iceland-firmware 11.A.38-3 + the fetch helper.
+- r155 (golden B146 = q89e + 0.28-4, 13 Oct 04:14-05:15): NO-REGRESSION against r141; SPEECH FAIL (processed speech
+  14 dB too low at TX_DEC 84) -> 0.28-5 adds +14 dB after the echo canceller (your choice). B146 is not the install image.
+- **r156 / r156u / r156ub (final golden B147, 13 Oct, done 07:04): ACCEPTED** - only FAIL G4 (F54, the known libcamera
+  stop race, 1 of 40 cycles; accepted by you, row kept). SPEECH -40.0 dBFS (r141 -40.4), PCLIP 0 clipped, MICCHAIN,
+  GAIN, ST, SK 12/12, FFI / FF6 / FF7, HX0-2, FP1-FP4, RNG, VE-601, REC PASS; r156u 25 PASS / 0 FAIL / 1 CHECK;
+  r156ub 7/7 PASS.
 
 **Deferred physical checks** (the owner's hands or eyes; not automated, never waited for by a run):
 - Cover wake from s2idle: a suspend cannot run in a rehearsal (the no-suspend rule). Only the screen off/on with the cover
@@ -326,11 +342,11 @@ Done by the PC session (automated, RAM only; since 11 Oct fully autonomous: a fu
 hour on the tablet, a change rehearsal less). What it must produce:
 
 1. **The image**: the official Fedora-Workstation-Disk-44 aarch64 raw image (checksum-verified), re-laid for the
-   tablet's 4096-byte blocks, refreshed to Fedora 44 stable, + our packages (`kernel-iceland` q89d9, `iceland-device`
-   0.28-3, `iceland-firmware` 11.A.38-2, the sensor packages `iio-sensor-proxy` / `hexagonrpc` / `libssc`), Fedora's own
+   tablet's 4096-byte blocks, refreshed to Fedora 44 stable, + our packages (`kernel-iceland` q89e, `iceland-device`
+   0.28-5, `iceland-firmware` 11.A.38-3, the sensor packages `iio-sensor-proxy` / `hexagonrpc` / `libssc`), Fedora's own
    libcamera, `qbootctl`, shim and GRUB, with the tablet's firmware in `/usr/lib/firmware/updates` (extracted from the
    tablet's partitions, read only; the generic files are owned by `iceland-firmware` with the same checksums, the
-   unit-specific ones by no package). The goldens of 11-12 Oct are built this way (B145 = the final golden).
+   unit-specific ones by no package). The goldens of 11-13 Oct are built this way (B147 = the final golden).
 2. **Boots of exactly that image from RAM** through the installed chain from U-Boot on: `fastboot boot` of the
    **rehearsal build** of U-Boot (`u-boot-iceland-rehearsal.img`: the install build's code without any storage
    support, so it cannot see the tablet's storage at all), then a "head" with the image's EFI partition and `/boot`;
@@ -357,10 +373,10 @@ rehearsal's root comes from the PC over the USB link, and the USB gadget's suspe
 the first moment (rehearsal head command line; kits: a `/run` layer from the kit's init) and stops at once when
 the masks are missing. The installed system is not changed by this.
 
-**State on 12 Oct (afternoon):** items 2-3 are met on the final golden B145 (r141 accepted, NO-REGRESSION against
-r139c / r140; the acceptance list is part of its rows). Item 4 (G10) is met as rehearsal rows (r142 / r142b,
-r146 / r146b, r141u / r141ub). Item 5: the image is rebuilt from B145 (`C:\OnePlusPad4\final`, section 0.1 and
-section 10), offline check 98 PASS / 1 FAIL (a leftover random seed, not blocking); the install U-Boot is v3
+**State on 13 Oct (morning):** items 2-3 are met on the final golden B147 (r156 accepted: its only FAIL is the
+known F54 libcamera race, accepted by you; the acceptance list is part of its rows). Item 4 (G10) is met as
+rehearsal rows (r142 / r142b, r146 / r146b, r141u / r141ub, r156u / r156ub). Item 5: the image is rebuilt from B147
+(`C:\OnePlusPad4\final`, section 0.1 and section 10), offline check 109 PASS / 0 FAIL; the install U-Boot is v3
 (`u-boot-iceland-v3.img`, `979b4076`).
 
 Part B is complete when section 10 has these values and the date of the passed acceptance list.
@@ -528,7 +544,7 @@ cd C:\platform-tools
 (Get-FileHash C:\OnePlusPad4\final\fedora-iceland.sparse.img -Algorithm SHA256).Hash
 ```
 
-Must equal the value in section 10, letter for letter (B145: `0e65a4d54111cbc84cf3d9ec93c903b8038864e7921505c05c00e7f90aed7ae4`). Otherwise stop.
+Must equal the value in section 10, letter for letter (B147: `09ea7f446f969f382739bd4797989c939891ac464e53611caaa7bbc7060a150a`). Otherwise stop.
 
 ### Step 2 - enter the boot loader and check the tablet
 
@@ -677,7 +693,13 @@ Undo of write 2 (two minutes, from the boot loader):
 - **Sound:** "Speakers" (the protected chain) and the processed microphone are the defaults; the raw ones are named
   "... (raw, unprotected)" - do not use the raw speaker output for loud playback. The speaker make-up is +9 dB (your
   choice); do the **listening check** in the first hour: music and speech at 50 % and 100 %, compared with how
-  Android sounded. Louder than Android, distorted or harsh: tell the PC session.
+  Android sounded. Louder than Android, distorted or harsh: tell the PC session. The microphone: "Internal
+  microphones (voice processing)" is the default (echo canceller -> +14 dB limiter, ceiling -1 dBFS; the microphones
+  themselves at stock's TX_DEC 84); "Internal microphones (raw)" is the unprocessed one.
+- **Brightness:** the thermal service does not touch the backlight (`BRIGHTNESS=0` in `/etc/iceland/thermal.conf`):
+  GNOME's automatic brightness and a sysfs cap fought each other (r151). The skin-temperature policy (CPU / GPU /
+  charging, stock 60 / 61 C) is active; a brightness cap returns later as a kernel clamp in the backlight driver,
+  as its own tested update. Do not set `BRIGHTNESS=1` yourself.
 - **Charging:** until the one sitting with your wall chargers is done (the charging row of the feature matrix),
   charge attended and prefer the PC port or a plain 5 V charger. The tablet does not fast-charge (SuperVOOC is not
   supported); the stock temperature and current limits are enforced by the kernel and the battery guard.
@@ -686,11 +708,13 @@ Undo of write 2 (two minutes, from the boot loader):
   local repository, which the PC fills (`iceland-repo-sync`), and a new kernel only becomes the default after it
   has started once. The image was built with these held: kernel, kernel-core, kernel-modules*, kernel-iceland,
   iio-sensor-proxy, hexagonrpc, libssc, iceland-device, iceland-firmware; Fedora's repositories never offer
-  `kernel-iceland*` or `iceland-*` (0.28-3). The device package's hold file (`50-iceland-fedora-hold.repo`) keeps
-  GRUB, shim, firmware, the sensor programs, libcamera and alsa-ucm from Fedora's updates until a rehearsal has
-  passed them (`iceland-update-check` lists what is held back). The tablet's generic firmware is the
-  `iceland-firmware` package (held); the unit-specific files are owned by no package, so an update cannot replace
-  them. Do **not**
+  `kernel-iceland*` or `iceland-*`. The device package's hold file (`50-iceland-fedora-hold.repo`, minimal since
+  0.28-4) keeps only the sensor programs (`iio-sensor-proxy`, `hexagonrpc`, `libssc`) and `alsa-ucm` from Fedora's
+  updates until a rehearsal has passed them (`iceland-update-check` lists what is held back); GRUB, shim, Fedora's
+  firmware packages and libcamera update from Fedora as usual. The tablet's generic firmware is the
+  `iceland-firmware` package (held; a newer release comes through `iceland-firmware-fetch`, checked against the
+  sha256 pins shipped in the device package); the unit-specific files are owned by no package, so an update cannot
+  replace them. Do **not**
   upgrade to Fedora 45 until that version has passed the RAM rehearsal (the upgrade is hidden and blocked by the
   device package).
 - **Never from inside Fedora:** no partitioning tool on the internal storage, no `dd` to `/dev/sd*`, no firmware
@@ -761,10 +785,10 @@ interrupted: enter fastboot again (Volume Down + Power) and run it again.
 | C0.0 RAM probe of the install U-Boot (console saved, Android back) | | |
 | C0: R0 / R1 (after the write) / R2 and each cold boot's retry count; did U-Boot switch off by itself | | |
 | C0 undo: `boot_b` equal to the saved file, slot b successful again | | |
-| Acceptance list passed on the rehearsal boot (Part B, `priv/run/RECORD.txt`) | final rehearsal r141 on B145: accepted, NO-REGRESSION vs r139c / r140 (PC session) | 2026-10-12 |
-| Update and rollback rehearsal passed | r142 / r142b, r146 / r146b; on B145 r141u (UPD / HL / RBK) + r141ub (RB2 7/7) (PC session) | 2026-10-12 |
-| Final golden and its confirmation rehearsal | B run 145 (manifest `9b752df5f7e1`, body `fce4bd794fb9`), r141 / r141u / r141ub; the two FAILs are test expectations (section 0.1) (PC session) | 2026-10-12 |
-| `fedora-iceland.sparse.img` SHA-256, unpacked size (= 237159641088), rebuilt from that golden | `0e65a4d54111cbc84cf3d9ec93c903b8038864e7921505c05c00e7f90aed7ae4`, 6034694960 bytes, unpacked 237159641088 (`C:\OnePlusPad4\final`, PC session; check again before write 1) | 2026-10-12 |
+| Acceptance list passed on the rehearsal boot (Part B, `priv/run/RECORD.txt`) | final rehearsal r156 on B147: accepted; only FAIL G4 = known F54 libcamera race, accepted by the owner (PC session) | 2026-10-13 |
+| Update and rollback rehearsal passed | r142 / r142b, r146 / r146b; on B145 r141u + r141ub; on B147 r156u (25 PASS, 0 FAIL) + r156ub (RB2 7/7) (PC session) | 2026-10-13 |
+| Final golden and its confirmation rehearsal | B run 147 (manifest `0c35227ddf92`, body `e294b240f98e`, 1727 packages), r156 / r156u / r156ub (PC session) | 2026-10-13 |
+| `fedora-iceland.sparse.img` SHA-256, unpacked size (= 237159641088), rebuilt from that golden | `09ea7f446f969f382739bd4797989c939891ac464e53611caaa7bbc7060a150a`, 6591322540 bytes, unpacked 237159641088; offline check 109 PASS / 0 FAIL (`C:\OnePlusPad4\final`, PC session; check again before write 1) | 2026-10-13 |
 | `u-boot-iceland-v3.img` SHA-256 (the plain install build, Part C step 4) | `979b40767afba37367354cfe047994acff10b21831f7664933ee30c7dc89f94c` (v3, `record.json` `uboot_plain`) | 2026-10-10 |
 | Decisions 0.4 | | |
 | Write 1 done, three tethered cold boots, GRUB environment before / after | | |
@@ -774,7 +798,24 @@ interrupted: enter fastboot again (Volume Down + Power) and run it again.
 
 ## 11. Known issues and what this build fixes
 
-### Status 12 Oct 2026, afternoon (FINAL: golden B145 = kernel q89d9 + iceland-device 0.28-3 + iceland-firmware 11.A.38-2)
+### Status 13 Oct 2026, morning (FINAL: golden B147 = kernel q89e + iceland-device 0.28-5 + iceland-firmware 11.A.38-3)
+
+- **Final rehearsal r156 / r156u / r156ub on B147: accepted.** New since B145: the kernel on v7.3-rc7 (q89e) with the
+  SD video colour fix; the minimal Fedora holds (GRUB, shim, firmware, libcamera update from Fedora); the microphone
+  chain (stock TX_DEC 84 in front of the echo canceller, +14 dB limiter after it: speech level as before, raw clipping
+  215 samples instead of 68,749, 0 clipped processed samples); the thermal model as part of `iceland-firmware`
+  11.A.38-3 (generic, published); the firmware fetch helper with sha256 pins; no random seed in the image.
+- **Known issue F54 (accepted by you):** a rare WirePlumber abort when a camera stream stops (libcamera soft-ISP stop
+  race; r156 1 of 40 cycles). Not fixed upstream; Fedora's 0.7.1-2 avoided it in 40 / 40 + 40 / 40 cycles (r152) and
+  will arrive as a normal update.
+- **Brightness:** `BRIGHTNESS=0` - the thermal service leaves the backlight to GNOME until the ktz8869 kernel clamp
+  (a later tested change). Skin-temperature control of CPU / GPU / charging is active (stock 60 / 61 / 70 C).
+- **Open, yours:** decision 3 and the first real slot marking; G3 (dry run) and G4 (second copy); the two writes
+  (`userdata`, then `boot_b`); after the install the listening check and the deferred physical checks (section 0.1).
+- **Known, being watched:** raw microphone clipping with the tablet upright (much lower now; the processed microphone
+  is the default); SD (BT.601) video from other encoders still needs a GStreamer update (VE-601L CHECK).
+
+### Status 12 Oct 2026, afternoon (superseded by B147; then final: golden B145 = kernel q89d9 + iceland-device 0.28-3 + iceland-firmware 11.A.38-2)
 
 - **Final rehearsal r141 / r141u / r141ub on B145: accepted**, NO-REGRESSION against r139c / r140. New since the
   candidate: the Bluetooth -84 line gone (q89d9, 0291), the speaker make-up +9 dB (your choice) with only the
@@ -916,7 +957,8 @@ Benign groups (B-ids; noise that is expected on this hardware or first boot):
 ### Long-standing limits (not bugs of this build)
 
 - Speakers: the -12 dB cap of RC1 is gone (0.27r6: DSP stream at stock 0 dB, amplifiers at stock); speaker protection
-  is the device package's own chain (no mainline driver); the final level is PENDING (0.28-3).
+  is the device package's own chain (no mainline driver); the make-up is +9 dB by your choice (0.28-3 onwards; the
+  listening check after the install decides).
 - No fast charging (SuperVOOC / PPS); bypass charging is built and reviewed but deferred (owner, 2 Oct).
 - No automatic focus (libcamera's simple pipeline); the lens holds stock's start position.
 - The deepest SoC sleep state (AOSS sleep) is out of reach on mainline; CX collapse is reached (95-98 % of a sleep).
