@@ -6,7 +6,7 @@ binaries. `./build-rpm.sh OUT` builds `iceland-device-*.noarch.rpm` (rpmbuild; t
 | File | Installed as | Why |
 |---|---|---|
 | `80-iceland-kernel.conf` | `/usr/share/dnf5/libdnf.conf.d/` | dnf never installs Fedora's kernels (no Pad 4 support), a rescue initramfs, modules for other kernels (akmods / dkms), fwupd's EFI parts or other boot loaders; iceland-device, GRUB and shim cannot be removed; kernel-iceland keeps three versions; an upgrade that cannot be resolved with the holds is skipped, the rest updates (`best=False`, `skip_broken=True`; also for GNOME Software through dnf5daemon) |
-| `50-iceland-fedora-hold.repo` | `/usr/share/dnf5/repos.override.d/` | Fedora's updates do not replace GRUB, shim, firmware, the sensor programs, libcamera or alsa-ucm (the UCM data our sound profile includes; ours come from the local repository after a RAM rehearsal), and a same-named Fedora package can never replace ours (`kernel-iceland*`, `iceland-*`: only `iceland-local` supplies them). Decision (generator `iceland-device-apps.py`: `HOLD_BOOT_FIRMWARE`); on a tablet an empty file of the same name in `/etc/dnf/repos.override.d/` masks it |
+| `50-iceland-fedora-hold.repo` | `/usr/share/dnf5/repos.override.d/` | the MINIMAL hold (0.28-4): Fedora's updates do not replace the sensor programs or alsa-ucm (the UCM data our sound profile includes; ours come from the local repository after a RAM rehearsal); GRUB, shim, firmware and libcamera update from Fedora, and a same-named Fedora package can never replace ours (`kernel-iceland*`, `iceland-*`: only `iceland-local` supplies them). Decision (generator `iceland-device-apps.py`: `HOLD_BOOT_FIRMWARE`); on a tablet an empty file of the same name in `/etc/dnf/repos.override.d/` masks it |
 | `51-iceland-fedora-44-pin.repo` | `/usr/share/dnf5/repos.override.d/` | Fedora's repositories stay on release 44 until a new release has passed the RAM rehearsal (GNOME Software upgrades through dnf5daemon, which the polkit rule cannot stop). Decision (`PIN_RELEASE`); an empty file of the same name in `/etc/dnf/repos.override.d/` masks it |
 | `sleep-iceland.conf` | `/usr/lib/systemd/sleep.conf.d/60-iceland.conf` | s2idle, the SoC's only sleep state |
 | `logind-iceland.conf` | `/usr/lib/systemd/logind.conf.d/60-iceland.conf` | the cover: suspend on battery (opening it wakes), with a charger in lock the session and turn the screen off but stay awake (stock keeps its kernel awake while charging), nothing with an external display |
@@ -74,7 +74,8 @@ of wf/wake (volume keys from sleep, a charger plug waking the tablet) are kernel
 | `OFFSET_BALANCED` | `-4` | gears added in GNOME's Balanced mode. `-4` (stock's high-performance offset): nothing changes at idle, first CPU cap at 40 C shell temperature. `0` (stock's normal mode): CPUs capped at 2.36 / 1.86 GHz from 33 C, which the tablet reaches at idle; it belongs with the kernel's skin loop at stock's 60 / 61 C trips (today 48 / 51 C) |
 | `OFFSET_POWERSAVE`, `OFFSET_PERFORMANCE` | `1`, `-4` | stock's power-save and high-performance offsets |
 | `POLICY_PERFORMANCE` | `global` | `benchmark` = the table stock gives its benchmark apps |
-| `CPU`, `GPU`, `BRIGHTNESS`, `CHARGE` | `1` | which limits are applied |
+| `CPU`, `GPU`, `CHARGE` | `1` | which limits are applied |
+| `BRIGHTNESS` | `0` | the brightness cap per gear. `0` (0.28-4): the backlight is never written (GNOME's own brightness fought a sysfs cap); `1` = the sysfs cap of 0.28-3 (to return as a kernel clamp in the backlight driver) |
 | `CHARGE_MA_HIGH` | `3000` | battery-current cap for stock's charge cool-down levels 4 and above; levels 1-3 are stock's 1200 / 1500 / 2000 mA |
 | `CHARGE_SHIFT` | `0` | `0` = the charging cool-down never takes a negative mode offset (the careful side); `1` = it shifts with the mode as on stock |
 | `PERIOD` | `5` | seconds between samples (stock's estimate is fitted for 5 s) |
@@ -93,6 +94,7 @@ python3 tests/test_guard_awake.py files/iceland-battery-guard
 python3 tests/test_guard_input_suspend.py files/iceland-battery-guard
 python3 tests/test_charge_alert.py files/iceland-charge-alert files/iceland-battery-guard
 python3 tests/test_thermal.py files/iceland-thermal files/thermal.conf
+python3 tests/test_thermal_nobl.py files/iceland-thermal files/thermal.conf
 python3 tests/test_logind.py files iceland-device.spec
 python3 tests/test_install_parts.py files
 python3 tests/test_pipewire_req.py iceland-device.spec
@@ -117,6 +119,8 @@ python3 tests/test_wifi_mac.py files iceland-device.spec
 python3 tests/test_slot_mark.py files iceland-device.spec
 python3 tests/test_bdaddr.py files
 python3 tests/test_stock_levels.py files iceland-device.spec ../../audio/ucm/OnePlus-Pad4/HiFi.conf ../../audio/topology/OnePlus-Pad4.m4
+python3 tests/test_mic_headroom.py files/60-iceland-mic-processing.conf ../../audio/ucm/OnePlus-Pad4/HiFi.conf
+python3 tests/test_mic_gain.py files/61-iceland-mic-gain.conf files/60-iceland-mic-processing.conf iceland-device.spec ../../audio/ucm/OnePlus-Pad4/HiFi.conf
 python3 tests/test_speaker_default.py files iceland-device.spec
 python3 tests/test_ssc_resume.py files iceland-device.spec
 ```

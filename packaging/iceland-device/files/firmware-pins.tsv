@@ -1,0 +1,7 @@
+# iceland-device: the iceland-firmware releases iceland-firmware-fetch may install, pinned by sha256 (oldest first, newest
+# last; the newest is the default). Source: https://github.com/mzakamin-hub/iceland-firmware/releases (the rpms are
+# unsigned: this list is the trust anchor). A new firmware release reaches a tablet only through a new iceland-device
+# with its row added here, after a RAM rehearsal.
+# VERSION-RELEASE	asset	sha256	URL
+11.A.38-2	iceland-firmware-11.A.38-2.fc44.noarch.rpm	14833f719be4ea6da91d018cb99901ab7605c8550ed195e8c9e3e2b85acbaa4c	https://github.com/mzakamin-hub/iceland-firmware/releases/download/11.A.38-2/iceland-firmware-11.A.38-2.fc44.noarch.rpm
+11.A.38-3	iceland-firmware-11.A.38-3.fc44.noarch.rpm	297669a04ca0c47ebf7c695043d4190c30c5613c31165bc243778741f07d66d4	https://github.com/mzakamin-hub/iceland-firmware/releases/download/11.A.38-3/iceland-firmware-11.A.38-3.fc44.noarch.rpm

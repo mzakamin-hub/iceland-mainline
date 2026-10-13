@@ -1,0 +1,101 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-firmware-fetch (iceland-device 0.28-4): install or update iceland-firmware from its GitHub release, pinned by
+# sha256. GitHub releases are not a dnf repository, so this downloads ONE release asset over https, checks it against the
+# pin list shipped in iceland-device (/usr/share/iceland/firmware-pins.tsv), checks the rpm's own name and digests, and
+# installs it with dnf from the local file (no repository is read). The kernel and iceland-device keep the local
+# repository path (iceland-repo-sync); only iceland-firmware comes this way.
+#   iceland-firmware-fetch [VERSION-RELEASE]         install / update to that pinned release (default: the newest pin)
+#   iceland-firmware-fetch --check [VERSION-RELEASE] what would happen; downloads nothing, changes nothing
+#   iceland-firmware-fetch --download-only [V-R]     download + verify into a temporary dir, then delete it (a pin test)
+#   iceland-firmware-fetch --list                    the pin list
+#   --base URL   take the asset from URL/<file> instead of the pinned GitHub URL (a mirror or a PC staging copy on the
+#                USB link; https, or http only to localhost / 127.0.0.1 / 172.16.42.2): the sha256 pin still decides.
+# FAIL CLOSED: the installed package changes only after the sha256, the rpm NEVRA and the rpm digests all match; a
+# mismatch deletes the download (exit 2); no network / no asset keeps the installed package (exit 3); a failed dnf
+# transaction leaves the previous package (rpm transactions are atomic; exit 4). The rpms are NOT signed (no project
+# key): the sha256 pin in this root-owned, package-owned list is the trust anchor; a signature, if a later release has
+# one, is reported, not required.
+# Exit: 0 installed / up to date / nothing to do, 1 usage or not pinned, 2 REFUSED (verification), 3 download failed
+# (installed package kept), 4 install failed (installed package kept), 5 another run holds the lock.
+# Test hooks (env): ICELAND_FW_PINS (pin list), ICELAND_DNF (dnf5), ICELAND_FW_TMP (download dir parent),
+# ICELAND_FW_TIMEOUT (curl max seconds, 900), ICELAND_FW_TEST_UID (PC tests only: the root check), ICELAND_FW_DNF_ARGS (extra dnf options, e.g. --disable-plugin=actions in a
+# RAM rehearsal: no root snapshot there); curl honours https_proxy / CURL_CA_BUNDLE as usual.
+set -u
+PINS=${ICELAND_FW_PINS:-/usr/share/iceland/firmware-pins.tsv}
+DNF=${ICELAND_DNF:-dnf5}
+TMPP=${ICELAND_FW_TMP:-}; [ -n "$TMPP" ] || { [ "$(id -u)" = 0 ] && TMPP=/var/lib/iceland || TMPP=${TMPDIR:-/tmp}; }
+TMO=${ICELAND_FW_TIMEOUT:-900}
+NAME=iceland-firmware
+say() { echo "iceland-firmware-fetch: $*"; }
+die() { local rc=$1; shift; say "$*" >&2; exit "$rc"; }
+MODE=install BASE= WANT=
+while [ $# -gt 0 ]; do
+	case "$1" in
+	--check) MODE=check ;;
+	--download-only) MODE=download ;;
+	--list) MODE=list ;;
+	--base) [ $# -ge 2 ] || die 1 "--base needs a URL"; BASE=${2%/}; shift ;;
+	--base=*) BASE=${1#--base=}; BASE=${BASE%/} ;;
+	-h|--help) sed -n '3,25p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+	-*) die 1 "unknown option $1" ;;
+	*) [ -z "$WANT" ] || die 1 "one VERSION-RELEASE only"; WANT=$1 ;;
+	esac; shift
+done
+[ -r "$PINS" ] || die 1 "no pin list $PINS"
+# the pin list: VERSION-RELEASE <TAB> asset file <TAB> sha256 <TAB> https URL; '#' comments; oldest first, newest last
+rows=$(awk -F'\t' '!/^#/ && NF >= 4 && $3 ~ /^[0-9a-f]{64}$/ && $4 ~ /^https:\/\// && $2 ~ /^iceland-firmware-[^\/]+\.noarch\.rpm$/ { print $1 "\t" $2 "\t" $3 "\t" $4 }' "$PINS")
+[ -n "$rows" ] || die 1 "the pin list $PINS has no valid row"
+if [ "$MODE" = list ]; then printf '%s\n' "$rows" | awk -F'\t' '{ printf "%s  %s  sha256 %s\n", $1, $2, $3 }'; exit 0; fi
+[ -n "$WANT" ] || WANT=$(printf '%s\n' "$rows" | tail -n 1 | cut -f1)
+row=$(printf '%s\n' "$rows" | awk -F'\t' -v w="$WANT" '$1 == w' | tail -n 1)
+[ -n "$row" ] || die 1 "$WANT is not pinned in $PINS (pinned: $(printf '%s\n' "$rows" | cut -f1 | paste -s -d ' '))"
+FILE=$(printf '%s' "$row" | cut -f2); SHA=$(printf '%s' "$row" | cut -f3); URL=$(printf '%s' "$row" | cut -f4)
+NEVRA=${FILE%.rpm}
+idx() { printf '%s\n' "$rows" | awk -F'\t' -v w="$1" '$1 == w { n = NR } END { print n + 0 }'; }
+# what is installed: the full NEVRA, and its VERSION-RELEASE without the dist tag (the pin list's key)
+INST=$(rpm -q "$NAME" 2>/dev/null | grep -v 'not installed' | tail -n 1)
+INSTVR=
+if [ -n "$INST" ]; then INSTVR=$(rpm -q --qf '%{VERSION}-%{RELEASE}\n' "$NAME" 2>/dev/null | tail -n 1); INSTVR=${INSTVR%.fc[0-9]*}; fi
+if [ "$MODE" != download ]; then
+	if [ "$INST" = "$NEVRA" ]; then say "up to date: $INST installed (= the pin $WANT)"; exit 0; fi
+	if [ -n "$INSTVR" ] && [ "$(idx "$INSTVR")" -gt "$(idx "$WANT")" ]; then
+		say "installed $INST is newer than the requested pin $WANT: nothing done (no downgrade)"; exit 0; fi
+fi
+SRC=$URL; PROTO='=https'
+if [ -n "$BASE" ]; then
+	case "$BASE" in
+	https://*) ;;
+	http://localhost[:/]*|http://localhost|http://127.0.0.1[:/]*|http://127.0.0.1|http://172.16.42.2[:/]*|http://172.16.42.2) PROTO='=http,https' ;;
+	*) die 1 "--base must be https:// (or http:// to localhost / 127.0.0.1 / the PC at 172.16.42.2): $BASE" ;;
+	esac
+	SRC=$BASE/$FILE
+fi
+if [ "$MODE" = check ]; then
+	say "would $([ -n "$INST" ] && echo "update ${INST} ->" || echo install) $NEVRA from $SRC (sha256 ${SHA:0:16}...)"; exit 0; fi
+[ "$MODE" = download ] || [ "${ICELAND_FW_TEST_UID:-$(id -u)}" = 0 ] || die 1 "installing needs root (sudo iceland-firmware-fetch)"
+mkdir -p "$TMPP" 2>/dev/null
+if { exec 9> "$TMPP/.firmware-fetch.lock"; } 2> /dev/null; then flock -n 9 || die 5 "another iceland-firmware-fetch is running"; fi
+T=$(mktemp -d "$TMPP/.firmware-fetch.XXXXXX") || die 3 "cannot make a download dir under $TMPP: installed package kept"
+trap 'rm -rf "$T"' EXIT
+say "fetching $FILE from $SRC"
+if ! curl -fsSL --proto "$PROTO" --proto-redir "$PROTO" --retry 3 --retry-all-errors --retry-delay 5 -C - --connect-timeout 20 --max-time "$TMO" -o "$T/$FILE" "$SRC" 2> "$T/curl.err"; then
+	die 3 "download failed ($(tr '\n' ' ' < "$T/curl.err" | cut -c1-160)): ${INST:-nothing} installed, kept unchanged"; fi
+GOT=$(sha256sum < "$T/$FILE" | cut -c1-64)
+[ "$GOT" = "$SHA" ] || { rm -f "$T/$FILE"; die 2 "REFUSED $FILE: sha256 ${GOT:0:16}... is not the pin ${SHA:0:16}... (download deleted; ${INST:-nothing} installed, kept)"; }
+Q=$(rpm -qp --qf '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' "$T/$FILE" 2>/dev/null | tail -n 1)
+[ "$Q" = "$NEVRA" ] || { rm -f "$T/$FILE"; die 2 "REFUSED $FILE: the rpm says '${Q:-unreadable}', the pin says $NEVRA (download deleted)"; }
+rpmkeys --checksig --nosignature "$T/$FILE" > "$T/sig.txt" 2>&1 || { rm -f "$T/$FILE"; die 2 "REFUSED $FILE: rpm digests not OK ($(tr '\n' ' ' < "$T/sig.txt" | cut -c1-120))"; }
+SG=$(rpm -qp --qf '%{RSAHEADER:pgpsig}|%{DSAHEADER:pgpsig}|%{SIGPGP:pgpsig}\n' "$T/$FILE" 2>/dev/null | tail -n 1)
+case "$SG" in "(none)|(none)|(none)") SGT="unsigned (the sha256 pin is the trust anchor)" ;; *) SGT="signature present, not checked here: ${SG:0:60}" ;; esac
+say "verified $FILE: sha256 = pin, rpm $Q, digests OK, $SGT"
+if [ "$MODE" = download ]; then say "download-only: verified and deleted; nothing installed (${INST:-nothing} installed)"; exit 0; fi
+# every repository off: the local file is the only source, so nothing else can be installed or updated with it
+# shellcheck disable=SC2086
+if ! "$DNF" -y --disable-repo='*' --setopt=install_weak_deps=False ${ICELAND_FW_DNF_ARGS:-} install "$T/$FILE" > "$T/dnf.txt" 2>&1; then
+	tail -n 5 "$T/dnf.txt" >&2
+	die 4 "dnf could not install $FILE: $(rpm -q "$NAME" 2>/dev/null | tail -n 1) kept"; fi
+NOW=$(rpm -q "$NAME" 2>/dev/null | tail -n 1)
+[ "$NOW" = "$NEVRA" ] || die 4 "after dnf, $NAME is ${NOW:-absent}, not $NEVRA"
+say "installed $NEVRA (was ${INST:-none})"
+exit 0

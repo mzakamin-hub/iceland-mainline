@@ -3,5 +3,9 @@
 /etc/iceland/bdaddr	1	PC private build/.bdaddr (stock persist.vendor.service.bdroid.bdaddr)	Bluetooth address of this unit - private
 /usr/lib/firmware/updates/.iceland-extracted	1	extractor	the record of THIS extraction (dates, read-only flags) - stays with the unit
 /usr/share/qcom/kaanapali/OnePlus/iceland/sensors/registry/	352	persist:/sensors/registry/registry	persist partition: the sensor hub registry of THIS unit (factory calibration: *.fac_cal*, *.bias, *.corr_mat, dynamic_cali, ALS/PS cal) - unit-specific, private
-(carve) horae / horae.conf / horae_target.conf	3	system_ext_a / odm_a	thermal-model inputs, never in an image
+(carve) horae.conf / horae_target.conf	2	system_ext_a / odm_a	the vendor-ENCRYPTED thermal configuration (the inputs of thermal-model.json) - never published, never in a package or image
+(carve) horae (program)	1	system_ext_a:/bin/horae	the vendor's thermal program; it carries the decryption key - never published, never in a package or image
+(key) the horae decryption key	-	inside the horae program	never published, never in any repository, package, image or log
+(tool) the decoder of the horae configs	-	private work tree	decrypts the vendor's files - never published
+(decoded) the full decoded horae.conf / horae_target.conf	2	-	never published: only the narrower generic model (/etc/iceland/thermal-model.json, MANIFEST.tsv) is packaged
 (not extracted) persist data/, modem EFS, partition backups, camera traces, test media	-	-	unit data - private

@@ -3,42 +3,40 @@
 # repositories, so the same packages can still come from our local repository (iceland-local) after a new version
 # has passed a RAM rehearsal.
 #
-# - grub2-*, shim-*: the files U-Boot starts from the EFI partition (BOOTAA64.EFI = shim, grubaa64.efi = GRUB). A
-#   broken update of either stops the boot before GRUB's menu, where the kernel fallback cannot help. All grub2
-#   sub-packages move together (they require each other by exact version).
-# - linux-firmware*, *-firmware: the tablet's own firmware lies in /usr/lib/firmware/updates, which the kernel
-#   searches first, so Fedora's files cannot replace it. But the kernel also loads files the tablet does not bring
-#   itself from Fedora's packages (today the GPU microcode gen80200_sqe / gmu / aqe): a firmware change that reaches
-#   the hardware must be rehearsed first, like a kernel.
+# 0.28-4 (owner, 12-13 Oct 2026): the MINIMAL hold, the same set the golden's B run refreshes with. Fedora's own kernels
+# are refused from every repository by /usr/share/dnf5/libdnf.conf.d/80-iceland-kernel.conf (main excludepkgs). GRUB,
+# shim, linux-firmware / qcom-firmware and libcamera now come from Fedora as normal updates:
+#   - GRUB / shim stay protected from removal (protected_packages in 80-iceland-kernel.conf);
+#   - the tablet's own firmware lies in /usr/lib/firmware/updates (iceland-firmware), which the kernel searches first
+#     and which no Fedora firmware package ships: a Fedora firmware update cannot replace it (a path clash would fail
+#     the transaction, never overwrite);
+#   - libcamera: B145 already runs Fedora's stock libcamera (0.7.1); 0.7.1-2 passed r152 as a normal update.
+#
+# Held:
 # - iio-sensor-proxy, hexagonrpc, libssc: our builds with the sensor-hub support (packaging/sensors); Fedora's
 #   iio-sensor-proxy has none, an update to it would end auto-rotate.
-# - libcamera*: our build with the GPU software-ISP fixes (wf/gpuisp: border scaling, EGL probe with CPU fallback,
-#   the EGL context destroyed at stop - with Fedora's, WirePlumber keeps 19773 KiB more GPU memory after every
-#   camera start). Its libcamera and libcamera-ipa are installed with this package (the install image) and lie in
-#   the local repository: with Fedora's held nothing else updates libcamera. Fedora 44 stays on 0.7.1; a newer
-#   Fedora libcamera comes as a rebuild through the local repository after a RAM rehearsal.
-#   pipewire-plugin-libcamera links libcamera by soname: a Fedora PipeWire built against a newer libcamera cannot
-#   be installed while libcamera is held; that upgrade (the whole PipeWire set: its sub-packages require
-#   pipewire-libs of the exact version-release) is then skipped, not fatal (best=False, skip_broken=True in
-#   /usr/share/dnf5/libdnf.conf.d/80-iceland-kernel.conf; iceland-update-check lists what waits).
-# - alsa-ucm (0.24): the ALSA UCM data (Fedora's alsa-lib.spec, sub-package alsa-ucm = alsa-ucm-conf). Our sound
-#   profile (/usr/share/alsa/ucm2/Qualcomm/kaanapali/OnePlus-Pad4/ + conf.d/kaanapali/oneplus-OnePlusPad4.conf)
-#   includes three of its shared files - lib/card-init.conf, lib/ctl-remap.conf, codecs/wcd939x/init.conf (the
-#   WCD9395 microphone codec's init) - so a Fedora alsa-ucm update can change the tablet's audio without a rehearsal,
-#   and an alsa-ucm that ships the same paths would conflict with this package's files. Held, our UCM and the files
-#   it includes change only through iceland-device (or a rehearsed alsa-ucm in the local repository). The exact
-#   name on purpose: alsa-ucm-utils (alsa-utils.spec: the alsaucm tool) is not UCM data. alsa-ucm requires only
-#   alsa-lib >= its own version, so alsa-lib keeps updating.# - kernel-iceland*, iceland-* (0.28-3, from rehearsal r142): our own packages (the kernel, iceland-device, and
-#   iceland-firmware - that one was already under *-firmware). Fedora ships none of these names; should a Fedora
-#   repository ever carry one, dnf would compare versions over all enabled repositories, and iceland-local's priority
-#   10 wins only while that repository carries the name (an installed system whose iceland-local was never synced has
-#   none). Excluded here, our packages come only from iceland-local.
+# - alsa-ucm (0.24, KEPT in 0.28-4 for a concrete reason): the ALSA UCM data (Fedora's alsa-lib.spec, sub-package
+#   alsa-ucm = alsa-ucm-conf). Our sound profile (/usr/share/alsa/ucm2/Qualcomm/kaanapali/OnePlus-Pad4/ +
+#   conf.d/kaanapali/oneplus-OnePlusPad4.conf) includes three of its shared files - lib/card-init.conf,
+#   lib/ctl-remap.conf, codecs/wcd939x/init.conf (the WCD9395 microphone codec's init) - so a Fedora alsa-ucm update can
+#   change the tablet's audio (speaker protection, microphone levels) without a rehearsal; and an alsa-ucm that one day
+#   ships the same Qualcomm/kaanapali paths would clash with this package's files. Held, our UCM and the files it
+#   includes change only through iceland-device (or a rehearsed alsa-ucm in the local repository). The exact name on
+#   purpose: alsa-ucm-utils (alsa-utils.spec: the alsaucm tool) is not UCM data. alsa-ucm requires only alsa-lib >= its
+#   own version, so alsa-lib keeps updating.
+# - kernel-iceland*, iceland-* (0.28-3, from rehearsal r142): our own packages (the kernel, iceland-device,
+#   iceland-firmware). Fedora ships none of these names; should a Fedora repository ever carry one, dnf would compare
+#   versions over all enabled repositories, and iceland-local's priority 10 wins only while that repository carries the
+#   name (an installed system whose iceland-local was never synced has none). Excluded here, our packages come only
+#   from iceland-local.
+# An upgrade that cannot be resolved because of a hold is skipped, the rest goes ahead (best=False, skip_broken=True
+# in 80-iceland-kernel.conf); iceland-update-check lists what waits.
 
 [fedora]
-excludepkgs=grub2-*,shim-*,linux-firmware*,*-firmware,iio-sensor-proxy*,hexagonrpc*,libssc*,libcamera*,alsa-ucm,kernel-iceland*,iceland-*
+excludepkgs=iio-sensor-proxy*,hexagonrpc*,libssc*,alsa-ucm,kernel-iceland*,iceland-*
 
 [updates]
-excludepkgs=grub2-*,shim-*,linux-firmware*,*-firmware,iio-sensor-proxy*,hexagonrpc*,libssc*,libcamera*,alsa-ucm,kernel-iceland*,iceland-*
+excludepkgs=iio-sensor-proxy*,hexagonrpc*,libssc*,alsa-ucm,kernel-iceland*,iceland-*
 
 [updates-testing]
-excludepkgs=grub2-*,shim-*,linux-firmware*,*-firmware,iio-sensor-proxy*,hexagonrpc*,libssc*,libcamera*,alsa-ucm,kernel-iceland*,iceland-*
+excludepkgs=iio-sensor-proxy*,hexagonrpc*,libssc*,alsa-ucm,kernel-iceland*,iceland-*

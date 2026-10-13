@@ -10,6 +10,12 @@ redistributed UNMODIFIED, with these documented, byte-exact transformations only
   byte-identical.
 - `socinfo/*`: SoC identification values (stock `/sys/devices/soc0`), not vendor code.
 
+One file is not a byte copy: `/etc/iceland/thermal-model.json`, stock's shell-temperature model (the input of
+iceland-thermal), decoded from the vendor's encrypted thermal configuration (horae) of 11.A.38. It is generic:
+identical on every unit (no serial, address or calibration field); only the models, the gear table and the status
+table are kept, as JSON. The encrypted configuration files, the vendor's program, its key and the decoding tool are
+not published (`EXCLUDED.tsv`).
+
 All rights remain with their owners. No licence is granted beyond the right to use the files with OnePlus Pad 4 hardware
 as the owners permit. `Notice-qca-atheros.txt` is Qualcomm Atheros' notice file for the WCN7860 Wi-Fi firmware
 (copy from SuperTurtleDev/iceland-mainline-kernel-firmware d0c0f18, sha256 in MANIFEST/README).

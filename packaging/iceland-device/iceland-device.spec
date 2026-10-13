@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        3%{?dist}
+Release:        5%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -78,6 +78,9 @@ Source9:        iceland-battery-guard
 Source10:       iceland-battery-guard.service
 Source11:       iceland-local.repo
 Source12:       iceland-repo-sync
+# 0.28-4: iceland-firmware from its GitHub release, sha256-pinned (wf/fwfetch)
+Source140:      iceland-firmware-fetch
+Source141:      firmware-pins.tsv
 Source13:       iceland-refresh
 Source14:       iceland-refresh.service
 Source15:       refresh.conf
@@ -136,6 +139,8 @@ Source119:      zz_iceland-device.gschema.override
 # the processed microphone (owner, 9 Oct 2026): PipeWire's echo-cancel with the WebRTC backend (pipewire-libs ships
 # aec/libspa-aec-webrtc.so); fail-safe: a module that does not load leaves the raw UCM source the default
 Source120:      60-iceland-mic-processing.conf
+# 0.28-5: stock's 14 dB recorder gain after the echo canceller, under a -1 dBFS limiter (ladspa-swh-plugins)
+Source142:      61-iceland-mic-gain.conf
 # update policy (0.24): read-only list of the upgrades offered, held back by the hold file and skipped by the resolver
 Source121:      iceland-update-check
 # platform defaults (0.26, from the tb323fu-linux review): no USB / PCIe wakeup, the GPU floor at boot, the sensor
@@ -233,9 +238,14 @@ Settings that make Fedora 44 work safely on the OnePlus Pad 4 with the kernel-ic
   (iceland-charge-alert, a user service reading /run/iceland/charge-alert: no privilege path);
 - iceland-thermal applies stock's skin temperature policy (20 temperature gears: CPU, GPU, brightness and
   charging limits per gear, GNOME's power modes as stock's mode offsets; /etc/iceland/thermal.conf). It only
-  ever lowers limits; the kernel's thermal zones stay underneath. The shell temperature model is a private local
-  file (/etc/iceland/thermal-model.json, never shipped); without it the battery temperature + 2 C stands in;
+  ever lowers limits; the kernel's thermal zones stay underneath. The shell temperature model is stock's, decoded
+  and generic (/etc/iceland/thermal-model.json, shipped by iceland-firmware >= 11.A.38-3); without it the battery
+  temperature + 2 C stands in;
 - kernel-iceland updates come from a local dnf repository (/var/lib/iceland/repo, filled by iceland-repo-sync);
+  iceland-firmware comes from its GitHub release through iceland-firmware-fetch: one https download, checked
+  against the sha256 pins in /usr/share/iceland/firmware-pins.tsv (the rpms are unsigned: the pin is the trust
+  anchor) and the rpm's own name and digests, installed by dnf from the local file with every repository off;
+  a mismatch installs nothing, no network keeps the installed package;
 - the panel runs 60 Hz on battery and 120 Hz on AC (iceland-refresh, /etc/iceland/refresh.conf); live
   refresh-rate changes need kernel queue patch 0058 (RELIGHT=1 switches the display off and on after every
   change, for older kernels only);
@@ -297,6 +307,8 @@ install -Dm0755 %{SOURCE9} %{buildroot}/usr/libexec/iceland/iceland-battery-guar
 install -Dm0644 %{SOURCE10} %{buildroot}/usr/lib/systemd/system/iceland-battery-guard.service
 install -Dm0644 %{SOURCE11} %{buildroot}/etc/yum.repos.d/iceland-local.repo
 install -Dm0755 %{SOURCE12} %{buildroot}/usr/bin/iceland-repo-sync
+install -Dm0755 %{SOURCE140} %{buildroot}/usr/bin/iceland-firmware-fetch
+install -Dm0644 %{SOURCE141} %{buildroot}/usr/share/iceland/firmware-pins.tsv
 install -Dm0755 %{SOURCE13} %{buildroot}/usr/libexec/iceland/iceland-refresh
 install -Dm0644 %{SOURCE14} %{buildroot}/usr/lib/systemd/user/iceland-refresh.service
 install -Dm0644 %{SOURCE15} %{buildroot}/etc/iceland/refresh.conf
@@ -380,6 +392,7 @@ install -Dm0644 %{SOURCE117} %{buildroot}/usr/share/gnome-shell/extensions/icela
 install -Dm0644 %{SOURCE118} %{buildroot}/usr/share/gnome-shell/extensions/iceland-bypass@oneplus-pad4/metadata.json
 install -Dm0644 %{SOURCE119} %{buildroot}/usr/share/glib-2.0/schemas/zz_iceland-device.gschema.override
 install -Dm0644 %{SOURCE120} %{buildroot}/usr/share/pipewire/pipewire.conf.d/60-iceland-mic-processing.conf
+install -Dm0644 %{SOURCE142} %{buildroot}/usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
 install -Dm0755 %{SOURCE121} %{buildroot}/usr/bin/iceland-update-check
 install -Dm0644 %{SOURCE122} %{buildroot}/usr/lib/udev/rules.d/72-iceland-nowake.rules
 install -Dm0644 %{SOURCE123} %{buildroot}/usr/lib/udev/rules.d/73-iceland-gpu-devfreq.rules
@@ -513,6 +526,7 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/lib/systemd/system/iceland-battery-guard.service
 %config(noreplace) /etc/yum.repos.d/iceland-local.repo
 /usr/bin/iceland-repo-sync
+/usr/bin/iceland-firmware-fetch
 /usr/libexec/iceland/iceland-refresh
 /usr/lib/systemd/user/iceland-refresh.service
 %config(noreplace) /etc/iceland/refresh.conf
@@ -554,6 +568,7 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 %dir /etc/iceland
 %dir /usr/share/iceland
 /usr/share/iceland/machine-info
+/usr/share/iceland/firmware-pins.tsv
 /usr/lib/udev/rules.d/81-iceland-ssc.rules
 %dir /usr/lib/systemd/system/iio-sensor-proxy.service.d
 /usr/lib/systemd/system/iio-sensor-proxy.service.d/iceland.conf
@@ -624,8 +639,39 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/gnome-shell/extensions/iceland-bypass@oneplus-pad4/metadata.json
 /usr/share/glib-2.0/schemas/zz_iceland-device.gschema.override
 /usr/share/pipewire/pipewire.conf.d/60-iceland-mic-processing.conf
+/usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
 
 %changelog
+* Tue Oct 13 2026 mzak <mzak.amin@gmail.com> - 0.28-5
+- microphone: stock's 14 dB recorder gain after the echo canceller (owner, 13 Oct; r155: with TX_DEC at stock's
+  84 the processed speech was 14 dB lower and the WebRTC gain control did not make up for it). New
+  61-iceland-mic-gain.conf: a filter-chain with fast_lookahead_limiter_1913 (input gain +14 dB, ceiling -1 dBFS,
+  release 0.25 s) records from the canceller's output and is "Internal microphones (voice processing)"
+  (iceland_mic_processed, priority 2000: name, description and default unchanged). The canceller's output is now
+  the hidden internal node iceland_mic_aec (Audio/Source/Internal). TX_DEC0/1 stay 84, so the raw source and the
+  canceller's input keep stock's headroom; the canceller's settings are unchanged; one off switch for both
+  (iceland.mic-processing = false); new test_mic_gain.py
+
+* Mon Oct 12 2026 mzak <mzak.amin@gmail.com> - 0.28-4
+- iceland-firmware-fetch + /usr/share/iceland/firmware-pins.tsv (pins 11.A.38-2 14833f71, 11.A.38-3 297669a0):
+  iceland-firmware from its GitHub release, sha256-pinned, fail-closed (mismatch: refused and deleted; no
+  network: the installed package kept; dnf from the local file with every repository off); the kernel and
+  this package keep the local repository (iceland-repo-sync)
+- the shell temperature model now comes from iceland-firmware 11.A.38-3 (/etc/iceland/thermal-model.json, a
+  package file); the installer no longer decodes it
+- updates: the MINIMAL Fedora hold (owner, 13 Oct; = the B run's): 50-iceland-fedora-hold.repo excludes only
+  iio-sensor-proxy*, hexagonrpc*, libssc*, alsa-ucm (our UCM includes its shared files), kernel-iceland*, iceland-*;
+  GRUB, shim, linux-firmware / *-firmware and libcamera now update from Fedora (Fedora kernels stay refused by
+  80-iceland-kernel.conf; GRUB / shim stay protected from removal)
+- iceland-thermal: the brightness cap is off by default (thermal.conf BRIGHTNESS=0, the daemon's default 0): the
+  backlight is never written by the service (GNOME's own brightness writes fought the sysfs cap, r150 / r150b); the
+  cap returns as a kernel clamp in the ktz8869 driver. CPU / GPU / charge caps and the gear table unchanged;
+  new test_thermal_nobl.py
+- microphone: UCM TX_DEC0/1 Volume 98 -> 84 (stock's own decimator value): the speakers' echo clipped the raw
+  capture in the decimator's +14 dB with the tablet upright (r141: 68749 clipped samples); the processed source's
+  WebRTC gain control restores the speech level after the echo canceller (stock adds its 14 dB in its DSP). The
+  raw source is 14 dB quieter; ADC1/2 stay 14; the voice-processing source unchanged; new test_mic_headroom.py
+
 * Mon Oct 12 2026 mzak <mzak.amin@gmail.com> - 0.28-3
 - speakers: louder, toward stock (the owner's choice, 12 Oct; stock's loudness is the aim, not a measured proof): the
   compressor's make-up gain is

@@ -19,9 +19,9 @@
 #                    models (front, front_1, frame, back, back_1) over sys-therm-2, sys-therm-4, board_temp, battery
 #                    and chg_cp_therm, four coefficient rows each (the present sample and the three before it, one
 #                    every 5 s) plus a constant; until four samples exist stock uses the battery temperature plus
-#                    bat_bias (2.0 C). The coefficients are NOT in this file and NOT in the package: they are
-#                    read from /etc/iceland/thermal-model.json, a private file made locally from the owner's own
-#                    backup. Without that file the battery fallback is used all the time.
+#                    bat_bias (2.0 C). The coefficients are NOT in this file: they are read from
+#                    /etc/iceland/thermal-model.json (stock's model, decoded, generic: a file of iceland-firmware
+#                    >= 11.A.38-3). Without that file the battery fallback is used all the time.
 #  CPU levels        B/x-odm/etc/temperature_profile/sys_thermal_control_config.xml:24-37 (thermal_cpulevel:
 #                    maxCpuFreq "cluster 0, cluster 1" in kHz; levels 10 and 13 also take the two big cores away,
 #                    maxCpuCore "-1,0" - mainline has no CPU pause, the frequency cap alone is applied)
@@ -55,7 +55,10 @@
 #    row = newest sample) is read from the row weights, not proven in stock's code (it only changes the estimate
 #    while temperatures move);
 #  - brightness is capped by lowering the backlight when it is above the cap and putting the user's value back
-#    when the cap is gone;
+#    when the cap is gone - only with BRIGHTNESS=1. 0.28-4 ships BRIGHTNESS=0 (owner, 12 Oct 2026: GNOME's own brightness
+#    writes fought a sysfs cap, r150 / r150b): the backlight is then never opened for writing, not even read; a cap this
+#    service set itself while BRIGHTNESS=1 was on is handed back once. The cap is meant to come back through a kernel clamp
+#    (a ktz8869 cooling device), which will switch it on again;
 #  - (0.23) the battery temperature comes from qcom_battmgr over pmic_glink; while the ADSP stalls its read fails
 #    (-110). A battery reading that exists but cannot be read is UNKNOWN, not "absent": the estimate then lacks its
 #    battery term (the models and the battery fallback drop out), so for that period the gear may rise but never
@@ -112,7 +115,7 @@ BATTERY = "qcom-battmgr-bat"
 VALID = (-30000, 100000)                                  # OURS
 
 DEFAULTS = {"ENABLE": "1", "PERIOD": "5", "OFFSET_POWERSAVE": "1", "OFFSET_BALANCED": "0",
-            "OFFSET_PERFORMANCE": "-4", "POLICY_PERFORMANCE": "global", "CPU": "1", "GPU": "1", "BRIGHTNESS": "1",
+            "OFFSET_PERFORMANCE": "-4", "POLICY_PERFORMANCE": "global", "CPU": "1", "GPU": "1", "BRIGHTNESS": "0",
             "CHARGE": "1", "CHARGE_MA_HIGH": "3000", "CHARGE_SHIFT": "0"}
 
 def rd(path, default=None):
@@ -384,7 +387,8 @@ class Thermal:
             if base:
                 wr(path, base)
         self.capped = {}
-        self.set_brightness(None)
+        if self.bl_saved is not None:                # 0.28-4: only a backlight cap of ours (BRIGHTNESS=1) is handed back
+            self.set_brightness(None)
         self.set_charge(None)
         try:
             os.unlink(os.path.join(RUN, "thermal-state"))
@@ -443,7 +447,8 @@ class Thermal:
         gpath = os.path.join(GPU, "max_freq")
         gout = self.set_max(gpath, self.base_of(gpath, prof), GPU_LEVEL.get(gpu_l) if c.get("GPU") == "1" else None)
         bl = None
-        if not DRYRUN:
+        # 0.28-4: BRIGHTNESS=0 (shipped) leaves the backlight alone; only a cap of ours still held from BRIGHTNESS=1 is handed back
+        if not DRYRUN and (c.get("BRIGHTNESS") == "1" or self.bl_saved is not None):
             bl = self.set_brightness(BRIGHT_LEVEL.get(br_l) if c.get("BRIGHTNESS") == "1" else None)
         ma = None
         if c.get("CHARGE") == "1" and ch_l > 0:

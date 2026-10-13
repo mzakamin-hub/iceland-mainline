@@ -2,8 +2,8 @@
 # iceland-update-check (iceland-device 0.24): what Fedora's updates offer and what waits. Read-only: it installs
 # nothing and changes no setting.
 #   1. the upgrades dnf (and GNOME Software) would apply now: dnf5 check-upgrade
-#   2. the upgrades held back by /usr/share/dnf5/repos.override.d/50-iceland-fedora-hold.repo (GRUB, shim, firmware,
-#      the sensor programs, libcamera, alsa-ucm): check-upgrade again with the three Fedora repositories' excludes
+#   2. the upgrades held back by /usr/share/dnf5/repos.override.d/50-iceland-fedora-hold.repo (0.28-4: the sensor
+#      programs, alsa-ucm, our own names): check-upgrade again with the three Fedora repositories' excludes
 #      disabled (--setopt=disable_excludes=...), minus list 1. They come through the local repository after a RAM
 #      rehearsal.
 #   3. as root only: the upgrades the resolver skips (best=False / skip_broken=True in
