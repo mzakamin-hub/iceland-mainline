@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        7%{?dist}
+Release:        8%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -608,6 +608,24 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
 
 %changelog
+* Wed Oct 14 2026 mzak <mzak.amin@gmail.com> - 0.28-8
+- iceland-thermal: stock's screenOff table (sys_thermal_control_config.xml screenOff section): while the panel is
+  off (DSI dpms Off or a backlight's bl_power != 0) the CPU / GPU caps are min(globalPolicy, that entry), a gear
+  the section does not list taking the nearest listed gear below it (Battery.apk's lookup); closes the one case
+  where 0.28-7 was above stock (screen off at gears 6-8 / 10-12). SCREEN_OFF=1 in thermal.conf (0 = as 0.28-7)
+- iceland-thermal: stock's boostCeiling: on touchscreen / pen / touchpad / mouse / keyboard input (evdev, read
+  only, never grabbed, one epoll, debounced to 250 ms) the CPU maxima rise to the gear's CPU-level boostCeiling,
+  never above the power mode's maximum, until BOOST_HOLD_MS (1000) after the last event and at most boostBreak2
+  seconds continuously; never with the screen off, from gear 10 (boostBreak -1), during a kernel cpufreq trip or a
+  battery-guard stop, or with the battery reading unknown. BOOST=1 in thermal.conf (0 = no boost). Installed on
+  the tablet 14 Oct by hand (tablet/thermal-fix-0.28-8.sh): service active, the five input devices found
+- iceland-slot-mark: the installed system was never marked (every boot: "SKIP: / is on '/dev/loop0p3'"; ABL
+  counted retry 7 -> 3): the guard now accepts a loop root whose backing file is the partition labelled userdata
+  or fedora on /dev/sd* (dracut-iceland-carrier's loop0), and the LUN holding boot_<current slot> (sde), which
+  iceland-storage-ro makes read-only, is made writable for the one qbootctl -m only and read-only again right
+  after (also on any exit), both logged. RAM kits, loop devices without userdata behind them, NBD roots and
+  rehearsals still skip. 14 Oct: the owner marked slot b by hand the same way (Successful 1)
+
 * Tue Oct 13 2026 mzak <mzak.amin@gmail.com> - 0.28-7
 - iceland-speaker-default waits for WirePlumber's "default" metadata before it reads or writes the configured
   default output, reads the value back and writes again until WirePlumber holds it, and reports success only

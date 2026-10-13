@@ -69,13 +69,42 @@
 #  - CHARGE_SHIFT=0 (thermal.conf): a negative mode offset (Performance, or a shifted Balanced) does not relax
 #    the charging cool-down: the charge cap is taken from the gear itself, as in stock's normal mode. Stock
 #    shifts it with the mode (CHARGE_SHIFT=1).
+#  - (0.28-8) screen off: X = the stock XML above. Stock has a screenOff section (X:88-98): gear 3 cpu 0; gear 6
+#    cpu 7 gpu 3; gear 8 cpu 7 gpu 3; gear 10 cpu 7 gpu 5; gears 11 and 12 cpu 7; gear 14 no CPU / GPU attribute
+#    (its other attributes - restrict, charge 0, refreshRate, the dis* switches - have no counterpart here or keep
+#    the stricter globalPolicy value: the charging cool-down is NOT relaxed with the screen off, stock's charge="0"
+#    would be). Battery.apk (classes2.dex) takes a section's entry for a gear the section does not list by walking
+#    DOWN to the nearest listed gear: o9/h.a0() and p9/a.g() call o9/h.w0(.., gear) and, while it returns null and
+#    gear >= 0, retry with gear - 1; w0() is an exact SparseArray.get(gear) (w0 pc 504-558 for the "screen_off"
+#    key). So gear 7 takes gear 6's entry, 9 takes 8's, 13 takes 12's, 15-19 take 14's, 4-5 take 3's, 0-2 none.
+#    (The only TreeMap.ceilingEntry in the APK, classes.dex Lm0/d;->f, is androidx Room's query pool, not the
+#    thermal code.) An attribute an entry does not name is -2 (ThermalPolicy.createFromElement pc 84).
+#    OURS: with the screen off the CPU and GPU caps are min(globalPolicy, that entry) per cluster in kHz / Hz,
+#    never above stock under either reading of a section (override or min); the base table is globalPolicy also in
+#    the benchmark mode (stock's screen_off category replaces the app's). "Screen off" = the panel's DSI connector
+#    reports dpms "Off" or a backlight reports bl_power != 0 (GNOME's blank does both on this tablet:
+#    docs/repo-docs/pc-026-critical-items.md:81-82, DSI-1 dpms=Off, bl_power=4); read once per period and again at
+#    every boost start. Neither readable = screen on (as 0.28-7). SCREEN_OFF=0 in thermal.conf switches it off;
+#  - (0.28-8) boost: every CPU level has a boostCeiling (X:24-37), the frequency stock's hypnus may reach during a
+#    touch / app-launch / scroll boost (Battery.apk sends boost_ceiling, boostBreak1 / boostBreak2 of the gear to
+#    hypnus: s9/c$a.d pc 52-132). The boost duration is hypnus's own and is not in the carve (no hypnus binary or
+#    config in fwsuper). OURS: on input from a touchscreen, pen, touchpad, mouse or keyboard (evdev, read only, no
+#    grab, one epoll, at most one wake-up per 250 ms while input goes on) the CPU maxima go up to min(the mode's
+#    maximum, the level's boostCeiling) until BOOST_HOLD_MS (1000) after the last event, then back to the gear's
+#    cap. Never: with the screen off, without a CPU cap, at a gear whose boostBreak is -1 (gears 10-19, X:63-72;
+#    the meaning of -1 is not in the APK, so the stricter reading, no boost, is taken), while a kernel cpufreq
+#    cooling device holds a state (a kernel trip acts), while iceland-battery-guard reports a safety stop
+#    (/run/iceland/charge-alert kind=stop, or its input-cut mark), or while the battery reading is unknown. One
+#    continuous boost lasts at most boostBreak2 seconds of the gear (X:53-62: 10 / 5 / 3; the unit is an
+#    inference), then it waits for BOOST_HOLD_MS without input. The period step stays in charge: it re-checks every
+#    gate and ends a boost the gear no longer allows. BOOST=0 in thermal.conf switches it off.
 # The kernel's own loop on the skin thermistor (queue head: 48 / 51 C; stock's 60 / 61 C trips are the owner's
 # choice) is not touched and cannot be lifted from here: this service writes only user space's maxima
 # (cpufreq scaling_max_freq and devfreq max_freq, one frequency QoS request each, never above the power mode's
 # value), the kernel's cooling devices hold their own requests and the lowest request wins. It never writes a
 # thermal zone or a trip, and of the cooling devices only the backlight's own brightness limit (ktz8869-backlight,
 # which no thermal zone binds). So it only ever adds lower limits and takes its own back.
-import glob, json, os, signal, sys, syslog, time
+import errno, glob, json, os, select, signal, sys, syslog, time
 
 E = os.environ.get
 THERMAL = E("ICELAND_THERMAL_SYS", "/sys/class/thermal")
@@ -93,6 +122,10 @@ FAKE = E("ICELAND_THERMAL_FAKE", "")                      # tests: a file with t
 MODE = E("ICELAND_THERMAL_MODE", "")                      # tests: power-saver | balanced | performance
 DRYRUN = E("ICELAND_THERMAL_DRYRUN") == "1"               # compute and log, write nothing but the state file
 ONESHOT = E("ICELAND_THERMAL_ONESHOT") == "1"
+BACKLIGHT = E("ICELAND_BACKLIGHT", "/sys/class/backlight")  # 0.28-8: read only (bl_power), a class or one device
+DRM = E("ICELAND_DRM", "/sys/class/drm")                    # 0.28-8: read only (the DSI connector's dpms)
+INPUT = E("ICELAND_INPUT", "/dev/input")                    # 0.28-8: evdev nodes, opened read only, never grabbed
+INPUT_SYS = E("ICELAND_INPUT_SYS", "/sys/class/input")      # 0.28-8: their capabilities
 
 # stock tables (sources in the header)
 UP = [25, 27, 29, 31, 33, 35, 37, 39, 40, 41, 43, 45, 47, 49, 51, 53, 55, 57, 59, 61, 63]
@@ -115,6 +148,16 @@ BENCH = [(-1 if g <= 12 else 12 if g <= 14 else 13,
 # the brightness limit per gear (0 = none) = the table built into the ktz8869 driver (cooling state = gear); here only
 # for the state line and the tests: the kernel applies its own copy
 BL_GEAR = [BRIGHT_LEVEL.get(GLOBAL[g][2], 0) for g in range(20)]
+# 0.28-8: boostCeiling per CPU level (X:24-37, "cluster 0, cluster 1" in kHz)
+BOOST_LEVEL = {0: (3302400, 3974400), 1: (3033600, 3398400), 2: (2899200, 2880000), 3: (2745600, 2438400),
+               4: (2361600, 2112000), 5: (2361600, 2112000), 6: (2361600, 1862400), 7: (2361600, 1862400),
+               8: (2227200, 1632000), 9: (1996800, 1632000), 10: (1555200, 883200), 11: (1785600, 1382400),
+               12: (1324800, 1017600), 13: (998400, 883200)}
+# globalPolicy boostBreak1, boostBreak2 per gear (X:53-72)
+BOOST_BREAK = [(20, 10)] * 7 + [(10, 5)] * 2 + [(10, 3)] + [(-1, -1)] * 10
+# screenOff section (X:90-96): gear -> (cpu level, gpu level); -2 = the entry does not name it
+SCREEN_OFF_TABLE = {3: (0, -2), 6: (7, 3), 8: (7, 3), 10: (7, 5), 11: (7, -2), 12: (7, -2), 14: (-2, -2)}
+BOOST_DEBOUNCE = 0.25                                     # OURS: input fds re-armed at most every 250 ms
 SAFETY_GEAR = 15
 CHARGE_MA = {1: 1200, 2: 1500, 3: 2000}
 BAT_BIAS = 2000                                           # m C, stock bat_bias
@@ -124,7 +167,8 @@ VALID = (-30000, 100000)                                  # OURS
 
 DEFAULTS = {"ENABLE": "1", "PERIOD": "5", "OFFSET_POWERSAVE": "1", "OFFSET_BALANCED": "0",
             "OFFSET_PERFORMANCE": "-4", "POLICY_PERFORMANCE": "global", "CPU": "1", "GPU": "1", "BRIGHTNESS": "1",
-            "CHARGE": "1", "CHARGE_MA_HIGH": "3000", "CHARGE_SHIFT": "0"}
+            "CHARGE": "1", "CHARGE_MA_HIGH": "3000", "CHARGE_SHIFT": "0", "SCREEN_OFF": "1", "BOOST": "1",
+            "BOOST_HOLD_MS": "1000"}
 
 def rd(path, default=None):
     try:
@@ -232,6 +276,175 @@ def mode_of(profile):
         return "performance"
     return "balanced"
 
+def screen_state():
+    """0.28-8: "off" when the panel's DSI connector says dpms Off or a backlight has bl_power != 0, "on" when one
+    of them reads and none says off, None when nothing reads (then the screen counts as on)"""
+    seen = False
+    for p in glob.glob(DRM + "/card*-DSI-*/dpms"):
+        v = rd(p)
+        if v is not None:
+            seen = True
+            if v.strip().lower() == "off":
+                return "off"
+    bls = [BACKLIGHT] if os.path.exists(BACKLIGHT + "/brightness") else glob.glob(BACKLIGHT + "/*")
+    for d in bls:
+        v = rdint(d + "/bl_power")
+        if v is not None:
+            seen = True
+            if v != 0:
+                return "off"
+    return "on" if seen else None
+
+def screen_off_entry(gear):
+    """0.28-8: stock's screen_off entry for this gear: the nearest listed gear at or below it (Battery.apk o9/h.a0:
+    exact lookup, then gear - 1 while nothing is found and gear >= 0); (listed gear, cpu level, gpu level) or None"""
+    while gear >= 0:
+        if gear in SCREEN_OFF_TABLE:
+            return (gear,) + SCREEN_OFF_TABLE[gear]
+        gear -= 1
+    return None
+
+def lower(a, b):
+    """the smaller of two caps, None = no cap"""
+    return b if a is None else a if b is None else min(a, b)
+
+def bits(path, word=64):
+    """a sysfs capability bitmap (hex words, the most significant first, one unsigned long each) as an int"""
+    v = 0
+    for w in (rd(path, "") or "").split():
+        try:
+            v = (v << word) | int(w, 16)
+        except ValueError:
+            return 0
+    return v
+
+EV_KEY, EV_REL, EV_ABS = 1, 2, 3
+def input_kind(name):
+    """0.28-8: why an evdev node counts as user input (touch, pen, touchpad, mouse, keyboard), or None (sensors,
+    switches such as the cover's hall sensor, the power / volume keys)"""
+    cap = INPUT_SYS + "/" + name + "/device/capabilities/"
+    ev, key, ab, rel = bits(cap + "ev"), bits(cap + "key"), bits(cap + "abs"), bits(cap + "rel")
+    has = lambda m, b: bool(m >> b & 1)
+    if has(ev, EV_ABS) and has(ab, 0x35):                                     # ABS_MT_POSITION_X
+        return "touch"
+    if has(ev, EV_ABS) and has(ab, 0) and any(has(key, b) for b in (0x14a, 0x140, 0x145, 0x110)):
+        return "pen/touchpad"                                                 # BTN_TOUCH / TOOL_PEN / TOOL_FINGER / LEFT
+    if has(ev, EV_REL) and has(rel, 0) and has(key, 0x110):
+        return "mouse"
+    if has(ev, EV_KEY) and all(has(key, b) for b in (30, 44, 57)):           # KEY_A, KEY_Z, KEY_SPACE
+        return "keyboard"
+    return None
+
+class Inputs:
+    """0.28-8: the user's input devices in one epoll, read only (no grab: GNOME gets every event as before). A
+    device that fires is drained and left disarmed (EPOLLONESHOT) until rearm(): at most one wake-up per
+    BOOST_DEBOUNCE while input goes on. A signal wakes the poll through the wakeup pipe."""
+    def __init__(self):
+        self.ep = select.epoll()
+        self.fds = {}              # node name -> fd
+        self.armed = set()
+        self.kinds = {}
+        self.rd_pipe, self.wr_pipe = os.pipe()
+        for p in (self.rd_pipe, self.wr_pipe):
+            os.set_blocking(p, False)
+        signal.set_wakeup_fd(self.wr_pipe)
+        self.ep.register(self.rd_pipe, select.EPOLLIN)
+
+    def scan(self):
+        """open new devices, drop gone ones (called once per period)"""
+        try:
+            names = set(n for n in os.listdir(INPUT) if n.startswith("event"))
+        except OSError:
+            names = set()
+        for n in list(self.fds):
+            if n not in names:
+                self.drop(n)
+        for n in sorted(names - set(self.fds)):
+            kind = input_kind(n)
+            if kind is None:
+                continue
+            try:
+                fd = os.open(os.path.join(INPUT, n), os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
+            except OSError:
+                continue
+            self.fds[n], self.kinds[n] = fd, kind
+            self.ep.register(fd, select.EPOLLIN | select.EPOLLONESHOT)
+            self.armed.add(n)
+            log("iceland-thermal: boost input %s (%s)" % (n, kind))
+
+    def drop(self, n):
+        fd = self.fds.pop(n, None)
+        self.armed.discard(n); self.kinds.pop(n, None)
+        if fd is not None:
+            try:
+                self.ep.unregister(fd)
+            except (OSError, ValueError):
+                pass
+            os.close(fd)
+
+    def drain(self, n):
+        """read what is queued; True if there was input; a device that is gone is dropped"""
+        fd, got = self.fds.get(n), False
+        while fd is not None:
+            try:
+                b = os.read(fd, 4096)
+            except BlockingIOError:
+                break
+            except OSError:
+                self.drop(n)
+                break
+            if not b:
+                self.drop(n)
+                break
+            got = True
+        return got
+
+    def wait(self, timeout):
+        """True if a user input device fired within timeout (s)"""
+        try:
+            ev = self.ep.poll(max(0.0, timeout))
+        except InterruptedError:
+            ev = []
+        hit = False
+        byfd = {fd: n for n, fd in self.fds.items()}
+        for fd, mask in ev:
+            if fd == self.rd_pipe:
+                try:
+                    os.read(self.rd_pipe, 512)
+                except OSError:
+                    pass
+                continue
+            n = byfd.get(fd)
+            if n is None:
+                continue
+            self.armed.discard(n)
+            if mask & (select.EPOLLHUP | select.EPOLLERR):
+                self.drop(n)
+                continue
+            hit = self.drain(n) or hit
+        return hit
+
+    def rearm(self):
+        """after the debounce: a device with input queued meanwhile counts as input (and stays disarmed), the
+        others are armed again"""
+        hit = False
+        for n in list(self.fds):
+            if n in self.armed:
+                continue
+            if self.drain(n):
+                hit = True
+                continue
+            if n in self.fds:
+                try:
+                    self.ep.modify(self.fds[n], select.EPOLLIN | select.EPOLLONESHOT)
+                    self.armed.add(n)
+                except OSError:
+                    self.drop(n)
+        return hit
+
+    def all_armed(self):
+        return len(self.armed) == len(self.fds)
+
 class Thermal:
     def __init__(self):
         self.idx = -1              # index into UP / DOWN / STATUS; -1 = below the first threshold
@@ -247,6 +460,19 @@ class Thermal:
         self.last = None           # (raw gear, effective gear, mode) of the last log line
         self.warned = set()
         self.bat_unknown = False   # 0.23: the battery reading exists but failed in the last sample
+        # 0.28-8: screen off and boost
+        self.screen = None         # "on" / "off" / None (unreadable = on) at the last step
+        self.cpu_paths = []        # the two scaling_max_freq paths
+        self.cpu_cap = []          # what the gear wants there without a boost (the values set_max wrote)
+        self.cpu_boost = None      # min(mode maximum, boostCeiling) per policy while a boost is allowed, else None
+        self.boost_why = "init"    # why no boost is allowed ("" = allowed)
+        self.boost_max = 0.0       # longest continuous boost (s): boostBreak2 of the gear
+        self.hold = 1.0            # BOOST_HOLD_MS / 1000
+        self.boosting = False
+        self.boost_t0 = 0.0
+        self.last_input = None     # monotonic time of the last input
+        self.blocked = False       # a boost reached boost_max: none until the input pauses for hold
+        self.boosts = 0
 
     def warn_once(self, key, msg):
         if key not in self.warned:
@@ -405,7 +631,84 @@ class Thermal:
         except OSError:
             pass
 
+    # ---- 0.28-8: boost
+    def kernel_cpu_trip(self):
+        """a kernel cpufreq cooling device holds a state: a kernel thermal trip acts on the CPUs"""
+        for d in glob.glob(THERMAL + "/cooling_device*"):
+            if "cpufreq" in (rd(d + "/type", "") or "") and (rdint(d + "/cur_state") or 0) > 0:
+                return True
+        return False
+
+    def guard_stop(self):
+        """iceland-battery-guard holds a safety stop (its desktop-notice file says kind=stop) or the input cut"""
+        if os.path.exists(os.path.join(RUN, "input-cut")):
+            return True
+        return "kind=stop" in (rd(os.path.join(RUN, "charge-alert"), "") or "").split()
+
+    def boost_gate(self, c, eff, cpu_l, lv):
+        """'' when the gear allows a boost now, else why not"""
+        if c.get("BOOST") != "1":
+            return "BOOST=0"
+        if c.get("CPU") != "1" or lv is None or cpu_l not in BOOST_LEVEL:
+            return "no CPU cap"
+        if self.screen == "off":
+            return "screen off"
+        if not 0 <= eff < len(BOOST_BREAK) or BOOST_BREAK[eff][0] < 0 or BOOST_BREAK[eff][1] <= 0:
+            return "boostBreak -1"
+        if self.bat_unknown:
+            return "battery unknown"
+        if self.kernel_cpu_trip():
+            return "kernel trip"
+        if self.guard_stop():
+            return "guard stop"
+        return ""
+
+    def write_boost(self):
+        out = []
+        for path, v in zip(self.cpu_paths, self.cpu_boost):
+            if v is not None and os.path.exists(path):
+                wr(path, v)
+                self.capped[path] = True
+            out.append(v)
+        return out
+
+    def end_boost(self):
+        if self.boosting:
+            self.boosting = False
+            for path, v in zip(self.cpu_paths, self.cpu_cap):
+                if v is not None and os.path.exists(path):
+                    wr(path, v)
+
+    def on_input(self, now):
+        """user input at monotonic time now: start (or keep) a boost if the gear allows one"""
+        quiet = self.last_input is None or now - self.last_input >= self.hold
+        self.last_input = now
+        if self.blocked and quiet:
+            self.blocked = False
+        if self.boosting or self.blocked or not self.cpu_boost:
+            return
+        if screen_state() == "off":                  # the screen went dark since the last period
+            return
+        self.boosting, self.boost_t0 = True, now
+        self.boosts += 1
+        self.write_boost()
+
+    def deadline(self):
+        """monotonic time the boost ends at (no further input), or None"""
+        if not self.boosting:
+            return None
+        return min(self.last_input + self.hold, self.boost_t0 + self.boost_max)
+
+    def tick(self, now):
+        """end the boost when its hold or its longest continuous time is over"""
+        d = self.deadline()
+        if d is not None and now >= d:
+            if now - self.boost_t0 >= self.boost_max:
+                self.blocked = True                  # continuous input: wait for a pause of hold
+            self.end_boost()
+
     def restore(self):
+        self.boosting, self.cpu_boost, self.boost_why = False, None, "off"
         prof = tuned_sysfs(tuned_profile())
         for path in list(self.capped):
             base = self.base_of(path, prof)
@@ -460,17 +763,52 @@ class Thermal:
         if raw >= SAFETY_GEAR:
             eff = max(eff, raw)
         eff = min(eff, 19)
-        cpu_l, gpu_l, br_l, ch_l = (BENCH if bench else GLOBAL)[eff] if eff >= 0 else (-1, -1, 0, 0)
+        # 0.28-8: with the screen off the base table is globalPolicy (stock's screen_off category replaces the app's)
+        self.screen = screen_state()
+        dark = self.screen == "off" and c.get("SCREEN_OFF") == "1"
+        cpu_l, gpu_l, br_l, ch_l = (BENCH if bench and not dark else GLOBAL)[eff] if eff >= 0 else (-1, -1, 0, 0)
         if raw > eff and c.get("CHARGE_SHIFT") != "1":      # OURS: the charging cool-down ignores a negative offset
             ch_l = GLOBAL[min(raw, 19)][3] if raw >= 0 else 0
         prof = tuned_sysfs(profile)
-        caps = CPU_LEVEL.get(cpu_l) if c.get("CPU") == "1" else None
-        out = []
+        lv = CPU_LEVEL.get(cpu_l)
+        caps = list(lv) if lv and c.get("CPU") == "1" else [None, None]
+        gcap = GPU_LEVEL.get(gpu_l) if c.get("GPU") == "1" else None
+        so = screen_off_entry(eff) if dark else None
+        if so:                                       # 0.28-8: min(globalPolicy, the screen_off entry) per cluster
+            if so[1] >= 0 and c.get("CPU") == "1":
+                caps = [lower(caps[i], CPU_LEVEL[so[1]][i]) for i in range(2)]
+            if so[2] > 0 and c.get("GPU") == "1":
+                gcap = lower(gcap, GPU_LEVEL[so[2]])
+        # 0.28-8: the boost ceiling the gear allows now (None = no boost) and why not
+        self.hold = max(0, cint(c, "BOOST_HOLD_MS")) / 1000.0
+        why = self.boost_gate(c, eff, cpu_l, lv)
+        self.cpu_paths, bases, boost = [], [], []
         for i, pol in enumerate(("policy0", "policy6")):
             path = os.path.join(CPUFREQ, pol, "scaling_max_freq")
-            out.append(self.set_max(path, self.base_of(path, prof), caps[i] if caps else None))
+            self.cpu_paths.append(path)
+            bases.append(self.base_of(path, prof))
+        if not why:
+            for i in range(2):
+                b = BOOST_LEVEL[cpu_l][i]
+                b = min(bases[i], b) if bases[i] else b          # never above the mode's maximum
+                capi = lower(bases[i] or None, caps[i])
+                boost.append(max(b, capi) if capi is not None else None)
+            if all(boost[i] is None or boost[i] <= lower(bases[i] or None, caps[i]) for i in range(2)):
+                why = "ceiling not above the cap"
+        self.boost_why = why
+        self.cpu_boost = None if why else boost
+        self.boost_max = float(BOOST_BREAK[eff][1]) if 0 <= eff < len(BOOST_BREAK) else 0.0
+        if self.boosting and why:                    # the gear no longer allows it: the cap again, now
+            self.boosting = False
+            log("iceland-thermal: boost ended (%s)" % why)
+        if self.boosting and self.cpu_boost:         # a boost in progress keeps its ceiling (no dip to the cap)
+            self.cpu_cap = [lower(bases[i] or None, caps[i]) if caps[i] is not None else bases[i] for i in range(2)]
+            out = self.write_boost()
+        else:
+            out = [self.set_max(self.cpu_paths[i], bases[i], caps[i]) for i in range(2)]
+            self.cpu_cap = list(out)
         gpath = os.path.join(GPU, "max_freq")
-        gout = self.set_max(gpath, self.base_of(gpath, prof), GPU_LEVEL.get(gpu_l) if c.get("GPU") == "1" else None)
+        gout = self.set_max(gpath, self.base_of(gpath, prof), gcap)
         bl = None
         # 0.28-6: the brightness cap through the backlight's cooling device (state = the effective gear, 0 below gear 0);
         # BRIGHTNESS=0 hands a state of ours back (and, at the first step, one an earlier run left)
@@ -483,9 +821,12 @@ class Thermal:
         if c.get("CHARGE") == "1" and ch_l > 0:
             ma = CHARGE_MA.get(ch_l, cint(c, "CHARGE_MA_HIGH"))
         self.set_charge(ma)
-        state = "shell=%s src=%s gear=%d eff=%d mode=%s%s cpu=%s,%s gpu=%s bl=%s blcap=%s fcc=%s hist=%d %s %s" % (
+        state = "shell=%s src=%s gear=%d eff=%d mode=%s%s cpu=%s,%s gpu=%s bl=%s blcap=%s fcc=%s screen=%s so=%s boost=%s boostcap=%s boosts=%d hist=%d %s %s" % (
             shell, src, raw, eff, mode, "(benchmark)" if bench else "", out[0], out[1], gout, bl,
-            BL_GEAR[bl] if bl is not None and 0 <= bl < len(BL_GEAR) else 0, ma or 0, len(self.hist),
+            BL_GEAR[bl] if bl is not None and 0 <= bl < len(BL_GEAR) else 0, ma or 0,
+            self.screen or "unknown", so[0] if so else "-", int(self.boosting),
+            ",".join(str(x) for x in self.cpu_boost) if self.cpu_boost else self.boost_why.replace(" ", "_"),
+            self.boosts, len(self.hist),
             " ".join("%s=%s" % (k, v) for k, v in sorted(parts.items())),
             " ".join("%s=%s" % (k.replace("-thermal", "").replace("qcom-battmgr-bat", "battery"), v) for k, v in temps.items()))
         try:
@@ -495,9 +836,9 @@ class Thermal:
             os.replace(os.path.join(RUN, "thermal-state.tmp"), os.path.join(RUN, "thermal-state"))
         except OSError:
             pass
-        if (raw, eff, mode) != self.last:
+        if (raw, eff, mode, self.screen) != self.last:
             log("iceland-thermal: " + state)
-            self.last = (raw, eff, mode)
+            self.last = (raw, eff, mode, self.screen)
         elif DRYRUN:
             print(state, flush=True)
         return period
@@ -509,6 +850,7 @@ def main():
     for s in (signal.SIGTERM, signal.SIGINT):
         signal.signal(s, lambda *_: stop.append(1))
     was_on = True
+    inp = None
     while not stop:
         c = read_conf()
         period = max(1, cint(c, "PERIOD"))
@@ -522,11 +864,54 @@ def main():
                 log("iceland-thermal: switched off in %s" % CONF)
         except Exception as e:                           # the kernel zones stay underneath whatever happens here
             log("iceland-thermal: step failed: %r" % (e,), syslog.LOG_ERR)
+            t.cpu_boost = None                           # 0.28-8: no boost on a step that did not finish
+            try:
+                t.end_boost()
+            except Exception:
+                pass
         if ONESHOT:
             return 0
+        # 0.28-8: wait for the next period on one epoll: the user's input devices (boost) and the signal pipe
+        boost_on = c.get("ENABLE") == "1" and c.get("BOOST") == "1"
+        if boost_on and inp is None:
+            try:
+                inp = Inputs()
+            except (OSError, ValueError) as e:
+                t.warn_once("noinput", "no input watch (%s): no boost" % e)
+        if inp is not None:
+            try:
+                if boost_on:
+                    inp.scan()
+                else:
+                    for n in list(inp.fds):
+                        inp.drop(n)
+            except OSError as e:
+                log("iceland-thermal: input scan failed: %r" % (e,), syslog.LOG_ERR)
         end = time.monotonic() + period
-        while not stop and time.monotonic() < end:
-            time.sleep(min(0.5, period))
+        # a device left disarmed by the last period's debounce is looked at again at once
+        rearm_at = time.monotonic() if inp is not None and not inp.all_armed() else None
+        while not stop:
+            now = time.monotonic()
+            if now >= end:
+                break
+            wake = end
+            for x in (t.deadline(), rearm_at):
+                if x is not None:
+                    wake = min(wake, x)
+            hit = False
+            if inp is not None:
+                hit = inp.wait(wake - now)
+            else:
+                time.sleep(max(0.0, min(0.5, wake - now)))
+            now = time.monotonic()
+            if inp is not None and rearm_at is not None and now >= rearm_at:
+                rearm_at = None
+                hit = inp.rearm() or hit
+            if hit:
+                t.on_input(now)
+            if inp is not None and rearm_at is None and not inp.all_armed():
+                rearm_at = now + BOOST_DEBOUNCE
+            t.tick(now)
     if not DRYRUN:
         t.restore()
     log("iceland-thermal: stopped, limits handed back")

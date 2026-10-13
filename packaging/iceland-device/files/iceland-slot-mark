@@ -9,24 +9,44 @@
 #   iceland-slot-mark status      the read-only slot dump only ("qbootctl" without arguments: reads the GPT read-only)
 # Guards (each SKIPS with a log line and exit 0; nothing is written):
 #   - the kernel command line has iceland.rehearsal= (install rehearsal, NBD root) or iceland.noslotmark
-#   - / is not on the tablet's own storage (/dev/sd*, /dev/disk/*, /dev/mapper/*): a RAM kit (rootfs / tmpfs /
-#     overlay) or an NBD root never marks anything
+#   - / is not on the tablet's own storage (/dev/sd*, /dev/disk/*, /dev/mapper/*, or - 0.28-8 - a loop device
+#     whose backing file is the partition labelled userdata or fedora on /dev/sd*: the installed system, which
+#     dracut-iceland-carrier attaches as loop0 with partitions): a RAM kit (rootfs / tmpfs / overlay), a loop
+#     device without that partition behind it or an NBD root never marks anything
+# 0.28-8: iceland-storage-ro makes every internal LUN read-only except the one holding userdata, and boot_<slot>
+# sits on another LUN (sde on the Pad 4), so qbootctl -m would be refused: the LUN that holds boot_<current slot>
+# is made writable for the one qbootctl -m only and read-only again right after (also on any exit), both logged.
 #   - /etc/iceland/slot-mark-off exists (the owner's off switch)
 # A good boot = systemd reports running (or degraded) within 5 min and graphical.target is active, then 30 s more.
 # Test hooks (tests/test_slot_mark.py): ICELAND_CMDLINE ICELAND_ROOTSRC ICELAND_QBOOTCTL ICELAND_SYSTEMCTL
-# ICELAND_SLOTMARK_OFF ICELAND_WAIT ICELAND_SETTLE.
+# ICELAND_SLOTMARK_OFF ICELAND_WAIT ICELAND_SETTLE ICELAND_SYS ICELAND_BYPARTLABEL ICELAND_BLOCKDEV.
 set -u
 MODE=${1:-mark}
 CMDLINE=${ICELAND_CMDLINE:-/proc/cmdline}; QB=${ICELAND_QBOOTCTL:-qbootctl}; SC=${ICELAND_SYSTEMCTL:-systemctl}
 OFF=${ICELAND_SLOTMARK_OFF:-/etc/iceland/slot-mark-off}; WAIT=${ICELAND_WAIT:-300}; SETTLE=${ICELAND_SETTLE:-30}
 ROOTSRC=${ICELAND_ROOTSRC-$(findmnt -n -o SOURCE / 2>/dev/null)}
+SYS=${ICELAND_SYS:-/sys}; BYLABEL=${ICELAND_BYPARTLABEL:-/dev/disk/by-partlabel}; BD=${ICELAND_BLOCKDEV:-blockdev}
 log() { echo "iceland-slot-mark: $*"; }
+loop_carrier() {   # 0.28-8: $1 = /dev/loopN[pM]: "sdXN (userdata)" when its backing file is that partition, else rc 1
+	local l=${1#/dev/} bf n pn
+	l=$(echo "$l" | sed 's/p[0-9]*$//')   # loop0p3 -> loop0
+	bf=$(cat "$SYS/block/$l/loop/backing_file" 2>/dev/null) || return 1
+	n=${bf##*/}
+	case "$n" in sd[a-z]*) ;; *) return 1 ;; esac
+	pn=$(sed -n 's/^PARTNAME=//p' "$SYS/class/block/$n/uevent" 2>/dev/null)
+	case "$pn" in userdata|fedora) echo "$n ($pn)"; return 0 ;; esac
+	return 1
+}
 why_skip() {
 	local c=" $(tr '\n' ' ' < "$CMDLINE" 2>/dev/null) " rs=${ROOTSRC%%\[*}
 	case "$c" in *" iceland.rehearsal="*) echo "a rehearsal boot (iceland.rehearsal= on the kernel command line)"; return ;; esac
 	case "$c" in *" iceland.noslotmark "*|*" iceland.noslotmark=1 "*) echo "iceland.noslotmark on the kernel command line"; return ;; esac
 	[ -e "$OFF" ] && { echo "the off switch $OFF exists"; return; }
-	case "$rs" in /dev/sd[a-z]*|/dev/disk/*|/dev/mapper/*) ;; *) echo "/ is on '${ROOTSRC:-unknown}', not on the tablet's storage (RAM kit or NBD root)"; return ;; esac
+	case "$rs" in
+	/dev/sd[a-z]*|/dev/disk/*|/dev/mapper/*) ;;
+	/dev/loop[0-9]*) loop_carrier "$rs" > /dev/null || { echo "/ is on '${ROOTSRC}', not on the tablet's storage (a loop device without the tablet's userdata behind it)"; return; } ;;
+	*) echo "/ is on '${ROOTSRC:-unknown}', not on the tablet's storage (RAM kit or NBD root)"; return ;;
+	esac
 	echo ""
 }
 dump() { "$QB" 2>&1; }
@@ -60,7 +80,25 @@ log "good boot (system $st, graphical.target active); slots before: $(dump | tr 
 case "$(cur_ok)" in
 1) log "the current slot is already marked successful - nothing written"; exit 0 ;;
 esac
+# 0.28-8: the LUN holding boot_<current slot>, writable for the mark only
+cur=$(dump | awk '/^Current slot:/ {print $3; exit}'); lun=""; ro0=""
+part=$(readlink -f "$BYLABEL/boot$cur" 2>/dev/null)
+if [ -n "$cur" ] && [ -n "$part" ] && [ -e "$SYS/class/block/${part##*/}/partition" ]; then
+	lun=$(basename "$(readlink -f "$SYS/class/block/${part##*/}/..")")
+	ro0=$("$BD" --getro "/dev/$lun" 2>/dev/null)
+fi
+restore_ro() {
+	[ "$ro0" = 1 ] || return 0
+	ro0=""
+	if "$BD" --setro "/dev/$lun"; then log "/dev/$lun read-only again"; else log "FAIL /dev/$lun could not be made read-only again"; fi
+}
+trap restore_ro EXIT
+if [ "$ro0" = 1 ]; then
+	"$BD" --setrw "/dev/$lun" || { ro0=""; log "FAIL /dev/$lun (boot$cur) could not be made writable - the slot is NOT marked"; exit 1; }
+	log "/dev/$lun (boot$cur) writable for the mark"
+fi
 out=$("$QB" -m 2>&1); rc=$?
+restore_ro
 log "qbootctl -m rc $rc: $(echo "$out" | tr '\n' ' ')"
 [ $rc = 0 ] || { log "FAIL the slot could not be marked"; exit 1; }
 log "slots after: $(dump | tr '\n\t' '  ' | tr -s ' ')"
