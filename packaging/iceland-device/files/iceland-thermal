@@ -54,11 +54,14 @@
 #  - a fitted shell temperature outside -30..100 C is ignored; the lag order of the four coefficient rows (first
 #    row = newest sample) is read from the row weights, not proven in stock's code (it only changes the estimate
 #    while temperatures move);
-#  - brightness is capped by lowering the backlight when it is above the cap and putting the user's value back
-#    when the cap is gone - only with BRIGHTNESS=1. 0.28-4 ships BRIGHTNESS=0 (owner, 12 Oct 2026: GNOME's own brightness
-#    writes fought a sysfs cap, r150 / r150b): the backlight is then never opened for writing, not even read; a cap this
-#    service set itself while BRIGHTNESS=1 was on is handed back once. The cap is meant to come back through a kernel clamp
-#    (a ktz8869 cooling device), which will switch it on again;
+#  - (0.28-6) brightness: the cap lives in the kernel, as stock's lives in its display HAL. The ktz8869 backlight
+#    driver registers a cooling device "ktz8869-backlight" with one state per gear (0..19, max_state 19) and the
+#    per-gear limit of the table below built in; the ICs get min(the user's brightness, the gear's limit) while the
+#    backlight's "brightness" (what GNOME reads and writes) keeps the user's value. This service writes the
+#    effective gear (0 below gear 0) to that device's cur_state, only when it differs, and 0 when it stops or
+#    ENABLE / BRIGHTNESS go to 0. No such device (an older kernel) or a different max_state = no brightness cap
+#    (one log line). The backlight itself (/sys/class/backlight/*) is never written: in 0.28-3 a sysfs cap fought
+#    GNOME 50's own brightness (r150 / r151), 0.28-4 / -5 shipped BRIGHTNESS=0;
 #  - (0.23) the battery temperature comes from qcom_battmgr over pmic_glink; while the ADSP stalls its read fails
 #    (-110). A battery reading that exists but cannot be read is UNKNOWN, not "absent": the estimate then lacks its
 #    battery term (the models and the battery fallback drop out), so for that period the gear may rise but never
@@ -70,14 +73,16 @@
 # choice) is not touched and cannot be lifted from here: this service writes only user space's maxima
 # (cpufreq scaling_max_freq and devfreq max_freq, one frequency QoS request each, never above the power mode's
 # value), the kernel's cooling devices hold their own requests and the lowest request wins. It never writes a
-# thermal zone, a trip or a cooling device. So it only ever adds lower limits and takes its own back.
+# thermal zone or a trip, and of the cooling devices only the backlight's own brightness limit (ktz8869-backlight,
+# which no thermal zone binds). So it only ever adds lower limits and takes its own back.
 import glob, json, os, signal, sys, syslog, time
 
 E = os.environ.get
 THERMAL = E("ICELAND_THERMAL_SYS", "/sys/class/thermal")
 CPUFREQ = E("ICELAND_CPUFREQ", "/sys/devices/system/cpu/cpufreq")
 GPU = E("ICELAND_GPU", "/sys/class/devfreq/3d00000.gpu")
-BACKLIGHT = E("ICELAND_BACKLIGHT", "")                    # default: the first /sys/class/backlight/* device
+BL_COOLING = E("ICELAND_BL_COOLING", "")                 # default: the cooling device of type BL_TYPE in THERMAL
+BL_TYPE = "ktz8869-backlight"
 BAT = E("ICELAND_BAT", "/sys/class/power_supply/qcom-battmgr-bat")
 CONF = E("ICELAND_THERMAL_CONF", "/etc/iceland/thermal.conf")
 MODEL = E("ICELAND_THERMAL_MODEL", "/etc/iceland/thermal-model.json")
@@ -107,6 +112,9 @@ GLOBAL = [(-1, -1, 0, 0), (-1, -1, 0, 0), (-1, -1, 0, 16), (3, -1, 0, 14), (4, -
 # the benchmark list: CPU and GPU as that list says, brightness and charge as globalPolicy
 BENCH = [(-1 if g <= 12 else 12 if g <= 14 else 13,
           GLOBAL[g][1] if g in (9, 10) else -1 if g <= 12 else 6, GLOBAL[g][2], GLOBAL[g][3]) for g in range(20)]
+# the brightness limit per gear (0 = none) = the table built into the ktz8869 driver (cooling state = gear); here only
+# for the state line and the tests: the kernel applies its own copy
+BL_GEAR = [BRIGHT_LEVEL.get(GLOBAL[g][2], 0) for g in range(20)]
 SAFETY_GEAR = 15
 CHARGE_MA = {1: 1200, 2: 1500, 3: 2000}
 BAT_BIAS = 2000                                           # m C, stock bat_bias
@@ -115,7 +123,7 @@ BATTERY = "qcom-battmgr-bat"
 VALID = (-30000, 100000)                                  # OURS
 
 DEFAULTS = {"ENABLE": "1", "PERIOD": "5", "OFFSET_POWERSAVE": "1", "OFFSET_BALANCED": "0",
-            "OFFSET_PERFORMANCE": "-4", "POLICY_PERFORMANCE": "global", "CPU": "1", "GPU": "1", "BRIGHTNESS": "0",
+            "OFFSET_PERFORMANCE": "-4", "POLICY_PERFORMANCE": "global", "CPU": "1", "GPU": "1", "BRIGHTNESS": "1",
             "CHARGE": "1", "CHARGE_MA_HIGH": "3000", "CHARGE_SHIFT": "0"}
 
 def rd(path, default=None):
@@ -224,13 +232,6 @@ def mode_of(profile):
         return "performance"
     return "balanced"
 
-def backlight():
-    if BACKLIGHT:
-        return BACKLIGHT
-    for b in sorted(glob.glob("/sys/class/backlight/*")):
-        return b
-    return None
-
 class Thermal:
     def __init__(self):
         self.idx = -1              # index into UP / DOWN / STATUS; -1 = below the first threshold
@@ -240,8 +241,9 @@ class Thermal:
         self.model = None
         self.model_mtime = None
         self.capped = {}           # sysfs path -> True while a cap of ours is in place
-        self.bl_saved = None       # the user's brightness while we hold it down
-        self.bl_wrote = None
+        self.bl_cdev = None        # the backlight's cooling device (directory), once found
+        self.bl_held = False       # True while that device may hold a state of ours (not 0)
+        self.bl_checked = False    # the first step clears a state an earlier run left behind
         self.last = None           # (raw gear, effective gear, mode) of the last log line
         self.warned = set()
         self.bat_unknown = False   # 0.23: the battery reading exists but failed in the last sample
@@ -341,29 +343,52 @@ class Thermal:
         self.capped[path] = True
         return want
 
-    def set_brightness(self, cap):
-        b = backlight()
-        if not b:
+    def bl_cooling(self):
+        """the backlight's cooling device (directory), or None: an older kernel, no brightness cap"""
+        if BL_COOLING:
+            return BL_COOLING if os.path.exists(BL_COOLING + "/cur_state") else None
+        if self.bl_cdev and rd(self.bl_cdev + "/type") == BL_TYPE:
+            return self.bl_cdev
+        self.bl_cdev = None
+        for d in sorted(glob.glob(THERMAL + "/cooling_device*")):
+            if rd(d + "/type") == BL_TYPE:
+                self.bl_cdev = d
+                break
+        return self.bl_cdev
+
+    def set_bl_state(self, state):
+        """0.28-6: the brightness cap = the cooling state (the gear) of the backlight's own cooling device, written only
+        when it differs; the kernel lowers what the backlight ICs get, the backlight's brightness stays the user's.
+        Returns the state in place, or None without a usable device (then there is no brightness cap at all)"""
+        d = self.bl_cooling()
+        if d is None:
+            self.bl_held = False
+            self.warn_once("nobl", "no %s cooling device: no brightness cap (the backlight itself is never written)" % BL_TYPE)
             return None
-        cur = rdint(b + "/brightness")
-        if cur is None:
+        mx = rdint(d + "/max_state")
+        if mx != len(BL_GEAR) - 1:
+            self.warn_once("blmax", "%s has max_state %s, not one state per gear (%d): no brightness cap" % (BL_TYPE, mx, len(BL_GEAR) - 1))
+            if self.bl_held:
+                self.release_bl()
             return None
-        if self.bl_saved is not None and cur != self.bl_wrote:
-            self.bl_saved = None                     # somebody set another brightness: that one stands
-        if cap is not None and cur > cap:
-            if self.bl_saved is None:
-                self.bl_saved = cur
-            if wr(b + "/brightness", cap):
-                self.bl_wrote = cap
-            return cap
-        if self.bl_saved is not None:
-            want = self.bl_saved if cap is None else min(self.bl_saved, cap)
-            if want > cur and wr(b + "/brightness", want):
-                self.bl_wrote = want
-            if want == self.bl_saved:
-                self.bl_saved = None
-            return want
-        return cur
+        if "nobl" in self.warned or "blmax" in self.warned:
+            self.warned.discard("nobl"); self.warned.discard("blmax")
+            log("iceland-thermal: brightness cap through %s (%s)" % (BL_TYPE, d))
+        if rdint(d + "/cur_state") != state and not wr(d + "/cur_state", state):
+            self.warn_once("blwrite", "%s/cur_state cannot be written" % d)
+            cur = rdint(d + "/cur_state")
+            self.bl_held = cur not in (None, 0)
+            return cur
+        self.warned.discard("blwrite")
+        self.bl_held = state != 0
+        return state
+
+    def release_bl(self):
+        """the brightness cap handed back: state 0 (the user's brightness again), if a state is set"""
+        d = self.bl_cooling()
+        if d is not None and rdint(d + "/cur_state") not in (None, 0):
+            wr(d + "/cur_state", 0)
+        self.bl_held = False
 
     def set_charge(self, ma):
         p = os.path.join(RUN, "thermal-fcc-ma")
@@ -387,8 +412,8 @@ class Thermal:
             if base:
                 wr(path, base)
         self.capped = {}
-        if self.bl_saved is not None:                # 0.28-4: only a backlight cap of ours (BRIGHTNESS=1) is handed back
-            self.set_brightness(None)
+        if self.bl_held:                             # 0.28-6: the brightness cap (cooling state) back to 0
+            self.release_bl()
         self.set_charge(None)
         try:
             os.unlink(os.path.join(RUN, "thermal-state"))
@@ -447,16 +472,20 @@ class Thermal:
         gpath = os.path.join(GPU, "max_freq")
         gout = self.set_max(gpath, self.base_of(gpath, prof), GPU_LEVEL.get(gpu_l) if c.get("GPU") == "1" else None)
         bl = None
-        # 0.28-4: BRIGHTNESS=0 (shipped) leaves the backlight alone; only a cap of ours still held from BRIGHTNESS=1 is handed back
-        if not DRYRUN and (c.get("BRIGHTNESS") == "1" or self.bl_saved is not None):
-            bl = self.set_brightness(BRIGHT_LEVEL.get(br_l) if c.get("BRIGHTNESS") == "1" else None)
+        # 0.28-6: the brightness cap through the backlight's cooling device (state = the effective gear, 0 below gear 0);
+        # BRIGHTNESS=0 hands a state of ours back (and, at the first step, one an earlier run left)
+        if c.get("BRIGHTNESS") == "1":
+            bl = self.set_bl_state(max(0, min(eff, len(BL_GEAR) - 1)))
+        elif self.bl_held or not self.bl_checked:
+            self.release_bl()
+        self.bl_checked = True
         ma = None
         if c.get("CHARGE") == "1" and ch_l > 0:
             ma = CHARGE_MA.get(ch_l, cint(c, "CHARGE_MA_HIGH"))
         self.set_charge(ma)
         state = "shell=%s src=%s gear=%d eff=%d mode=%s%s cpu=%s,%s gpu=%s bl=%s blcap=%s fcc=%s hist=%d %s %s" % (
             shell, src, raw, eff, mode, "(benchmark)" if bench else "", out[0], out[1], gout, bl,
-            BRIGHT_LEVEL.get(br_l, 0) if c.get("BRIGHTNESS") == "1" else 0, ma or 0, len(self.hist),
+            BL_GEAR[bl] if bl is not None and 0 <= bl < len(BL_GEAR) else 0, ma or 0, len(self.hist),
             " ".join("%s=%s" % (k, v) for k, v in sorted(parts.items())),
             " ".join("%s=%s" % (k.replace("-thermal", "").replace("qcom-battmgr-bat", "battery"), v) for k, v in temps.items()))
         try:

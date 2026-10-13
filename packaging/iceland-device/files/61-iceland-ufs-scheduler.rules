@@ -1,4 +1,0 @@
-# iceland-device: Fedora's I/O scheduler (bfq) for the internal UFS LUNs, set one LUN at a time (they share one
-# blk-mq tag set; parallel writes fail with "Device or resource busy" - see /etc/udev/rules.d/60-block-scheduler.rules)
-ACTION=="add", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", KERNEL=="sd*[!0-9]", DEVPATH=="*/1d84000.ufs/*", \
-  RUN+="/usr/libexec/iceland/iceland-ufs-scheduler $kernel"

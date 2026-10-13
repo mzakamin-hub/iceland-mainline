@@ -26,7 +26,6 @@ binaries. `./build-rpm.sh OUT` builds `iceland-device-*.noarch.rpm` (rpmbuild; t
 | `iio-sensor-proxy-iceland.conf`, `iceland-ssc-wait` | `/usr/lib/systemd/system/iio-sensor-proxy.service.d/iceland.conf`, `/usr/libexec/iceland/` | iio-sensor-proxy after hexagonrpcd and only once the accelerometer delivers a sample (it looks for its sensors once) |
 | `sc1320cs.yaml`, `sc820cs.yaml` | `/usr/share/libcamera/ipa/simple/` | libcamera software-ISP tuning of the rear / front camera sensor: the black level of the stock camera characteristics (64 / 65 of 1023) and stock's colour-correction matrices (5 / 6 colour temperatures; private repository only) |
 | `51-iceland-camera.conf` | `/usr/share/wireplumber/wireplumber.conf.d/` | hides the raw video nodes of the camera subsystem (driver `qcom-camss`) from the desktop's device list; the two libcamera sources stay |
-| `iceland-camera-focus(.service)`, `camera-focus.conf` | `/usr/libexec/iceland/`, systemd unit, `/etc/iceland/` | the rear camera's lens at a fixed position while it streams (libcamera's simple pipeline has no autofocus); default 450 = stock's start position |
 | `71-iceland-dma-heap.rules` | `/usr/lib/udev/rules.d/` | the CMA dma-heaps (32 MiB) for root only: libcamera's software ISP in the desktop session then allocates its frames from the system heap; four 1080p frames do not fit into CMA (GNOME Camera failed with "Format negotiation failed") |
 | `61-iceland-battery.hwdb` | `/usr/lib/udev/hwdb.d/` | `CHARGE_LIMIT=80,85` for the battery: the thresholds UPower writes when GNOME's "Preserve Battery Health" is selected (UPower's default would be 75 / 80) |
 | `upower-iceland.conf` | `/usr/lib/systemd/system/upower.service.d/iceland.conf` | UPower starts after udev's first device scan: it reads the charge-limit thresholds only once |
@@ -34,7 +33,6 @@ binaries. `./build-rpm.sh OUT` builds `iceland-device-*.noarch.rpm` (rpmbuild; t
 | `iceland-npu`, `iceland-npu-off.service` | `/usr/bin/`, systemd unit | `iceland-npu on|off|status` for the CDSP (NPU). The kernel starts the CDSP at boot and it idles in its own sleep; a stopped CDSP leaves its CX / DDR votes behind and the SoC no longer reaches CX collapse in suspend until it runs again (deep-sleep runs 66 / 67), so the boot-time stop is opt-in: the unit acts only when `/etc/iceland/npu-off-at-boot` exists |
 | `iceland-update-check` | `/usr/bin/` | read-only: the upgrades dnf / GNOME Software would apply now, those the hold file keeps back and (as root) those the resolver skips (`dnf5 check-upgrade`, with the three Fedora repositories' excludes disabled, and `dnf5 upgrade --assumeno`) |
 | `59-iceland-storage-ro.rules`, `iceland-storage-ro` | `/usr/lib/udev/rules.d/`, `/usr/libexec/iceland/` | every partition of the internal storage read-only (kernel flag), hidden from the desktop; userdata (the Fedora disk) is the only exception |
-| `60-block-scheduler.rules`, `61-iceland-ufs-scheduler.rules`, `iceland-ufs-scheduler` | `/etc/udev/rules.d/`, `/usr/lib/udev/rules.d/`, `/usr/libexec/iceland/` | Fedora's bfq scheduler for the internal UFS LUNs, set one LUN at a time: they share one blk-mq tag set and the kernel refuses parallel changes (-EBUSY); the /etc copy is Fedora's rule without the UFS LUNs |
 | `iceland-carrier`, `module-setup.sh` (dracut module `90iceland`) | `/usr/lib/dracut/modules.d/90iceland/` | the initramfs finds the Fedora disk inside userdata (label `fedora`), sets the other partitions read-only before anything mounts, opens the disk as a loop device; rollback and rehearsal only when the boot entry asks |
 | `91-iceland-install.conf` | `/usr/lib/dracut/dracut.conf.d/` | adds the module above (and loop, nbd) to every initramfs |
 | `iceland-snapshot`, `iceland-snapshot.actions`, `snapshot.conf` | `/usr/libexec/iceland/`, `/etc/dnf/libdnf5-plugins/actions.d/`, `/etc/iceland/` | a read-only btrfs snapshot of the root before every package transaction (3 kept), each with a "Roll back to ..." boot entry |
@@ -75,7 +73,7 @@ of wf/wake (volume keys from sleep, a charger plug waking the tablet) are kernel
 | `OFFSET_POWERSAVE`, `OFFSET_PERFORMANCE` | `1`, `-4` | stock's power-save and high-performance offsets |
 | `POLICY_PERFORMANCE` | `global` | `benchmark` = the table stock gives its benchmark apps |
 | `CPU`, `GPU`, `CHARGE` | `1` | which limits are applied |
-| `BRIGHTNESS` | `0` | the brightness cap per gear. `0` (0.28-4): the backlight is never written (GNOME's own brightness fought a sysfs cap); `1` = the sysfs cap of 0.28-3 (to return as a kernel clamp in the backlight driver) |
+| `BRIGHTNESS` | `1` | the brightness cap per gear (0.28-6): the gear goes to the backlight driver's cooling device `ktz8869-backlight` (`cur_state`, one state per gear); the kernel lowers the panel while GNOME's brightness stays the user's. No such device (older kernel) = no cap. `0` = no cap (a state of the service is handed back). The backlight itself is never written |
 | `CHARGE_MA_HIGH` | `3000` | battery-current cap for stock's charge cool-down levels 4 and above; levels 1-3 are stock's 1200 / 1500 / 2000 mA |
 | `CHARGE_SHIFT` | `0` | `0` = the charging cool-down never takes a negative mode offset (the careful side); `1` = it shifts with the mode as on stock |
 | `PERIOD` | `5` | seconds between samples (stock's estimate is fitted for 5 s) |
@@ -100,7 +98,6 @@ python3 tests/test_install_parts.py files
 python3 tests/test_pipewire_req.py iceland-device.spec
 python3 tests/test_sensor_service.py files
 python3 tests/test_cmdline.py files
-python3 tests/test_ufs_scheduler.py files iceland-device.spec
 python3 tests/test_camera_tuning.py files
 python3 tests/test_preset.py files iceland-device.spec
 python3 tests/test_selinux.py files
@@ -115,7 +112,6 @@ python3 tests/test_mic_processing.py files/60-iceland-mic-processing.conf icelan
 python3 tests/test_update_policy.py files iceland-device.spec
 python3 tests/test_platform_defaults.py files iceland-device.spec
 python3 tests/test_speaker_protection.py files iceland-device.spec ../../audio/ucm/OnePlus-Pad4/HiFi.conf
-python3 tests/test_wifi_mac.py files iceland-device.spec
 python3 tests/test_slot_mark.py files iceland-device.spec
 python3 tests/test_bdaddr.py files
 python3 tests/test_stock_levels.py files iceland-device.spec ../../audio/ucm/OnePlus-Pad4/HiFi.conf ../../audio/topology/OnePlus-Pad4.m4

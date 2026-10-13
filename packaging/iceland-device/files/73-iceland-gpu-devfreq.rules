@@ -1,8 +1,0 @@
-# /usr/lib/udev/rules.d/73-iceland-gpu-devfreq.rules (iceland-device)
-#
-# The Adreno GPU's frequency floor at boot: 160 MHz (as tb323fu-linux, Lenovo Legion Tab Gen 5, same SoC, against
-# compositing stutter at 120 Hz). 160 MHz is an operating point of kernel-iceland's GPU table (opp-160000000, every
-# speed bin) and its LOWEST one, so on the Pad 4 this rule only pins the documented boot default: devfreq can never
-# go below it anyway. A higher floor (e.g. 222 or 282 MHz) is a separate test with a smoothness measurement.
-# The GPU runtime-suspends when idle, so a floor costs power only while it renders.
-ACTION=="add|change", SUBSYSTEM=="devfreq", KERNEL=="3d00000.gpu", ATTR{min_freq}="160000000"

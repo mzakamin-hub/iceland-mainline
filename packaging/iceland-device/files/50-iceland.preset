@@ -13,7 +13,6 @@ enable iceland-battery-guard.service
 enable iceland-npu-off.service
 enable iceland-wifi-country.service
 enable iceland-ssc-resume.service
-enable iceland-camera-focus.service
 enable iceland-thermal.service
 enable iceland-bdaddr.service
 enable iceland-clock.service

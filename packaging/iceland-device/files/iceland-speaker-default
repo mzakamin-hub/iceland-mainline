@@ -1,18 +1,27 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-2.0-or-later
-# iceland-speaker-default (iceland-device 0.28-3): the protected "Speakers" sink becomes the CONFIGURED default output of
-# this account, unless the account chose another output itself (headphones, Bluetooth, HDMI, ...): WirePlumber 0.5 lists
+# iceland-speaker-default (iceland-device 0.28-3; 0.28-7): the protected "Speakers" sink becomes the CONFIGURED default output
+# of this account, unless the account chose another output itself (headphones, Bluetooth, HDMI, ...): WirePlumber 0.5 lists
 # filter-chain sinks as filters and does not pick them by priority alone (the idea of tb323fu-linux's
 # tb323fu-speaker-gain, MIT). Run by the user unit iceland-speaker-default.service when WirePlumber starts.
 #   - waits (up to 20 s) for the protected sink; without it (the chain is switched off or its plug-ins are missing)
 #     nothing is changed and WirePlumber's own choice stands;
-#   - default.configured.audio.sink empty, or naming the raw speaker sink -> effect_input.speakers;
+#   - 0.28-7: waits (up to 20 s) for WirePlumber's "default" metadata object before it reads or writes anything. The
+#     protected sink is PipeWire's own node and exists before WirePlumber has made that object, and pw-metadata exits 0
+#     without a change while the object does not exist (r157: the unit ran 40 ms after WirePlumber started, reported
+#     the write, and the configured default output stayed unset);
+#   - default.configured.audio.sink empty, or naming the raw speaker sink -> effect_input.speakers, read back and
+#     written again (up to 10 times, 0.5 s apart) until WirePlumber holds it; success is reported only then. A choice
+#     that appears meanwhile (WirePlumber restoring the account's own one) is kept;
 #     anything else = the user's own choice -> kept.
 #   iceland-speaker-default [status]
 PROT=effect_input.speakers
 RAW=alsa_output.platform-sound.HiFi__Speaker__sink
 cfg() {
 	pw-metadata 0 default.configured.audio.sink 2>/dev/null | grep -o '"name": *"[^"]*"' | head -n 1 | sed 's/.*"name": *"//; s/"$//'
+}
+meta() {
+	pw-cli ls Metadata 2>/dev/null | grep -q 'metadata.name = "default"'
 }
 if [ "${1:-}" = status ]; then
 	echo "configured default output: $(cfg)"
@@ -24,14 +33,29 @@ until pw-cli ls Node 2>/dev/null | grep -q "node.name = \"$PROT\""; do
 	[ $i -gt 40 ] && { echo "iceland-speaker-default: no $PROT - the default output is left to WirePlumber"; exit 0; }
 	sleep 0.5
 done
+i=0
+until meta; do
+	i=$((i + 1))
+	[ $i -gt 40 ] && { echo "iceland-speaker-default: no \"default\" metadata (WirePlumber is not up) - the default output is left to WirePlumber"; exit 0; }
+	sleep 0.5
+done
 c=$(cfg)
 case "$c" in
 "" | "$RAW")
-	if pw-metadata 0 default.configured.audio.sink "{ \"name\": \"$PROT\" }" Spa:String:JSON > /dev/null; then
-		echo "iceland-speaker-default: configured default output $PROT (was '${c:-none}')"
-	else
-		echo "iceland-speaker-default: could not set the configured default output"
-	fi ;;
+	n=0
+	while :; do
+		pw-metadata 0 default.configured.audio.sink "{ \"name\": \"$PROT\" }" Spa:String:JSON > /dev/null 2>&1
+		v=$(cfg)
+		[ "$v" = "$PROT" ] && { echo "iceland-speaker-default: configured default output $PROT (was '${c:-none}')"; exit 0; }
+		case "$v" in
+		"" | "$RAW") ;;
+		*) echo "iceland-speaker-default: the account's own choice '$v' is kept (set meanwhile)"; exit 0 ;;
+		esac
+		n=$((n + 1))
+		[ $n -ge 10 ] && break
+		sleep 0.5
+	done
+	echo "iceland-speaker-default: could not set the configured default output (it reads '${v:-none}' after $n writes)" ;;
 *)
 	echo "iceland-speaker-default: the account's own choice '$c' is kept" ;;
 esac

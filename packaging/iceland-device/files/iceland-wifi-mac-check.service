@@ -1,8 +1,0 @@
-# iceland-device 0.27: pulled in by 74-iceland-wifi-mac.rules when the Wi-Fi interface appears
-[Unit]
-Description=Keep the Wi-Fi address stable across boots (OnePlus Pad 4)
-Documentation=file:///usr/libexec/iceland/iceland-wifi-mac
-
-[Service]
-Type=oneshot
-ExecStart=/usr/libexec/iceland/iceland-wifi-mac check

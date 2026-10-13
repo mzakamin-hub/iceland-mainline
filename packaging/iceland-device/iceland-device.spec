@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        5%{?dist}
+Release:        7%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -50,10 +50,6 @@ Source82:       iceland-charge-alert
 Source83:       iceland-charge-alert.service
 # systemd preset (wf/fedtest): keeps the iceland units enabled through the first boot's preset-all
 Source106:      50-iceland.preset
-# storage: the UFS LUNs' I/O scheduler one LUN at a time (r2g: parallel writes got -EBUSY)
-Source107:      60-block-scheduler.rules
-Source108:      61-iceland-ufs-scheduler.rules
-Source109:      iceland-ufs-scheduler
 # sensors: the DSP file tree readable by group fastrpc (hexagonrpcd's user)
 Source110:      iceland-dsp-tree.conf
 # SELinux (wf/fedtest): iio-sensor-proxy's QRTR socket to the sensor hub (R2 enforcing: no rotation without it)
@@ -112,10 +108,6 @@ Source33:       upower-iceland.conf
 Source34:       sc820cs.yaml
 # cameras: hide the raw video nodes of the camera subsystem from the desktop's device list
 Source35:       51-iceland-camera.conf
-# cameras: a fixed focus position of the rear camera while it streams (no autofocus in libcamera's simple pipeline)
-Source36:       iceland-camera-focus
-Source37:       iceland-camera-focus.service
-Source38:       camera-focus.conf
 # cameras: the CMA dma-heaps for root only (libcamera's software ISP then allocates from the system heap)
 Source39:       71-iceland-dma-heap.rules
 # the skin temperature policy (stock's temperature gears): the daemon, its unit, its settings (the sources from 50 on
@@ -143,10 +135,8 @@ Source120:      60-iceland-mic-processing.conf
 Source142:      61-iceland-mic-gain.conf
 # update policy (0.24): read-only list of the upgrades offered, held back by the hold file and skipped by the resolver
 Source121:      iceland-update-check
-# platform defaults (0.26, from the tb323fu-linux review): no USB / PCIe wakeup, the GPU floor at boot, the sensor
-# stream stopped across a suspend, systemd feeds the hardware watchdog
-Source122:      72-iceland-nowake.rules
-Source123:      73-iceland-gpu-devfreq.rules
+# platform defaults (0.26, from the tb323fu-linux review): the sensor stream stopped across a suspend, systemd
+# feeds the hardware watchdog (0.28-6: the wakeup defaults are in the device tree, the GPU floor rule is gone)
 Source124:      iceland-sensors-sleep
 Source125:      iio-sensor-proxy-iceland-sleep.conf
 Source126:      watchdog-iceland.conf
@@ -157,10 +147,6 @@ Source128:      62-iceland-speaker-raw.conf
 Source134:      63-iceland-mic-raw.conf
 Source135:      iceland-speaker-default
 Source136:      iceland-speaker-default.service
-# Wi-Fi address kept stable across boots (0.27): changes nothing while the firmware's address is stable
-Source129:      iceland-wifi-mac
-Source130:      74-iceland-wifi-mac.rules
-Source131:      iceland-wifi-mac-check.service
 # 0.27r5: mark the Android A/B slot successful after a good boot (qbootctl -m; never in a RAM kit / rehearsal)
 Source132:      iceland-slot-mark
 Source133:      iceland-slot-mark.service
@@ -338,13 +324,7 @@ install -Dm0755 %{SOURCE29} %{buildroot}/usr/libexec/iceland/iceland-ssc-wait
 install -Dm0644 %{SOURCE30} %{buildroot}/usr/lib/systemd/system/iceland-ssc-resume.service
 install -Dm0644 %{SOURCE31} %{buildroot}/usr/share/libcamera/ipa/simple/sc1320cs.yaml
 install -Dm0644 %{SOURCE34} %{buildroot}/usr/share/libcamera/ipa/simple/sc820cs.yaml
-install -Dm0644 %{SOURCE107} %{buildroot}/etc/udev/rules.d/60-block-scheduler.rules
-install -Dm0644 %{SOURCE108} %{buildroot}/usr/lib/udev/rules.d/61-iceland-ufs-scheduler.rules
-install -Dm0755 %{SOURCE109} %{buildroot}/usr/libexec/iceland/iceland-ufs-scheduler
 install -Dm0644 %{SOURCE35} %{buildroot}/usr/share/wireplumber/wireplumber.conf.d/51-iceland-camera.conf
-install -Dm0755 %{SOURCE36} %{buildroot}/usr/libexec/iceland/iceland-camera-focus
-install -Dm0644 %{SOURCE37} %{buildroot}/usr/lib/systemd/system/iceland-camera-focus.service
-install -Dm0644 %{SOURCE38} %{buildroot}/etc/iceland/camera-focus.conf
 install -Dm0644 %{SOURCE39} %{buildroot}/usr/lib/udev/rules.d/71-iceland-dma-heap.rules
 install -Dm0644 %{SOURCE32} %{buildroot}/usr/lib/udev/hwdb.d/61-iceland-battery.hwdb
 install -Dm0644 %{SOURCE33} %{buildroot}/usr/lib/systemd/system/upower.service.d/iceland.conf
@@ -394,8 +374,6 @@ install -Dm0644 %{SOURCE119} %{buildroot}/usr/share/glib-2.0/schemas/zz_iceland-
 install -Dm0644 %{SOURCE120} %{buildroot}/usr/share/pipewire/pipewire.conf.d/60-iceland-mic-processing.conf
 install -Dm0644 %{SOURCE142} %{buildroot}/usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
 install -Dm0755 %{SOURCE121} %{buildroot}/usr/bin/iceland-update-check
-install -Dm0644 %{SOURCE122} %{buildroot}/usr/lib/udev/rules.d/72-iceland-nowake.rules
-install -Dm0644 %{SOURCE123} %{buildroot}/usr/lib/udev/rules.d/73-iceland-gpu-devfreq.rules
 install -Dm0755 %{SOURCE124} %{buildroot}/usr/lib/systemd/system-sleep/iceland-sensors
 install -Dm0644 %{SOURCE125} %{buildroot}/usr/lib/systemd/system/iio-sensor-proxy.service.d/iceland-sleep.conf
 install -Dm0644 %{SOURCE126} %{buildroot}/usr/lib/systemd/system.conf.d/60-iceland-watchdog.conf
@@ -404,9 +382,6 @@ install -Dm0644 %{SOURCE128} %{buildroot}/usr/share/wireplumber/wireplumber.conf
 install -Dm0644 %{SOURCE134} %{buildroot}/usr/share/wireplumber/wireplumber.conf.d/63-iceland-mic-raw.conf
 install -Dm0755 %{SOURCE135} %{buildroot}/usr/libexec/iceland/iceland-speaker-default
 install -Dm0644 %{SOURCE136} %{buildroot}/usr/lib/systemd/user/iceland-speaker-default.service
-install -Dm0755 %{SOURCE129} %{buildroot}/usr/libexec/iceland/iceland-wifi-mac
-install -Dm0644 %{SOURCE130} %{buildroot}/usr/lib/udev/rules.d/74-iceland-wifi-mac.rules
-install -Dm0644 %{SOURCE131} %{buildroot}/usr/lib/systemd/system/iceland-wifi-mac-check.service
 install -Dm0755 %{SOURCE132} %{buildroot}/usr/libexec/iceland/iceland-slot-mark
 install -Dm0644 %{SOURCE133} %{buildroot}/usr/lib/systemd/system/iceland-slot-mark.service
 install -d %{buildroot}/var/lib/iceland/trial
@@ -430,15 +405,17 @@ if [ ! -e /var/lib/iceland/.asound-state-reset ]; then
 	rm -f /var/lib/alsa/asound.state
 	mkdir -p /var/lib/iceland && touch /var/lib/iceland/.asound-state-reset
 fi
-systemctl enable iceland-battery-guard.service iceland-npu-off.service iceland-wifi-country.service iceland-ssc-resume.service iceland-camera-focus.service >/dev/null 2>&1 || :
+systemctl enable iceland-battery-guard.service iceland-npu-off.service iceland-wifi-country.service iceland-ssc-resume.service >/dev/null 2>&1 || :
 # 0.16 had a unit that kept a sensor-hub sensor streaming for the cameras; the kernel keeps their bus connected now
 systemctl stop iceland-ssc-hold.service >/dev/null 2>&1 || :
+# K7: the kernel holds the rear lens at its default position while the rear sensor streams; the old
+# focus helper is stopped and disabled once (its unit file goes with the old package)
+systemctl disable --now iceland-camera-focus.service >/dev/null 2>&1 || :
 # the DMA heap permissions (71-iceland-dma-heap.rules) at once; a running WirePlumber keeps the heap it has open
 # until the user's next login
 if [ -d /run/systemd/system ]; then udevadm control --reload >/dev/null 2>&1 || :; udevadm trigger --action=add -s dma_heap >/dev/null 2>&1 || :; fi
-# 0.26: the wakeup defaults (72-iceland-nowake.rules) and the GPU floor (73-iceland-gpu-devfreq.rules) at once; the
-# watchdog drop-in (system.conf.d) takes effect at the next boot
-if [ -d /run/systemd/system ]; then udevadm trigger --action=change -s devfreq -s pci >/dev/null 2>&1 || :; udevadm trigger --action=change -s platform --sysname-match=a600000.usb >/dev/null 2>&1 || :; fi
+# the watchdog drop-in (system.conf.d) takes effect at the next boot. 0.28-6: no wakeup or GPU rules any more (the
+# device tree has the wakeup defaults, 160 MHz is the GPU's lowest operating point anyway)
 # the skin temperature policy starts at boot, like the guard
 systemctl enable iceland-thermal.service >/dev/null 2>&1 || :
 # the sensors' SELinux module: into the policy store; loaded at once on a booted system, else at the next boot
@@ -501,7 +478,7 @@ fi
 %preun
 [ "$1" -eq 0 ] && systemctl disable iceland-trial-early.service iceland-boot-confirm.service >/dev/null 2>&1 || :
 [ "$1" -eq 0 ] && systemctl disable iceland-slot-mark.service >/dev/null 2>&1 || :
-[ "$1" -eq 0 ] && systemctl --global disable iceland-refresh.service iceland-charge-alert.service iceland-speaker-default.service >/dev/null 2>&1; [ "$1" -eq 0 ] && systemctl disable iceland-camera-focus.service iceland-ssc-resume.service iceland-wifi-country.service iceland-npu-off.service iceland-battery-guard.service iceland-bdaddr.service >/dev/null 2>&1 || :
+[ "$1" -eq 0 ] && systemctl --global disable iceland-refresh.service iceland-charge-alert.service iceland-speaker-default.service >/dev/null 2>&1; [ "$1" -eq 0 ] && systemctl disable iceland-ssc-resume.service iceland-wifi-country.service iceland-npu-off.service iceland-battery-guard.service iceland-bdaddr.service >/dev/null 2>&1 || :
 # the thermal policy hands its limits back when it stops
 [ "$1" -eq 0 ] && systemctl disable --now iceland-thermal.service >/dev/null 2>&1 || :
 if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/enforce ]; then semodule -r iceland_sensors >/dev/null 2>&1 || :; else semodule -n -r iceland_sensors >/dev/null 2>&1 || :; fi; fi
@@ -533,8 +510,6 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 %config(noreplace) /etc/iceland/battery-guard.conf
 /usr/bin/iceland-npu
 /usr/bin/iceland-update-check
-/usr/lib/udev/rules.d/72-iceland-nowake.rules
-/usr/lib/udev/rules.d/73-iceland-gpu-devfreq.rules
 /usr/lib/systemd/system-sleep/iceland-sensors
 /usr/lib/systemd/system/iio-sensor-proxy.service.d/iceland-sleep.conf
 /usr/lib/systemd/system.conf.d/60-iceland-watchdog.conf
@@ -543,9 +518,6 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/wireplumber/wireplumber.conf.d/63-iceland-mic-raw.conf
 /usr/libexec/iceland/iceland-speaker-default
 /usr/lib/systemd/user/iceland-speaker-default.service
-/usr/libexec/iceland/iceland-wifi-mac
-/usr/lib/udev/rules.d/74-iceland-wifi-mac.rules
-/usr/lib/systemd/system/iceland-wifi-mac-check.service
 /usr/libexec/iceland/iceland-slot-mark
 /usr/lib/systemd/system/iceland-slot-mark.service
 /usr/lib/systemd/system/iceland-npu-off.service
@@ -579,13 +551,7 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/lib/systemd/system/iceland-ssc-resume.service
 /usr/share/libcamera/ipa/simple/sc1320cs.yaml
 /usr/share/libcamera/ipa/simple/sc820cs.yaml
-%config(noreplace) /etc/udev/rules.d/60-block-scheduler.rules
-/usr/lib/udev/rules.d/61-iceland-ufs-scheduler.rules
-/usr/libexec/iceland/iceland-ufs-scheduler
 /usr/share/wireplumber/wireplumber.conf.d/51-iceland-camera.conf
-/usr/libexec/iceland/iceland-camera-focus
-/usr/lib/systemd/system/iceland-camera-focus.service
-%config(noreplace) /etc/iceland/camera-focus.conf
 /usr/lib/udev/rules.d/71-iceland-dma-heap.rules
 /usr/lib/udev/hwdb.d/61-iceland-battery.hwdb
 %dir /usr/lib/systemd/system/upower.service.d
@@ -642,6 +608,38 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
 
 %changelog
+* Tue Oct 13 2026 mzak <mzak.amin@gmail.com> - 0.28-7
+- iceland-speaker-default waits for WirePlumber's "default" metadata before it reads or writes the configured
+  default output, reads the value back and writes again until WirePlumber holds it, and reports success only
+  then; a choice WirePlumber restores meanwhile is kept. r157: the unit ran 40 ms after WirePlumber started,
+  pw-metadata found no "default" metadata, changed nothing and exited 0, and the configured default output
+  stayed unset (the effective default was still the protected Speakers, by priority)
+
+* Tue Oct 13 2026 mzak <mzak.amin@gmail.com> - 0.28-6
+- kernel instead of package (owner, 13 Oct 2026; needs kernel-iceland q89f); switches on: BLCLAMP K3 K7 K6K5 K2
+- iceland-thermal: the brightness cap is back, through the kernel (owner's choice, 13 Oct): the ktz8869 backlight
+  driver's cooling device "ktz8869-backlight" has one state per temperature gear (max_state 19) with stock's
+  per-gear limit built in, and lowers only what the backlight ICs get; the backlight's brightness (GNOME's slider)
+  keeps the user's value, so GNOME no longer writes the cap back (r151). The service writes the effective gear to
+  its cur_state, only when it changes, 0 on stop / ENABLE=0 / BRIGHTNESS=0, and clears a state an earlier run left.
+  No such device (an older kernel) = no brightness cap, one log line. The backlight itself is never written.
+  thermal.conf and the daemon default: BRIGHTNESS=1. CPU / GPU / charge caps and the gear table unchanged;
+  test_thermal.py / test_thermal_nobl.py follow
+- UFS I/O scheduler (K3): kernel-iceland no longer refuses parallel scheduler changes on the LUNs of one tag
+  set (block: restart instead of failing a sysfs store on a busy tag set lock), so Fedora's own
+  60-block-scheduler.rules sets bfq on the UFS LUNs as on every disk: 60-block-scheduler.rules (/etc),
+  61-iceland-ufs-scheduler.rules and iceland-ufs-scheduler are gone
+- rear camera focus (K7): the kernel holds the lens at stock's start position 450 while the rear sensor
+  streams (dw9719 dongwoon,default-position, sc1320cs lens power, DT); iceland-camera-focus, its unit and
+  camera-focus.conf are gone (a changed /etc/iceland/camera-focus.conf stays as .rpmsave)
+- wakeup defaults (K6): 72-iceland-nowake.rules removed; the device tree no longer makes the USB controller or
+  the Wi-Fi PCIe root port a wakeup source. GPU (K5): 73-iceland-gpu-devfreq.rules removed; 160 MHz is the
+  lowest operating point of every speed bin, so devfreq's min_freq is 160 MHz without it
+- Wi-Fi address (K2): 74-iceland-wifi-mac.rules, iceland-wifi-mac and iceland-wifi-mac-check.service removed;
+  the firmware's address was the same on every boot measured, so the helper never changed it
+- kept: iceland-bdaddr(.service) (the boot loader route for the Bluetooth address is deferred) and
+  /etc/sysconfig/regdomain (iceland-regdomain)
+
 * Tue Oct 13 2026 mzak <mzak.amin@gmail.com> - 0.28-5
 - microphone: stock's 14 dB recorder gain after the echo canceller (owner, 13 Oct; r155: with TX_DEC at stock's
   84 the processed speech was 14 dB lower and the WebRTC gain control did not make up for it). New
