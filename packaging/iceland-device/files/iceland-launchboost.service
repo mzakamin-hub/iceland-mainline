@@ -1,0 +1,22 @@
+[Unit]
+Description=OnePlus Pad 4: stock's app-launch boost (util clamp on new app units for 600 ms)
+Documentation=file:///usr/libexec/iceland/iceland-launchboost
+After=systemd-user-sessions.service
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/iceland/iceland-launchboost
+Restart=on-failure
+RestartSec=5
+# needs CAP_SYS_NICE for sched_setattr on other users' threads, read access to /sys/fs/cgroup and /proc
+CapabilityBoundingSet=CAP_SYS_NICE CAP_DAC_READ_SEARCH
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=-/run/iceland
+ProtectHome=yes
+PrivateNetwork=yes
+RestrictAddressFamilies=AF_UNIX
+Nice=-5
+
+[Install]
+WantedBy=multi-user.target

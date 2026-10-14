@@ -17,3 +17,4 @@ enable iceland-thermal.service
 enable iceland-bdaddr.service
 enable iceland-clock.service
 enable iceland-clock.timer
+enable iceland-launchboost.service

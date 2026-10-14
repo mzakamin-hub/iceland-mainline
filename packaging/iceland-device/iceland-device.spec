@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        11%{?dist}
+Release:        12%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -166,6 +166,11 @@ Source157:      60-iceland-vm.conf
 Source158:      iceland-thp.conf
 # 0.28-11: no password prompt to override the guard's sleep block (power key on a charger)
 Source159:      49-iceland-no-sleep-override.rules
+# govtune: stock's app-launch boost (util clamp) + system services on the small cores
+Source160:      iceland-launchboost
+Source161:      iceland-launchboost.service
+Source162:      launchboost.conf
+Source163:      50-iceland-system-cpus.conf
 
 Requires:       kernel-iceland
 Requires:       bluez
@@ -355,6 +360,10 @@ install -Dm0644 %{SOURCE101} %{buildroot}/usr/lib/systemd/system/iceland-clock.s
 install -Dm0644 %{SOURCE102} %{buildroot}/usr/lib/systemd/system/iceland-clock.timer
 install -Dm0644 %{SOURCE103} %{buildroot}/usr/lib/systemd/system/iceland-clock-save.service
 install -Dm0644 %{SOURCE52} %{buildroot}/etc/iceland/thermal.conf
+install -Dm0755 %{SOURCE160} %{buildroot}/usr/libexec/iceland/iceland-launchboost
+install -Dm0644 %{SOURCE161} %{buildroot}/usr/lib/systemd/system/iceland-launchboost.service
+install -Dm0644 %{SOURCE162} %{buildroot}/etc/iceland/launchboost.conf
+install -Dm0644 %{SOURCE163} %{buildroot}/usr/lib/systemd/system/system.slice.d/50-iceland-system-cpus.conf
 install -Dm0644 %{SOURCE53} %{buildroot}/usr/lib/systemd/logind.conf.d/60-iceland.conf
 
 install -Dm0644 %{SOURCE62} %{buildroot}/usr/lib/udev/rules.d/59-iceland-storage-ro.rules
@@ -444,6 +453,7 @@ if [ -d /run/systemd/system ]; then udevadm control --reload >/dev/null 2>&1 || 
 # device tree has the wakeup defaults, 160 MHz is the GPU's lowest operating point anyway)
 # the skin temperature policy starts at boot, like the guard
 systemctl enable iceland-thermal.service >/dev/null 2>&1 || :
+systemctl enable iceland-launchboost.service >/dev/null 2>&1 || :
 # the sensors' SELinux module: into the policy store; loaded at once on a booted system, else at the next boot
 if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/enforce ]; then semodule -i /usr/share/selinux/packages/iceland/iceland_sensors.pp >/dev/null 2>&1 || :
 else semodule -n -i /usr/share/selinux/packages/iceland/iceland_sensors.pp >/dev/null 2>&1 || :; fi
@@ -463,7 +473,7 @@ systemd-hwdb update >/dev/null 2>&1 || :
 if [ -d /run/systemd/system ]; then udevadm control --reload >/dev/null 2>&1 || :; udevadm trigger -s power_supply >/dev/null 2>&1 || :; udevadm settle --timeout=5 >/dev/null 2>&1 || :; systemctl try-restart upower.service >/dev/null 2>&1 || :; fi
 # a running guard or thermal policy takes the new version at once (both start at boot; an installation alone
 # does not start them)
-if [ -d /run/systemd/system ]; then systemctl daemon-reload >/dev/null 2>&1 || :; systemctl try-restart iceland-battery-guard.service iceland-thermal.service >/dev/null 2>&1 || :; fi
+if [ -d /run/systemd/system ]; then systemctl daemon-reload >/dev/null 2>&1 || :; systemctl try-restart iceland-battery-guard.service iceland-thermal.service >/dev/null 2>&1 || :; systemctl start iceland-launchboost.service >/dev/null 2>&1 || :; fi
 systemctl --global enable iceland-refresh.service iceland-charge-alert.service iceland-speaker-default.service >/dev/null 2>&1 || :
 # bypass charging: the bus reads the D-Bus policy of iceland-bypassd again (the service starts on demand); a running
 # one takes the new version. polkit sees the new action by itself; the GSettings override is compiled by glib2's
@@ -522,6 +532,8 @@ fi
 [ "$1" -eq 0 ] && systemctl --global disable iceland-refresh.service iceland-charge-alert.service iceland-speaker-default.service >/dev/null 2>&1; [ "$1" -eq 0 ] && systemctl disable iceland-ssc-resume.service iceland-wifi-country.service iceland-npu-off.service iceland-battery-guard.service iceland-bdaddr.service >/dev/null 2>&1 || :
 # the thermal policy hands its limits back when it stops
 [ "$1" -eq 0 ] && systemctl disable --now iceland-thermal.service >/dev/null 2>&1 || :
+# the launch boost hands every clamp back when it stops
+[ "$1" -eq 0 ] && systemctl disable --now iceland-launchboost.service >/dev/null 2>&1 || :
 if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/enforce ]; then semodule -r iceland_sensors >/dev/null 2>&1 || :; else semodule -n -r iceland_sensors >/dev/null 2>&1 || :; fi; fi
 [ "$1" -eq 0 ] && systemctl disable --now iceland-clock.timer iceland-clock.service >/dev/null 2>&1 || :
 [ "$1" -eq 0 ] && /usr/bin/iceland-power-profiles reset >/dev/null 2>&1 || :
@@ -609,6 +621,9 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/lib/systemd/system/upower.service.d/iceland.conf
 /usr/libexec/iceland/iceland-thermal
 /usr/lib/systemd/system/iceland-thermal.service
+/usr/libexec/iceland/iceland-launchboost
+/usr/lib/systemd/system/iceland-launchboost.service
+/usr/lib/systemd/system/system.slice.d/50-iceland-system-cpus.conf
 /usr/lib/systemd/system-preset/50-iceland.preset
 %dir /usr/share/selinux/packages/iceland
 /usr/share/selinux/packages/iceland/iceland_sensors.pp
@@ -619,6 +634,7 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/lib/systemd/system/iceland-clock.timer
 /usr/lib/systemd/system/iceland-clock-save.service
 %config(noreplace) /etc/iceland/thermal.conf
+%config(noreplace) /etc/iceland/launchboost.conf
 /usr/lib/systemd/logind.conf.d/60-iceland.conf
 
 %dir /usr/lib/dracut/modules.d/90iceland
@@ -659,6 +675,14 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
 
 %changelog
+* Wed Oct 14 2026 mzak <mzak.amin@gmail.com> - 0.28-12
+- (govtune, not yet measured on the tablet) iceland-launchboost, stock's app-launch boost
+  (perfboostsconfig.xml 0x1081 Type 5: 600 ms, sched_boost 1, minimum 3302400 / 4070400 kHz) as util_min 904
+  on the threads of every new unit in the user's app.slice for 600 ms (sched_setattr; systemd 259 has no
+  uclamp properties); never above scaling_max_freq, off while the battery guard cuts input, one start per 1 s
+- system.slice.d/50-iceland-system-cpus.conf: system services on cpu0-5 (stock's system-background cpuset)
+- iceland-performance: stock's performance-mode floors 1785600 / 1747200 kHz (0x1091: 0x6F9 / 0x699 MHz)
+
 * Wed Oct 14 2026 mzak <mzak.amin@gmail.com> - 0.28-11
 - polkit: 49-iceland-no-sleep-override.rules refuses org.freedesktop.login1.*-ignore-inhibit (suspend,
   hibernate, hybrid-sleep, suspend-then-hibernate) without a prompt. With a charger in the guard blocks sleep;
