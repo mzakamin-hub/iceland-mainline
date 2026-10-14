@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        10%{?dist}
+Release:        11%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -164,6 +164,8 @@ Source156:      50-iceland-abrt.preset
 # (4) memory: no proactive compaction (stock), transparent huge pages madvise
 Source157:      60-iceland-vm.conf
 Source158:      iceland-thp.conf
+# 0.28-11: no password prompt to override the guard's sleep block (power key on a charger)
+Source159:      49-iceland-no-sleep-override.rules
 
 Requires:       kernel-iceland
 Requires:       bluez
@@ -407,6 +409,7 @@ install -Dm0644 %{SOURCE155} %{buildroot}/usr/lib/systemd/system-preset/50-icela
 install -Dm0644 %{SOURCE156} %{buildroot}/usr/lib/systemd/system-preset/50-iceland-abrt.preset
 install -Dm0644 %{SOURCE157} %{buildroot}/usr/lib/sysctl.d/60-iceland-vm.conf
 install -Dm0644 %{SOURCE158} %{buildroot}/usr/lib/tmpfiles.d/iceland-thp.conf
+install -Dm0644 %{SOURCE159} %{buildroot}/usr/share/polkit-1/rules.d/49-iceland-no-sleep-override.rules
 install -d %{buildroot}/var/lib/iceland/trial
 
 %posttrans
@@ -567,6 +570,7 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/lib/systemd/system-preset/50-iceland-abrt.preset
 /usr/lib/sysctl.d/60-iceland-vm.conf
 /usr/lib/tmpfiles.d/iceland-thp.conf
+/usr/share/polkit-1/rules.d/49-iceland-no-sleep-override.rules
 /usr/lib/systemd/system/iceland-npu-off.service
 /usr/libexec/iceland/iceland-wifi-country
 /usr/lib/systemd/system/iceland-wifi-country.service
@@ -655,6 +659,13 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
 
 %changelog
+* Wed Oct 14 2026 mzak <mzak.amin@gmail.com> - 0.28-11
+- polkit: 49-iceland-no-sleep-override.rules refuses org.freedesktop.login1.*-ignore-inhibit (suspend,
+  hibernate, hybrid-sleep, suspend-then-hibernate) without a prompt. With a charger in the guard blocks sleep;
+  GNOME's power key asks to suspend past the block and showed an "authentication required" dialog after the
+  screen woke up (owner, 14 Oct, with 0.28-10's lock-and-blank). Without a block nothing changes (logind asks
+  for these actions only when a block exists); root is not affected
+
 * Wed Oct 14 2026 mzak <mzak.amin@gmail.com> - 0.28-10
 - iceland-battery-guard: the power key with a charger in (owner, 14 Oct: on a charger the power key did nothing).
   The guard's logind sleep block (KEEP_AWAKE=1, kept: the guard has to keep enforcing the temperature regions, the

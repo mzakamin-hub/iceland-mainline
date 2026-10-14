@@ -1,0 +1,15 @@
+// iceland-device 0.28-11: no password prompt to override a sleep block.
+// iceland-battery-guard blocks sleep while a charger is in (KEEP_AWAKE=1), so that its stock temperature
+// regions, USB-C connector rules and the charge limit keep acting. GNOME's power key asks logind to suspend
+// past such blocks, which needs this action; on the owner's tablet that showed an "authentication required"
+// dialog after the screen woke up (14 Oct 2026). Refusing it silently keeps the block (the guard locks and
+// blanks the screen instead). Without a block nothing changes: logind only asks for this action when a block
+// exists. root (systemctl suspend -i) is not affected. Remove this file to get the prompt back.
+polkit.addRule(function(action, subject) {
+    if (action.id == "org.freedesktop.login1.suspend-ignore-inhibit" ||
+        action.id == "org.freedesktop.login1.hibernate-ignore-inhibit" ||
+        action.id == "org.freedesktop.login1.hybrid-sleep-ignore-inhibit" ||
+        action.id == "org.freedesktop.login1.suspend-then-hibernate-ignore-inhibit") {
+        return polkit.Result.NO;
+    }
+});
