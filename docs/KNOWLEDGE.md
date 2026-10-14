@@ -194,8 +194,8 @@ https://github.com/mzakamin-hub/iceland-mainline
   - `uboot-diag-run3-summary.json`.
 - `docs/research/`: `gts6l-tab-s6.md` (Galaxy Tab S6 evaluation), `nura-oneplus-15.md` (the Nura OnePlus 15 page
   mapped to the Pad 4).
-- `docs/device-facts/stock-display-power.md` (stock rails, bandwidth, thermal) and `lineage-20260928/` (read-only
-  probe of the running LineageOS).
+- `docs/device-facts/stock-display-power.md` (stock rails, bandwidth, thermal) and the read-only probe of the running
+  LineageOS of 28 Sep 2026 (removed 14 Oct: unit-specific, not published).
 - the relay notes (removed 13 Oct, not published): `README.md` (protocol), `PC.md` (what the PC has), `requests/`, `results/` (000, 001, pc-001…pc-011 with
   their build scripts).
 - the debug tooling (removed 13 Oct, not published): `pc-watch.sh` (PC poller), `run-kit-auto.ps1` (unattended run), `run-kit-long.ps1` (late page fetch).
