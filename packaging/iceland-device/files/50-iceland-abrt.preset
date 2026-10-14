@@ -1,0 +1,12 @@
+# iceland-device 0.28-9 - OWNER DECISION (proposed, shipped as its own file so that it can be dropped alone):
+# Fedora's ABRT crash reporting daemons off. Five units ran on the installed system (field report 14 Oct 2026);
+# the owner disabled them there by hand. Crash data is not lost: systemd-coredump stays on (coredumpctl list /
+# coredumpctl info) and kernel oopses stay in the journal; what goes is ABRT's own collection, its GNOME
+# notifications and its reporting (FAF / Bugzilla) - reports that Fedora cannot use for kernel-iceland anyway.
+# Sorts before Fedora's 90-default.preset ("enable abrtd.service ..."), so "disable" wins; applied once per system
+# like 50-iceland-unused.preset (marker /var/lib/iceland/.preset-unused-0.28-9).
+disable abrtd.service
+disable abrt-journal-core.service
+disable abrt-oops.service
+disable abrt-vmcore.service
+disable abrt-xorg.service

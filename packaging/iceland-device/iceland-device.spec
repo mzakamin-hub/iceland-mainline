@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        8%{?dist}
+Release:        9%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -150,6 +150,20 @@ Source136:      iceland-speaker-default.service
 # 0.27r5: mark the Android A/B slot successful after a good boot (qbootctl -m; never in a RAM kit / rehearsal)
 Source132:      iceland-slot-mark
 Source133:      iceland-slot-mark.service
+# 0.28-9 (field report 14 Oct 2026), four separate changes:
+# (1) stock's default brightness (102 / 255 of 3542 = 1417) on the first boot only
+Source150:      iceland-backlight-default
+Source151:      iceland-backlight-default.service
+Source152:      70-iceland-backlight-default.rules
+# (2) runtime PM for the USB-C controller (dwc3 forbids it at probe), never in a rehearsal / RAM kit / with a gadget
+Source153:      iceland-usb-pm
+Source154:      72-iceland-usb-pm.rules
+# (3) presets: services without a job on this tablet off (ModemManager, md RAID, smartd); ABRT apart (owner decides)
+Source155:      50-iceland-unused.preset
+Source156:      50-iceland-abrt.preset
+# (4) memory: no proactive compaction (stock), transparent huge pages madvise
+Source157:      60-iceland-vm.conf
+Source158:      iceland-thp.conf
 
 Requires:       kernel-iceland
 Requires:       bluez
@@ -384,6 +398,15 @@ install -Dm0755 %{SOURCE135} %{buildroot}/usr/libexec/iceland/iceland-speaker-de
 install -Dm0644 %{SOURCE136} %{buildroot}/usr/lib/systemd/user/iceland-speaker-default.service
 install -Dm0755 %{SOURCE132} %{buildroot}/usr/libexec/iceland/iceland-slot-mark
 install -Dm0644 %{SOURCE133} %{buildroot}/usr/lib/systemd/system/iceland-slot-mark.service
+install -Dm0755 %{SOURCE150} %{buildroot}/usr/libexec/iceland/iceland-backlight-default
+install -Dm0644 %{SOURCE151} %{buildroot}/usr/lib/systemd/system/iceland-backlight-default.service
+install -Dm0644 %{SOURCE152} %{buildroot}/usr/lib/udev/rules.d/70-iceland-backlight-default.rules
+install -Dm0755 %{SOURCE153} %{buildroot}/usr/libexec/iceland/iceland-usb-pm
+install -Dm0644 %{SOURCE154} %{buildroot}/usr/lib/udev/rules.d/72-iceland-usb-pm.rules
+install -Dm0644 %{SOURCE155} %{buildroot}/usr/lib/systemd/system-preset/50-iceland-unused.preset
+install -Dm0644 %{SOURCE156} %{buildroot}/usr/lib/systemd/system-preset/50-iceland-abrt.preset
+install -Dm0644 %{SOURCE157} %{buildroot}/usr/lib/sysctl.d/60-iceland-vm.conf
+install -Dm0644 %{SOURCE158} %{buildroot}/usr/lib/tmpfiles.d/iceland-thp.conf
 install -d %{buildroot}/var/lib/iceland/trial
 
 %posttrans
@@ -457,6 +480,21 @@ grep -v '^#' /usr/share/iceland/machine-info | while IFS= read -r kv; do
 	grep -q "^$k=" "$mi" 2>/dev/null || echo "$kv" >> "$mi"
 done
 chmod 644 "$mi" 2>/dev/null; restorecon "$mi" >/dev/null 2>&1 || :
+# 0.28-9 (2): the USB-C controller's runtime PM now (iceland-usb-pm applies its guards; the rule covers every boot)
+if [ -d /run/systemd/system ]; then udevadm control --reload >/dev/null 2>&1 || :; /usr/libexec/iceland/iceland-usb-pm apply >/dev/null 2>&1 || :; fi
+# 0.28-9 (3): the services without a job on this tablet (50-iceland-unused.preset, 50-iceland-abrt.preset) are
+# preset once per system, and only those still enabled: a unit the owner enabled or masked keeps that state
+# afterwards, a new image gets the same at its first boot's preset-all
+if [ ! -e /var/lib/iceland/.preset-unused-0.28-9 ]; then
+	for f in /usr/lib/systemd/system-preset/50-iceland-unused.preset /usr/lib/systemd/system-preset/50-iceland-abrt.preset; do
+		[ -f "$f" ] || continue
+		for u in $(sed -n 's/^disable //p' "$f"); do
+			[ "$(systemctl is-enabled "$u" 2>/dev/null)" = enabled ] && systemctl preset "$u" >/dev/null 2>&1 || :
+		done
+	done
+	mkdir -p /var/lib/iceland && touch /var/lib/iceland/.preset-unused-0.28-9
+fi
+# 0.28-9 (4): sysctl.d / tmpfiles.d take effect through systemd's file triggers at once and at every boot
 
 %triggerin -- fwupd
 /usr/libexec/iceland/iceland-fwupd-guard || :
@@ -520,6 +558,15 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/lib/systemd/user/iceland-speaker-default.service
 /usr/libexec/iceland/iceland-slot-mark
 /usr/lib/systemd/system/iceland-slot-mark.service
+/usr/libexec/iceland/iceland-backlight-default
+/usr/lib/systemd/system/iceland-backlight-default.service
+/usr/lib/udev/rules.d/70-iceland-backlight-default.rules
+/usr/libexec/iceland/iceland-usb-pm
+/usr/lib/udev/rules.d/72-iceland-usb-pm.rules
+/usr/lib/systemd/system-preset/50-iceland-unused.preset
+/usr/lib/systemd/system-preset/50-iceland-abrt.preset
+/usr/lib/sysctl.d/60-iceland-vm.conf
+/usr/lib/tmpfiles.d/iceland-thp.conf
 /usr/lib/systemd/system/iceland-npu-off.service
 /usr/libexec/iceland/iceland-wifi-country
 /usr/lib/systemd/system/iceland-wifi-country.service
@@ -608,6 +655,31 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
 
 %changelog
+* Wed Oct 14 2026 mzak <mzak.amin@gmail.com> - 0.28-9
+- field report of the installed system (14 Oct 2026), four separate changes, none above stock:
+- (1) brightness on the first boot: iceland-backlight-default (a oneshot pulled in by 70-iceland-backlight-default.rules
+  when ktz8869-backlight appears, after systemd-backlight, before the display manager) lowers the brightness to stock
+  OxygenOS's default, 102 / 255 of stock's manual range 3542 = 1417 (SettingsProvider def_screen_brightness;
+  display_brightness_config_P_D.xml), only when systemd-backlight has no saved state for it (the first boot) and
+  only once per system (/var/lib/iceland/backlight-default.done); never raises it, never touches the cooling device
+  of iceland-thermal's cap. Off: /etc/iceland/backlight-default-off or iceland.nobacklightdefault. The installed
+  tablet was at 4095 of 4095 on first use (9.23 W against 2.2-3.0 W at 1305); the driver starts at 2047
+- (2) USB-C controller runtime PM: iceland-usb-pm (72-iceland-usb-pm.rules, add / bind of a600000.usb) sets
+  power/control to auto (the dwc3 core forbids runtime PM at every probe; with nothing plugged in the USB GDSCs
+  stayed on and CX was held at level 256). Never in a rehearsal (iceland.rehearsal=), a RAM kit or any boot whose
+  root is not on the tablet's storage, never while a configfs gadget is bound, never with iceland.nousbpm or
+  /etc/iceland/usb-pm-off. Host mode is unchanged (xhci-plat keeps its own runtime PM off)
+- (3) presets: ModemManager (no modem; disabling also drops the D-Bus alias NetworkManager-wwan would start),
+  mdmonitor, mdmonitor-takeover, raid-check.timer (no md in kernel-iceland), smartd (no SMART on UFS) disabled
+  (50-iceland-unused.preset); the five ABRT units in their own file (50-iceland-abrt.preset; OWNER DECISION,
+  systemd-coredump stays). Applied once per system to units still enabled (/var/lib/iceland/.preset-unused-0.28-9)
+- (4) memory: vm.compaction_proactiveness = 0 (60-iceland-vm.conf; stock writes 0 at every boot; kcompactd 4.7 %
+  CPU in the owner's measurement) and transparent huge pages madvise (tmpfiles.d/iceland-thp.conf; stock: never)
+- not added: a UFS WriteBooster unit (the field report's local one fails: wb_on returns EOPNOTSUPP, WriteBooster
+  follows clock scaling by design)
+- iceland-slot-mark: the loop-name cleanup kept loop0 as 'loo' (sed 's/p[0-9]*$//'); now
+  sed -E 's/^(loop[0-9]+)p[0-9]+$/\1/', so a root on a whole loop device is recognised too (test added)
+
 * Wed Oct 14 2026 mzak <mzak.amin@gmail.com> - 0.28-8
 - iceland-thermal: stock's screenOff table (sys_thermal_control_config.xml screenOff section): while the panel is
   off (DSI dpms Off or a backlight's bl_power != 0) the CPU / GPU caps are min(globalPolicy, that entry), a gear

@@ -29,7 +29,7 @@ SYS=${ICELAND_SYS:-/sys}; BYLABEL=${ICELAND_BYPARTLABEL:-/dev/disk/by-partlabel}
 log() { echo "iceland-slot-mark: $*"; }
 loop_carrier() {   # 0.28-8: $1 = /dev/loopN[pM]: "sdXN (userdata)" when its backing file is that partition, else rc 1
 	local l=${1#/dev/} bf n pn
-	l=$(echo "$l" | sed 's/p[0-9]*$//')   # loop0p3 -> loop0
+	l=$(echo "$l" | sed -E 's/^(loop[0-9]+)p[0-9]+$/\1/')   # loop0p3 -> loop0, loop0 stays
 	bf=$(cat "$SYS/block/$l/loop/backing_file" 2>/dev/null) || return 1
 	n=${bf##*/}
 	case "$n" in sd[a-z]*) ;; *) return 1 ;; esac

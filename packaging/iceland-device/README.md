@@ -2,7 +2,7 @@
 
 Fedora settings package for the OnePlus Pad 4. Configuration and scripts only: no firmware, no binaries. It has been
 installed on the tablet since 13 Oct 2026: the installed image carries version 0.28-7, and 0.28-8 (14 Oct) was added to
-the tablet by hand. `build-rpm.sh OUT` builds `iceland-device-*.noarch.rpm` (rpmbuild; tested with rpm 4.18).
+the tablet by hand; 0.28-9 (the field report's brightness, USB runtime PM, unused services and memory settings) follows. `build-rpm.sh OUT` builds `iceland-device-*.noarch.rpm` (rpmbuild; tested with rpm 4.18).
 
 | File | Installed as | Why |
 |---|---|---|
@@ -43,6 +43,10 @@ the tablet by hand. `build-rpm.sh OUT` builds `iceland-device-*.noarch.rpm` (rpm
 | `iceland-fwupd-guard` | `/usr/libexec/iceland/` | also disables fwupd's storage-firmware plug-ins (scsi, ufs) |
 | (%posttrans) | `/etc/sysconfig/kernel` | `DEFAULTKERNEL=kernel-iceland`, `UPDATEDEFAULT=yes` |
 | `iceland-slot-mark(.service)` | `/usr/libexec/iceland/`, systemd unit | once the desktop is up (+30 s), runs Fedora's `qbootctl -m` to mark the A/B slot good, only when it is not marked yet. It skips in test kits and rehearsals, with `/etc/iceland/slot-mark-off`, and when the root is not on the tablet's storage. Since 0.28-8 it accepts the installed layout (root on a loop device backed by `userdata`) and makes the boot LUN writable for that one call only |
+| `iceland-backlight-default(.service)`, `70-iceland-backlight-default.rules` | `/usr/libexec/iceland/`, systemd unit, `/usr/lib/udev/rules.d/` | (0.28-9) the first boot starts at stock's default brightness, 1417 of 4095 (stock: 102 / 255 of its manual range 3542), instead of whatever the backlight holds (the installed tablet was at 4095 on first use). Only when systemd-backlight has no saved state, once per system, never raised; later changes are the user's. Off switch: `/etc/iceland/backlight-default-off` |
+| `iceland-usb-pm`, `72-iceland-usb-pm.rules` | `/usr/libexec/iceland/`, `/usr/lib/udev/rules.d/` | (0.28-9) the USB-C controller may runtime-suspend when nothing uses it (the dwc3 core forbids it at every probe). Never in a rehearsal, a RAM kit, a boot whose root is not on the tablet's storage or while a USB gadget is bound. Host mode is unchanged. Off switch: `/etc/iceland/usb-pm-off` or `iceland.nousbpm` |
+| `50-iceland-unused.preset`, `50-iceland-abrt.preset` | `/usr/lib/systemd/system-preset/` | (0.28-9) ModemManager (no modem), mdmonitor, mdmonitor-takeover, raid-check.timer (no md RAID), smartd (no SMART on UFS) off; ABRT's five units off in their own file (the owner's decision; systemd-coredump stays). Applied once per system to units still enabled |
+| `60-iceland-vm.conf`, `iceland-thp.conf` | `/usr/lib/sysctl.d/`, `/usr/lib/tmpfiles.d/` | (0.28-9) no proactive memory compaction (stock writes 0 at boot; kcompactd took 4.7 % CPU) and transparent huge pages only for programs that ask (`madvise`; stock: `never`) |
 | `iceland-firmware-fetch`, `firmware-pins.tsv` | `/usr/bin/`, `/usr/share/iceland/` | fetches a newer `iceland-firmware` release from its GitHub release, checked against the sha256 pins (11.A.38-2, 11.A.38-3); a mismatch is refused and the file deleted; without a network the installed package is kept |
 | `iceland-repo-sync`, `iceland-local.repo` | `/usr/bin/`, `/etc/yum.repos.d/` | the local repository from which `kernel-iceland*` and `iceland-*` are updated; the PC fills it |
 | `iceland-clock(.service, .timer)` | `/usr/libexec/iceland/`, systemd units | the RTC of this board reads 1970 at power-on; the clock starts from a saved time stamp and NTP corrects it once there is a network |

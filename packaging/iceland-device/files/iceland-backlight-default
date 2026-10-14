@@ -1,0 +1,84 @@
+#!/bin/bash
+# iceland-device 0.28-9: the panel's brightness on the FIRST boot only: stock OxygenOS's default instead of what
+# happens to be in the backlight (field report 14 Oct 2026: 4095 of 4095 at first use, 9.23 W against 2.2-3.0 W at
+# 1305). Stock: SettingsProvider's def_screen_brightness = 102 of 255 (x-system_ext/priv-app/SettingsProvider,
+# resources.arsc integer/def_screen_brightness) on stock's manual range, which ends at level 3542 of the same 12-bit
+# scale (x-my_product/vendor/etc/display_brightness_config_P_D.xml brightness_table max="3542"; above is HBM):
+# 3542 * 102 / 255 = 1417 (34.6 % of the mainline driver's 4095).
+#   iceland-backlight-default apply      (iceland-backlight-default.service, pulled in by udev when the backlight
+#                                         appears) decide once, maybe lower the brightness, record the decision
+#   iceland-backlight-default --dry-run  the same decision, nothing written
+#   iceland-backlight-default status     the live values, the saved state, the marker
+# It only ever LOWERS the brightness, never raises it, and only once per system:
+#   - the marker /var/lib/iceland/backlight-default.done exists      -> nothing (decided before)
+#   - systemd-backlight has a saved state for this backlight         -> nothing, marker written (the brightness is
+#     (/var/lib/systemd/backlight/*backlight:<name>: saved at every     the user's, restored by systemd)
+#     shutdown, so it exists from the second boot on)
+#   - the off switch /etc/iceland/backlight-default-off exists, or iceland.nobacklightdefault on the kernel command
+#     line                                                           -> nothing, no marker
+#   - else (the first boot): brightness = min(current, DEFAULT, max_brightness); marker written
+# The ktz8869 cooling device (iceland-thermal's brightness cap, cur_state) is never touched: the cap stays
+# min(this value, the gear's limit) inside the driver. GNOME (mutter / gsd-power) reads the value when it starts,
+# after this unit (Before=display-manager.service), and owns the brightness from then on.
+# Test hooks (tests/test_0289_backlight.py): ICELAND_BACKLIGHT_DIR ICELAND_BL_STATEDIR ICELAND_BL_MARKER
+# ICELAND_BL_OFF ICELAND_CMDLINE ICELAND_BL_DEFAULT.
+set -u
+MODE=${1:-apply}
+NAME=ktz8869-backlight
+DEFAULT=${ICELAND_BL_DEFAULT:-1417}
+BL=${ICELAND_BACKLIGHT_DIR:-/sys/class/backlight/$NAME}
+STATEDIR=${ICELAND_BL_STATEDIR:-/var/lib/systemd/backlight}
+MARK=${ICELAND_BL_MARKER:-/var/lib/iceland/backlight-default.done}
+OFF=${ICELAND_BL_OFF:-/etc/iceland/backlight-default-off}
+CMDLINE=${ICELAND_CMDLINE:-/proc/cmdline}
+log() { echo "iceland-backlight-default: $*"; }
+rdnum() { local v; v=$(cat "$1" 2>/dev/null) || return 1; case "$v" in ''|*[!0-9]*) return 1 ;; esac; echo "$v"; }
+saved_state() {   # the systemd-backlight file of this backlight, if any ("<path id>:backlight:<name>" or "backlight:<name>")
+	local f
+	for f in "$STATEDIR"/*backlight:"$NAME"; do [ -f "$f" ] && { echo "$f"; return 0; }; done
+	return 1
+}
+mark() {
+	[ "$MODE" = apply ] || return 0
+	mkdir -p "$(dirname "$MARK")" && echo "$(date -Is 2>/dev/null) $*" > "$MARK" || log "WARN the marker $MARK cannot be written"
+}
+case "$MODE" in
+status)
+	log "backlight $BL: brightness $(cat "$BL/brightness" 2>/dev/null || echo -) of $(cat "$BL/max_brightness" 2>/dev/null || echo -), actual $(cat "$BL/actual_brightness" 2>/dev/null || echo -)"
+	s=$(saved_state) && log "systemd-backlight saved state: $s = $(cat "$s")" || log "systemd-backlight saved state: none"
+	[ -e "$MARK" ] && log "marker: $MARK ($(cat "$MARK" 2>/dev/null))" || log "marker: none (the first-boot default has not been decided yet)"
+	log "default: $DEFAULT (stock 102 / 255 of 3542)"
+	exit 0 ;;
+apply|--dry-run|dry-run) [ "$MODE" = apply ] || MODE=dry-run ;;
+*) echo "usage: iceland-backlight-default [apply|--dry-run|status]"; exit 2 ;;
+esac
+pre=""; [ "$MODE" = dry-run ] && pre="dry run: would "
+c=" $(tr '\n' ' ' < "$CMDLINE" 2>/dev/null) "
+case "$c" in *" iceland.nobacklightdefault "*|*" iceland.nobacklightdefault=1 "*) log "SKIP: iceland.nobacklightdefault on the kernel command line - nothing written"; exit 0 ;; esac
+[ -e "$OFF" ] && { log "SKIP: the off switch $OFF exists - nothing written"; exit 0; }
+[ -e "$MARK" ] && { log "SKIP: decided before ($MARK) - the brightness is the user's"; exit 0; }
+case "$DEFAULT" in ''|*[!0-9]*|0) log "FAIL the default '$DEFAULT' is not a positive number - nothing written"; exit 1 ;; esac
+cur=$(rdnum "$BL/brightness") || { log "SKIP: no backlight $BL (yet) - nothing written, decided at the next boot"; exit 0; }
+max=$(rdnum "$BL/max_brightness") || { log "SKIP: $BL has no readable max_brightness - nothing written"; exit 0; }
+if s=$(saved_state); then
+	log "SKIP: systemd-backlight restored a saved state ($s = $(cat "$s" 2>/dev/null)): not the first boot, the brightness ($cur) is the user's - ${pre}record the decision"
+	mark "saved state $s: kept $cur"
+	exit 0
+fi
+want=$DEFAULT; [ "$want" -gt "$max" ] && want=$max
+if [ "$cur" -le "$want" ]; then
+	log "first boot: brightness $cur of $max is not above the default $want - left as it is (never raised); ${pre}record the decision"
+	mark "first boot: kept $cur (default $want)"
+	exit 0
+fi
+if [ "$MODE" = dry-run ]; then
+	log "dry run: first boot: would lower the brightness $cur -> $want of $max (stock's default) and record the decision"
+	exit 0
+fi
+if echo "$want" > "$BL/brightness" 2>/dev/null && [ "$(rdnum "$BL/brightness")" = "$want" ]; then
+	log "first boot: brightness $cur -> $want of $max (stock's default, 102 / 255 of 3542); later changes are the user's"
+	mark "first boot: $cur -> $want"
+	exit 0
+fi
+log "FAIL the brightness could not be set to $want (now $(cat "$BL/brightness" 2>/dev/null)) - no marker, tried again at the next boot"
+exit 1

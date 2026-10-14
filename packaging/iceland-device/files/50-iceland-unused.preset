@@ -1,0 +1,17 @@
+# iceland-device 0.28-9: Fedora Workstation services that have nothing to do on the OnePlus Pad 4 (field report
+# 14 Oct 2026: all enabled and running on the installed system). This file sorts before Fedora's 80-workstation /
+# 90-default presets, so its "disable" wins at the first boot's preset-all and at "systemctl preset". The package
+# applies it once per system (%posttrans, marker /var/lib/iceland/.preset-unused-0.28-9) to units that are still
+# enabled; a unit the owner enables again afterwards stays enabled. Nothing is masked or removed.
+#
+# ModemManager: the tablet has no modem (Wi-Fi only; "No modems were found"). Disabling also removes the D-Bus
+#   alias dbus-org.freedesktop.ModemManager1.service, so NetworkManager-wwan can no longer D-Bus-start it (the
+#   activation file names that alias); masking is not needed.
+disable ModemManager.service
+# mdmonitor / mdmonitor-takeover / raid-check: Linux software RAID (md); kernel-iceland has no md driver
+#   (no /proc/mdstat) and the tablet has one UFS device.
+disable mdmonitor.service
+disable mdmonitor-takeover.service
+disable raid-check.timer
+# smartd: SMART monitoring; UFS has no SMART (its health is in the UFS device descriptor: life_time_estimation_a/b).
+disable smartd.service

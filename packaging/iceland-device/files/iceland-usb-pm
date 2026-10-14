@@ -1,0 +1,87 @@
+#!/bin/bash
+# iceland-device 0.28-9: let the USB-C controller (dwc3-qcom a600000.usb) runtime-suspend when nothing uses it.
+# The dwc3 core forbids runtime PM at every probe (drivers/usb/dwc3/core.c dwc3_core_probe: pm_runtime_forbid, the
+# upstream default: user space opts in); then power/control stays "on", gcc_usb30_prim_gdsc and gcc_usb3_phy_gdsc
+# stay on and the controller's performance vote holds CX at level 256 with nothing plugged in (field report 14 Oct).
+# With "auto" the controller suspends 5 s (DWC3_DEFAULT_AUTOSUSPEND_DELAY) after its last use:
+#   - device role (to a PC): dwc3_runtime_checks refuses (-EBUSY) while a host is connected; a new connection comes
+#     through the USB role switch (pmic-glink / UCSI), which resumes the controller (__dwc3_set_mode);
+#   - host role (dock, keyboard): xhci-plat forbids its own runtime PM (xhci-plat.c pm_runtime_forbid), the active
+#     xHCI child keeps the controller active: host mode behaves as before.
+#   iceland-usb-pm apply [DEVPATH]  (72-iceland-usb-pm.rules, on add / bind of a600000.usb) the guards, then
+#                                   power/control = auto
+#   iceland-usb-pm --dry-run        the guards and what apply would do; nothing written
+#   iceland-usb-pm status           the live runtime-PM values (read only)
+# Guards (each SKIPS with a log line; power/control is left as the kernel set it, "on"):
+#   - the kernel command line has iceland.rehearsal= (install rehearsal: the root disk is NBD over this USB link) or
+#     iceland.nousbpm
+#   - the off switch /etc/iceland/usb-pm-off exists
+#   - / is not on the tablet's own storage (/dev/sd*, /dev/disk/*, /dev/mapper/*, or a loop device whose backing file
+#     is the partition labelled userdata or fedora on /dev/sd*: the installed system): a RAM kit (rootfs / tmpfs /
+#     overlay, USB NCM link to the PC), an NBD root or a file-backed loop never gets runtime PM
+#   - a USB gadget (configfs) is bound to this controller (the kits' and rehearsals' NCM link)
+#   - the device has no driver yet (dwc3's probe would set "on" again)
+# Test hooks (tests/test_0289_usb_pm.py): ICELAND_CMDLINE ICELAND_ROOTSRC ICELAND_SYS ICELAND_USBPM_OFF
+# ICELAND_GADGETS.
+set -u
+MODE=${1:-apply}
+SYS=${ICELAND_SYS:-/sys}
+DEV=$SYS/devices/platform/soc@0/a600000.usb
+[ -n "${2:-}" ] && case "$2" in /sys/*) DEV=$SYS${2#/sys} ;; /devices/*) DEV=$SYS$2 ;; esac
+CMDLINE=${ICELAND_CMDLINE:-/proc/cmdline}
+OFF=${ICELAND_USBPM_OFF:-/etc/iceland/usb-pm-off}
+GADGETS=${ICELAND_GADGETS:-$SYS/kernel/config/usb_gadget}
+ROOTSRC=${ICELAND_ROOTSRC-$(findmnt -n -o SOURCE / 2>/dev/null)}
+log() {
+	echo "iceland-usb-pm: $*"
+	# udev's RUN programs have no journal stdout: one kernel log line as well (ignored in the PC tests)
+	[ -z "${ICELAND_SYS:-}" ] && [ "$MODE" = apply ] && [ -w /dev/kmsg ] && echo "iceland-usb-pm: $*" > /dev/kmsg 2>/dev/null
+	return 0
+}
+loop_carrier() {   # $1 = /dev/loopN[pM]: rc 0 when its backing file is the sd* partition labelled userdata / fedora
+	local l=${1#/dev/} bf n pn
+	l=$(echo "$l" | sed -E 's/^(loop[0-9]+)p[0-9]+$/\1/')   # loop0p3 -> loop0, loop0 stays loop0
+	bf=$(cat "$SYS/block/$l/loop/backing_file" 2>/dev/null) || return 1
+	n=${bf##*/}
+	case "$n" in sd[a-z]*) ;; *) return 1 ;; esac
+	pn=$(sed -n 's/^PARTNAME=//p' "$SYS/class/block/$n/uevent" 2>/dev/null)
+	case "$pn" in userdata|fedora) return 0 ;; esac
+	return 1
+}
+gadget_bound() {   # the name of a configfs gadget whose UDC is this controller, if any
+	local u
+	for u in "$GADGETS"/*/UDC; do
+		[ -f "$u" ] || continue
+		[ "$(cat "$u" 2>/dev/null)" = "${DEV##*/}" ] && { basename "$(dirname "$u")"; return 0; }
+	done
+	return 1
+}
+why_skip() {
+	local c=" $(tr '\n' ' ' < "$CMDLINE" 2>/dev/null) " rs=${ROOTSRC%%\[*} g
+	case "$c" in *" iceland.rehearsal="*) echo "a rehearsal boot (iceland.rehearsal= on the kernel command line: the root disk runs over this USB link)"; return ;; esac
+	case "$c" in *" iceland.nousbpm "*|*" iceland.nousbpm=1 "*) echo "iceland.nousbpm on the kernel command line"; return ;; esac
+	[ -e "$OFF" ] && { echo "the off switch $OFF exists"; return; }
+	case "$rs" in
+	/dev/sd[a-z]*|/dev/disk/*|/dev/mapper/*) ;;
+	/dev/loop[0-9]*) loop_carrier "$rs" || { echo "/ is on '$ROOTSRC', a loop device without the tablet's userdata behind it (RAM kit / test image)"; return; } ;;
+	*) echo "/ is on '${ROOTSRC:-unknown}', not on the tablet's storage (RAM kit or NBD root: the USB link to the PC must stay up)"; return ;;
+	esac
+	g=$(gadget_bound) && { echo "the USB gadget '$g' is bound to ${DEV##*/} (a link to the PC)"; return; }
+	echo ""
+}
+vals() { echo "control=$(cat "$DEV/power/control" 2>/dev/null || echo -) runtime_status=$(cat "$DEV/power/runtime_status" 2>/dev/null || echo -) suspended_ms=$(cat "$DEV/power/runtime_suspended_time" 2>/dev/null || echo -) delay_ms=$(cat "$DEV/power/autosuspend_delay_ms" 2>/dev/null || echo -)"; }
+case "$MODE" in
+status) log "${DEV##*/}: $(vals)"; exit 0 ;;
+apply|--dry-run|dry-run) ;;
+*) echo "usage: iceland-usb-pm [apply [DEVPATH]|--dry-run|status]"; exit 2 ;;
+esac
+[ -e "$DEV/power/control" ] || { log "SKIP: no USB controller at $DEV - nothing written"; exit 0; }
+w=$(why_skip)
+if [ -n "$w" ]; then log "SKIP: $w - power/control left '$(cat "$DEV/power/control" 2>/dev/null)'"; exit 0; fi
+[ -e "$DEV/driver" ] || { log "SKIP: ${DEV##*/} has no driver yet (the probe sets 'on'; the bind event comes back here)"; exit 0; }
+cur=$(cat "$DEV/power/control" 2>/dev/null)
+if [ "$MODE" != apply ]; then log "dry run: would set ${DEV##*/} power/control '$cur' -> auto ($(vals))"; exit 0; fi
+[ "$cur" = auto ] && { log "${DEV##*/} runtime PM already auto ($(vals))"; exit 0; }
+if echo auto > "$DEV/power/control" 2>/dev/null; then log "${DEV##*/} runtime PM '$cur' -> auto (suspends $(cat "$DEV/power/autosuspend_delay_ms" 2>/dev/null || echo ?) ms after its last use; host mode unchanged)"; exit 0; fi
+log "FAIL ${DEV##*/} power/control cannot be written (still '$(cat "$DEV/power/control" 2>/dev/null)')"
+exit 1

@@ -1,0 +1,5 @@
+# iceland-device 0.28-9: runtime PM for the USB-C controller (dwc3-qcom a600000.usb), which the dwc3 core forbids at
+# every probe. iceland-usb-pm applies the guards first: never in a rehearsal (iceland.rehearsal=: NBD root over this
+# USB link), a RAM kit or any boot whose / is not on the tablet's storage, never while a USB gadget is bound to the
+# controller, never with iceland.nousbpm or /etc/iceland/usb-pm-off. "bind" because the probe sets "on" again.
+ACTION=="add|bind", SUBSYSTEM=="platform", KERNEL=="a600000.usb", DRIVER=="dwc3-qcom", RUN+="/usr/libexec/iceland/iceland-usb-pm apply %S%p"
