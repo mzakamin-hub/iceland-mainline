@@ -1,0 +1,73 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-charging-generator (iceland-device 0.28-12, wf/chgmode): a cable power-on boots into the charging mode.
+#
+# With a USB cable in, a Pad 4 that was switched off is powered on again by VBUS, and ABL starts the boot partition
+# in its off-mode charging mode (stock: Android's charging screen). U-Boot (patch 0011) reads that mode from ABL and
+# hands it to Linux as /chosen/u-boot,abl-boot-mode = "charger". This generator then makes iceland-charging.target
+# the default target of this boot (a symlink default.target in the generator's early directory, which wins over
+# /etc/systemd/system/default.target): every non-graphical service of a normal boot runs (the battery guard, the
+# thermal policy, the firmware and charger services), the desktop does not start, iceland-charging.service keeps
+# the panel dark, powers off when the cable is pulled and starts the desktop at a press of the power key.
+#
+# Nothing is done (a normal boot, as before 0.28-12):
+#   - in the initramfs (/etc/initrd-release), or without the early directory argument;
+#   - when the mode is anything but "charger" or cannot be read (an older U-Boot without patch 0011: no property);
+#   - with iceland.charging=0 on the kernel command line (the owner's off switch);
+#   - when the command line names a target or a run level itself (systemd.unit=, rescue, emergency, single, s, S,
+#     1-5, -s, -b): that choice wins anyway, and the log says so;
+#   - when iceland-charging.target or the battery guard's unit is missing, or the guard is masked: the charging mode
+#     exists to keep the charging safety running without the desktop, not without the guard.
+# iceland.charging=1 on the command line forces the charging mode (tests; a cable must still be in, else
+# iceland-charging.service starts the desktop after its wait).
+# One line in the kernel log whenever the mode is charger or forced.
+# Test hooks: ICELAND_DT_CHOSEN ICELAND_CMDLINE ICELAND_UNITDIR ICELAND_ETCDIR ICELAND_INITRD_RELEASE ICELAND_KMSG.
+EARLY=${2:-}
+DT=${ICELAND_DT_CHOSEN:-/proc/device-tree/chosen}
+CMDLINE=${ICELAND_CMDLINE:-/proc/cmdline}
+UNITDIR=${ICELAND_UNITDIR:-/usr/lib/systemd/system}
+ETCDIR=${ICELAND_ETCDIR:-/etc/systemd/system}
+INITRD=${ICELAND_INITRD_RELEASE:-/etc/initrd-release}
+KMSG=${ICELAND_KMSG:-/dev/kmsg}
+TARGET=iceland-charging.target
+GUARD=iceland-battery-guard.service
+log() { printf '<6>iceland-charging-generator: %s\n' "$*" >> "$KMSG" 2>/dev/null || :; }
+[ -n "$EARLY" ] && [ -d "$EARLY" ] || exit 0
+[ -e "$INITRD" ] && exit 0
+mode=
+# a DT string property: the text up to its NUL
+[ -r "$DT/u-boot,abl-boot-mode" ] && mode=$(tr '\000' '\n' < "$DT/u-boot,abl-boot-mode" 2>/dev/null | head -n 1 | head -c 32)
+src=
+[ -r "$DT/u-boot,abl-boot-mode-source" ] && src=$(tr '\000' '\n' < "$DT/u-boot,abl-boot-mode-source" 2>/dev/null | head -n 1 | head -c 200)
+cl=" $(cat "$CMDLINE" 2>/dev/null) "
+why="ABL boot mode charger ($src)"
+case "$cl" in
+*" iceland.charging=0 "*)
+	[ "$mode" = charger ] && log "$why, iceland.charging=0 on the command line: the normal boot"
+	exit 0 ;;
+*" iceland.charging=1 "*)
+	why="iceland.charging=1 on the command line (ABL boot mode: ${mode:-none})" ;;
+*)
+	[ "$mode" = charger ] || exit 0 ;;
+esac
+for a in $cl; do
+	case "$a" in
+	systemd.unit=*|rescue|emergency|single|s|S|1|2|3|4|5|-s|-b)
+		log "$why, but the command line names its own target ($a): the normal boot"
+		exit 0 ;;
+	esac
+done
+if [ ! -f "$UNITDIR/$TARGET" ] || [ ! -f "$UNITDIR/$GUARD" ]; then
+	log "$why, but $TARGET or $GUARD is missing: the normal boot"
+	exit 0
+fi
+if [ "$(readlink "$ETCDIR/$GUARD" 2>/dev/null)" = /dev/null ]; then
+	log "$why, but $GUARD is masked: the normal boot"
+	exit 0
+fi
+if ln -sf "$UNITDIR/$TARGET" "$EARLY/default.target"; then
+	log "$why: this boot starts $TARGET (no desktop; the power key starts it, pulling the cable powers off)"
+else
+	log "$why, but the default target could not be set: the normal boot"
+fi
+exit 0

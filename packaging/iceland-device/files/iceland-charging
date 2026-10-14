@@ -1,0 +1,345 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# iceland-charging (iceland-device 0.28-12, wf/chgmode): the charging mode of a cable power-on.
+#
+# A Pad 4 that is switched off with a USB cable in is powered on again by VBUS; ABL starts the boot partition in
+# its off-mode charging mode (stock: Android's charging screen, "androidboot.mode=charger"). Up to 0.28-11 Fedora
+# then came up with its desktop. Now U-Boot (patch 0011) passes ABL's mode to Linux (/chosen/u-boot,abl-boot-mode),
+# iceland-charging-generator makes iceland-charging.target this boot's default target (multi-user.target without
+# the desktop: the battery guard with every stock limit, the thermal policy, the firmware and charger services all
+# run as in a normal boot), and this program, run by iceland-charging.service, does what stock's charging screen
+# does, the simplest safe way:
+#   - the panel stays dark: bl_power = 4 (FB_BLANK_POWERDOWN) on every backlight and blank = 4 on the frame buffer
+#     consoles; the brightness itself is never written (the values before are kept in RUN/charging-panel and put
+#     back by "restore", which iceland-charging.service runs whenever it stops); no LED, no battery picture;
+#   - the cable is pulled -> power off: the cable counts as out only when the charger's online reads 0 AND the port's
+#     present (kernel-iceland's CID) reads 0 (or does not exist while the guard holds no input cut) for UNPLUG_S
+#     seconds in a row. An unreadable or undecided reading never counts as out (a power-off with the cable still in
+#     is a new cable power-on). Checked once more right before the power-off;
+#   - a press of the power key (KEY_POWER from the PMIC's power key, read only, never grabbed; the action at the
+#     release) -> the panel is lit again and graphical.target is isolated: the desktop starts as in a normal boot
+#     (then, and only then, iceland-slot-mark and iceland-boot-confirm run, as after every normal boot);
+#   - no cable seen at all within NO_CABLE_S of the start (the mode was wrong, or the cable was pulled during the
+#     boot... the careful reading: a person may be holding the tablet) -> the desktop, as before 0.28-12.
+# logind would otherwise power the tablet off at the power key: the service runs this under a systemd-inhibit lock
+# on handle-power-key and handle-lid-switch. The battery guard is not touched and does not depend on any of this.
+#
+#   iceland-charging run       the watcher (iceland-charging.service)
+#   iceland-charging restore   light the panel again (ExecStopPost; idempotent)
+#   iceland-charging status    the mode from the DT, the cable decision, the panel state
+# Test hooks: ICELAND_USB ICELAND_DT_CHOSEN ICELAND_BACKLIGHT_SYS ICELAND_FB_SYS ICELAND_RUN ICELAND_INPUT
+# ICELAND_INPUT_SYS ICELAND_PWRKEY_DEV ICELAND_CHG_STEP_S ICELAND_CHG_UNPLUG_S ICELAND_CHG_NO_CABLE_S
+# ICELAND_CHG_MAX_S (tests: leave the loop after that many seconds).
+import errno, os, select, struct, subprocess, sys, syslog, time
+
+USB = os.environ.get("ICELAND_USB", "/sys/class/power_supply/qcom-battmgr-usb")
+DT = os.environ.get("ICELAND_DT_CHOSEN", "/proc/device-tree/chosen")
+BL_SYS = os.environ.get("ICELAND_BACKLIGHT_SYS", "/sys/class/backlight")
+FB_SYS = os.environ.get("ICELAND_FB_SYS", "/sys/class/graphics")
+RUN = os.environ.get("ICELAND_RUN", "/run/iceland")
+INPUT = os.environ.get("ICELAND_INPUT", "/dev/input")
+INPUT_SYS = os.environ.get("ICELAND_INPUT_SYS", "/sys/class/input")
+PWRKEY_DEV = os.environ.get("ICELAND_PWRKEY_DEV")
+STEP_S = float(os.environ.get("ICELAND_CHG_STEP_S", "1"))          # one cable reading per step
+UNPLUG_S = float(os.environ.get("ICELAND_CHG_UNPLUG_S", "5"))      # out this long in a row -> power off
+NO_CABLE_S = float(os.environ.get("ICELAND_CHG_NO_CABLE_S", "120")) # never in within this time -> the desktop
+MAX_S = float(os.environ.get("ICELAND_CHG_MAX_S", "0"))            # tests only: 0 = for ever
+PANEL = RUN + "/charging-panel"         # what the panel files held before the blank (restore puts them back)
+CUT_MARK = RUN + "/input-cut"           # the battery guard holds the charger input cut (online may read 0)
+PWRKEY_RESCAN_S = 30
+EV_KEY, KEY_POWER, KEY_A, KEY_Z, KEY_SPACE = 1, 116, 30, 44, 57
+EVENT = struct.Struct("llHHi")          # struct input_event (64-bit)
+BLANK_OFF = "4"                         # FB_BLANK_POWERDOWN
+
+
+def log(msg, prio=syslog.LOG_INFO):
+    syslog.syslog(prio, msg)
+    if not os.environ.get("INVOCATION_ID"):
+        print(msg, file=sys.stderr, flush=True)
+
+
+def rd(p, default=None):
+    """the first line of a sysfs file, default if it is missing or cannot be read"""
+    try:
+        with open(p) as f:
+            return f.readline().strip()
+    except OSError:
+        return default
+
+
+def wr(p, v):
+    try:
+        with open(p, "w") as f:
+            f.write(v)
+        return True
+    except OSError as e:
+        log("iceland-charging: %s <- %s: %s" % (p, v, e.strerror), syslog.LOG_WARNING)
+        return False
+
+
+def dt_mode():
+    """(mode, source) from the DT U-Boot handed over; ("", "") without patch 0011"""
+    def prop(n):
+        try:
+            with open(DT + "/" + n, "rb") as f:
+                return f.read(256).split(b"\0")[0].decode("ascii", "replace")
+        except OSError:
+            return ""
+    return prop("u-boot,abl-boot-mode"), prop("u-boot,abl-boot-mode-source")
+
+
+def cable():
+    """True: a cable is in; False: it is out; None: cannot be decided (never treated as out)"""
+    online, present = rd(USB + "/online"), rd(USB + "/present")
+    if online == "1":
+        return True
+    if present is not None:     # kernel-iceland's present (the port's CID) decides, as in the guard
+        if present == "0":
+            return False
+        return True if present.isdigit() else None
+    if online == "0":
+        if os.path.exists(CUT_MARK):
+            return None    # the guard's input cut: the firmware may say offline with the cable in
+        return False
+    return None
+
+
+# ---- the panel ---------------------------------------------------------------------------------------------------
+def panel_files():
+    """[(path, off value)]: bl_power of every backlight, blank of every frame buffer (fbN)"""
+    out = []
+    for d, attr in ((BL_SYS, "bl_power"), (FB_SYS, "blank")):
+        try:
+            names = sorted(os.listdir(d))
+        except OSError:
+            continue
+        for n in names:
+            if attr == "blank" and not (n.startswith("fb") and n[2:].isdigit()):
+                continue    # fb0, fb1, ...: not fbcon
+            p = os.path.join(d, n, attr)
+            if os.path.exists(p):
+                out.append((p, BLANK_OFF))
+    return out
+
+
+def panel_off():
+    saved = []
+    for p, off in panel_files():
+        before = rd(p)
+        if attr_ok(before):
+            saved.append("%s %s" % (p, before))
+        else:
+            saved.append("%s 0" % p)    # a blank file that cannot be read back: "on" when restored
+        wr(p, off)
+    try:
+        os.makedirs(RUN, exist_ok=True)
+        tmp = PANEL + ".tmp"
+        with open(tmp, "w") as f:
+            f.write("".join(s + "\n" for s in saved))
+        os.replace(tmp, PANEL)
+    except OSError as e:
+        log("iceland-charging: %s: %s" % (PANEL, e.strerror), syslog.LOG_WARNING)
+    log("iceland-charging: panel off (%s)" % (", ".join(p for p, _ in panel_files()) or "no backlight / frame buffer"))
+
+
+def attr_ok(v):
+    return v is not None and v.isdigit() and v != BLANK_OFF
+
+
+def panel_on():
+    """put back what panel_off saw (0 = on for anything unknown); then forget it"""
+    done = set()
+    try:
+        with open(PANEL) as f:
+            lines = f.read().splitlines()
+    except OSError:
+        lines = []
+    for l in lines:
+        p, _, v = l.rpartition(" ")
+        if p and p not in done:
+            wr(p, v if attr_ok(v) else "0")
+            done.add(p)
+    for p, _ in panel_files():     # a backlight that appeared after the blank, or a lost state file
+        if p not in done and rd(p) != "0":
+            wr(p, "0")
+    try:
+        os.remove(PANEL)
+    except OSError:
+        pass
+
+
+# ---- the power key -------------------------------------------------------------------------------------------------
+def bits(p):
+    v = 0
+    for w in (rd(p, "") or "").split():
+        try:
+            v = v << 64 | int(w, 16)
+        except ValueError:
+            return 0
+    return v
+
+
+def pwrkey_nodes():
+    """the PMIC power key's evdev nodes (name with "pwrkey"; else every KEY_POWER node that is not a keyboard), as
+    the battery guard finds them"""
+    if PWRKEY_DEV:
+        return [PWRKEY_DEV]
+    try:
+        names = sorted(n for n in os.listdir(INPUT_SYS) if n.startswith("event"))
+    except OSError:
+        return []
+    found = []
+    for n in names:
+        cap = INPUT_SYS + "/" + n + "/device/capabilities/"
+        ev, key = bits(cap + "ev"), bits(cap + "key")
+        if not (ev >> EV_KEY & 1 and key >> KEY_POWER & 1):
+            continue
+        kbd = all(key >> b & 1 for b in (KEY_A, KEY_Z, KEY_SPACE))
+        found.append((os.path.join(INPUT, n), (rd(INPUT_SYS + "/" + n + "/device/name", "") or "").lower(), kbd))
+    named = [p for p, nm, kbd in found if "pwrkey" in nm]
+    return named or [p for p, nm, kbd in found if not kbd]
+
+
+class Keys:
+    """read-only power key watcher: due() is True once a press has been released"""
+
+    def __init__(self):
+        self.fds, self.buf, self.down, self.next_scan = {}, {}, False, 0.0
+
+    def scan(self, now):
+        if self.fds or now < self.next_scan:
+            return
+        self.next_scan = now + PWRKEY_RESCAN_S
+        for p in pwrkey_nodes():
+            try:
+                self.fds[os.open(p, os.O_RDONLY | os.O_NONBLOCK)] = p
+            except OSError as e:
+                log("iceland-charging: power key %s: %s" % (p, e.strerror), syslog.LOG_WARNING)
+        log("iceland-charging: power key: " + (", ".join(self.fds.values()) or "no input device with KEY_POWER yet"))
+
+    def wait(self, timeout):
+        """wait up to timeout s for key events; True when a press of the power key was released"""
+        if not self.fds:
+            time.sleep(timeout)
+            return False
+        try:
+            r, _, _ = select.select(list(self.fds), [], [], timeout)
+        except InterruptedError:
+            return False
+        due = False
+        for fd in r:
+            try:
+                data = os.read(fd, EVENT.size * 64)
+            except OSError as e:
+                if e.errno in (errno.EAGAIN, errno.EINTR):
+                    continue
+                data = b""
+            if not data:    # the node went away (or the test's pipe closed)
+                os.close(fd)
+                self.fds.pop(fd, None)
+                self.buf.pop(fd, None)
+                continue
+            b = self.buf.get(fd, b"") + data
+            n = len(b) // EVENT.size * EVENT.size
+            for off in range(0, n, EVENT.size):
+                _, _, etype, code, value = EVENT.unpack_from(b, off)
+                if etype == EV_KEY and code == KEY_POWER:
+                    if value == 1:
+                        self.down = True
+                    elif value == 0 and self.down:
+                        self.down = False
+                        due = True
+            self.buf[fd] = b[n:]
+        return due
+
+
+# ---- the actions ---------------------------------------------------------------------------------------------------
+def systemctl(*args):
+    try:
+        r = subprocess.run(["systemctl"] + list(args), stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                           timeout=30)
+        return r.returncode == 0, (r.stderr or r.stdout).strip()
+    except (OSError, subprocess.SubprocessError) as e:
+        return False, str(e)
+
+
+def desktop(why):
+    log("iceland-charging: %s: the desktop (graphical.target)" % why, syslog.LOG_NOTICE)
+    panel_on()
+    ok, err = systemctl("--no-block", "isolate", "graphical.target")
+    if not ok:
+        log("iceland-charging: systemctl isolate graphical.target failed: %s" % err, syslog.LOG_ERR)
+    return ok
+
+
+def poweroff(out_s):
+    log("iceland-charging: the cable is out (%.0f s): power off" % out_s, syslog.LOG_NOTICE)
+    ok, err = systemctl("--no-block", "poweroff")
+    if not ok:
+        log("iceland-charging: systemctl poweroff failed: %s" % err, syslog.LOG_ERR)
+    return ok
+
+
+def run():
+    mode, src = dt_mode()
+    log("iceland-charging: charging mode (ABL boot mode %s; %s)" % (mode or "none", src or "no source"),
+        syslog.LOG_NOTICE)
+    start = time.monotonic()
+    panel_off()
+    keys = Keys()
+    seen, out_since, last = False, None, None
+    while True:
+        now = time.monotonic()
+        if MAX_S and now - start >= MAX_S:
+            return "max"
+        keys.scan(now)
+        if keys.wait(STEP_S):
+            return "desktop-key" if desktop("the power key") else "failed: isolate"
+        now = time.monotonic()
+        c = cable()
+        if c != last:
+            log("iceland-charging: cable %s" % {True: "in", False: "out", None: "undecided"}[c])
+            last = c
+        if c is True:
+            seen, out_since = True, None
+        elif c is False and seen:
+            out_since = now if out_since is None else out_since
+            if now - out_since >= UNPLUG_S:
+                if cable() is False:        # once more right before
+                    return "poweroff" if poweroff(now - out_since) else "failed: poweroff"
+                out_since = None
+        else:
+            out_since = None
+        if not seen and now - start >= NO_CABLE_S:
+            return "desktop-nocable" if desktop("no cable in %.0f s" % NO_CABLE_S) else "failed: isolate"
+
+
+def status():
+    mode, src = dt_mode()
+    print("ABL boot mode: %s (%s)" % (mode or "none (U-Boot without patch 0011)", src or "-"))
+    print("cable: %s" % {True: "in", False: "out", None: "undecided"}[cable()])
+    for p, _ in panel_files():
+        print("%s = %s" % (p, rd(p, "?")))
+    print("saved panel state: %s" % ("yes" if os.path.exists(PANEL) else "no"))
+
+
+def main(argv):
+    syslog.openlog("iceland-charging", 0, syslog.LOG_DAEMON)
+    cmd = argv[1] if len(argv) > 1 else "status"
+    if cmd == "run":
+        r = run()
+        log("iceland-charging: done (%s)" % r)
+        return 1 if r.startswith("failed") else 0    # a failure: systemd restarts, then OnFailure = the desktop
+    if cmd == "restore":
+        panel_on()
+        return 0
+    if cmd == "status":
+        status()
+        return 0
+    print("usage: iceland-charging run|restore|status", file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

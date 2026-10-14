@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        12%{?dist}
+Release:        13%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -171,6 +171,13 @@ Source160:      iceland-launchboost
 Source161:      iceland-launchboost.service
 Source162:      launchboost.conf
 Source163:      50-iceland-system-cpus.conf
+# 0.28-13 (wf/chgmode): the charging mode of a cable power-on (ABL's off-mode charging start, passed on by U-Boot
+# patch 0011 as /chosen/u-boot,abl-boot-mode): a generator picks the target, a watcher keeps the panel dark, powers
+# off at the unplug and starts the desktop at the power key
+Source164:      iceland-charging-generator
+Source165:      iceland-charging.target
+Source166:      iceland-charging.service
+Source167:      iceland-charging
 
 Requires:       kernel-iceland
 Requires:       bluez
@@ -364,6 +371,10 @@ install -Dm0755 %{SOURCE160} %{buildroot}/usr/libexec/iceland/iceland-launchboos
 install -Dm0644 %{SOURCE161} %{buildroot}/usr/lib/systemd/system/iceland-launchboost.service
 install -Dm0644 %{SOURCE162} %{buildroot}/etc/iceland/launchboost.conf
 install -Dm0644 %{SOURCE163} %{buildroot}/usr/lib/systemd/system/system.slice.d/50-iceland-system-cpus.conf
+install -Dm0755 %{SOURCE164} %{buildroot}/usr/lib/systemd/system-generators/iceland-charging-generator
+install -Dm0644 %{SOURCE165} %{buildroot}/usr/lib/systemd/system/iceland-charging.target
+install -Dm0644 %{SOURCE166} %{buildroot}/usr/lib/systemd/system/iceland-charging.service
+install -Dm0755 %{SOURCE167} %{buildroot}/usr/libexec/iceland/iceland-charging
 install -Dm0644 %{SOURCE53} %{buildroot}/usr/lib/systemd/logind.conf.d/60-iceland.conf
 
 install -Dm0644 %{SOURCE62} %{buildroot}/usr/lib/udev/rules.d/59-iceland-storage-ro.rules
@@ -624,6 +635,10 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/libexec/iceland/iceland-launchboost
 /usr/lib/systemd/system/iceland-launchboost.service
 /usr/lib/systemd/system/system.slice.d/50-iceland-system-cpus.conf
+/usr/lib/systemd/system-generators/iceland-charging-generator
+/usr/lib/systemd/system/iceland-charging.target
+/usr/lib/systemd/system/iceland-charging.service
+/usr/libexec/iceland/iceland-charging
 /usr/lib/systemd/system-preset/50-iceland.preset
 %dir /usr/share/selinux/packages/iceland
 /usr/share/selinux/packages/iceland/iceland_sensors.pp
@@ -675,6 +690,21 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
 
 %changelog
+* Wed Oct 14 2026 mzak <mzak.amin@gmail.com> - 0.28-13
+- charging mode (wf/chgmode): switched off with a USB cable in, the tablet is powered on again by VBUS and ABL starts
+  the boot partition in its off-mode charging mode (stock: Android's charging screen); Fedora came up with its
+  desktop. With U-Boot patch 0011 (ABL's boot mode in /chosen/u-boot,abl-boot-mode) the new
+  iceland-charging-generator makes iceland-charging.target the default target of such a boot: multi-user.target
+  without the desktop, so the battery guard (stock limits, JEITA regions, USB-C connector rules, the 85 % limit),
+  the thermal policy and the firmware / charger services run as in every boot. iceland-charging.service (under a
+  logind handle-power-key / handle-lid-switch lock) keeps the panel dark (bl_power and frame buffer blank; the
+  brightness is never written, everything is put back when it stops), powers off once the cable has been out for
+  5 s (online and the port's present both 0; an unreadable or undecided reading never counts as out), and starts
+  the desktop (isolate graphical.target) at a press of the power key, or after 120 s without any cable. The slot
+  mark and the kernel trial confirmation stay with graphical.target: a charging boot marks and confirms nothing.
+  Off switch: iceland.charging=0 on the kernel command line; a U-Boot without patch 0011 or any other mode: the
+  normal boot as before
+
 * Wed Oct 14 2026 mzak <mzak.amin@gmail.com> - 0.28-12
 - (govtune, not yet measured on the tablet) iceland-launchboost, stock's app-launch boost
   (perfboostsconfig.xml 0x1081 Type 5: 600 ms, sched_boost 1, minimum 3302400 / 4070400 kHz) as util_min 904

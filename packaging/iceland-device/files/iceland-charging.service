@@ -1,0 +1,19 @@
+# iceland-device 0.28-12 (wf/chgmode): the charging mode's watcher (pulled in by iceland-charging.target only).
+# logind would power the tablet off at a press of the power key (no session holds the key) - and with the cable in
+# that is a new cable power-on: the inhibitor lock below hands the key (and the cover) to the watcher, which starts
+# the desktop instead. If the watcher fails for good, OnFailure starts the desktop: the boot then ends as before
+# 0.28-12. ExecStopPost always lights the panel again (the handover to the desktop stops this service first).
+[Unit]
+Description=OnePlus Pad 4: charging mode (panel off, power key -> desktop, cable out -> power off)
+Documentation=file:///usr/libexec/iceland/iceland-charging
+After=systemd-logind.service iceland-battery-guard.service
+Before=display-manager.service
+StartLimitIntervalSec=120
+StartLimitBurst=3
+OnFailure=graphical.target
+
+[Service]
+ExecStart=/usr/bin/systemd-inhibit --what=handle-power-key:handle-lid-switch --who=iceland-charging "--why=charging mode: the power key starts the desktop" --mode=block /usr/libexec/iceland/iceland-charging run
+ExecStopPost=/usr/libexec/iceland/iceland-charging restore
+Restart=on-failure
+RestartSec=3

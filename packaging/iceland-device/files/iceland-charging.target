@@ -1,0 +1,15 @@
+# iceland-device 0.28-12 (wf/chgmode): the charging mode of a cable power-on (ABL's off-mode charging start).
+# The default target of such a boot (iceland-charging-generator). Everything of multi-user.target runs - the battery
+# guard (stock limits, JEITA regions, USB-C connector rules, the charge limit), the thermal policy, the firmware and
+# charger services - but not the desktop: no display manager, no session, so no slot marking (iceland-slot-mark) and
+# no kernel trial confirmation (iceland-boot-confirm), which both belong to graphical.target.
+# iceland-charging.service keeps the panel dark, powers off when the cable is pulled and switches to
+# graphical.target at a press of the power key (isolate: this target and its service stop, the desktop starts).
+[Unit]
+Description=OnePlus Pad 4: charging mode (cable power-on, no desktop)
+Documentation=file:///usr/libexec/iceland/iceland-charging
+Requires=multi-user.target
+Wants=iceland-charging.service
+After=multi-user.target iceland-charging.service
+Conflicts=graphical.target rescue.service rescue.target
+AllowIsolate=yes
