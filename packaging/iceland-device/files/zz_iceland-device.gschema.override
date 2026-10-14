@@ -6,3 +6,11 @@
 # own list from then on.
 [org.gnome.shell]
 enabled-extensions=['background-logo@fedorahosted.org', 'iceland-bypass@oneplus-pad4']
+
+# iceland-device 0.28-14: the power key has ONE handler, iceland-battery-guard (charger in: lock and blank; no
+# charger: suspend; the screen off: nothing; /etc/iceland/battery-guard.conf POWER_KEY_BLANK / POWER_KEY_SUSPEND).
+# With GNOME's 'suspend' both acted, and with a charger in GNOME fell back to its power-off menu (owner, 14 Oct 2026).
+# It also applies to the login screen (gdm). A user who picks another action in Settings > Power makes GNOME act on
+# the key as well (the guard's journal line says so).
+[org.gnome.settings-daemon.plugins.power]
+power-button-action='nothing'

@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        13%{?dist}
+Release:        14%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -690,6 +690,24 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
 
 %changelog
+* Wed Oct 14 2026 mzak <mzak.amin@gmail.com> - 0.28-14
+- the power key has one handler, iceland-battery-guard (owner, 14 Oct: with a charger in and the screen on, a press
+  opened GNOME's power-off menu). Cause: 0.28-11's polkit rule refuses login1.*-ignore-inhibit, so
+  gnome-settings-daemon saw suspend as not allowed and fell back to its interactive power-off dialog while the guard
+  also locked and blanked. The polkit rule stays (nothing may prompt to override the charger block).
+- zz_iceland-device.gschema.override: org.gnome.settings-daemon.plugins.power power-button-action='nothing' (also
+  the login screen; a running GNOME reads it at its next start: log out and in, or reboot); a user who picks
+  another action in Settings > Power makes GNOME act on the key as well, and the guard's journal line says so
+  (gsettings read as the session user)
+- iceland-battery-guard watches the power key always, acting at the release as 0.28-10 (once per press, auto-repeat
+  and SYN_DROPPED handled, at most one action per second, one journal line per action): the panel off at the press
+  (DSI dpms Off or bl_power != 0), the screen saver on, or a press within 3 s of a resume (the press that woke the
+  tablet): nothing, the press wakes the screen. Charger in (the guard's block): lock + blank as 0.28-10. No
+  charger: suspend as GNOME's 'suspend' did (systemctl suspend as root, never -i; GNOME locks on
+  PrepareForSleep); another program's block on sleep (logind ListInhibitors, asked first) or a refused suspend:
+  lock + blank instead, said in the line. battery-guard.conf: POWER_KEY_SUSPEND=1 (0 = nothing without a
+  charger; GNOME's setting then decides); POWER_KEY_BLANK keeps its meaning (the charger case)
+
 * Wed Oct 14 2026 mzak <mzak.amin@gmail.com> - 0.28-13
 - charging mode (wf/chgmode): switched off with a USB cable in, the tablet is powered on again by VBUS and ABL starts
   the boot partition in its off-mode charging mode (stock: Android's charging screen); Fedora came up with its

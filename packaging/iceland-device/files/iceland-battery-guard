@@ -59,8 +59,22 @@
 #              of seat0's active user session (gsd-power blanks the panel as soon as the screen saver comes on). It
 #              acts at the key's RELEASE (one action per press; auto-repeat ignored): an event after the blank would
 #              count as user activity and gsd-power would light the panel again. An active screen saver is left
-#              alone (the press wakes the screen, as GNOME does); GNOME not reachable: loginctl lock-session. Without
-#              a charger (no block) nothing changes: GNOME suspends. POWER_KEY_BLANK=0 in the conf file: as 0.28-9.
+#              alone (the press wakes the screen, as GNOME does); GNOME not reachable: loginctl lock-session.
+#              POWER_KEY_BLANK=0 in the conf file: nothing with a charger in.
+#  The power key always (0.28-14, owner 14 Oct: with a charger in a press opened GNOME's power-off menu): with
+#              0.28-11's polkit rule (no *-ignore-inhibit) gnome-settings-daemon sees suspend as not allowed and
+#              falls back to its interactive power-off dialog, while this guard also locked and blanked: two
+#              handlers. Now ONE handler: the package's gschema override sets GNOME's power-button-action to
+#              'nothing' and the guard watches the key always, acting at the release: the panel off at the press
+#              (DSI dpms Off or a backlight's bl_power != 0), the session's screen saver on, or a press within
+#              PWRKEY_RESUME_S of a resume (the press that woke the tablet): nothing (the press wakes the screen,
+#              as GNOME does). Charger in (the guard's block): lock + blank as above. No charger: suspend as GNOME's
+#              'suspend' did: first logind's ListInhibitors: another program's block on sleep -> lock + blank
+#              instead (said in the line); else "systemctl suspend" as root, never -i (GNOME locks on
+#              PrepareForSleep as before; not --check-inhibitors=yes: as root that also refuses for every
+#              logged-in user of another uid, i.e. always); a refused suspend: lock + blank. POWER_KEY_SUSPEND=0:
+#              nothing without a charger. A user who sets power-button-action to something else in Settings gets
+#              GNOME acting on the key as well: the action's journal line says so (gsettings as the session user).
 #  OURS (not stock values): the input-current check: three readings in a row with the
 #  measured input current more than 15 % + 50 mA above the limit the firmware reports -> stop charging until the
 #  charger is unplugged (before patch 0053 the tablet drew 1.2-1.9 A from a PC port); a status line in the journal
@@ -141,7 +155,7 @@
 #              that does not exist keeps its old meaning (an older kernel).
 import errno
 import glob, math, os, signal, stat, subprocess, sys, syslog, time
-import pwd, select, shutil, struct, threading
+import json, pwd, select, shutil, struct, threading
 
 BAT = os.environ.get("ICELAND_BAT", "/sys/class/power_supply/qcom-battmgr-bat")
 USB = os.environ.get("ICELAND_USB", "/sys/class/power_supply/qcom-battmgr-usb")
@@ -209,6 +223,15 @@ PWRKEY_SETTLE_S = 0.2                     # after the release: the compositor ha
 PWRKEY_GAP_S = 1.0                        # at most one action in this time (a bouncing key)
 PWRKEY_CMD_S = 3                          # time-out of each loginctl / gdbus call
 SS_DEST = ["--dest", "org.gnome.ScreenSaver", "--object-path", "/org/gnome/ScreenSaver"]
+# 0.28-14: the power key always (header "The power key always")
+DRM = os.environ.get("ICELAND_DRM", "/sys/class/drm")                    # read only: the DSI connector's dpms
+BACKLIGHT = os.environ.get("ICELAND_BACKLIGHT", "/sys/class/backlight")  # read only: bl_power
+PWRKEY_SAMPLE_S = 2.0                     # OURS: the watcher looks at the suspend clock this often (select time-out)
+PWRKEY_RESUME_S = 3.0                     # OURS: a press this soon after a resume woke the tablet: nothing
+PWRKEY_JUMP_S = 1.0                       # CLOCK_BOOTTIME - CLOCK_MONOTONIC grew by more: the system was suspended
+GSD_POWER = ["org.gnome.settings-daemon.plugins.power", "power-button-action"]
+PRE_BLANK = "iceland-battery-guard: power key with a charger in (sleep blocked): "
+PRE_SUSPEND = "iceland-battery-guard: power key without a charger: "
 
 def rd(path, default=None):
     try:
@@ -642,6 +665,9 @@ class Guard:
         log("iceland-battery-guard: the power key with a charger in (sleep blocked): %s" % (
             "nothing (POWER_KEY_BLANK=0)" if conf().get("POWER_KEY_BLANK", "1") == "0" else
             "locks and blanks the session (POWER_KEY_BLANK=1)"), syslog.LOG_NOTICE)
+        log("iceland-battery-guard: the power key without a charger: %s" % (
+            "nothing (POWER_KEY_SUSPEND=0; GNOME's power-button-action decides)" if conf().get("POWER_KEY_SUSPEND", "1") == "0"
+            else "suspends (POWER_KEY_SUSPEND=1; another program's sleep block: lock and blank)"), syslog.LOG_NOTICE)
         log("iceland-battery-guard: bypass charging %s (requests in %s)" % (
             "off (BYPASS=0)" if conf().get("BYPASS", "1") == "0" else "allowed", BYPASS_REQ), syslog.LOG_NOTICE)
         return missing
@@ -1135,21 +1161,78 @@ def active_session():
         return None, "session %s: user %s unknown" % (sid, kv.get("User", "?"))
     return (sid, pw.pw_uid, pw.pw_gid, pw.pw_name, pw.pw_dir), None
 
+def panel_state():
+    """0.28-14: "off" when the panel's DSI connector says dpms Off or a backlight has bl_power != 0 (GNOME's blank does
+    both on this tablet, as iceland-thermal's screen_state reads it), "on" when one of them reads and none says off,
+    None when nothing reads"""
+    seen = False
+    for p in glob.glob(DRM + "/card*-DSI-*/dpms"):
+        v = rd(p)
+        if v is not None:
+            seen = True
+            if v.lower() == "off":
+                return "off"
+    for d in glob.glob(BACKLIGHT + "/*"):
+        v = rd(d + "/bl_power")
+        if v is not None:
+            try:
+                n = int(v)
+            except ValueError:
+                continue
+            seen = True
+            if n != 0:
+                return "off"
+    return "on" if seen else None
+
+def clocks():
+    """(CLOCK_BOOTTIME, CLOCK_MONOTONIC): their difference grows by the time spent suspended"""
+    return time.clock_gettime(time.CLOCK_BOOTTIME), time.monotonic()
+
+def other_blocks():
+    """0.28-14: the block inhibitors on sleep of other programs (logind's ListInhibitors), ["who (why)", ...];
+    None when logind can't be asked"""
+    try:
+        r = subprocess.run(["busctl", "--json=short", "call", "org.freedesktop.login1", "/org/freedesktop/login1",
+                            "org.freedesktop.login1.Manager", "ListInhibitors"], stdin=subprocess.DEVNULL,
+                           capture_output=True, text=True, timeout=PWRKEY_CMD_S)
+        if r.returncode != 0:
+            return None
+        data = json.loads(r.stdout)["data"][0]
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError, IndexError, TypeError):
+        return None
+    out = []
+    for item in data:
+        try:
+            what, who, why, mode = item[0], item[1], item[2], item[3]
+        except (IndexError, TypeError):
+            continue
+        if mode == "block" and "sleep" in str(what).split(":") and who != "iceland-battery-guard":
+            out.append("%s (%s)" % (who, str(why)[:60]))
+    return out
+
 class PowerKey:
     """0.28-10: the power key while the guard's sleep block is in force -> lock + blank (header "The power key with a
-    charger in"). One thread: select() on the power key's nodes (no polling); a node that goes away is closed; while
-    there is none, the nodes are looked for again every PWRKEY_RESCAN_S"""
+    charger in"); 0.28-14: without a charger -> suspend, the screen off -> nothing (header "The power key always").
+    One thread: select() on the power key's nodes; a node that goes away is closed; while there is none, the nodes
+    are looked for again every PWRKEY_RESCAN_S"""
     def __init__(self, guard):
         self.g = guard
         self.fds = {}              # fd -> (path, name)
         self.buf = {}              # fd -> the bytes of a partial event
         self.down = False          # a press of the key is in progress
-        self.armed = False         # ... and it began while the block was in force (with POWER_KEY_BLANK on)
+        self.kind = None           # ... and what its release does: "blank" (block in force), "suspend" (no block), None
+        self.screen_off = False    # ... and the panel was off at the press
+        self.pending = ("blank", False)   # the (kind, screen_off) of the press whose action is due
         self.last = None           # when the last action was due (monotonic)
         self.said = None           # the node list last logged
+        self.off = None            # CLOCK_BOOTTIME - CLOCK_MONOTONIC last seen
+        self.resumed = None        # when a resume was noticed (monotonic)
 
     def enabled(self):
         return conf().get("POWER_KEY_BLANK", "1") != "0"
+
+    def suspend_enabled(self):
+        return conf().get("POWER_KEY_SUSPEND", "1") != "0"
 
     def blocking(self):
         """the guard's block is in force now (the systemd-inhibit child runs; True in a dry run)"""
@@ -1158,61 +1241,132 @@ class PowerKey:
             return True
         return a is not None and a.poll() is None
 
+    def just_resumed(self):
+        """0.28-14: True within PWRKEY_RESUME_S of a resume (sampled every PWRKEY_SAMPLE_S by the watcher)"""
+        boot, mono = clocks()
+        off = boot - mono
+        if self.off is not None and off - self.off > PWRKEY_JUMP_S:
+            self.resumed = mono
+        self.off = off
+        return self.resumed is not None and mono - self.resumed < PWRKEY_RESUME_S
+
+    def press_kind(self):
+        """what a press beginning now does at its release"""
+        if self.blocking():
+            return "blank" if self.enabled() else None
+        return "suspend" if self.suspend_enabled() else None
+
     def event(self, etype, code, value):
-        """one input event; True when the action is due: the release of a press that began with the block in force.
-        Auto-repeat (2) is ignored, a press counts once, SYN_DROPPED forgets the press in progress, and actions are
-        at least PWRKEY_GAP_S apart"""
+        """one input event; True when the action is due (then self.pending says which): the release of a press
+        that began with something to do. Auto-repeat (2) is ignored, a press counts once, SYN_DROPPED forgets the
+        press in progress, and actions are at least PWRKEY_GAP_S apart"""
         if etype == EV_SYN and code == SYN_DROPPED:
-            self.down = self.armed = False
+            self.down, self.kind = False, None
             return False
         if etype != EV_KEY or code != KEY_POWER or value == 2:
             return False
         if value == 1:
             if not self.down:
                 self.down = True
-                self.armed = self.enabled() and self.blocking()
+                self.kind = self.press_kind()
+                self.screen_off = self.kind is not None and panel_state() == "off"
+                if self.kind is not None and self.just_resumed():
+                    log("iceland-battery-guard: power key: a press right after a resume (it woke the tablet): nothing",
+                        syslog.LOG_INFO)
+                    self.kind = None
             return False
         if value != 0 or not self.down:
             return False
-        due, self.down, self.armed = self.armed, False, False
+        kind, self.down, self.kind = self.kind, False, None
         now = time.monotonic()
-        if not due or (self.last is not None and now - self.last < PWRKEY_GAP_S):
+        if kind is None or (self.last is not None and now - self.last < PWRKEY_GAP_S):
             return False
         self.last = now
+        self.pending = (kind, self.screen_off)
         return True
 
-    def act(self):
-        """lock + blank seat0's active graphical session; one log line. Returns what was done (tests)"""
+    def gnome_note(self, user):
+        """0.28-14: "" when GNOME's power-button-action is 'nothing' for the session's user (the package's default)
+        or can't be read, else a note for the action's line: GNOME acts on the key as well"""
+        if user is None:
+            return ""
+        rc, out = pk_cmd(["gsettings", "get"] + GSD_POWER, user)
+        v = (out or "").strip().strip("'")
+        if rc != 0 or not v or v == "nothing":
+            return ""
+        return ("; NOTE: GNOME's power-button-action is '%s' for %s (set in Settings > Power), so GNOME acts on the "
+                "key as well (the package's default is 'nothing')" % (v[:20], user[2]))
+
+    def saver(self, user):
+        """GNOME's screen saver of the session: (True / False, None) or (None, why it can't be asked)"""
+        bus = "%s/%d/bus" % (USER_RUN, user[0])
+        if not os.path.exists(bus):
+            return None, "no session bus %s" % bus
+        rc, out = pk_cmd(self.gcall() + ["org.gnome.ScreenSaver.GetActive"], user)
+        out = (out or "").strip()
+        if rc == 0 and out.startswith("(true"):
+            return True, None
+        if rc == 0 and out.startswith("(false"):
+            return False, None
+        return None, "GetActive: %s" % ("no answer" if rc is None else "exit %d %s" % (rc, out[:40]))
+
+    def gcall(self):
+        return ["gdbus", "call", "--session", "--timeout", str(max(1, PWRKEY_CMD_S - 1))] + SS_DEST + ["--method"]
+
+    def act(self, kind="blank", screen_off=False):
+        """the action of a press: kind "blank" (lock + blank seat0's active graphical session) or "suspend"; one log
+        line. Returns what was done (tests)"""
         time.sleep(PWRKEY_SETTLE_S)
-        pre = "iceland-battery-guard: power key with a charger in (sleep blocked): "
+        if kind == "suspend" and self.blocking():
+            kind = "blank"         # a charger came in during the press: the block is in force now
+        pre = PRE_BLANK if kind == "blank" else PRE_SUSPEND
+        if screen_off:
+            log(pre + "the screen was off at the press: nothing (the press wakes it, as GNOME does)", syslog.LOG_INFO)
+            return "screen-off"
         s, why = active_session()
+        user = s[1:] if s is not None else None
+        note = self.gnome_note(user)
+        if kind == "blank":
+            return self.blank(pre, s, why, note)
+        if s is not None:
+            on, _ = self.saver(user)
+            if on:
+                log(pre + "the screen saver of session %s is on: nothing (the press wakes the screen)%s" % (s[0], note),
+                    syslog.LOG_INFO)
+                return "active"
+        others = other_blocks()
+        if others:
+            return self.blank(pre + "sleep is blocked by %s: no suspend; " % ", ".join(others), s, why, note)
+        rc, _ = pk_cmd(["systemctl", "suspend"])
+        if rc == 0:
+            log(pre + "suspend (systemctl suspend%s)%s" % ("" if others is not None else
+                "; logind's inhibitor list can't be read", note), syslog.LOG_NOTICE)
+            return "suspended"
+        return self.blank(pre + "systemctl suspend refused (%s): " % ("no answer" if rc is None else "exit %d" % rc),
+                          s, why, note)
+
+    def blank(self, pre, s, why, note=""):
+        """lock + blank seat0's active graphical session s (from active_session(); None: why); one log line"""
         if s is None:
-            log(pre + "nothing locked (%s)" % why, syslog.LOG_NOTICE)
+            log(pre + "nothing locked (%s)%s" % (why, note), syslog.LOG_NOTICE)
             return "none"
         sid, uid, gid, name, home = s
         user = (uid, gid, name, home)
-        bus = "%s/%d/bus" % (USER_RUN, uid)
-        gcall = ["gdbus", "call", "--session", "--timeout", str(max(1, PWRKEY_CMD_S - 1))] + SS_DEST + ["--method"]
-        gerr = "no session bus %s" % bus
-        if os.path.exists(bus):
-            rc, out = pk_cmd(gcall + ["org.gnome.ScreenSaver.GetActive"], user)
-            out = (out or "").strip()
-            if rc == 0 and out.startswith("(true"):
-                log(pre + "the screen saver of session %s is on already: left to GNOME" % sid, syslog.LOG_INFO)
-                return "active"
-            if rc == 0 and out.startswith("(false"):
-                rc, out = pk_cmd(gcall + ["org.gnome.ScreenSaver.SetActive", "true"], user)
-                if rc == 0:
-                    log(pre + "session %s locked and blanked (org.gnome.ScreenSaver.SetActive)" % sid, syslog.LOG_NOTICE)
-                    return "blanked"
-                gerr = "SetActive: %s" % ("no answer" if rc is None else "exit %d" % rc)
-            else:
-                gerr = "GetActive: %s" % ("no answer" if rc is None else "exit %d %s" % (rc, out[:40]))
+        on, gerr = self.saver(user)
+        if on:
+            log(pre + "the screen saver of session %s is on already: left to GNOME%s" % (sid, note), syslog.LOG_INFO)
+            return "active"
+        if on is False:
+            rc, out = pk_cmd(self.gcall() + ["org.gnome.ScreenSaver.SetActive", "true"], user)
+            if rc == 0:
+                log(pre + "session %s locked and blanked (org.gnome.ScreenSaver.SetActive)%s" % (sid, note), syslog.LOG_NOTICE)
+                return "blanked"
+            gerr = "SetActive: %s" % ("no answer" if rc is None else "exit %d" % rc)
         rc, out = pk_cmd(["loginctl", "lock-session", sid])
         if rc == 0:
-            log(pre + "GNOME's screen saver not reachable (%s): loginctl lock-session %s" % (gerr, sid), syslog.LOG_NOTICE)
+            log(pre + "GNOME's screen saver not reachable (%s): loginctl lock-session %s%s" % (gerr, sid, note), syslog.LOG_NOTICE)
             return "locked"
-        log(pre + "GNOME's screen saver not reachable (%s) and loginctl lock-session %s failed" % (gerr, sid))
+        log(pre + "GNOME's screen saver not reachable (%s) and loginctl lock-session %s failed%s" % (gerr, sid, note))
         return "failed"
 
     def open_nodes(self):
@@ -1271,13 +1425,14 @@ class PowerKey:
                 if not self.fds:
                     time.sleep(PWRKEY_RESCAN_S)
                     continue
-                r = select.select(list(self.fds), [], [])[0]
+                r = select.select(list(self.fds), [], [], PWRKEY_SAMPLE_S)[0]
+                self.just_resumed()    # 0.28-14: notice a resume (the clocks) even without a key event
                 due = False
                 for fd in r:
                     if self.drain(fd):
                         due = True
                 if due:
-                    self.act()
+                    self.act(*self.pending)
             except Exception as e:     # OURS: the watcher never takes the guard down; it tries again later
                 log("iceland-battery-guard: power key watcher: %s: %s (again in %d s)" % (type(e).__name__, e,
                                                                                          PWRKEY_RESCAN_S))
@@ -1293,7 +1448,7 @@ def main():
     g = Guard()
     signal.signal(signal.SIGTERM, lambda *a: sys.exit(0))   # so that the sleep block is given back
     g.report_inputs()
-    if not ONESHOT and (not DRYRUN or PWRKEY_DEV):   # 0.28-10: the power key while the block is in force
+    if not ONESHOT and (not DRYRUN or PWRKEY_DEV):   # 0.28-10 / 0.28-14: the power key
         threading.Thread(target=PowerKey(g).run, name="power-key", daemon=True).start()
     try:
         while True:
