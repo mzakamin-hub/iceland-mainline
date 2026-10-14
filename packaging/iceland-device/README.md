@@ -1,7 +1,8 @@
 # iceland-device
 
-Fedora settings package for the OnePlus Pad 4 (PLAN v4 Phase 4b). Configuration and scripts only: no firmware, no
-binaries. `./build-rpm.sh OUT` builds `iceland-device-*.noarch.rpm` (rpmbuild; tested with rpm 4.18).
+Fedora settings package for the OnePlus Pad 4. Configuration and scripts only: no firmware, no binaries. It has been
+installed on the tablet since 13 Oct 2026: the installed image carries version 0.28-7, and 0.28-8 (14 Oct) was added to
+the tablet by hand. `build-rpm.sh OUT` builds `iceland-device-*.noarch.rpm` (rpmbuild; tested with rpm 4.18).
 
 | File | Installed as | Why |
 |---|---|---|
@@ -18,7 +19,7 @@ binaries. `./build-rpm.sh OUT` builds `iceland-device-*.noarch.rpm` (rpmbuild; t
 | `60-iceland-wifi-powersave.conf` | `/usr/lib/NetworkManager/conf.d/` | Wi-Fi power saving |
 | `iceland-battery-guard(.service)` | `/usr/libexec/iceland/`, systemd unit | stock charging limits as a second safety layer (see the file header for each stock value); the charge limit (follows the kernel's thresholds = GNOME's "Preserve Battery Health"); keeps the tablet awake while a charger is in; a journal line per charger; takes the smaller charge-current cap of `iceland-thermal` |
 | `battery-guard.conf` | `/etc/iceland/` (config, kept on updates) | the guard's settings, one line each (table below) |
-| `iceland-thermal(.service)` | `/usr/libexec/iceland/`, systemd unit | stock's skin temperature policy: a shell temperature estimate, 20 gears, CPU / GPU / brightness / charging limits per gear (stock tables, sources in the file header). Only ever lowers limits; the kernel's thermal zones stay underneath. The fitted model (`/etc/iceland/thermal-model.json`) is private and never shipped: without it the battery temperature + 2 C stands in |
+| `iceland-thermal(.service)` | `/usr/libexec/iceland/`, systemd unit | stock's skin temperature policy: a shell temperature estimate, 20 gears, CPU / GPU / brightness / charging limits per gear (stock tables, sources in the file header). Only ever lowers limits; the kernel's thermal zones stay underneath. The stock shell-temperature model is `/etc/iceland/thermal-model.json`, owned by `iceland-firmware` (since 0.28-4; generic, decoded from stock's configuration); without it the battery temperature + 2 C stands in |
 | `thermal.conf` | `/etc/iceland/` (config, kept on updates) | the thermal policy's settings, one line each (table below) |
 | `machine-info` | `/usr/share/iceland/machine-info`; missing keys added to `/etc/machine-info` | GNOME's About page and `hostnamectl` show "OnePlus Pad 4" (hostnamed prefers this file over the firmware's DMI strings) |
 | `81-iceland-ssc.rules` | `/usr/lib/udev/rules.d/` | the sensors behind the ADSP for iio-sensor-proxy: accelerometer + proximity enabled, the mount matrix (stock: Android frame, natural portrait, panel native at ROTATION_90), hexagonrpcd and iio-sensor-proxy started when `/dev/fastrpc-adsp` appears |
@@ -41,6 +42,15 @@ binaries. `./build-rpm.sh OUT` builds `iceland-device-*.noarch.rpm` (rpmbuild; t
 | `iceland-device.conf` (protected) | `/etc/dnf/protected.d/` | dnf never removes iceland-device or the running kernel-iceland |
 | `iceland-fwupd-guard` | `/usr/libexec/iceland/` | also disables fwupd's storage-firmware plug-ins (scsi, ufs) |
 | (%posttrans) | `/etc/sysconfig/kernel` | `DEFAULTKERNEL=kernel-iceland`, `UPDATEDEFAULT=yes` |
+| `iceland-slot-mark(.service)` | `/usr/libexec/iceland/`, systemd unit | once the desktop is up (+30 s), runs Fedora's `qbootctl -m` to mark the A/B slot good, only when it is not marked yet. It skips in test kits and rehearsals, with `/etc/iceland/slot-mark-off`, and when the root is not on the tablet's storage. Since 0.28-8 it accepts the installed layout (root on a loop device backed by `userdata`) and makes the boot LUN writable for that one call only |
+| `iceland-firmware-fetch`, `firmware-pins.tsv` | `/usr/bin/`, `/usr/share/iceland/` | fetches a newer `iceland-firmware` release from its GitHub release, checked against the sha256 pins (11.A.38-2, 11.A.38-3); a mismatch is refused and the file deleted; without a network the installed package is kept |
+| `iceland-repo-sync`, `iceland-local.repo` | `/usr/bin/`, `/etc/yum.repos.d/` | the local repository from which `kernel-iceland*` and `iceland-*` are updated; the PC fills it |
+| `iceland-clock(.service, .timer)` | `/usr/libexec/iceland/`, systemd units | the RTC of this board reads 1970 at power-on; the clock starts from a saved time stamp and NTP corrects it once there is a network |
+| `60-iceland-mic-processing.conf`, `61-iceland-mic-gain.conf`, `63-iceland-mic-raw.conf` | PipeWire and WirePlumber drop-ins | microphones: the echo canceller (hidden `iceland_mic_aec`), then a +14 dB limiter with a -1 dBFS ceiling, recording "Internal microphones (voice processing)" (the default); the unprocessed source "Internal microphones (raw)". The decimators TX_DEC0 / TX_DEC1 stay at stock's 84. Off switch: `iceland.mic-processing = false` |
+| `62-iceland-speakers.conf`, `62-iceland-speaker-raw.conf`, `iceland-speaker-default(.service)` | PipeWire and WirePlumber drop-ins; user unit | speakers: a protection chain (150 Hz high-pass, compressor with +9 dB make-up, limiter at 0 dB in / -1 dBFS out) in front of "Speakers"; the raw sink is "Speakers (raw, unprotected)". The user unit makes the protected output the default unless the account chose another, and waits for WirePlumber's default metadata. Off switch: `iceland.speaker-protection = false` |
+| `iceland-refresh` (user service), `refresh.conf` | `/usr/libexec/iceland/`, `/etc/iceland/` | switches the panel between 60 Hz on battery and 120 Hz on a charger (the defaults; `/etc/iceland/refresh.conf`). The seamless idle refresh is not switched on |
+| `iceland-bypassd`, `iceland-bypass.service`, `org.iceland.Bypass*`, the Quick Settings extension | `/usr/libexec/iceland/`, system and session units, `/usr/share/gnome-shell/extensions/` | bypass charging: the "Bypass Charging" toggle in GNOME's Quick Settings. The toggle only asks `iceland-battery-guard` for it; the guard keeps every charging limit |
+| `iceland-regdomain` | `/etc/sysconfig/regdomain` | the Wi-Fi regulatory domain (US, the firmware's) |
 | (%triggerin fwupd) | `/etc/fwupd/fwupd.conf` | `DisabledPlugins=` the plug-ins that could write boot code, EFI variables, the storage's own firmware or GPIOs (uefi_capsule, uefi_dbx, uefi_db, uefi_kek, uefi_pk, uefi_mok, uefi_sbat, uefi_recovery, uefi_esrt, android_boot, scsi, emmc, mtd, nvme, gpio, vbe, bootupd) |
 
 ## Settings (one line each; these are decisions the owner can change)
@@ -52,7 +62,7 @@ binaries. `./build-rpm.sh OUT` builds `iceland-device-*.noarch.rpm` (rpmbuild; t
 | `LIMIT_SOURCE` | `kernel` | the charge limit comes from the kernel's `charge_control_*_threshold` when the kernel has them (GNOME Settings > Power > Battery Charging decides; 80 / 85 % from `61-iceland-battery.hwdb`). `conf` = always the two numbers below, whatever GNOME's switch says (the behaviour before 0.17) |
 | `CHARGE_LIMIT`, `CHARGE_RESUME` | `85`, `80` | the limit on a kernel without its own (or with `LIMIT_SOURCE=conf`); `CHARGE_LIMIT=100` = off |
 | `KEEP_AWAKE` | `1` | no suspend by idle, power key or lid while a charger is in, as on stock (the guard keeps watching; the screen still blanks; `systemctl suspend -i` still suspends). `0` = the tablet may sleep on a charger and charging is then left to the charger firmware alone |
-| `BLOCK_LID_SWITCH` | `auto` | the cover with a charger in (wf/wake decision E.2, its recommendation): `auto` = the guard blocks sleep only while logind merely locks a closing cover with a charger in (the logind drop-in below): the cover locks the session and the screen goes dark, the tablet stays awake, and it suspends when the charger is pulled with the cover closed. If logind would sleep on a closing cover, or its setting can't be read, the lid switch is blocked as well. `yes` = the lid switch is always blocked on a charger: closing the cover does nothing (the screen stays on) |
+| `BLOCK_LID_SWITCH` | `auto` | the cover with a charger in (the wake decision of the PC session, its recommendation): `auto` = the guard blocks sleep only while logind merely locks a closing cover with a charger in (the logind drop-in below): the cover locks the session and the screen goes dark, the tablet stays awake, and it suspends when the charger is pulled with the cover closed. If logind would sleep on a closing cover, or its setting can't be read, the lid switch is blocked as well. `yes` = the lid switch is always blocked on a charger: closing the cover does nothing (the screen stays on) |
 | `THERMAL_CAP` | `1` | the guard takes the charge-current cap of `iceland-thermal` when it is lower than its own. `0` = its own limits only |
 
 "Preserve Battery Health" starts switched on: the install scriptlet writes UPower's switch file
@@ -62,7 +72,7 @@ owns it. (Generator `pkg-017.py`: `SEED_LIMIT_ON`.)
 `/usr/lib/systemd/logind.conf.d/60-iceland.conf` (the cover; a file in `/etc/systemd/logind.conf.d/` overrides a
 line): `HandleLidSwitch=suspend` (on battery), `HandleLidSwitchExternalPower=lock` (with a charger in: the
 session locks, the tablet stays awake), `HandleLidSwitchDocked=ignore` (external display). The other wake decisions
-of wf/wake (volume keys from sleep, a charger plug waking the tablet) are kernel settings, not in this package.
+of the wake decisions (volume keys from sleep, a charger plug waking the tablet) are kernel settings, not in this package.
 
 `/etc/iceland/thermal.conf` (read every period, no restart):
 
@@ -77,49 +87,11 @@ of wf/wake (volume keys from sleep, a charger plug waking the tablet) are kernel
 | `CHARGE_MA_HIGH` | `3000` | battery-current cap for stock's charge cool-down levels 4 and above; levels 1-3 are stock's 1200 / 1500 / 2000 mA |
 | `CHARGE_SHIFT` | `0` | `0` = the charging cool-down never takes a negative mode offset (the careful side); `1` = it shifts with the mode as on stock |
 | `PERIOD` | `5` | seconds between samples (stock's estimate is fitted for 5 s) |
+| `SCREEN_OFF` | `1` | (0.28-8) stock's screen-off table: while the panel is off, the CPU and GPU caps follow stock's screen-off entries. `0` = the 0.28-7 behaviour |
+| `BOOST`, `BOOST_HOLD_MS` | `1`, `1000` | (0.28-8) stock's input boost: on touch, pen, touchpad, mouse or keyboard input the CPU maxima rise to the gear's boost ceiling, never above the power mode's maximum, for `BOOST_HOLD_MS` after the last event. `0` = no boost |
 
-## Tests (PC, no tablet)
+## Tests
 
-```
-python3 tests/test_units.py files iceland-device.spec
-python3 tests/test_spec.py files iceland-device.spec
-python3 tests/test_power_profiles.py files
-python3 tests/test_refresh.py files/iceland-refresh
-python3 tests/test_npu.py files iceland-device.spec
-python3 tests/test_battery_guard.py files/iceland-battery-guard
-python3 tests/test_guard_kernel_limit.py files/iceland-battery-guard
-python3 tests/test_guard_awake.py files/iceland-battery-guard
-python3 tests/test_guard_input_suspend.py files/iceland-battery-guard
-python3 tests/test_charge_alert.py files/iceland-charge-alert files/iceland-battery-guard
-python3 tests/test_thermal.py files/iceland-thermal files/thermal.conf
-python3 tests/test_thermal_nobl.py files/iceland-thermal files/thermal.conf
-python3 tests/test_logind.py files iceland-device.spec
-python3 tests/test_install_parts.py files
-python3 tests/test_pipewire_req.py iceland-device.spec
-python3 tests/test_sensor_service.py files
-python3 tests/test_cmdline.py files
-python3 tests/test_camera_tuning.py files
-python3 tests/test_preset.py files iceland-device.spec
-python3 tests/test_selinux.py files
-python3 tests/test_modprobe.py files
-python3 tests/test_clock.py files
-python3 tests/test_guard_bypass.py files/iceland-battery-guard
-python3 tests/test_bypassd.py files/iceland-bypassd files/iceland-battery-guard
-python3 tests/test_guard_bypass_safety.py files/iceland-battery-guard
-python3 tests/test_guard_bypass_cut.py files/iceland-battery-guard
-python3 tests/test_readfail.py files/iceland-battery-guard files/iceland-bypassd files/iceland-thermal
-python3 tests/test_mic_processing.py files/60-iceland-mic-processing.conf iceland-device.spec ../../audio/ucm/OnePlus-Pad4/HiFi.conf
-python3 tests/test_update_policy.py files iceland-device.spec
-python3 tests/test_platform_defaults.py files iceland-device.spec
-python3 tests/test_speaker_protection.py files iceland-device.spec ../../audio/ucm/OnePlus-Pad4/HiFi.conf
-python3 tests/test_slot_mark.py files iceland-device.spec
-python3 tests/test_bdaddr.py files
-python3 tests/test_stock_levels.py files iceland-device.spec ../../audio/ucm/OnePlus-Pad4/HiFi.conf ../../audio/topology/OnePlus-Pad4.m4
-python3 tests/test_mic_headroom.py files/60-iceland-mic-processing.conf ../../audio/ucm/OnePlus-Pad4/HiFi.conf
-python3 tests/test_mic_gain.py files/61-iceland-mic-gain.conf files/60-iceland-mic-processing.conf iceland-device.spec ../../audio/ucm/OnePlus-Pad4/HiFi.conf
-python3 tests/test_speaker_default.py files iceland-device.spec
-python3 tests/test_ssc_resume.py files iceland-device.spec
-```
-
-Still to add as the hardware work lands: ALSA UCM with volume caps (no speaker playback before TFA9865 protection),
-60 Hz on battery, charge limit, lid/keyboard wake tweaks.
+The package's unit tests (about 40 scripts: the guards, the thermal policy, the speaker and microphone levels, the
+slot marking, the update policy and the stock-value checks) ran on the PC before each build. They are not published
+in this repository; the test material was removed from the public repositories on 13 and 14 Oct 2026.

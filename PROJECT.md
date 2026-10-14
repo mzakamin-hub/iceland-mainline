@@ -1,90 +1,119 @@
-# OnePlus Pad 4 mainline Linux — project index
+# OnePlus Pad 4 mainline Linux - project index
 
-**Device:** OnePlus Pad 4, codename `iceland`, model OPD2514, SoC Qualcomm SM8850P
-(`kaanapali`/`canoe`), stock firmware 11.A.38, bootloader unlocked, A/B.
+**Device:** OnePlus Pad 4, codename `iceland`, model OPD2514, SoC Qualcomm SM8850P (`kaanapali`/`canoe`), A/B partitions,
+unlocked boot loader. The stock firmware the project is based on is 11.A.38.
 
-**Goal:** Fedora 44 Workstation (GNOME) installed on the Pad 4, booted ABL → U-Boot → EFI → GRUB → our kernel
-(plan v4). Other distros (Arch ARM, pmOS, Debian testing, Kali, latest Ubuntu) are optional later targets.
+**Goal:** Fedora 44 Workstation (GNOME) on the Pad 4, booted ABL -> U-Boot -> EFI -> GRUB -> our kernel. **Reached on
+13 Oct 2026**: Fedora 44 GNOME is installed and boots on the tablet. Other distributions are optional later targets.
 
-The plan is in [docs/PLAN.md](docs/PLAN.md). History is in [CHANGELOG.md](CHANGELOG.md). Everything learned so far is in [docs/KNOWLEDGE.md](docs/KNOWLEDGE.md).
+Start with [README.md](README.md) for the status and the install guide ([docs/INSTALL-GUIDE.md](docs/INSTALL-GUIDE.md)).
+The dated history is in [CHANGELOG.md](CHANGELOG.md), the release notes in [docs/RELEASE-NOTES.md](docs/RELEASE-NOTES.md),
+and what the project knows is in [docs/KNOWLEDGE.md](docs/KNOWLEDGE.md). The port plan is [docs/PLAN.md](docs/PLAN.md).
 
-## Current state (2026-09-28 evening, RAM boot only)
+## Current state (14 Oct 2026)
 
 | Stage | State |
 |---|---|
-| ABL accepts a RAM boot (`fastboot boot`) | ✅ nothing is written to the tablet |
-| U-Boot on the tablet (display, USB fastboot, UFS, log over USB) | ✅ Phase 1 done |
-| Linux 7.3-rc4 starts through U-Boot EFI; earlycon on the panel | ✅ |
-| USB network (NCM), HTTP survey pages, HTTP reboot | ✅ |
-| Console stays on (ABL splash kept, INT2 GDSC held) | ✅ fixed by the PC session (pc-001) |
-| Native display, MSM DRM, dual DSI + DSC, 120 Hz, backlight | ✅ (pc-007) |
-| CPU thermal trips (stock 105/112/114 °C), tested under load | ✅ |
-| Touch firmware (SRAM download), touch + pen devices | ✅ (a real touch not yet confirmed) |
-| Wi-Fi (WCN7860, ath12k) scan; Bluetooth | ✅ (an intermittent reset when loaded early is open) |
-| Battery / USB-C data over pmic-glink (SoCCP); ADSP boots; GPU powers up | ✅ |
-| Audio, cameras, sensors, DP, suspend | not yet (audio stops at the LPASS LPI pinctrl) |
+| Boot loader: RAM boot of test images (`fastboot boot`) | works; used for every test kit and rehearsal |
+| U-Boot on the tablet: display, USB fastboot, UFS, log over USB | works; the install build v3 is the boot path in `boot_b` |
+| Linux 7.3-rc7 through U-Boot EFI (kernel q89g) | works |
+| Display: native 3392 x 2400, dual DSI with DSC, 30 to 144 Hz, backlight limit through the kernel | works |
+| Touch, pen, auto-rotate, lid and power keys | works |
+| Wi-Fi (WCN7860, ath12k), Bluetooth | works; the 5 GHz connection is not confirmed |
+| Battery and USB-C over pmic-glink; charge limits; bypass charging; battery safety guard | works |
+| GPU (Adreno 840, Mesa 26.2.4); hardware video decode and encode | works; Chromium / Electron GPU path open |
+| Audio: speakers with protection chain, microphones | works; the loudness check is the owner's |
+| Sleep (s2idle) and resume | works in the RAM kits; overnight drain not measured on the installed system |
+| Sensors and gyroscope (through the ADSP sensor hub) | works |
+| Cameras: both sensors stream through libcamera | works; no autofocus; camera into the hardware encoder open |
+| DisplayPort over USB-C | open: no picture on the monitor tested |
+| Install on the tablet: Fedora 44 GNOME in `userdata`, U-Boot in `boot_b` | done 13 Oct 2026 |
+| Dual boot with Android | not started (decision: Fedora only) |
 
-## Our repositories (private, GitHub user `mzakamin-hub`)
+The feature matrix ([docs/FEATURES.md](docs/FEATURES.md), page v62, 14 Oct) has 104 rows: 83 working, 13 partly working,
+5 to do, 3 out of scope.
+
+## Our repositories (public, GitHub user `mzakamin-hub`)
 
 | Repo | Contents | Licence |
 |---|---|---|
-| [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) (this repo) | plan, research, device facts, test log, firmware manifest (no blobs), capture tools, Linux RAM-boot debug image tools | GPL-2.0-or-later (scripts) |
-| [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) | kernel patch queue: upstream v7.3-rc4 + `0001-infiniti` (138) + `0002-iceland` (21); config fragments; build/prepare scripts; manual CI | GPL-2.0 |
-| [iceland-u-boot](https://github.com/mzakamin-hub/iceland-u-boot) | U-Boot patch queue: v2026.10-rc5 + infiniti-mainline (14) + Pad 4 board; build scripts; failsafe tablet test and diagnostic scripts | GPL-2.0+ |
+| [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) (this repo) | status, plan, install guide, device facts, feature matrix, `iceland-device` package, firmware manifest and packaging text, sensor and audio notes | GPL-2.0-or-later (scripts) |
+| [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) | kernel patch queue: Linux v7.3-rc7 + `0001-infiniti` (132 patches) + `0002-iceland` (294 patches); configs; prepare and build scripts. Branch `iceland-7.3-rc7-q89g`, tag `q89g` | GPL-2.0 |
+| [iceland-u-boot](https://github.com/mzakamin-hub/iceland-u-boot) | U-Boot patch queue: v2026.10-rc5 + infiniti-mainline (14 patches) + Pad 4 board (0002-iceland, 0001-0010); build scripts; install build v3 record | GPL-2.0+ |
+| [iceland-firmware](https://github.com/mzakamin-hub/iceland-firmware) | generic stock 11.A.38 firmware as an RPM (tags 11.A.38-2, 11.A.38-3), manifest, notices | vendor notices kept in the repo |
+| `android_device_oneplus_iceland` | Android device tree for the Pad 4 | see the repo |
+| [proprietary_vendor_oneplus_iceland](https://github.com/mzakamin-hub/proprietary_vendor_oneplus_iceland) | LineageOS 24.0 vendor tree for the Pad 4 (stock proprietary files and `radio/` images); public since 14 Oct, no unit-specific data | `lineage-24.0` |
 
-The repos hold only sources and scripts; proprietary firmware is never committed. Every binary we build records its source
-commits in `BUILD_INFO`.
+The repositories hold sources, scripts and the generic firmware package. The unit's own data is never published: the
+partition backups and carves, calibration and key material, the serial, the MAC and Bluetooth addresses, network names,
+and the test material. Every binary records its source commits in its build information.
 
 ### Where to find things
 
 | What | Where |
 |---|---|
-| Plan v3 (current) | [docs/PLAN.md](docs/PLAN.md) |
-| Discovery notes, plan v2 | [docs/RESEARCH.md](docs/RESEARCH.md) |
-| Device facts: memory map, reserved memory, I2C/SPI map, stock and live DTs | [docs/device-facts/](docs/device-facts/) |
-| Tablet test log (every run) | [docs/tests/README.md](docs/tests/README.md) |
-| Linux survey logs | [docs/tests/linux-run5/](docs/tests/linux-run5/), [docs/tests/linux-run6/](docs/tests/linux-run6/) |
-| U-Boot logs | [docs/tests/uboot-run4/](docs/tests/uboot-run4/) |
+| Status and install | [README.md](README.md), [docs/INSTALL-GUIDE.md](docs/INSTALL-GUIDE.md), [docs/INSTALL-PLAN.md](docs/INSTALL-PLAN.md) |
+| Release notes (RC1 of 3 Oct, final build of 14 Oct) | [docs/RELEASE-NOTES.md](docs/RELEASE-NOTES.md) |
+| History by date | [CHANGELOG.md](CHANGELOG.md) |
+| Feature matrix | [docs/FEATURES.md](docs/FEATURES.md) |
+| Kernel and U-Boot state | [docs/MAINLINE-STATE.md](docs/MAINLINE-STATE.md) |
+| Project snapshot and working rules | [docs/PROJECT-STATE.md](docs/PROJECT-STATE.md) |
+| Device facts: memory map, reserved memory, I2C / SPI map, stock and live DTs | [docs/device-facts/](docs/device-facts/) |
 | Firmware manifest (names, stock source, sha256) | [firmware/manifest.tsv](firmware/manifest.tsv) |
-| Read-only capture scripts (Android + DSU root) | [tools/capture/](tools/capture/) |
-| Linux RAM-boot debug image + tablet script | [tools/linux-ram/](tools/linux-ram/) |
-| Kernel pin, patches, configs, port log | iceland-linux: `kernel.pin`, `patches/`, `configs/`, `docs/PORT-LOG.md` |
-| U-Boot pin, patches, diagnostic environments | iceland-u-boot: `uboot.pin`, `patches/`, `tools/diag/` |
+| Generic firmware package (sha256 per file, notices) | [packaging/iceland-firmware/](packaging/iceland-firmware/) |
+| Device settings package (`iceland-device`) | [packaging/iceland-device/](packaging/iceland-device/) |
+| Sensor programs (hexagonrpc, libssc, iio-sensor-proxy) | [packaging/sensors/](packaging/sensors/), [docs/sensors/](docs/sensors/) |
+| Audio topology and UCM | [audio/](audio/) |
+| Fedora image build (RAM-boot scripts) | [phase4/](phase4/) |
+| Dual-boot tool (not used) | [tools/dualboot/](tools/dualboot/) |
+| Kernel pin, patches, configs, port log | iceland-linux: `kernel.pin`, `patches/`, `configs/`, `docs/` |
+| U-Boot pin, patches, install build record | iceland-u-boot: `uboot.pin`, `patches/`, `tools/install/` |
+
+Test logs, test kits, the test tools and the rehearsal logs are not published. They were removed from the public
+repositories on 13 and 14 Oct 2026, with their history. Where a document refers to them, it says so in plain text.
 
 ### Pinned sources
 
 | Component | Pin |
 |---|---|
-| Linux | [torvalds/linux](https://github.com/torvalds/linux) `v7.3-rc4` (93f51579e7df) |
-| infiniti kernel | [infiniti-mainline/linux](https://github.com/infiniti-mainline/linux) master 10650ae7bef4 |
-| Pad 4 kernel series | ported from [map220v/sm8850-mainline](https://github.com/map220v/sm8850-mainline) `iceland-7.2` bc3e5fc8 (authors kept) + our commits |
-| U-Boot | [u-boot/u-boot](https://github.com/u-boot/u-boot) `v2026.10-rc5` (a06e89ab0) |
-| infiniti U-Boot | [infiniti-mainline/u-boot](https://github.com/infiniti-mainline/u-boot) `main` bce42004f |
+| Linux | [torvalds/linux](https://github.com/torvalds/linux) `v7.3-rc7` (`UPSTREAM_COMMIT` 24a19b953e2a; the queue's `kernel.pin` is authoritative) |
+| infiniti kernel base | [infiniti-mainline/linux](https://github.com/infiniti-mainline/linux), the commit in iceland-linux `kernel.pin` |
+| Pad 4 kernel series | ported from [map220v/sm8850-mainline](https://github.com/map220v/sm8850-mainline) `iceland-7.2` (bc3e5fc8, authors kept) plus our commits |
+| U-Boot | [u-boot/u-boot](https://github.com/u-boot/u-boot) `v2026.10-rc5` (`UPSTREAM_COMMIT` a06e89ab05ea) |
+| infiniti U-Boot | [infiniti-mainline/u-boot](https://github.com/infiniti-mainline/u-boot), the commit in iceland-u-boot `uboot.pin` |
+| U-Boot install build v3 | commit aac9e744ec6f (`BUILD_INFO-v3`) |
 | mkbootimg | [LineageOS/android_system_tools_mkbootimg](https://github.com/LineageOS/android_system_tools_mkbootimg) 808ecd09 |
-| Debug initramfs busybox | Ubuntu `busybox-static` 1.36.1-6ubuntu3.1 arm64 (sha256 pinned; [source](https://launchpad.net/ubuntu/+source/busybox/1.36.1-6ubuntu3.1)) |
+| Fedora | release 44 (aarch64 Workstation image, then the stable refreshes); GNOME Shell 50.5 |
+| Mesa, libcamera, qbootctl | Mesa 26.2.4; libcamera 0.7.1-2 (Fedora stable); qbootctl 0.2.2-2 (Fedora) |
+| hexagonrpc, libssc, iio-sensor-proxy | hexagonrpc 0.5.0 snapshot, libssc 0.4.4 snapshot (both held from Fedora); iio-sensor-proxy 3.9 with the sensor-hub patches |
 
 ## Reference projects (read, not vendored)
 
 | Project | Used for |
 |---|---|
-| [map220v/sm8850-mainline](https://github.com/map220v/sm8850-mainline) (`iceland-7.2`) | Pad 4 DTS and drivers: dual DSI + NT36536 panel, KTZ8869 backlight, Novatek touch, TFA9865 audio, OPLUS battmgr |
-| [map220v/iceland-firmware](https://github.com/map220v/iceland-firmware) | list of firmware file names only (no licence, not used as a source) |
-| [infiniti-mainline/linux](https://github.com/infiniti-mainline/linux) | OnePlus 15 (same SoC) kernel: SoC fixes, carve-outs, remoteproc, Iris, CAMSS, DP, ADC5 Gen4… |
+| [map220v/sm8850-mainline](https://github.com/map220v/sm8850-mainline) (`iceland-7.2`) | the Pad 4 device tree and drivers: dual DSI with the NT36536 panel, KTZ8869 backlight, Novatek touch, TFA9865 audio, OPLUS battmgr |
+| [infiniti-mainline/linux](https://github.com/infiniti-mainline/linux) | OnePlus 15 (same SoC) kernel: SoC fixes, carve-outs, remoteproc, Iris, CAMSS, DP, ADC5 Gen4 |
 | [infiniti-mainline/u-boot](https://github.com/infiniti-mainline/u-boot) | Kaanapali U-Boot: clocks, eUSB2, PMIC, ABL memory-map fixup, fastboot |
-| [infiniti-mainline/firmware-oneplus-infiniti](https://github.com/infiniti-mainline/firmware-oneplus-infiniti) | firmware packaging layout (pmOS style) |
-| [infiniti-mainline/audioreach-topology](https://github.com/infiniti-mainline/audioreach-topology) | `OnePlus-Infiniti.m4` as the template for a Pad 4 topology |
-| pmaports `device-oneplus-infiniti` (pmOS / Nura GitLab) and [wiki.nura.eco](https://wiki.nura.eco) OnePlus 15 and SM8850 pages | pmOS packaging and known issues (blocked from the cloud container; to read on the PC) |
-| [troikoss/gts9wifi-fedora](https://github.com/troikoss/gts9wifi-fedora) (and its wiki: Porting Guide, Hardware Notes) | porting method ("find the missing layer"), Fedora packaging, hardware traps |
-| [aaronsb/sm-x800-linux](https://github.com/aaronsb/sm-x800-linux) | device-facts, firmware manifest format, distro-neutral split, pitfalls |
-| [Project-Silicium/Mu-Silicium](https://github.com/Project-Silicium/Mu-Silicium) | SM8850 memory/config maps for cross-checks (UEFI fallback dropped in plan v3) |
-| [PrestarLin/oneplus15-mainline](https://github.com/PrestarLin/oneplus15-mainline) | CI pattern (fragment merge, config grep, BUILD_INFO); `/memory` EDL lesson |
-| [LeeSiWal/y700-linux](https://github.com/LeeSiWal/y700-linux) | Lenovo Y700 gen 4 (same SoC tablet): address cross-checks, thermal and sensor traps |
-| [skb8/linux-sm8750](https://github.com/skb8/linux-sm8750) | SM8750 notes (ADSP start killed simplefb) |
+| [infiniti-mainline/firmware-oneplus-infiniti](https://github.com/infiniti-mainline/firmware-oneplus-infiniti) | firmware packaging layout |
+| [infiniti-mainline/audioreach-topology](https://github.com/infiniti-mainline/audioreach-topology) | the template for the Pad 4 audio topology |
+| [SuperTurtleDev/iceland-mainline-kernel-firmware](https://github.com/SuperTurtleDev/iceland-mainline-kernel-firmware) | comparison of the generic firmware files (iceland-firmware keeps the comparison column) |
+| tb323fu-linux (Joonhoe Kim) | kernel patches carried in the queue (provenance in iceland-linux); the PipeWire speaker-protection filter (MIT) |
+| postmarketOS device notes and [wiki.nura.eco](https://wiki.nura.eco) (OnePlus 15, SM8850) | packaging and known issues of the same SoC |
+| [troikoss/gts9wifi-fedora](https://github.com/troikoss/gts9wifi-fedora) | porting method, Fedora packaging, hardware traps |
+| [aaronsb/sm-x800-linux](https://github.com/aaronsb/sm-x800-linux) | device-facts layout, firmware manifest format, distro-neutral split |
+| [Project-Silicium/Mu-Silicium](https://github.com/Project-Silicium/Mu-Silicium) | SM8850 memory and configuration maps for cross-checks |
+| [PrestarLin/oneplus15-mainline](https://github.com/PrestarLin/oneplus15-mainline) | CI pattern, config checks, build information |
+| [LeeSiWal/y700-linux](https://github.com/LeeSiWal/y700-linux) | Lenovo Y700 gen 4 (same SoC, a tablet): address cross-checks, thermal and sensor traps |
+| [skb8/linux-sm8750](https://github.com/skb8/linux-sm8750) | SM8750 notes |
 
-## Safety rules (standing)
+## Standing rules
 
-- Only the user runs tablet commands. The agent never flashes, unlocks, wipes or switches slots.
-- Test scripts only RAM-boot (`fastboot boot`) and use allowlisted fastboot, adb and HTTP commands. U-Boot is built without fastboot flash.
-- Proprietary firmware is never committed or uploaded. The capture `private\` folder is never uploaded.
-- All repos stay private. Nothing is published and no maintainer is contacted without the user's OK.
-- Commits: `mzak <mzak.amin@gmail.com>` with `Signed-off-by`. Other people's commits keep their authorship.
+- Installing, flashing, unlocking and slot changes on the tablet are done by the owner, by hand, after the PC checks. The
+  two partition writes of the install were made that way (13 Oct 2026). Test kits only RAM-boot (`fastboot boot`).
+- Proprietary firmware is not committed. The one exception is the generic firmware package (`iceland-firmware`): the
+  owner's decision of 11 Oct 2026 allows the generic ADSP, CDSP, SOCCP, GPU, Wi-Fi / Bluetooth, touch, camera / sensor
+  and VPU files there, each with its source and sha256 and the vendor notices. Unit-specific data is never published.
+- Repositories are public. Nothing is sent upstream and no maintainer is contacted without the owner's agreement.
+- Commits carry the author's name and a `Signed-off-by` line. Commits made by other people keep their authorship.
+- Privacy: no serial number, MAC or Bluetooth address, network name, IP address, account name of the owner, local path or
+  e-mail address appears in a published file.

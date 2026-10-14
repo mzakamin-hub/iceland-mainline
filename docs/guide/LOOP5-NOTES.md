@@ -1,6 +1,14 @@
 # Loop 5 notes (9-10 Oct 2026): kernel q89b on v7.3-rc6, iceland-device 0.23, libcamera iceland4
 
-Status of the image: **CANDIDATE, still HELD** (not final). Nothing has been installed on the tablet; every result
+## Status (14 Oct 2026)
+
+Loop 5 ended with the final golden B149 (kernel q89g on Linux 7.3-rc7, iceland-device 0.28-7, committed 13 Oct 2026
+15:45 after rehearsal r158, 0 FAIL). The install image built from it was held at 17:02 and written by the owner on 13
+Oct (write 1 `userdata` 18:31, write 2 `boot_b` 20:47); Fedora 44 booted from `boot_b` at 20:48. The image is no longer
+HELD. The summary of 10-14 Oct is at the end of this file. The body below is the state of 9-10 Oct: where it says the
+image is HELD or that nothing was installed, that was true then.
+
+Status of the image (9-10 Oct): **CANDIDATE, still HELD** (not final). Nothing had been installed on the tablet; every result
 below comes from RAM boots, build runs on the tablet and install rehearsals that boot the image from the PC's disk
 without writing the tablet. Rehearsal logs stay private (journals and kernel logs carry network names); only their
 summary lines are quoted here.
@@ -11,7 +19,7 @@ summary lines are quoted here.
 |---|---|---|
 | Kernel | q89b = 7.3.0-rc6-iceland-00377-g8e90101870e4 | iceland-linux branch `iceland-7.3-rc6-q89b`, tag `q89b` (patch queue; `main` keeps the rc4 queue 0190) |
 | Device package | iceland-device 0.23 (tarball sha256 94e426b0) | `packaging/iceland-device` and `audio/` of this repository |
-| libcamera | 0.7.1 iceland4 (recipe SHA256SUMS 73acbeb2, patch 0006 94a3b8bb) | `relay/results/pc-016-020/wf/camfix/cand/loop5/libcamera-rpm-iceland4` |
+| libcamera | 0.7.1 iceland4 (recipe SHA256SUMS 73acbeb2, patch 0006 94a3b8bb) | kept on the PC (not published) |
 | Golden image | B run 129 (B runs 127 / 128 kept as records) | private (PC) |
 
 ### Kernel q89b
@@ -83,9 +91,9 @@ display with q89b's DT fix (rear 0 / front 0). Closed.
 4. SoundWire "clsh detected" and wcd9390 parity errors on the rc6 base (audio works; 0254 not the cause).
 5. F18: wcd939x -16 at boot (register 0x3126, two lines, also on rc4); the headset plug test is an owner item.
 6. Bluetooth "Frame reassembly failed (-84)" once per setup: cosmetic (the burst after RTS during the WCN7860 baud
-   change). Candidate patches in `relay/results/pc-016-020/wf/bt84/` (0001 debug dump, 0002 discard 20 ms after RTS),
+   change). Candidate patches kept on the PC (not published; 0001 debug dump, 0002 discard 20 ms after RTS),
    not queued.
-7. F55 RFC: a corrected series in `relay/results/pc-016-020/wf/f55rfc/patches/` (0001 the read-done struct as SPF V2,
+7. F55 RFC: a corrected series kept on the PC (not published; 0001 the read-done struct as SPF V2,
    56 bytes, + 0002-0005 the RFC with ALIGN 4); not built (q89c, owner's call); the upstream reply draft is not sent.
 8. Owner items: F18 headset plug, the cable-out idle test, wall-charger checks W1-W8, the 60 / 61 C skin trip under real
    load. Fedora 45 (release 20 Oct 2026): rebuild and rehearse before lifting the release pin.
@@ -122,11 +130,10 @@ install-day steps below are open). The owner runs every write.
 ### The final install package (PC, private)
 
 Built 10 Oct 2026 07:25-07:32 with `wf/final/tools/run-final.sh q89b-024-b130 130 FINAL` from the B run 130 golden
-(body sha256 6e54a84d99a01abf...). The package stays in WSL (`~/mainline/build/wf/final/q89b-024-b130/`): the image
+(body sha256 6e54a84d99a01abf...). The package stayed on the PC (not published): the image
 holds this tablet's firmware, its stock Bluetooth address and its thermal model, so the images are never committed.
-Its `MANIFEST.json`, `VERIFY.txt` and `SHA256SUMS` are in `relay/results/pc-016-020/wf/final/q89b-024-b130/`, the
-tooling in `.../wf/final/tools/`, the owner's guide in `.../wf/final/GUIDE.md`, the reviewed flash script in
-`.../wf/final/flashguide-r2/` (63 PASS / 0 FAIL with fake fastboot / adb).
+Its MANIFEST.json, VERIFY.txt and SHA256SUMS stayed on the PC (not published), and so did the tooling, the owner's guide
+and the reviewed flash script (63 PASS / 0 FAIL with fake fastboot / adb).
 
 | File | Bytes | sha256 |
 |---|---|---|
@@ -165,7 +172,7 @@ verified.
 
 iceland-linux branch `iceland-7.3-rc6-q89b`: follow-up commit tagged `q89b-1` - patches 0195-0199 (PSCI OSI) now carry
 their upstream author (Ulf Hansson <ulf.hansson@oss.qualcomm.com>, from 81f1099186fd, 9e8dff8e0978, 2224d686e788,
-6d3080bfe007, 65705b18162b) instead of "From: mzak"; contents equal upstream (patch-id), the trailers unchanged. The
+6d3080bfe007, 65705b18162b) instead of the earlier placeholder author; contents equal upstream (patch-id), the trailers unchanged. The
 applied tree is unchanged (TREE_AFTER_0002_iceland f1c7fa5d8607); tag `q89b` stays on the tested commit.
 
 ### Open items (after r2w)
@@ -188,7 +195,7 @@ applied tree is unchanged (TREE_AFTER_0002_iceland f1c7fa5d8607); tag `q89b` sta
 
 ## Update 10 Oct 2026 afternoon (commit ac): the install U-Boot, C0 #1-#4, test candidate q89c-tb, kit 132
 
-### The install U-Boot reset loop and its fix (iceland-u-boot 32c967f, patches 0008-0010)
+### The install U-Boot reset loop and its fix (iceland-u-boot, patches 0008-0010; build v3 = commit aac9e744ec6f per BUILD_INFO-v3, not 32c967f)
 
 - **C0 #1** (12:4x, the final package's install U-Boot fb2bed8d, AVB-footered c39a24e6, in boot_b): FAIL. After one
   `fastboot reboot` the tablet showed the unlocked warning and U-Boot's text and restarted about 7 times by itself;
@@ -217,7 +224,7 @@ applied tree is unchanged (TREE_AFTER_0002_iceland f1c7fa5d8607); tag `q89b` sta
   8a1b011cea5d16a82ca96eb3964b222300f8509f6bbd7962f073f6d938c3c096, usbcold (diagnostic, RAM only)
   778e979cbdbb51293b5b6a316e79acd1c7e564563a7eb4fe3f9c7a32a53e6dc8; build checks 189 / 0. The images stay on the PC;
   the queue, tooling and probes are in iceland-u-boot.
-- The C0 run scripts are kept as examples under relay/results/pc-016-020/wf/final/flashguide-r2/examples/
+- The C0 run scripts are kept on the PC as examples (not published)
   (`c0-loop.ps1` for C0 #3, `c0-v3.ps1` for C0 #4; no webcam). flash-iceland.ps1 now: Write1 refuses a decision 3
   other than boot_b (recovery_b is not scripted), and the G1 backup check reads `SHA256SUMS-supplement.txt` (two GPT
   partitions are named last_parti; the LUN-specific copies `<name>-<lun><index>.img` are preferred). Tests 63 / 0.
@@ -229,7 +236,7 @@ applied tree is unchanged (TREE_AFTER_0002_iceland f1c7fa5d8607); tag `q89b` sta
   covers it), tb 0098 ported. Six of the patches carry no Signed-off-by of their author: test use only.
 - iceland-device 0.26 (4d9512f4) = 0.25 + sensor stop across suspend (system-sleep hook iceland-sensors), USB / PCIe
   wakeup off (72-iceland-nowake.rules), systemd watchdog 30 s, dma-heap rule, GPU floor 160 MHz (= the lowest OPP,
-  no change). A CANDIDATE: packaging/iceland-device stays 0.25; 0.26 is in relay/results/pc-016-020/wf/tb5kit/cand026
+  no change). A CANDIDATE: packaging/iceland-device stays 0.25; 0.26 is a candidate kept on the PC (not published)
   with p1-026.py, mkp1manifest-026.py and manifest-p1-0.26.json (README tests 30 / 30, charging-safety 1093 / 0).
 - **B run 131**: golden committed (B130 golden backed up first).
 - **r2x** (rehearsal, 15:38): ABORTED by a tablet reset at 15:58: the test suspended the tablet (sensleep 30 s
@@ -260,3 +267,33 @@ applied tree is unchanged (TREE_AFTER_0002_iceland f1c7fa5d8607); tag `q89b` sta
 6. **Watchdog vs suspend**: qcom_wdt stops only in suspend_late, so a device-suspend stall of about 30 s could be
    bitten by the 0.26 30 s watchdog - check before 0.26 ships.
 7. r2y remainder, the tb323fu "Try" items and the SuperTurtleDev items: the next kit / rehearsal (r2z).
+
+## Rest of loop 5, 10-14 Oct 2026 (summary)
+
+Sources: the loop 5 work log and state files (private; not published). Dates are PC times.
+
+- **10 Oct (later):** the q89c-tb test candidate (0.26) stayed a test: its sensors failed after a suspend in kit 132.
+  The image stayed on q89b with iceland-device 0.24 (the golden of B run 130).
+- **11 Oct:** speaker chain work at stock levels (0.27 series); minimal holds instead of wide ones (libcamera, GRUB,
+  shim and Fedora's firmware packages come from Fedora). Rehearsal r139 had 4 FAILs; the Bluetooth race among them was
+  fixed in iceland-device 0.28-2. SuperTurtleDev's items went into the kernel queue as the q89d series.
+- **12 Oct:** the firmware repository became public (iceland-firmware, release 11.A.38-2). Golden B143 (kernel q89d8,
+  0.28-2) and the first clean final rehearsal (r139c, 36 rows, 0 FAIL). The speaker make-up was set to +9 dB, the
+  owner's choice, after loopback measurements against stock (a "never above stock" result is not proven by measurement).
+  Golden B145 (kernel q89d9, iceland-device 0.28-3, iceland-firmware 11.A.38-2, committed 11:11) was accepted by r141.
+  The skin policy was proven (r150b) and libcamera 0.7.1-2 in r152. The rc7 rebase began (q89e). The decoded generic
+  thermal model went into iceland-firmware 11.A.38-3 (owner's decision).
+- **13 Oct:** kernel q89e (rc7) with the 0.28-5 microphone chain was golden B147 (06:02, r156: one F54 FAIL). A user-space
+  brightness cap in the policy daemon fought GNOME's automatic brightness (probe r151), so the cap moved into the kernel
+  (cooling device of the ktz8869 backlight; kernels q89f and q89g). Final golden B149 (kernel q89g, iceland-device 0.28-7,
+  firmware 11.A.38-3, libcamera 0.7.1-2) was committed at 15:45 after rehearsal r158 (64 rows, 0 FAIL, no regression
+  against r141). The install image built from B149 was held at 17:02 (offline check 128 PASS, 0 FAIL). The owner ran
+  both writes, each confirmed in chat: `userdata` at 18:31 (OKAY), `boot_b` (footered U-Boot v3) at 20:47. Two tethered
+  boots came first (20:43-20:44), and Fedora 44 booted from `boot_b` on its own at 20:48, then first-boot setup.
+- **14 Oct:** the boot counter had not marked slot b on the installed system: the root is a loop device on `userdata`
+  and the boot LUN is read-only, so the marking script skipped every boot (ABL's retry count fell from 7 to 3). The owner
+  marked slot b by hand after taking GPT copies. The fix is iceland-device 0.28-8 (committed 14 Oct; PC tests only, not
+  yet in an image). Also on 14 Oct: DisplayPort over USB-C shows no picture on the owner's monitor (detection works).
+
+Open after loop 5: see [PLAN.md](PLAN.md) (the owner's checks, the slot-mark fix in an image, DP over USB-C, the camera
+into the hardware encoder, and others).

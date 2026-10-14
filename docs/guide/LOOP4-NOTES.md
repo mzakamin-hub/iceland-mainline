@@ -1,8 +1,18 @@
 # OnePlus Pad 4 - Fedora 44 GNOME: loop 4 (the one fixed build)
 
+## Status (14 Oct 2026)
+
+The fixed build of loop 4 (kernel q87, iceland-device 0.22) was superseded in loop 5 (kernel q89b, then q89d, q89e,
+q89g on Linux 7.3-rc7, the final golden B149 of 13 Oct 2026). What of loop 4 is in the installed system: the stock
+skin loop at 60 / 61 C with critical 70 C, stock's gear table in the policy daemon (the 20-gear policy of iceland-thermal), the sensor service as the user `fastrpc` (proven in r2k), bypass charging from the Quick Settings
+toggle, and the Performance profile unchanged (the CPU's top steps add nothing measurable, item 3). Two items moved:
+the stock thermal model (item 5) is no longer generated at install time only: since 12 Oct 2026 the decoded generic
+stock model is in the firmware package iceland-firmware 11.A.38-3 (owner's decision), and the install-time path is the
+fallback. The Fedora 44 install itself was done on 13 Oct 2026. The statements below are the state of 3 Oct.
+
 DRAFT 3 Oct 2026, 15:20 (docs workflow). Scope frozen by the owner at 14:48: ONE fixed build. The fields
 the result fields are filled in from the queue push and the fresh-boot test r2m (final or held) before this goes into the
-repository. **Nothing has been installed on the tablet**: every result is from RAM boots (test kits), from build runs
+repository. **Nothing had been installed on the tablet by 3 Oct** (the install came on 13 Oct): every result is from RAM boots (test kits), from build runs
 on the tablet, and from install rehearsals that boot the real install image from the PC's disk without writing it.
 Before loop 4: `RC1-NOTES.md` (q85), `LOOP3-NOTES.md` (q86, libcamera iceland2).
 
@@ -91,7 +101,8 @@ Before loop 4: `RC1-NOTES.md` (q85), `LOOP3-NOTES.md` (q86, libcamera iceland2).
   deleted; OnePlus's program never enters the image. If anything fails, there is no model and the daemon uses the
   battery temperature + 2 °C, and the install log says so. Your O2 allows shipping and committing it (private
   repositories only); it is not committed: the image carries it (since B run 121 decoded on the PC from your backup)
-  and the repositories do not.
+  and the repositories do not. [Status 14 Oct: the decoded generic model is now published in iceland-firmware 11.A.38-3;
+  see the status block above.]
 - **Why it matters:** at idle the fallback is close (within about 2 °C, at most one gear). Under a sustained load it
   lags: after a minute it reads 3.5-4 °C low, two gears too few, so stock's caps apply later and the kernel's
   60 / 61 °C loop does more of the work. Kit 120: with the model the load ended at gear 6, with the fallback at

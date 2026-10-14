@@ -1,8 +1,11 @@
-# Dual boot tools (PLAN v4 Phase 4-DB)
+# Dual boot tools (not used)
 
-Only for use **after the user has approved dual boot**. Everything else in this repo is RAM-boot only.
+Dual boot with Android is not started. The owner's decision (13 Oct 2026) is Fedora only; the plan is
+[../../docs/DUALBOOT-PLAN.md](../../docs/DUALBOOT-PLAN.md). The tool below is kept for that plan.
 
-- `reflash-recovery.ps1`: put U-Boot into the current slot's `recovery_<slot>`. Use it when setting up dual boot,
-  and after every Android OTA (an OTA switches slots). It writes only `recovery_a`/`recovery_b`, never switches
-  slots, checks the sha256 and the Android header, and needs a typed `FLASH recovery_<slot>`. Rollback: flash the
-  saved stock recovery image the same way.
+- `reflash-recovery.ps1`: writes U-Boot into the current slot's `recovery_<slot>` partition. It would be used only for
+  dual boot, and after every Android OTA (an OTA switches slots). It writes only `recovery_a` or `recovery_b`, never
+  switches slots, checks the sha256 and the Android header, and needs a typed confirmation. Rollback: write the saved
+  stock recovery image the same way.
+
+The installed system does not use this tool.

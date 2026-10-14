@@ -1,11 +1,20 @@
 # Camera bring-up plan, OnePlus Pad 4 (from the sources we have)
 
-Status 2026-09-30: C0 done by a LineageOS trace (section 1c, `relay/results/area-camera.md`); C1-C3 next. Camera is the hardest item (TODO difficulty 4). Rule 13 applies: every value comes
+Status (14 Oct 2026):
+- Both sensors stream through Fedora 44's libcamera 0.7.1-2 (the patched build was dropped). Open and close pass 40 of 40
+  (G4). The sensor driver (in-tree `sc1320cs.ko` from kernel-iceland) powers the focus motor only while a stream runs.
+- Focus: the kernel holds the rear lens at the stock start position 450 (K7). libcamera's simple pipeline has no
+  autofocus, so the autofocus exit criterion in section 4 is NOT met. Focus is fixed, not automatic.
+- Camera into the hardware encoder does not negotiate (VE-CAM FAIL: no format is offered on either camera).
+- The software ISP path (section 2, C5) is the one in use. Image tuning, the PipeWire portal and the GNOME Snapshot result
+  are not settled by the sources (unverified).
+
+Status 2026-09-30: C0 done by a LineageOS trace (section 1c, the relay result is not published); C1-C3 next. Camera is the hardest item (TODO difficulty 4). Rule 13 applies: every value comes
 from Pad 4 stock (OxygenOS 11.A.38 captures and partitions, the user's LineageOS trees, OnePlusOSS OPD2514).
 
 ## 1. What the sources already give us
 
-**Hardware (live stock DT capture 2, relay 002, odm `lib64/camera`):**
+**Hardware (live stock DT of the second capture, PC relay notes not published, odm `lib64/camera`):**
 
 | | Rear ("icelandmain") | Front ("icelandfront") |
 |---|---|---|
@@ -27,7 +36,7 @@ from Pad 4 stock (OxygenOS 11.A.38 captures and partitions, the user's LineageOS
 - camcc.
 
 Upstream is reviewing "CAMSS RDI-only on kaanapali" (CSIPHY, CSID, TFE; v15, needs a `qdss_debug_xo` clock;
-relay 010 compares it with infiniti's version). **RDI-only** means raw Bayer frames straight to memory. Qualcomm's
+a PC comparison with infiniti's version was made). **RDI-only** means raw Bayer frames straight to memory. Qualcomm's
 image processing (IFE/IPE/BPS and the `CAMERA_ICP` firmware) isn't usable on mainline, so processing is done by
 libcamera's **software ISP** (CPU/GPU).
 
@@ -46,16 +55,16 @@ is Qualcomm's generic `cam_sensor`; the sensor **register sequences live in the 
 | Reset, rear | PMH0110 **SID 6** GPIO 14 (`CAM_RESET1_1P8`), drive 2, low in suspend | `&pmh0110_g_e0_gpios 14` |
 | Reset, front | PMH0110 SID 6 GPIO 13 | `&pmh0110_g_e0_gpios 13` |
 | Power domain | `<&camcc 5>` (camcc@956d000) | `&camcc` index 5 (check its name in the kaanapali camcc binding) |
-| Actuator | `qcom,cam-i2c-actuator` @0x18, supplies vio + vaf; IC name not in the DT | to find in the sensormodule/.so (relay 014) |
+| Actuator | `qcom,cam-i2c-actuator` @0x18, supplies vio + vaf; IC name not in the DT | to find in the sensormodule / .so (PC notes) |
 
-Still needed from relay 014 (C0): the power-up order and delays, the register tables, the CSI lane count and link
+Still needed from the PC's sensor-module analysis (C0): the power-up order and delays, the register tables, the CSI lane count and link
 frequency, the EEPROM sizes, and the actuator IC.
 
 ## 1c. From the LineageOS trace (2026-09-30)
 
-The stock camera, traced read-only while Aperture opened both cameras (no photo taken), settles C0 except the EEPROM sizes: the **7-bit** addresses are rear **0x36**, front **0x10**, actuator **0x0c**, EEPROMs 0x28 / 0x2c (the DT values above are the 8-bit forms); both sensors use **4 D-PHY lanes** (rear CSIPHY4 at **1324.8 Mbps**, front CSIPHY5 at **660 Mbps**); power-up is vio → vdig → vana (→ vaf) 1 ms apart, reset high, MCLK 4-5 ms later, first I2C write after 1.5-6 ms; stock uses one rear mode (4160×3120) and two front modes (3264×2448, 1632×1224 binned); AE writes exposure 0x3e00-02, gains 0x3e07 / 0x3e09 and VTS 0x320e/f; black level 64 / 65, BGGR with stock's mirror + flip (0x3221 = 0x66); the actuator follows the DW9719 register map. The register tables are kept private (`build/camtrace/tables`) until the drivers use them.
+The stock camera, traced read-only while Aperture opened both cameras (no photo taken), settles C0 except the EEPROM sizes: the **7-bit** addresses are rear **0x36**, front **0x10**, actuator **0x0c**, EEPROMs 0x28 / 0x2c (the DT values above are the 8-bit forms); both sensors use **4 D-PHY lanes** (rear CSIPHY4 at **1324.8 Mbps**, front CSIPHY5 at **660 Mbps**); power-up is vio → vdig → vana (→ vaf) 1 ms apart, reset high, MCLK 4-5 ms later, first I2C write after 1.5-6 ms; stock uses one rear mode (4160×3120) and two front modes (3264×2448, 1632×1224 binned); AE writes exposure 0x3e00-02, gains 0x3e07 / 0x3e09 and VTS 0x320e/f; black level 64 / 65, BGGR with stock's mirror + flip (0x3221 = 0x66); the actuator follows the DW9719 register map. The register tables are kept private (outside the public repository) until the drivers use them.
 
-## 2. Plan (every step RAM boot only; the PC's automated loop, relay 012, runs the kits)
+## 2. Plan (every step RAM boot only; the PC's automated loop runs the kits)
 
 **C0. Collect the missing stock values (PC, read-only).**
 1. From the stock DT: the actuator node details (the IC's name if present), the EEPROM nodes (addresses, sizes,
@@ -121,6 +130,7 @@ stays out of scope: there's no mainline support.
 - Effort: C0–C3 is days to a couple of weeks; C4–C5 adds a similar amount.
 
 ## 4. Exit criteria
+(14 Oct: streaming through libcamera is proven; the autofocus part is open; see the status block at the top.)
 Both cameras stream in GNOME Snapshot and Firefox at a usable resolution and 30 fps; the rear camera has working
 autofocus; colours use the stock-derived tuning; there are no faults over 5 min; the cameras power off when unused
 (no s2idle blocker).

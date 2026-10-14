@@ -1,5 +1,37 @@
 # Documentation plan - OnePlus Pad 4 ("iceland") mainline Linux
 
+## Status (14 Oct 2026)
+
+The plan of 2 Oct is now a record. The document set in this folder exists (INDEX, 01 to 07, GLOSSARY), and the
+milestones below are marked by their date.
+
+Done since the plan:
+
+- **Install:** done on 13 Oct 2026. The owner wrote `userdata` (the image built from the final golden B149) and `boot_b`
+  (the footered U-Boot install build v3); Fedora 44 GNOME booted from `boot_b` on 13 Oct.
+- **Final golden B149:** committed 13 Oct 2026 at 15:45 after rehearsal r158 (0 FAIL): kernel q89g, iceland-device 0.28-7,
+  iceland-firmware 11.A.38-3, libcamera 0.7.1-2 from Fedora.
+- **Rebase to Linux 7.3-rc7:** done (q89e from 12 Oct; the kernel now is q89g).
+- **Firmware repository:** done. iceland-firmware is public (generic files only), release 11.A.38-2 on 12 Oct and
+  11.A.38-3 on 13 Oct.
+- **Public release:** done. All four repositories are public since 14 Oct 2026; test material was removed from the
+  histories on 13-14 Oct. Removed paths are not described in these docs.
+- **Feature matrix:** page v62 of 14 Oct, 104 rows: 83 ok, 13 part, 5 todo, 3 out.
+
+Still open (14 Oct):
+
+- **Owner's checks:** the speaker listening check at 50 % and 100 % against Android (the +9 dB make-up); one night
+  unplugged (drain); cover wake from sleep; USB host (keyboard, stick, hub); a 5 GHz connection with its band recorded;
+  a DP monitor (picture, then sound); the wall chargers in one attended sitting; the pen and the keyboard cover.
+- **PC and rehearsal work:** the slot-mark fix (iceland-device 0.28-8, committed 14 Oct, not yet in an image) into an
+  image and a rehearsal, then the update of the installed system; DP over USB-C (link logs, power, lane count); camera
+  into the hardware encoder; Chromium / Electron GPU acceleration; the idle refresh (off; a debug round first);
+  GStreamer 1.28.9 for BT.601 streams labelled 6/1/6; the battery guard's kernel layer (unverified whether still
+  planned); the held patches (q6apm RFC, GPU CLX, the DW9800K update, the wcd939x switches, the SoundWire IRQ, the
+  hci_qca sleep reset); upstream merges at each rebase; a like-for-like loudness check against Android (the listening
+  check decides); Fedora 45 only after a rehearsal.
+- **Not started:** dual boot with Android (the decision is Fedora only); the Gunyah VMs (not carried).
+
 Workflow "docs", started 2 Oct 2026 (evening). Owner of this folder: the documentation / SME agent. Everything here
 is a draft for the main session to review and commit; nothing in this folder is committed by the agent.
 
@@ -80,11 +112,11 @@ is a draft for the main session to review and commit; nothing in this folder is 
 ### 04-BUILD-YOUR-OWN
 0. Read first: what you need (unlocked bootloader, backup, a Linux PC), what can go wrong, what is proven.
 1. Prerequisites (packages, clang / lld, python, android tools, mkbootimg).
-2. Get the trees (iceland-linux, iceland-mainline, iceland-u-boot) - private today; how access works.
+2. Get the trees (iceland-linux, iceland-mainline, iceland-u-boot) - public since 14 Oct 2026 (the firmware repository too); how access works.
 3. `prepare.sh` + `kernel.pin`: what is verified (upstream commit, tree hashes after each series).
 4. Configure + build (`scripts/build.sh`): config fragments, what `required.config` checks; outputs.
 5. Firmware: the list, extraction from your own tablet (read-only adb / the on-device extractor), placement.
-6. A RAM-boot image: the kit tools (`tools/linux-ram`), what `fastboot boot` does and does not do.
+6. A RAM-boot image: the kit tools (not published), what `fastboot boot` does and does not do.
 7. First boot, logs (USB network, kmsg streams), tests (how our test parts work), how to return to Android.
 8. The device package and the sensor packages (build on Fedora).
 9. What needs an unlocked bootloader and the risks; what we have not proven.
@@ -121,15 +153,15 @@ is a draft for the main session to review and commit; nothing in this folder is 
 
 ## Sources (read for these documents)
 
-Project folder `C:\Users\lucne\OnePlusPad4-Mainline`: HANDOVER.md, STATE.md, CLAUDE.md, WORKLOG.md (entries 1-44+),
-docs/INSTALL-PLAN.md, docs/INSTALL-GUIDE.md, docs/WORKFLOW-BRIEF*.md, docs/memory/*.
+The private project folder of 2-3 Oct (handover, state, project rules and the work log, entries 1-44 and later; not published),
+docs/INSTALL-PLAN.md, docs/INSTALL-GUIDE.md, the workflow briefs and the private memory notes (not published).
 iceland-linux: README, kernel.pin, scripts/prepare.sh + build.sh, configs/, patches/ (0001-infiniti 138,
 0002-iceland 0001-0166), packaging/fedora, docs/PORT-LOG.md.
 iceland-mainline: README / PROJECT.md, docs/FEATURES.md, docs/features/features-data.py, docs/KNOWLEDGE.md,
 docs/reference/pad4-hardware-boot-partitions.md, docs/device-facts/, packaging/iceland-device, packaging/sensors,
-tools/linux-ram, tools/dualboot, phase4/, firmware/manifest.tsv (names only), audio/ucm.
+the kit tools (not published), tools/dualboot, phase4/, firmware/manifest.tsv (names only), audio/ucm.
 iceland-u-boot: README, patches, build scripts.
-Workflow folders `~/mainline/build/wf/*/REPORT.md`, `NEXT.md` (install, hwinv, audit, deepsleep, gpuisp, camera, ...).
+Workflow folders (private) with their `REPORT.md` and `NEXT.md` files (install, hwinv, audit, deepsleep, gpuisp, camera, ...).
 Build scripts: build-q2.sh, build-q56.sh, an/genwf.py, linux-ram kit pipeline, queue-*.sh.
 Excluded by rule (read at most to learn, never copied): wf/*/priv, wf/*/work, wf/thermal, AUDIT-TABLE-full.md,
 build/fwsuper, camdrv / camtrace, the owner's backup contents.

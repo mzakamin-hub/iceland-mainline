@@ -1,16 +1,32 @@
 # OnePlus Pad 4: guide for installing Fedora 44 GNOME on the tablet
 
-Written 2 Oct 2026, revised the same evening (install workflow round 7: the write-2 probe C0 first, the review's
-R-1 / R-2 / R-4 / R-8 / R-9 points, the slot-retry finding). This is the step-by-step companion of
-`docs/INSTALL-PLAN.md` (the reasons are there; the steps are here). **Edition: 3 Oct 2026, release candidate 1 (kernel q85 = queue 0001-0188, iceland-device 0.19, rehearsal r2i 46 / 0 / 0)**: adds the
-first-boot setup note (Part C step 4) and section 11 (known issues and what this build fixes). **Final edition 13 Oct 2026 (evening): the final golden B149 (kernel q89g = v7.3-rc7 + the kernel
-fixes of 13 Oct + iceland-device 0.28-7 + iceland-firmware 11.A.38-3 + Fedora's libcamera 0.7.1-2), accepted after
-the final rehearsal r158 / r158u / r158ub (regression set 0 FAIL; the one open item, VE-CAM, is a new test, not a
-regression); the install image is rebuilt from B149 and HELD for your two writes (section 0.1, Part B, section 10).
-It replaces the B147 image of 13 Oct morning. The speaker level is your choice (+9 dB): a listening check follows the
-install.** On 10 Oct the install-day steps ran: the read-only checks, and four
-C0 probes that wrote `boot_b` and undid it the same day. No `userdata` write has been done and Fedora is not installed.
-Every write is done by you, one command at a time, after its own checks.
+**Status: the install is done (13 Oct 2026).** The owner made the two writes of Part C and Part D on the evening of
+13 Oct 2026, after the PC checks, and Fedora then booted from `boot_b` on its own (20:48). Read the status note below
+first. The procedure is kept as it was written and as it was run; the numbers in the readiness table (section 0.1) are
+the state of 12-13 Oct, before the install.
+
+### Status note (14 Oct 2026)
+
+- **Written:** `userdata` = the final golden B149 image (file sha256 prefix `2246e9a7`, 6,732,251,564 bytes; unpacked
+  237,159,641,088 bytes), 267 s, OKAY, at 18:31. `boot_b` = the footered U-Boot install build v3 (footer sha256 prefix
+  `4955ee98`; the plain build is `979b4076`), 2.3 s, OKAY, at 20:47.
+- **First boots:** two tethered boots at 20:43-20:44 for the first-boot setup, which asked for the owner's user account
+  (the image has no preset user). Part C step 4 asks for three tethered boots; the record shows two. Fedora reached the
+  desktop on its own at 20:48.
+- **Lesson 1, the slot counter (the important one):** the Fedora-side marking (`iceland-slot-mark`, Fedora's `qbootctl -m`)
+  did not run on the installed system. Its guard refused the root, which is a loop device backed by `userdata`, so ABL's
+  retry count for slot b fell from 7 to 3 by the evening. Part D step 3 expected the marking to work, and it did not. The
+  owner marked slot b by hand with `qbootctl` on 14 Oct (Active 1, Successful 1, Bootable 1). Until the fixed package is
+  installed, read the slot flags after boots and mark slot b by hand if the count goes down.
+- **The fix:** `iceland-device` 0.28-8 (commit 946ff95) accepts a loop root backed by `userdata`, and makes the boot LUN
+  writable only for the one `qbootctl -m` call, logging both. It is tested on the PC and not yet in an image. Its
+  thermal file was installed on the tablet by hand on 14 Oct.
+- **What the install proved different from the plan:** the marking step (Part D step 3, section 0.5) was not complete
+  as written; the first-boot setup appeared as the guide said; the rehearsal-only first-boot behaviour does not apply to
+  the installed system.
+- **Paths in this guide:** `<tools>` stands for the folder with the Android platform tools (`adb`, `fastboot`) and
+  `<work>` for the owner's folder of backups, stock images and install files. Both are on the PC and are not published.
+  "PC log" and "PC session" name the PC-side records, which are not published either.
 
 **Read section 0 first.** The order is: Part A (read only) - Part B (the rehearsal from RAM, no write) - **Part C0
 (the write-2 probe: U-Boot into `boot_b` while Android's data is still there, undone the same day)** - Part C (write
@@ -20,26 +36,24 @@ Every write is done by you, one command at a time, after its own checks.
 
 ## 0. Where things stand, and the rules
 
-### 0.1 Readiness (state on 12 Oct 2026; update this table before you start)
+### 0.1 Readiness (history: the state on 12-13 Oct 2026, before the install)
 
-Sources: the Loop 5 log (`OnePlusPad4-Loop5\WORKLOG.md`, `R138-TRACKER.md`, `STATE-2026-10-12-0230.md`,
-`STATE-2026-10-12-1220.md`),
-`docs/R138-PLAN.md`, `docs/SOUND-PLAN-2026-10-12.md` and `docs/AUTOMATE-FINAL-2026-10-12.md`. Run names are as they appear there. A **golden** is the B-run build of the rehearsal image.
+Sources: the PC session's logs (not published). Run names are as they appear there. A **golden** is the B-run build of the rehearsal image.
 
 | Item | State on 12 Oct 2026 | Needed for |
 |---|---|---|
-| G1 full backup of all 151 partitions, checksummed (`C:\OnePlusPad4\backups\20260927-1933-unknown`) | exists; checked on the install day (10 Oct): G1 151 OK. The first check failed because two partitions are both named `last_parti`; their read-only copies are in a supplement to the hash list. It predates LineageOS: it is the return-to-stock source, **not** the undo of write 2 | everything |
-| G2 stock 11.A.38 images + checksums (`C:\OnePlusPad4\stock-11.A.38`) | exists; 9 stock images checked OK on 10 Oct | return to stock |
-| G3 return-to-stock scripts (`C:\OnePlusPad4\scripts\30-`, `31-`, `39-`) and their dry run | scripts exist; the dry run (Part A step 3) is **not recorded** in the Loop 5 log: open | return to stock |
-| G4 second copy of G1 + G2 on another disk | **OPEN (owner)**: on 10 Oct drive D: had 2.5 GB free for an 18 GB copy (WORKLOG, 10 Oct) | write 1 |
-| G5 file copy of Android's `/data/vendor` | **done 10 Oct**: `data-vendor-20261010.tar`, 12,293,712 bytes, SHA-256 begins `6d965739` (record the full hash in section 10) | write 1 |
+| G1 full backup of all 151 partitions, checksummed (the backup folder on the PC) | exists; checked on the install day (10 Oct): G1 151 OK. The first check failed because two partitions are both named `last_parti`; their read-only copies are in a supplement to the hash list. It predates LineageOS: it is the return-to-stock source, **not** the undo of write 2 | everything |
+| G2 stock 11.A.38 images + checksums (`<work>\stock-11.A.38`) | exists; 9 stock images checked OK on 10 Oct | return to stock |
+| G3 return-to-stock scripts (`<work>\scripts\30-`, `31-`, `39-`) and their dry run | scripts exist; the dry run (Part A step 3) is **not recorded** in the PC log: open | return to stock |
+| G4 second copy of G1 + G2 on another disk | **OPEN (owner)**: on 10 Oct a second drive had 2.5 GB free for an 18 GB copy (PC log) | write 1 |
+| G5 file copy of Android's `/data/vendor` | **done 10 Oct**: the copy kept on the PC (size and hash in the PC record; record the full hash in section 10) | write 1 |
 | G10 update and rollback rehearsal (U1-U3, R1b, R2b, R3) | **done 12 Oct, as rehearsal rows** (RAM boots, nothing written): r142 / r142b on B143 - UPD (a `dnf5` downgrade + upgrade from local signed repositories, a read-only snapshot before each), HL (held names never offered), RBK (a rollback boot entry for the snapshot), RB2 (the rollback boot: the snapshot became the root); r146 / r146b - a new `kernel-iceland` installed by its rpm gets its boot entry and an initramfs with the iceland module and boots; on the final golden B145: r141u (UPD / HL / RBK PASS) and r141ub (rollback boot 7/7 PASS). The rescue-kit repair (L3) is not a rehearsal row | write 1; the update path |
 | G11 slot flags of both slots read and understood | **done 10 Oct 12:24** (`parta-read.ps1`): `PARTA: READY FOR C0`, `AVB-PROOF: PASS`; slot b successful, not unbootable, retry 6; slot a successful and unbootable, retry 6. After the C0 #1 undo: `boot_b` back to the original (`254ad805`), slot b retry 6 | C0, write 2 |
 | G12 fastboot reached by the keys from a cold start | **done 10 Oct** through the C0 runs: the owner's Volume Down + Power from a cold start reached the boot loader's fastboot, where the flags were read (C0 #1 12:4x, #2 14:1x, #3 16:3x). The Part A step 7 commands are not logged as a separate run | C0 (closed) |
 | G13 the rehearsal cannot touch the storage | **closed** (a U-Boot build without UFS support, the read-only rule in the initramfs, a network-disk-only carrier, the self-check) | Part B |
-| G14 sleep drain known | open; no measurement in the Loop 5 log. Not a safety gate | leaving the tablet asleep for days |
-| G6-G8 charging, low battery, thermal | the owner's rule is recorded (10 Oct): attended charging with the 80 % limit (WORKLOG, 10 Oct 08:3x). The protective parts are not re-tested in the Loop 5 log | leaving the tablet alone on a charger |
-| Kernel `kernel-iceland`: **q89g** (final, 13 Oct evening) | **final, in golden B149**: `7.3.0-rc7-iceland-00426-g520e85da9244` (branch `up3-qg1`, kernel rpm `5924221f`; 0 compiler warnings) = q89e + the "kernel instead of package" fixes of 13 Oct: **the brightness limit back on, through the kernel** (the ktz8869 backlight driver has a cooling device `ktz8869-backlight` with one state per stock temperature gear; it lowers only what the backlight chips get, GNOME's slider keeps your value, so GNOME no longer fights the cap; r157 / r158 KBL 8/8 PASS) + a fix for unloading the second backlight chip; **UFS** (K3: the block layer retries a scheduler change on a busy shared tag set instead of failing, so Fedora's own rule sets bfq on every UFS LUN; r158 K3 / K3p PASS); **rear lens** (K7: the DW9800K focus motor is held at stock's start position 450 while the rear camera streams and unpowered when idle; q89g reads the position back after the ramp and rewrites it until it holds; r158 K7s PASS at 450); **wake** (K6: the USB controller and the Wi-Fi PCIe root port are no longer wakeup sources, in the device tree); **idle refresh**: the panel's seamless porch-stretch idle refresh is in the kernel but **OFF** by default (`msm.dpu_idle_refresh_ms` unset; r157 showed 74.8 Hz instead of 60 Hz, a CRC row and only a small saving) - do not switch it on. r158: NO-REGRESSION against r141. The q89e row below is the previous final (B147) | Part B, install |
+| G14 sleep drain known | open; no measurement in the PC log. Not a safety gate | leaving the tablet asleep for days |
+| G6-G8 charging, low battery, thermal | the owner's rule is recorded (10 Oct): attended charging with the 80 % limit (PC log). The protective parts are not re-tested in the PC log | leaving the tablet alone on a charger |
+| Kernel `kernel-iceland`: **q89g** (final, 13 Oct evening) | **final, in golden B149**: `7.3.0-rc7-iceland-00426-g520e85da9244` (tag `q89g`, kernel rpm `5924221f`; 0 compiler warnings) = q89e + the "kernel instead of package" fixes of 13 Oct: **the brightness limit back on, through the kernel** (the ktz8869 backlight driver has a cooling device `ktz8869-backlight` with one state per stock temperature gear; it lowers only what the backlight chips get, GNOME's slider keeps your value, so GNOME no longer fights the cap; r157 / r158 KBL 8/8 PASS) + a fix for unloading the second backlight chip; **UFS** (K3: the block layer retries a scheduler change on a busy shared tag set instead of failing, so Fedora's own rule sets bfq on every UFS LUN; r158 K3 / K3p PASS); **rear lens** (K7: the DW9800K focus motor is held at stock's start position 450 while the rear camera streams and unpowered when idle; q89g reads the position back after the ramp and rewrites it until it holds; r158 K7s PASS at 450); **wake** (K6: the USB controller and the Wi-Fi PCIe root port are no longer wakeup sources, in the device tree); **idle refresh**: the panel's seamless porch-stretch idle refresh is in the kernel but **OFF** by default (`msm.dpu_idle_refresh_ms` unset; r157 showed 74.8 Hz instead of 60 Hz, a CRC row and only a small saving) - do not switch it on. r158: NO-REGRESSION against r141. The q89e row below is the previous final (B147) | Part B, install |
 | Kernel `kernel-iceland`: q89e (B147, superseded by q89g) | in golden B147: `7.3.0-rc7-iceland-00412-g4917dfb48aab` = q89d9 rebased onto v7.3-rc7 (411 patches kept unchanged, 3 dropped because they are merged upstream, 0 conflicts; config and device tree unchanged; 0 build warnings) + one video-driver fix (iris: SD video signalled as BT.601 6/6/6 and decoded colour codes mapped consistently; r156 VE-601 PASS). Five queue patches by Joonhoe Kim carry a provenance note (docs/PROVENANCE.md). Kernel rpm `03903142`. r155 / r156: NO-REGRESSION against r141. The q89d9 row below is the previous final (B145) | Part B, install |
 | Kernel `kernel-iceland`: q89d9 (B145, superseded by q89e) | q89d8 (`up3-qd6`) + 0291 Bluetooth hci_qca: the WCN7860 baudrate-change RX burst dropped (`9e7350a6ab`; no more "Frame reassembly failed (-84)" at every Bluetooth power-on), `7.3.0-rc6-iceland-00414-g9e7350a6ab86`, on rc6, 0 build warnings. r146 / r146b: BT84 PASS (0 lines over 5 setups) + the kernel-update path; in golden B145. Pushed 12 Oct to the private iceland-linux repository: branch `iceland-7.3-rc6-q89d9` (commit `a2c12cb`, on top of `iceland-7.3-rc6-q89d8` `bdae4ee`), tag `q89d9`. N1 (SoundWire) and N2 (hci_qca IBS) were tested and dropped | Part B, install |
 | Device package `iceland-device` **0.28-7** (`fb8264ca`, 13 Oct evening) | **final, in golden B149**: 0.28-5 (row below) + 0.28-6: **`BRIGHTNESS=1`** again in `/etc/iceland/thermal.conf` - the thermal service writes the effective gear to the kernel's `ktz8869-backlight` cooling device (never to the backlight itself; 0 on stop); the helpers the kernel now replaces are **removed**: `61-iceland-ufs-scheduler.rules`, `iceland-ufs-scheduler` and `/etc/udev/rules.d/60-block-scheduler.rules` (UFS), `iceland-camera-focus` + its unit + `camera-focus.conf` (lens), `72-iceland-nowake.rules` (wake), `73-iceland-gpu-devfreq.rules` (the GPU floor: 160 MHz is already the lowest step), `74-iceland-wifi-mac.rules` + `iceland-wifi-mac` + `iceland-wifi-mac-check.service` (the firmware's address is stable); **kept**: `iceland-bdaddr` + its unit (the Bluetooth address) and `/etc/sysconfig/regdomain` (the regulatory domain) + 0.28-7: `iceland-speaker-default` waits for WirePlumber's default metadata, reads its write back and retries (r157 DF: the configured default output was cleared; r158 DF PASS). Unchanged: the microphone chain (60 / 61 confs, TX_DEC 84 + 14 dB after the echo canceller), the fetch helper + pins, the minimal holds, make-up +9 dB | Part B, install |
@@ -51,18 +65,15 @@ Sources: the Loop 5 log (`OnePlusPad4-Loop5\WORKLOG.md`, `R138-TRACKER.md`, `STA
 | Golden (B run) | **B149 = the final golden** (committed 13 Oct 15:45, first try; B-RUN 42/0, check-b142 14/0, its judge check-b149 6/0): q89g + iceland-device 0.28-7 + iceland-firmware 11.A.38-3 + the Fedora 44 stable refresh (B148 recipe, minimal holds; libcamera 0.7.1-2 from Fedora), no random seed, **1727 packages, manifest `7cc06a969b13`, body `6b1af718b913`**. **Final rehearsal r158 / r158u / r158ub on B149 (13 Oct, done 16:51): accepted** - r158: 64 rows, 50 PASS, **0 FAIL**, 2 CHECK (LP upright loopback and PV camera pre-grant, test-side / measurement rows as before), 11 INFO, 1 DEFERRED (your listening check); NO-REGRESSION against r139c / r140 / r141; r158u 25 PASS, 0 FAIL, 1 CHECK; r158ub 7/7 PASS (rollback boot). PASS includes KBL 8/8 (brightness limit), K3 / K3p, K7s (lens at 450), DF (speaker default), G4 (F54 gone), SK 12/12, FFI / FF6 / FF7, HX0-2, MICCHAIN, SPEECH, PCLIP, RNG, VE-601, VE-SCR (screen recording on the hardware encoder). Open (not a regression): **VE-CAM** - the camera -> hardware H.264 encoder pipeline (`pipewiresrc` -> `v4l2h264enc`) does not negotiate; a new test. B148 (0.28-6, r157) stays committed but is not the install image (r157: lens 434, configured default output cleared - both fixed in B149) | the install image |
 | Golden (B run) of 13 Oct morning | B147 (superseded by B149; committed 13 Oct 06:02, first try; B-RUN 38/0, check-b142 14/0, its judge check-b147 6/0): q89e + iceland-device 0.28-5 + iceland-firmware 11.A.38-3 + the Fedora 44 stable refresh (B146 recipe, minimal holds), no random seed, **1727 packages, manifest `0c35227ddf92`, body `e294b240f98e`**. **Final rehearsal r156 / r156u / r156ub on B147 (13 Oct 06:0x-07:04): accepted** - r156: 64 rows, 47 PASS, **1 FAIL (G4 = the known F54 libcamera race, 1 of 40 cycles; accepted by you)**, 4 CHECK (test-side and measurement rows such as G2 test-tool denials, LP upright loopback, PV camera pre-grant), 11 INFO, 1 DEFERRED (your listening check); r156u 25 PASS, 0 FAIL, 1 CHECK; r156ub 7/7 PASS (rollback boot). PASS includes SPEECH, PCLIP, MICCHAIN, GAIN, ST (the microphone chain), SK 12/12 (stock skin policy 60 / 61 / 70 C), FFI / FF6 / FF7 (firmware fetch), FP1-FP4, VE-601 (SD video colours), REC, RNG, update / rollback. B146 (13 Oct 04:13, 0.28-4) stays committed but is not the install image (r155: speech 14 dB too low, fixed in 0.28-5) | the install image |
 | Golden (B run) of 12 Oct | B145 (superseded by B147; committed 12 Oct 11:11; B-RUN 33/0, its judge check-b144 4/0 with check-b142 14/0): q89d9 + iceland-device 0.28-3 + iceland-firmware 11.A.38-2 + the Fedora 44 stable refresh of B143, 1727 packages, manifest `9b752df5f7e1`, body `fce4bd794fb9`. **Minimal holds** (refresh): kernel, kernel-core, kernel-modules*, kernel-iceland, iio-sensor-proxy, hexagonrpc, libssc, iceland-device, iceland-firmware; shim + GRUB, libcamera, qbootctl and Fedora's firmware packages come from Fedora (signatures checked). **Final rehearsal r141 / r141u / r141ub on B145 (12 Oct 12:14-13:00): accepted, NO-REGRESSION against r139c / r140 over 36 rows** (r141: 64 rows, 48 PASS, 1 FAIL, 3 CHECK, 11 INFO, 1 DEFERRED; r141u 23 PASS, 1 FAIL, 2 CHECK; r141ub 7/7 PASS). Both FAILs are test expectations, fixed in the test scripts since: CAMDRV (the module check ran behind a session guard and listed nothing; B145's `kernel-iceland` ships the in-tree `sc1320cs.ko`, digest = the stripped in-tree build) and PK (expected 0.28-2) | the install image |
-| Install image on C: | **rebuilt from B149 on 13 Oct (17:02), HELD** (nothing written to the tablet; you run the two writes): `C:\OnePlusPad4\final\fedora-iceland.sparse.img`, **6,732,251,564 bytes, SHA-256 `2246e9a7e790253be72ad8948cc3fa9f39bdcadfaa422ad53ed77daa6167482c`**, unpacked 237,159,641,088 bytes (= `userdata`), 31,521 chunks (full read-back). It replaced B147's image in place (B147's package stays in WSL `wf/final/q89e-0285-b147`; its small files on C: are kept as `*-b147`). Package files: `SHA256SUMS`, `MANIFEST.json`, `VERIFY.txt`, `golden.json`, `u-boot-iceland-v3.img`; `flashguide\record.json` now names this image's hash (the old one kept as `record.json.pre-b149`). **Offline content check (`VERIFY.txt`): 128 PASS, 0 FAIL**: q89g kernel / initramfs / BLS entry / device tree, one kernel tree, iceland-device 0.28-7 (102 files equal the package digests), iceland-firmware 11.A.38-3, libcamera 0.7.1-2, the minimal hold file exactly, `kernel-iceland*` / `iceland-*` never offered by Fedora, TX_DEC0/1 at 84, the microphone chain (60 / 61 confs), **`BRIGHTNESS=1` with the thermal service driving the `ktz8869-backlight` cooling device**, the 11 removed helper files absent (and no unit link / preset / `.rpmsave` left), Fedora's own `60-block-scheduler.rules` present, `iceland-bdaddr` + unit and `/etc/sysconfig/regdomain` kept, the 0.28-7 speaker-default helper, the fetch helper + pin of 11.A.38-3, the thermal model owned by iceland-firmware (sha `4f476a7d`, no private copy), slot marking enabled, the first-boot setup not done and not disabled, no user, no autologin, no rehearsal arguments / units / dconf keys, empty machine-id, no SSH keys, no Wi-Fi networks, no journal, no random seed, root locked, make-up 9 dB, owner Wi-Fi guard on the raw disk: SSID 0, keyfile 0 (its one structural match is a printf format string, as before). Private by design (as every install image): the tablet's own firmware extraction and its Bluetooth address | write 1 |
-| Install image of 13 Oct morning (superseded, replaced on C: by B149's) | rebuilt from B147 on 13 Oct (07:17), was `C:\OnePlusPad4\final\fedora-iceland.sparse.img`, 6,591,322,540 bytes, SHA-256 `09ea7f446f969f382739bd4797989c939891ac464e53611caaa7bbc7060a150a`, unpacked 237,159,641,088 bytes (= `userdata`), 31,956 chunks (full read-back). It replaced B145's image in place (B145's package stays in WSL `wf/final/q89d9-0283-b145`; its small files on C: are kept as `*-b145`). Package files: `SHA256SUMS`, `MANIFEST.json`, `VERIFY.txt`, `golden.json`, `u-boot-iceland-v3.img`; `flashguide\record.json` then named this image's hash (the old one kept as `record.json.pre-b147`). **Offline content check (`VERIFY.txt`): 109 PASS, 0 FAIL**: q89e kernel / initramfs / BLS entry / device tree, one kernel tree, iceland-device 0.28-5 (113 files equal the package digests), iceland-firmware 11.A.38-3, the minimal hold file exactly (GRUB, shim, firmware, libcamera not held), `kernel-iceland*` / `iceland-*` never offered by Fedora, TX_DEC0/1 at 84, the microphone chain (61-iceland-mic-gain.conf: +14 dB limiter after the echo canceller, -1 dBFS), `BRIGHTNESS=0`, the fetch helper + pin of 11.A.38-3, the thermal model owned by iceland-firmware (sha `4f476a7d`, no private copy), slot marking enabled, the first-boot setup not done and not disabled, no user, no autologin, no rehearsal arguments / units / dconf keys, empty machine-id, no SSH keys, no Wi-Fi networks, no journal, **no random seed** (B145's only FAIL is gone), root locked, make-up 9 dB, owner Wi-Fi guard on the raw disk: SSID 0, keyfile 0 (its one structural match is a printf format string, as in B145). Private by design (as every install image): the tablet's own firmware extraction and its Bluetooth address (the thermal model is now generic and published) | write 1 |
-| Install image of 12 Oct (superseded, replaced on C: by B147's) | rebuilt from B145 on 12 Oct (13:17), was `C:\OnePlusPad4\final\fedora-iceland.sparse.img`, 6,034,694,960 bytes, SHA-256 `0e65a4d54111cbc84cf3d9ec93c903b8038864e7921505c05c00e7f90aed7ae4`, unpacked 237,159,641,088 bytes (= `userdata`), 32,104 chunks; it replaced B130's image in place (B130's package stays in WSL `wf/final/q89b-024-b130`). Package files: `SHA256SUMS`, `MANIFEST.json`, `VERIFY.txt`, `golden.json`, `u-boot-iceland-v3.img`; `flashguide\record.json` now names this image's hash (the old one kept as `record.json.pre-b145`). **Offline content check (`VERIFY.txt`): 98 PASS, 1 FAIL**: q89d9 kernel / initramfs / BLS entry, iceland-device 0.28-3, iceland-firmware 11.A.38-2, the minimal hold file exactly, `kernel-iceland*` / `iceland-*` never offered by Fedora, slot marking enabled (unit shipped, preset enable, no off switch, no `iceland.noslotmark`, qbootctl installed), the first-boot setup not done and not disabled, no user, no autologin, no rehearsal arguments / units / dconf keys, empty machine-id, no SSH keys, no Wi-Fi networks, no journal, root locked, make-up 9 dB, owner Wi-Fi guard 0 hits on the raw disk. The FAIL: `/var/lib/systemd/random-seed` (32 bytes) left by the B run's boots - not unit data and not a secret of yours; systemd replaces it at the first boot and the kernel is seeded by the hardware RNG (r142 RN PASS). The PC session can remove it in a later golden; it does not block the install. Private by design (as every install image): the tablet's own firmware extraction, its Bluetooth address and its thermal model | write 1 |
-| Install U-Boot | **v3**: install build `979b4076` (patches 0008-0010: no self power-off or reset, USB up without ABL, `fastboot reboot-bootloader`). Footered `4955ee98` (AVB-PROOF PASS, rot-equal; made from 10 Oct's `boot_b`, re-made on the install day by Part A step 6); `record.json` points to v3. The B149 package (as B147's and B145's) lists `u-boot-iceland-v3.img` in its `SHA256SUMS`; the older `u-boot-iceland.img` (`fb2bed8d`) on C: is not part of it and is not used | write 2 |
+| Install image on the PC | **rebuilt from B149 on 13 Oct (17:02)** (written to the tablet on 13 Oct by the owner's two writes): `<work>\final\fedora-iceland.sparse.img`, **6,732,251,564 bytes, SHA-256 `2246e9a7e790253be72ad8948cc3fa9f39bdcadfaa422ad53ed77daa6167482c`**, unpacked 237,159,641,088 bytes (= `userdata`), 31,521 chunks (full read-back). It replaced B147's image in place (the earlier package is kept by the PC session). Package files: `SHA256SUMS`, `MANIFEST.json`, `VERIFY.txt`, `golden.json`, `u-boot-iceland-v3.img`; `flashguide\record.json` now names this image's hash (the old one kept as `record.json.pre-b149`). **Offline content check (`VERIFY.txt`): 128 PASS, 0 FAIL**: q89g kernel / initramfs / BLS entry / device tree, one kernel tree, iceland-device 0.28-7 (102 files equal the package digests), iceland-firmware 11.A.38-3, libcamera 0.7.1-2, the minimal hold file exactly, `kernel-iceland*` / `iceland-*` never offered by Fedora, TX_DEC0/1 at 84, the microphone chain (60 / 61 confs), **`BRIGHTNESS=1` with the thermal service driving the `ktz8869-backlight` cooling device**, the 11 removed helper files absent (and no unit link / preset / `.rpmsave` left), Fedora's own `60-block-scheduler.rules` present, `iceland-bdaddr` + unit and `/etc/sysconfig/regdomain` kept, the 0.28-7 speaker-default helper, the fetch helper + pin of 11.A.38-3, the thermal model owned by iceland-firmware (sha `4f476a7d`, no private copy), slot marking enabled, the first-boot setup not done and not disabled, no user, no autologin, no rehearsal arguments / units / dconf keys, empty machine-id, no SSH keys, no Wi-Fi networks, no journal, no random seed, root locked, make-up 9 dB, owner Wi-Fi guard on the raw disk: SSID 0, keyfile 0 (its one structural match is a printf format string, as before). Private by design (as every install image): the tablet's own firmware extraction and its Bluetooth address | write 1 |
+| Install image of 13 Oct morning (superseded, replaced on the PC by B149's) | rebuilt from B147 on 13 Oct (07:17), was `<work>\final\fedora-iceland.sparse.img`, 6,591,322,540 bytes, SHA-256 `09ea7f446f969f382739bd4797989c939891ac464e53611caaa7bbc7060a150a`, unpacked 237,159,641,088 bytes (= `userdata`), 31,956 chunks (full read-back). It replaced B145's image in place (the earlier package is kept by the PC session). Package files: `SHA256SUMS`, `MANIFEST.json`, `VERIFY.txt`, `golden.json`, `u-boot-iceland-v3.img`; `flashguide\record.json` then named this image's hash (the old one kept as `record.json.pre-b147`). **Offline content check (`VERIFY.txt`): 109 PASS, 0 FAIL**: q89e kernel / initramfs / BLS entry / device tree, one kernel tree, iceland-device 0.28-5 (113 files equal the package digests), iceland-firmware 11.A.38-3, the minimal hold file exactly (GRUB, shim, firmware, libcamera not held), `kernel-iceland*` / `iceland-*` never offered by Fedora, TX_DEC0/1 at 84, the microphone chain (61-iceland-mic-gain.conf: +14 dB limiter after the echo canceller, -1 dBFS), `BRIGHTNESS=0`, the fetch helper + pin of 11.A.38-3, the thermal model owned by iceland-firmware (sha `4f476a7d`, no private copy), slot marking enabled, the first-boot setup not done and not disabled, no user, no autologin, no rehearsal arguments / units / dconf keys, empty machine-id, no SSH keys, no Wi-Fi networks, no journal, **no random seed** (B145's only FAIL is gone), root locked, make-up 9 dB, owner Wi-Fi guard on the raw disk: SSID 0, keyfile 0 (its one structural match is a printf format string, as in B145). Private by design (as every install image): the tablet's own firmware extraction and its Bluetooth address (the thermal model is now generic and published) | write 1 |
+| Install image of 12 Oct (superseded, replaced on the PC by B147's) | rebuilt from B145 on 12 Oct (13:17), was `<work>\final\fedora-iceland.sparse.img`, 6,034,694,960 bytes, SHA-256 `0e65a4d54111cbc84cf3d9ec93c903b8038864e7921505c05c00e7f90aed7ae4`, unpacked 237,159,641,088 bytes (= `userdata`), 32,104 chunks; it replaced B130's image in place (the earlier package is kept by the PC session). Package files: `SHA256SUMS`, `MANIFEST.json`, `VERIFY.txt`, `golden.json`, `u-boot-iceland-v3.img`; `flashguide\record.json` now names this image's hash (the old one kept as `record.json.pre-b145`). **Offline content check (`VERIFY.txt`): 98 PASS, 1 FAIL**: q89d9 kernel / initramfs / BLS entry, iceland-device 0.28-3, iceland-firmware 11.A.38-2, the minimal hold file exactly, `kernel-iceland*` / `iceland-*` never offered by Fedora, slot marking enabled (unit shipped, preset enable, no off switch, no `iceland.noslotmark`, qbootctl installed), the first-boot setup not done and not disabled, no user, no autologin, no rehearsal arguments / units / dconf keys, empty machine-id, no SSH keys, no Wi-Fi networks, no journal, root locked, make-up 9 dB, owner Wi-Fi guard 0 hits on the raw disk. The FAIL: `/var/lib/systemd/random-seed` (32 bytes) left by the B run's boots - not unit data and not a secret of yours; systemd replaces it at the first boot and the kernel is seeded by the hardware RNG (r142 RN PASS). The PC session can remove it in a later golden; it does not block the install. Private by design (as every install image): the tablet's own firmware extraction, its Bluetooth address and its thermal model | write 1 |
+| Install U-Boot | **v3**: install build `979b4076` (patches 0008-0010: no self power-off or reset, USB up without ABL, `fastboot reboot-bootloader`). Footered `4955ee98` (AVB-PROOF PASS, rot-equal; made from 10 Oct's `boot_b`, re-made on the install day by Part A step 6); `record.json` points to v3. The B149 package (as B147's and B145's) lists `u-boot-iceland-v3.img` in its `SHA256SUMS`; the older `u-boot-iceland.img` (`fb2bed8d`) on the PC is not part of it and is not used | write 2 |
 | AVB footer for the install U-Boot (review R-1) | done for v3 (`4955ee98`); decision 1 = footer A (10 Oct). Re-made on the install day from the then-current `boot_b` by Part A step 6 | C0, write 2 |
 | C0 write-2 probe (`boot_b`, undone the same day each time) | **done, all undone.** #1 FAIL (`c39a24e6`, 10 Oct 12:4x): slot b unbootable with retry 0 after one boot; undone at once. #2 (`8729065f`, 13:55): U-Boot holds, no USB (dwc3 core reset timeout). #3 (`cb1b707e`, patch 0009, 16:17): U-Boot fastboot enumerates after 7 s from a normal boot. #4 PASS (`4955ee98`, patch 0010, 17:41): `fastboot reboot-bootloader` reaches the boot loader without a key press, flags unchanged | Parts C, D |
 | Your decisions (section 0.4) | answered on 10 Oct: 1, 2, 5; plan decisions 8-9 recorded; open: 3, 4, 7 (part), 8 (way back to LineageOS, in part) | Parts C and D |
 
-The install must not start while any line that is "needed for write 1" or "Part B" is open. As of 13 Oct (evening)
-those are: G3 (dry run), G4 and decision 3. The final golden (B149), its rehearsal (r158), G10 and the install image
-(rebuilt from B149) are done; the image is HELD for you. C0 is done (every probe undone); its lines are closed. After the install: the listening check
-of the speakers (+9 dB, your choice) and the other deferred checks below.
+The install started on 13 Oct after these lines were closed: G3 (the dry run), G4 (the second copy) and decision 3 (`boot_b`). The final golden (B149), its rehearsal (r158), G10 and the install image were done before the writes. C0 is done (every probe undone). After the install: the listening check of the speakers (+9 dB, your choice) and the other deferred checks below.
 
 **Rehearsal record since 10 Oct** (RAM boots, nothing written to the tablet's storage):
 - r2t (10 Oct 04:10, q89 + 0.23): FAIL (camera, mic, GPU). Fixed in the later builds.
@@ -128,10 +139,10 @@ of the speakers (+9 dB, your choice) and the other deferred checks below.
 **Deferred physical checks** (the owner's hands or eyes; not automated, never waited for by a run):
 - Cover wake from s2idle: a suspend cannot run in a rehearsal (the no-suspend rule). Only the screen off/on with the cover
   is tested (r137 K8c PASS).
-- USB host (hub) and DP monitor replug: not testable in kits (STATE-2026-10-10-2225, item 8).
+- USB host (hub) and DP monitor replug: not testable in kits (PC session notes).
 - Keyboard cover (pogo): physical test; the owner kept the pogo keyboard support (11 Oct).
 - Cold start of the installed system: after the install.
-- Wi-Fi throughput and the SCMI cold soak: not testable in kits (STATE-2026-10-10-2225, item 8).
+- Wi-Fi throughput and the SCMI cold soak: not testable in kits (PC session notes).
 - Listening check of the speakers after the install: the make-up is +9 dB by your choice; that it stays at or below
   stock's loudness is not proven by measurement. If it sounds louder than Android at the same volume, or harsh, tell
   the PC session (the value is one line in the device package).
@@ -175,12 +186,13 @@ of the speakers (+9 dB, your choice) and the other deferred checks below.
 | After C0's undo | LineageOS with its data, as today | RAM test kits |
 | After write 1 (`userdata`) | Android starts and says its data is damaged. **Do not confirm a factory reset.** Keep this stage short | `fastboot boot` of U-Boot starts Fedora |
 | After write 2 (`boot_b`) | Fedora | the RAM rescue kit still works |
+| Since 13 Oct 2026 (installed) | Fedora from `boot_b` on its own; slot b marked by hand on 14 Oct until the fixed package is installed | the RAM rescue kit still works |
 | After the return to stock | OxygenOS 11.A.38 (slot a; the script sets slot a active) | - |
 
 ### 0.4 Decisions that are yours
 
 Answered on 2 Oct:
-- Fedora only for now; a dual-boot plan is prepared separately (`wf/install/DUALBOOT-PLAN.md`), nothing of it is
+- Fedora only for now; a dual-boot plan is prepared separately (`docs/DUALBOOT-PLAN.md`), nothing of it is
   done.
 - The write-2 probe C0 comes first, while Android's data is intact.
 - The GPU microcode in the image is Fedora's own (`qcom-firmware`, the upstream linux-firmware set the kits use).
@@ -190,8 +202,8 @@ Answered on 3 Oct:
   tuning files in the private device package).
 - 10: the Wi-Fi country: the firmware's US stays.
 
-Answered on 10 Oct (the owner's "take the recommended, safest option"; recorded in `wf/final/DECISIONS-2026-10-10.md`,
-quoted in WORKLOG 10 Oct 08:3x; that file is not part of the Loop 5 sources):
+Answered on 10 Oct (the owner's "take the recommended, safest option"; recorded in the PC session's record (not published),
+quoted in PC log, 10 Oct 08:3x; that file is not published):
 - 1: footer A, the AOSP test-key hash footer on the install U-Boot (done for v3, section 0.1).
 - 2: one RAM boot of the exact install U-Boot before C0 (done on the earlier builds 13:42 and 13:44, and on v3 at 17:31).
 - 5: attended charging with the 80 % limit as the default (G6-G8 and G14).
@@ -199,10 +211,9 @@ quoted in WORKLOG 10 Oct 08:3x; that file is not part of the Loop 5 sources):
   recorded; third-party repos are the default.
 - 8, in part: "way back = stock 11.A.38" is recorded. A way back to LineageOS is not in the record.
 
-Still open (answer before the step named):
-3. (Part D, after C0) The permanent boot path. The record of 10 Oct says: if the count falls on `boot_b`, `boot_b` cannot
-   be the permanent path, and `recovery_b` needs its own plan (WORKLOG, 10 Oct 08:2x and 12:4x: the scripts refuse
-   `recovery_b` and any decision 3 other than `boot_b`). Since then C0 #3 and #4 showed `boot_b` reachable and undone, and the reboot to the boot loader
+Open or answered (where the answer is known, it is given):
+3. (Part D, after C0) The permanent boot path. **Answered on 13 Oct 2026: `boot_b`.** The record of 10 Oct says: if the count falls on `boot_b`, `boot_b` cannot
+   be the permanent path, and `recovery_b` needs its own plan (PC log). Since then C0 #3 and #4 showed `boot_b` reachable and undone, and the reboot to the boot loader
    costs no try. But C0 #1 fell from 7 to 0 within one boot, and the Fedora slot marking (`iceland-slot-mark` with
    Fedora's `qbootctl`, in 0.28-2) has not run on the tablet yet: its package and guard pass in the rehearsals
    (r139b / r139c I1), the real mark happens only on the first installed boot. The final image has the marking enabled (offline
@@ -211,10 +222,10 @@ Still open (answer before the step named):
    confirmed on this tablet.
 5. (answered on 10 Oct, above).
 6. (answered 3 Oct, above).
-7. The plan's decisions 5-7 (held boot-code updates, release pin, LibreOffice / GNOME Web): not in the Loop 5 record;
+7. The plan's decisions 5-7 (held boot-code updates, release pin, LibreOffice / GNOME Web): not in the PC record;
    open. Decisions 8 and 9 are recorded (above).
 8. Is a way back to LineageOS needed after the install? Write 1 erases LineageOS's data (the way back would be a restore
-   from the G1 backup). The record says the way back is stock 11.A.38 (section 8); the owner should confirm.
+   from the G1 backup). The record says the way back is stock 11.A.38 (section 8); the owner should confirm. **Answered 13 Oct 2026: the way back is stock 11.A.38 only. Decision 7 is the recommended set (U-Boot only from us; GRUB and shim from Fedora; Fedora 44 until 45 is rehearsed; Fedora's default apps).**
 
 ### 0.5 The boot loader's slot counter (new, from Qualcomm's open boot-loader source)
 
@@ -230,10 +241,11 @@ version does (OnePlus's own build is closed, so C0 measures it on this tablet):
   switches to slot a and restarts (slot a has no Android system since the LineageOS install); otherwise it stops in its
   fastboot. **Part A on 2 Oct read slot a as successful AND unbootable** (slot b: retry count 6): in that state the boot
   loader does not switch, it stops in its fastboot (the review's case A), and the undo works from there.
-- **Only Android marks a slot successful** (after a good boot). U-Boot does not. Since package 0.27r5 (now 0.28-2)
-  the Fedora side does: `iceland-slot-mark` runs Fedora's `qbootctl -m` once after a good boot, only if the current
-  slot is not yet marked (skipped in kits and rehearsals). Its effect on the tries is not yet tested on the tablet
-  (r137 / r139b / r139c check the package and the guard only).
+- **Only Android marks a slot successful** (after a good boot). U-Boot does not. Since package 0.28-2 the Fedora side
+  does: `iceland-slot-mark` runs Fedora's `qbootctl -m` once after a good boot, only if the current slot is not yet
+  marked (skipped in kits and rehearsals). On the installed system it did not run on 13 Oct (its guard refused the loop
+  root); 0.28-8 (14 Oct) fixes the guard. Until the fixed package is installed, the owner marked slot b by hand with
+  `qbootctl` (14 Oct).
 
 So: during C0, every untethered power-on costs one try, and C0 has a hard stop (step C0.6). After C0's undo,
 LineageOS's first boot marks slot b successful again. Whether `boot_b` can be the permanent boot path depends on
@@ -248,12 +260,12 @@ boot loader's fastboot did not count (6 before and after).
 
 ## Part A - preparation on the PC and read-only checks (no write)
 
-Open a PowerShell window. All commands assume the tools in `C:\platform-tools` and the kit in `C:\OnePlusPad4`.
+Open a PowerShell window. All commands assume the tools in `<tools>` and the kit in `<work>`.
 
 ### Step 1 - verify the backup (G1)
 
 ```powershell
-C:\OnePlusPad4\scripts\03-Verify-Backup.ps1 -Backup C:\OnePlusPad4\backups\20260927-1933-unknown
+<work>\scripts\03-Verify-Backup.ps1 -Backup <work>\backups\20260927-1933-unknown
 ```
 
 Expected: "N files intact (hashes match what the tablet reported)" and, for both slots, "all images identical to
@@ -263,7 +275,7 @@ missing: make a new backup first (`02-Backup-AllPartitions.ps1`, from Android wi
 ### Step 2 - verify the stock images (G2)
 
 ```powershell
-cd C:\OnePlusPad4\stock-11.A.38
+cd <work>\stock-11.A.38
 Get-Content .\SHA256SUMS.txt | ForEach-Object { $h, $f = $_ -split '\s+', 2; if ((Get-FileHash $f -Algorithm SHA256).Hash -ne $h.ToUpper()) { "DAMAGED: $f" } }
 ```
 
@@ -272,7 +284,7 @@ Expected: no output. Any "DAMAGED" line: stop and fetch the stock package again.
 ### Step 3 - dry run of the return to stock (G3)
 
 ```powershell
-C:\OnePlusPad4\scripts\30-Restore-Stock.ps1
+<work>\scripts\30-Restore-Stock.ps1
 ```
 
 Without `-Execute` this only checks and prints its plan. Read the plan: it must list only `boot`, `init_boot`,
@@ -282,7 +294,7 @@ found. (This script has been written and dry-run, never executed on this tablet.
 
 ### Step 4 - second copy of the backup and the stock images (G4)
 
-Copy `C:\OnePlusPad4\backups\20260927-1933-unknown` and `C:\OnePlusPad4\stock-11.A.38` to a second disk (about
+Copy `<work>\backups\20260927-1933-unknown` and `<work>\stock-11.A.38` to a second disk (about
 17 GB + the stock package) and run step 1 against the copy (`-Backup <path on the second disk>`). The backup holds
 the calibration and identity of this one tablet; no download replaces it. Do not upload it anywhere.
 
@@ -292,10 +304,10 @@ With LineageOS running, USB debugging on, and **Developer options > "Rooted debu
 is refused; the setting is yours to switch):
 
 ```powershell
-cd C:\platform-tools
+cd <tools>
 .\adb.exe root
-cmd /c 'C:\platform-tools\adb.exe exec-out "tar -C /data -cf - vendor" > C:\OnePlusPad4\backups\data-vendor-20261002.tar'
-Get-FileHash C:\OnePlusPad4\backups\data-vendor-20261002.tar -Algorithm SHA256
+cmd /c '<tools>\adb.exe exec-out "tar -C /data -cf - vendor" > <work>\backups\data-vendor-<date>.tar'
+Get-FileHash <work>\backups\data-vendor-<date>.tar -Algorithm SHA256
 .\adb.exe unroot
 ```
 
@@ -308,19 +320,19 @@ LineageOS are **not** covered: copy what you want to keep before write 1 (write 
 ### Step 6 - the read-only pull for write 2 and its undo (G11; review R-1 / R-2 / R-9)
 
 Same day as C0, LineageOS running, "Rooted debugging" on. The PC session copies `parta-read.ps1` into
-`C:\platform-tools` first.
+`<tools>` first.
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\platform-tools\parta-read.ps1
+powershell -ExecutionPolicy Bypass -File <tools>\parta-read.ps1
 ```
 
 About 4 minutes; nothing is written (every adb / fastboot call goes through a list of reading commands). It
 1. reads the boot state and, with `adb root`, today's slot b images (`boot`, `vbmeta`, `init_boot`, `vendor_boot`,
    `dtbo`, `recovery`, `vbmeta_system`, `vbmeta_vendor`), slot a's boot set and `misc` into
-   `C:\OnePlusPad4\backups\parta-<date-time>\`, and saves `boot_b.img` once more as **`boot_b-before-install.img`:
+   `<work>\backups\parta-<date-time>\`, and saves `boot_b.img` once more as **`boot_b-before-install.img`:
    the undo file of write 2 and of C0** (today's LineageOS `boot_b`, 100663296 bytes - not the backup's);
 2. restarts into the boot loader (`adb reboot bootloader`), reads the slot flags of both slots, the lock state and
-   `boot_b`'s size (`fastboot getvar`; the serial number is never asked), and restarts into Android;
+   `boot_b`'s size (`fastboot getvar`, read only), and restarts into Android;
 3. runs the PC check: a second copy in the workflow's private folder (equal by SHA-256), today's `vbmeta_b` (it must
    chain `boot`), `misc`'s boot command (it must not be `boot-recovery` / `boot-fastboot`), **the footered install
    U-Boot made for today's `boot_b`** (`u-boot-iceland-footered.img`: the install build with an AVB hash footer,
@@ -338,7 +350,7 @@ Switch LineageOS off (power menu > Power off). Then hold **Volume Down + Power**
 screen shows, connect USB:
 
 ```powershell
-cd C:\platform-tools
+cd <tools>
 .\fastboot.exe getvar product
 .\fastboot.exe getvar current-slot
 .\fastboot.exe reboot
@@ -373,7 +385,7 @@ hour on the tablet, a change rehearsal less). What it must produce:
 4. **The update rehearsal** (a `dnf upgrade` keeps our kernel and sensor packages; a new kernel is installed next
    to the old one, boots once and becomes the default) and **the rollback rehearsal** (previous kernel from GRUB's
    menu, previous root snapshot, repair from the RAM rescue kit).
-5. **The files and their checksums**, written into section 10 (`priv/run/RECORD.txt`, made after the final run R4):
+5. **The files and their checksums**, written into section 10 (PC session record, not published; made after the final run R4):
    - `fedora-iceland.sparse.img` (the rehearsed image as a sparse image; its unpacked size equals `userdata`);
    - `u-boot-iceland.img` (the **install** build: it is NOT the one the rehearsal boots. Its own storage path is first
      seen in C0 step 0 and C0, and with Fedora's disk in Part C step 4) and `u-boot-iceland-footered.img` (the same
@@ -389,7 +401,7 @@ the masks are missing. The installed system is not changed by this.
 **State on 13 Oct (evening):** items 2-3 are met on the final golden B149 (r158 accepted: regression set 0 FAIL;
 the open VE-CAM row is a new test, not a regression; the acceptance list is part of its rows). Item 4 (G10) is met
 as rehearsal rows (r142 / r142b, r146 / r146b, r141u / r141ub, r156u / r156ub, r158u / r158ub). Item 5: the image is
-rebuilt from B149 (`C:\OnePlusPad4\final`, section 0.1 and section 10), offline check 128 PASS / 0 FAIL; the install U-Boot is v3
+rebuilt from B149 (`<work>\final`, section 0.1 and section 10), offline check 128 PASS / 0 FAIL; the install U-Boot is v3
 (`u-boot-iceland-v3.img`, `979b4076`).
 
 Part B is complete when section 10 has these values and the date of the passed acceptance list.
@@ -412,7 +424,7 @@ as you go.
 The PC session runs:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\platform-tools\uboot-ram-probe.ps1
+powershell -ExecutionPolicy Bypass -File <tools>\uboot-ram-probe.ps1
 ```
 
 About 3 minutes, nothing written: the boot loader RAM-boots `u-boot-iceland.img` (the plain install build); its
@@ -423,9 +435,9 @@ own path before the write; C0 then adds only what the boot loader does with `boo
 ### C0.1 - check the files
 
 ```powershell
-cd C:\platform-tools
-(Get-FileHash \\wsl.localhost\Ubuntu-24.04\home\mzak\mainline\build\wf\install\priv\run\boot\u-boot-iceland-footered.img -Algorithm SHA256).Hash
-(Get-FileHash C:\OnePlusPad4\backups\parta-<date-time>\boot_b-before-install.img -Algorithm SHA256).Hash
+cd <tools>
+(Get-FileHash <work>\u-boot-iceland-footered.img -Algorithm SHA256).Hash
+(Get-FileHash <work>\backups\parta-<date-time>\boot_b-before-install.img -Algorithm SHA256).Hash
 ```
 
 Both must equal section 10 (from `RECORD-parta.txt`) letter for letter. Otherwise stop.
@@ -452,7 +464,7 @@ reboot` and stop.
 Type it exactly; the only partition name is `boot_b`, the file is the **footered** one:
 
 ```powershell
-.\fastboot.exe flash boot_b \\wsl.localhost\Ubuntu-24.04\home\mzak\mainline\build\wf\install\priv\run\boot\u-boot-iceland-footered.img
+.\fastboot.exe flash boot_b <work>\u-boot-iceland-footered.img
 ```
 
 Expected: "Sending 'boot_b' (98304 KB) OKAY", "Writing 'boot_b' OKAY", "Finished". If it fails: stay in fastboot,
@@ -483,7 +495,7 @@ error".** Then, read only:
 
 ```powershell
 .\fastboot.exe getvar product
-cmd /c 'C:\platform-tools\fastboot.exe oem console > C:\OnePlusPad4\backups\parta-<date-time>\c0-uboot-console-1.txt 2>&1'
+cmd /c '<tools>\fastboot.exe oem console > <work>\backups\parta-<date-time>\c0-uboot-console-1.txt 2>&1'
 ```
 
 Expected: `oneplus-iceland` (U-Boot's fastboot). Now **hold Volume Down + Power** (about 15 s) until the boot loader's
@@ -521,7 +533,7 @@ In the boot loader's fastboot (Volume Down + Power, USB connected). Type it exac
 
 ```powershell
 .\fastboot.exe getvar current-slot
-.\fastboot.exe flash boot_b C:\OnePlusPad4\backups\parta-<date-time>\boot_b-before-install.img
+.\fastboot.exe flash boot_b <work>\backups\parta-<date-time>\boot_b-before-install.img
 .\fastboot.exe getvar slot-successful:b
 .\fastboot.exe getvar slot-retry-count:b
 .\fastboot.exe reboot
@@ -546,6 +558,8 @@ slot b successful. Write the results into section 10; the PC session decides wit
 
 ## Part C - write 1: the Fedora image into `userdata`
 
+> **Done on 13 Oct 2026** (status note at the top). The steps stay as the record of the procedure.
+
 Only when: section 0.1 has no open line for write 1, C0 passed and decision 3 is answered, section 10 is filled in,
 battery above 60 %, your files from LineageOS are saved. **Run Part A step 6 again the same day, just before this
 part** (it is the last time Android can be read; its `boot_b-before-install.img` must still equal C0's).
@@ -553,8 +567,8 @@ part** (it is the last time Android can be read; its `boot_b-before-install.img`
 ### Step 1 - check the file
 
 ```powershell
-cd C:\platform-tools
-(Get-FileHash C:\OnePlusPad4\final\fedora-iceland.sparse.img -Algorithm SHA256).Hash
+cd <tools>
+(Get-FileHash <work>\final\fedora-iceland.sparse.img -Algorithm SHA256).Hash
 ```
 
 Must equal the value in section 10, letter for letter (B149: `2246e9a7e790253be72ad8948cc3fa9f39bdcadfaa422ad53ed77daa6167482c`). Otherwise stop.
@@ -578,7 +592,7 @@ stop.
 Type it exactly; the only partition name is `userdata`:
 
 ```powershell
-.\fastboot.exe flash userdata C:\OnePlusPad4\final\fedora-iceland.sparse.img
+.\fastboot.exe flash userdata <work>\final\fedora-iceland.sparse.img
 ```
 
 The PC's fastboot splits the sparse image into pieces of at most 805 MB (the boot loader's `max-download-size`) and
@@ -591,7 +605,7 @@ If it stops with an error or the cable drops: the boot loader is unaffected. Sta
 ### Step 4 - proof, still tethered
 
 ```powershell
-.\fastboot.exe boot C:\OnePlusPad4\final\u-boot-iceland-v3.img
+.\fastboot.exe boot <work>\final\u-boot-iceland-v3.img
 ```
 
 (the plain install build v3, `979b4076`, the file `record.json` names; RAM only; `fastboot boot` never writes). Expected: U-Boot's text, GRUB's menu (3 s), then
@@ -622,19 +636,22 @@ Undo of write 1: section 8 (return to stock), or write the image again.
 
 ## Part D - write 2: U-Boot into `boot_b`
 
-Only after Part C step 4 passed, and only if decision 3 chose `boot_b` (**decision 3 is still open on 12 Oct**).
+> **Done on 13 Oct 2026** (status note at the top). The steps stay as the record of the procedure. Step 3's undo
+> rule was the install-day rule; after the install it is no longer part of the plan.
+
+Only after Part C step 4 passed, and only if decision 3 chose `boot_b` (decision 3 = `boot_b`, answered 13 Oct).
 What C0 measured: a normal boot into U-Boot from a written `boot_b` counts one try (C0 #4: 7 to 6), and
 `fastboot reboot-bootloader` from U-Boot costs none. The flash of write 2 resets slot b to *not successful*, so the
 first good Fedora boot must mark it: that is `iceland-slot-mark` (Fedora's `qbootctl -m`, once, after a good boot),
-which has not yet run on the tablet. If decision 3 is not `boot_b`, this part is replaced by the `recovery_b`
+which did not run on the installed tablet on 13 Oct (see the status note); the owner marked slot b by hand on 14 Oct. If decision 3 is not `boot_b`, this part is replaced by the `recovery_b`
 procedure the PC session writes for that decision.
 
 ### Step 1 - check the files and the slot
 
 ```powershell
-cd C:\platform-tools
-(Get-FileHash \\wsl.localhost\Ubuntu-24.04\home\mzak\mainline\build\wf\install\priv\run\boot\u-boot-iceland-footered.img -Algorithm SHA256).Hash
-(Get-FileHash C:\OnePlusPad4\backups\parta-<date-time>\boot_b-before-install.img -Algorithm SHA256).Hash
+cd <tools>
+(Get-FileHash <work>\u-boot-iceland-footered.img -Algorithm SHA256).Hash
+(Get-FileHash <work>\backups\parta-<date-time>\boot_b-before-install.img -Algorithm SHA256).Hash
 ```
 
 Both must equal section 10. The PC session confirms in the same minute: `check-header.py` accepts the footered file
@@ -659,7 +676,7 @@ Expected: `canoe`, `b`, the values written down after C0.8 (successful `yes`), `
 Type it exactly; the only partition name is `boot_b`:
 
 ```powershell
-.\fastboot.exe flash boot_b \\wsl.localhost\Ubuntu-24.04\home\mzak\mainline\build\wf\install\priv\run\boot\u-boot-iceland-footered.img
+.\fastboot.exe flash boot_b <work>\u-boot-iceland-footered.img
 .\fastboot.exe getvar slot-successful:b
 .\fastboot.exe getvar slot-retry-count:b
 .\fastboot.exe reboot
@@ -681,14 +698,15 @@ apart from one caused by the boot.
 ```
 
 `current-slot` must be `b` and `slot-unbootable:b` `no`. With the slot marking working, `slot-successful:b` reads
-`yes` after the first good Fedora boot and the count no longer goes down (expected from the design and the package
-tests; **not yet seen on the tablet**). **If `slot-successful:b` is still `no` and the count went down:** undo write
-2 now (below); do not boot again first.
+`yes` after the first good Fedora boot and the count no longer goes down (**not seen on the tablet on 13 Oct: the
+marking did not run; see the status note**). **If `slot-successful:b` is still `no` and the count went down:** undo
+write 2 now (below); do not boot again first. That was the install-day rule; after the install the undo is no longer
+part of the plan.
 
-Undo of write 2 (two minutes, from the boot loader):
+Undo of write 2 (two minutes, from the boot loader; not needed after the install, kept as the record):
 
 ```powershell
-.\fastboot.exe flash boot_b C:\OnePlusPad4\backups\parta-<date-time>\boot_b-before-install.img
+.\fastboot.exe flash boot_b <work>\backups\parta-<date-time>\boot_b-before-install.img
 ```
 
 (Android then starts with no data; Fedora stays in `userdata` and can be started tethered as in Part C step 4.)
@@ -701,8 +719,7 @@ Undo of write 2 (two minutes, from the boot loader):
   user or password.
 - **First hour:** Wi-Fi, sound, rotation, a suspend and resume, About shows "OnePlus Pad 4"; Settings > Power
   shows "Battery Charging": choose "Preserve Battery Health" (stops at 85 %; on by default from the device package).
-  Check once that `iceland-slot-mark` marked slot b (`journalctl -u iceland-slot-mark`; Part D step 3 reads it from
-  the boot loader).
+  Check that slot b is marked: `journalctl -u iceland-slot-mark`, and the boot loader's flags (Part D step 3). On 13 Oct the marking did not run on the installed system; the owner marked slot b by hand on 14 Oct (see the status note).
 - **Sound:** "Speakers" (the protected chain) and the processed microphone are the defaults; the raw ones are named
   "... (raw, unprotected)" - do not use the raw speaker output for loud playback. The speaker make-up is +9 dB (your
   choice); do the **listening check** in the first hour: music and speech at 50 % and 100 %, compared with how
@@ -752,8 +769,8 @@ Undo of write 2 (two minutes, from the boot loader):
 |---|---|
 | Before any write (today) | nothing: reboot starts Android |
 | During C0 | C0.7 (the undo): LineageOS returns with its data |
-| Only undo write 2 | `fastboot flash boot_b C:\OnePlusPad4\backups\parta-<date-time>\boot_b-before-install.img` (today's LineageOS `boot_b` from Part A step 6, **not** the 27 Sep backup's) |
-| Full return to stock | `C:\OnePlusPad4\scripts\39-Return-To-Stock.ps1` (written and dry-run, never executed; it leaves the tablet on slot a) |
+| Only undo write 2 (not needed after the install) | `fastboot flash boot_b <work>\backups\parta-<date-time>\boot_b-before-install.img` (today's LineageOS `boot_b` from Part A step 6, **not** the 27 Sep backup's) |
+| Full return to stock | `<work>\scripts\39-Return-To-Stock.ps1` (written and dry-run, never executed; it leaves the tablet on slot a) |
 | Factory state with a locked boot loader (optional) | step 4 of the same script (`31-Relock-Bootloader.ps1`), only when its own check says the tablet is exactly stock |
 | Back to LineageOS after write 1 | **not written yet**: return to stock, then `22-Flash-LineageOS.ps1` (it assumes stock on slot a; to be reviewed for the post-install state before it is ever used) |
 
@@ -805,18 +822,35 @@ interrupted: enter fastboot again (Volume Down + Power) and run it again.
 | C0.0 RAM probe of the install U-Boot (console saved, Android back) | | |
 | C0: R0 / R1 (after the write) / R2 and each cold boot's retry count; did U-Boot switch off by itself | | |
 | C0 undo: `boot_b` equal to the saved file, slot b successful again | | |
-| Acceptance list passed on the rehearsal boot (Part B, `priv/run/RECORD.txt`) | final rehearsal r158 on B149: accepted; regression set 0 FAIL; open VE-CAM (camera -> hardware encoder, a new test, not a regression) (PC session) | 2026-10-13 |
+| Acceptance list passed on the rehearsal boot (Part B; PC session record, not published) | final rehearsal r158 on B149: accepted; regression set 0 FAIL; open VE-CAM (camera -> hardware encoder, a new test, not a regression) (PC session) | 2026-10-13 |
 | Update and rollback rehearsal passed | r142 / r142b, r146 / r146b; on B145 r141u + r141ub; on B147 r156u + r156ub; on B149 r158u (25 PASS, 0 FAIL) + r158ub (RB2 7/7) (PC session) | 2026-10-13 |
 | Final golden and its confirmation rehearsal | B run 149 (manifest `7cc06a969b13`, body `6b1af718b913`, 1727 packages), r158 / r158u / r158ub (PC session) | 2026-10-13 |
-| `fedora-iceland.sparse.img` SHA-256, unpacked size (= 237159641088), rebuilt from that golden | `2246e9a7e790253be72ad8948cc3fa9f39bdcadfaa422ad53ed77daa6167482c`, 6732251564 bytes, unpacked 237159641088; offline check 128 PASS / 0 FAIL (`C:\OnePlusPad4\final`, PC session; check again before write 1) | 2026-10-13 |
+| `fedora-iceland.sparse.img` SHA-256, unpacked size (= 237159641088), rebuilt from that golden | `2246e9a7e790253be72ad8948cc3fa9f39bdcadfaa422ad53ed77daa6167482c`, 6732251564 bytes, unpacked 237159641088; offline check 128 PASS / 0 FAIL (the PC's final folder) | 2026-10-13 |
 | `u-boot-iceland-v3.img` SHA-256 (the plain install build, Part C step 4) | `979b40767afba37367354cfe047994acff10b21831f7664933ee30c7dc89f94c` (v3, `record.json` `uboot_plain`) | 2026-10-10 |
-| Decisions 0.4 | | |
-| Write 1 done, three tethered cold boots, GRUB environment before / after | | |
-| Write 2 done (flags right after the flash), three untethered cold boots, retry count unchanged | | |
+| Decisions 0.4 | Decision 3 = `boot_b` (13 Oct); decision 7 = the recommended set; decision 8 = the way back is stock 11.A.38 only | 2026-10-13 |
+| Write 1 done, three tethered cold boots, GRUB environment before / after | Write 1 done 13 Oct 2026, 18:31 (267 s, OKAY). Two tethered boots at 20:43-20:44 (the guide asks for three). GRUB environment: not in the sources (unverified). | 2026-10-13 |
+| Write 2 done (flags right after the flash), three untethered cold boots, retry count unchanged | Write 2 done 13 Oct 2026, 20:47 (2.3 s, OKAY); Fedora started from `boot_b` on its own at 20:48. Flags after the flash and the boot counts: not in the sources (unverified). The slot-b count fell 7 to 3 (marking did not run; marked by hand 14 Oct). | 2026-10-13 |
 
 ---
 
 ## 11. Known issues and what this build fixes
+
+### Status 14 Oct 2026 (installed on 13 Oct; slot marking; 0.28-8)
+
+- **Installed.** Fedora 44 GNOME boots from `boot_b` on its own (section 0, status note). The first evening's power read of
+  10.7 W came from load (first-day work, an Electron app's GPU crash loop, Wi-Fi power save off for a test). The later
+  diagnostic read 2.08 W average (screen on, 120 Hz, one Electron app open); it is not a platform leak.
+- **Slot marking (the open bug, fixed in 0.28-8, not yet in an image):** the loop root was refused by the guard. Marked by
+  hand (14 Oct). 0.28-8 also writes the boot LUN for one `qbootctl -m` call only, and logs both. Its thermal file was
+  installed on the tablet by hand on 14 Oct. The next image and a rehearsal carry it.
+- **DisplayPort over USB-C (open):** the portable 4K monitor is detected (HPD and EDID work) and GNOME enables a 4K
+  output, but no picture appears; the DP pipeline times out at disable. The port's power contract is 5 V x 2 A (10 W);
+  the battery charger's VBUS read 5.07-5.08 V and its current rose to 2.45 A over successive samples, so a monitor
+  over-current cut-off is possible (unverified).
+- **Open for the owner:** the speaker listening check; one night unplugged (drain); cover wake; USB host with a keyboard,
+  a stick and a hub; a 5 GHz connection with its band; the DP monitor; the wall chargers; the pen and the keyboard cover.
+- **Open for the PC:** VE-CAM (camera into the hardware encoder); Chromium and Electron GPU acceleration; the idle refresh
+  stays off; GStreamer 1.28.9 for BT.601 streams labelled 6/1/6.
 
 ### Status 13 Oct 2026, evening (FINAL: golden B149 = kernel q89g + iceland-device 0.28-7 + iceland-firmware 11.A.38-3 + libcamera 0.7.1-2)
 
@@ -875,7 +909,7 @@ interrupted: enter fastboot again (Volume Down + Power) and run it again.
 
 ### Status 12 Oct 2026, morning (install candidate: golden B143 = kernel q89d8 + iceland-device 0.28-2)
 
-The tables below are the release-candidate-1 record of 3 Oct and stay as history. Since then (Loop 5 log; rehearsal
+The tables below are the release-candidate-1 record of 3 Oct and stay as history. Since then (PC log; rehearsal
 r139c on B143: 0 FAIL):
 - **Fixed / changed:** the Wi-Fi drop of F43 (the firmware's 802.11d scan off by default, kernel 0189, q86); the Camera app (F44
   family): F54 40 camera cycles PASS with Fedora's libcamera; the Bluetooth address race with bluez 5.87
@@ -890,9 +924,9 @@ r139c on B143: 0 FAIL):
   of q89d8 or the private module of the same name) is to be checked in the final rehearsal.
 
 Status 3 Oct 2026, release candidate 1 (kernel q85 = queue 0001-0188, iceland-device 0.19, rehearsal r2i 46 / 0 / 0). The findings come from the logs of the release candidate's rehearsal (r2g, 3 Oct 02:44:
-INSTALL-ACCEPT 42 PASS, 1 FAIL, 1 CHECK), consolidated as F1-F23 (`an/r2g-logs/FIX-LIST.md`, private) and grown
+INSTALL-ACCEPT 42 PASS, 1 FAIL, 1 CHECK), consolidated as F1-F23 (PC session file, not published) and grown
 by the team's error ledger to F50 and B1-B18; the status column is the ledger's G3 check of release candidate 1's
-rehearsal r2i (`wf/ledger/check-r2i.md`) with the main session's review (re-run `wf/docs/tools/mk-final-docs.py`).
+rehearsal r2i (PC session file, not published) with the main session's review.
 What RC1 contains, what each run proved, its known issues (F43 Wi-Fi, F44 Camera app) and the owner's checks:
 `docs/guide/RC1-NOTES.md`. "Rehearsal only" and "test only" items do not exist on the installed
 tablet; "log only" items change nothing you would notice.
@@ -918,7 +952,7 @@ tablet; "log only" items change nothing you would notice.
 
 ### The findings and their status in release candidate 1
 
-Ledger G3 check of release candidate 1's rehearsal r2i: 62 records: PASS 51 | FAIL 7 | await 0 | n/a 4 (`wf/ledger/check-r2i.md`; r2i itself: INSTALL-ACCEPT 46 PASS, 0 FAIL, 0 CHECK). Statuses below include the main session's review; the plain explanations of the FAILs and the known issues are in `docs/guide/RC1-NOTES.md` (sections 2a, 3a).
+Ledger G3 check of release candidate 1's rehearsal r2i: 62 records: PASS 51 | FAIL 7 | await 0 | n/a 4 (PC session file, not published; r2i itself: INSTALL-ACCEPT 46 PASS, 0 FAIL, 0 CHECK). Statuses below include the main session's review; the plain explanations of the FAILs and the known issues are in `docs/guide/RC1-NOTES.md` (sections 2a, 3a).
 
 | Id | Area | What it is / what you would notice | Where it matters | Owner | Gate | Status in the final build |
 |---|---|---|---|---|---|---|

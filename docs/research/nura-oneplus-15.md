@@ -1,5 +1,8 @@
 # Nura wiki: OnePlus 15 (oneplus-infiniti), with what it means for the Pad 4
 
+Status (14 Oct 2026): research only. The OnePlus 15 is a different device and is unrelated to the shipped Pad 4 build;
+the Pad 4 column in Part 2 is the state of 28 Sep, and the 14 Oct state is in the feature matrix.
+
 **Source:** https://wiki.nura.eco/wiki/OnePlus_15_(oneplus-infiniti), revision 107471, last edited 2026-09-27 18:42.
 The cloud container is blocked from wiki.nura.eco, so the text comes from a page saved by the user on 2026-09-28.
 Wiki content is licensed [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). Credits on the page:
@@ -141,7 +144,7 @@ The Installation section is empty.
 
 ## Part 2 — What each item means for the Pad 4
 
-The Pad 4 facts below come from our captures and the PC relay results (`relay/results/pc-*`) as of 2026-09-28.
+The Pad 4 facts below come from our captures and the PC relay results (not published) as of 2026-09-28.
 
 ### Platform and boot
 
@@ -152,7 +155,7 @@ The Pad 4 facts below come from our captures and the PC relay results (`relay/re
 | Primary bootloader (replace ABL): broken | not attempted, not planned | Keep ABL stock (a hard rule anyway). |
 | Mu-Silicium UEFI: direct Linux boot, USB device, mass storage; no USB host or PD | no Pad 4 port | Fallback only (see research/gts6l-tab-s6.md). **Mass storage** could be useful for recovery or installing later. |
 | pmbootstrap flashing broken; no device package; no prebuilt images | we have to write `device-oneplus-iceland` ourselves (Phase 4) | There's no `device-oneplus-infiniti` to copy (checked by the PC through the GitLab API). Base it on the infiniti deviceinfo pattern plus our U-Boot flow, and include the pmbootstrap "flash U-Boot to boot_a + image to userdata" steps ourselves. |
-| pmOS kernel 7.3-rc4 | our base is also 7.3-rc4 + infiniti master | Same base, so fixes transfer directly. |
+| pmOS kernel 7.3-rc4 | our base was 7.3-rc4 + infiniti master on 28 Sep; the 14 Oct kernel is 7.3-rc7 (queue q89g) | Same family, so fixes transfer directly. |
 | Flash modes: Power+VolDown = bootloader, Power+VolUp = recovery, FastbootD has no combo | the same OnePlus ABL | Already used in our scripts' recovery hints. |
 
 ### PMICs, keys, power
@@ -172,7 +175,7 @@ The Pad 4 facts below come from our captures and the PC relay results (`relay/re
 
 | OnePlus 15 item | Pad 4 | Use for us |
 |---|---|---|
-| AA601 OLED, only one mode (2772x1272@165) works | NT36536 dual-DSI + DSC LCD. **Native display works at 120 Hz** (pc-007) | Ahead of the OnePlus 15. Other modes (144/90/60…) come next. The stock porch table is in relay/PC.md. |
+| AA601 OLED, only one mode (2772x1272@165) works | NT36536 dual-DSI + DSC LCD. **Native display works at 120 Hz** (pc-007); 14 Oct: 30 to 144 Hz with live switching | Ahead of the OnePlus 15. The stock porch table is in the PC notes (not published). |
 | Synaptics S3910 SPI touch | NT36536 TDDI touch; firmware runs (pc-008) | Different chip. |
 | GPU works (3D) | the GPU powers up (pc-011 B). Mesa not tried yet | The OnePlus 15 proves Adreno 840 + Mesa works on 7.3-rc4. XEC's GPU commits (speedbin + QFPROM c8a4e0c4b072/72df466c281d, corrected `opp-peak-kBps` 79d2d4bf0fc7, GPU `firmware-name` 29a65e59e72) are candidates if our GPU hits OPP or bandwidth trouble. |
 | HDMI/DP broken | DP not tried | Not a blocker. infiniti has qmp-combo + DP in our queue; expect work. |
@@ -191,7 +194,7 @@ The Pad 4 facts below come from our captures and the PC relay results (`relay/re
 | OnePlus 15 item | Pad 4 | Use for us |
 |---|---|---|
 | Audio broken (WCD939x + 2× TFA9874) | WCD9395 + **6× TFA9865**. The ADSP and audio DSP services are up; no sound card yet (pc-011 A) | **Nobody has kaanapali audio yet.** We have to build it: map220v's sound nodes + TFA9865 driver, an AudioReach topology (infiniti `OnePlus-Infiniti.m4` as the template) and UCM. Volume stays capped until speaker protection (`tfa98xx.cnt`) works. XEC ships `tfa98xx.cnt` under `qcom/kaanapali/OnePlus/Infiniti/`; the Pad 4 file is in /odm (our manifest). |
-| Cameras: no sensor drivers (IMX906, OV50D, S5KJN5, IMX709); flash works | Pad 4 sensors at i2c9 0x20 / 0x6c (models not identified yet) | Camera sensor drivers are the long pole on both devices. XEC firmware has `CAMERA_ICP.mbn`/`CAMERA_ICP_1.mbn`, which the kaanapali CAMSS needs. **Add the Pad 4 equivalents to the manifest** when cameras start. Identify the Pad 4 sensors from the stock camx configs on the PC. |
+| Cameras: no sensor drivers (IMX906, OV50D, S5KJN5, IMX709); flash works | Pad 4 sensors at i2c9 0x20 / 0x6c (identified as SC820CS and SC1320CS; both stream through libcamera on 14 Oct) | Camera sensor drivers are the long pole on both devices. XEC firmware has `CAMERA_ICP.mbn`/`CAMERA_ICP_1.mbn`, which the kaanapali CAMSS needs. **Add the Pad 4 equivalents to the manifest** when cameras start. Identify the Pad 4 sensors from the stock camx configs on the PC. |
 | All sensors broken (SSC) | bmi3x0, ak0991x, stk36c01 behind SSC | Same situation. Path: hexagonrpcd + libssc (troikoss / Tab S6 notes). |
 | Hall = `gpio-keys` (broken) | bu52053nvx on TLMM98 → `SW_LID` | We need a gpio-keys `SW_LID` node. The OnePlus 15 "broken" is theirs; ours is a plain GPIO key. |
 | Fingerprint, proximity/ALS (TOF8806) | no fingerprint; ALS is stk36c01 via SSC | n/a |

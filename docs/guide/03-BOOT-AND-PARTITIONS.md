@@ -1,12 +1,20 @@
 # 03 - Boot chain, partitions, and what the install changes
 
-State: 2 Oct 2026, about 23:00. Sources: `iceland-mainline/docs/reference/pad4-hardware-boot-partitions.md` sections 2-4,
-`docs/KNOWLEDGE.md` sections 4, 9, 12, `docs/tests/README.md` (U-Boot and Linux tests 1-7), `docs/INSTALL-PLAN.md`,
-`~/mainline/build/wf/install/REPORT.md` and `NEXT.md`, `iceland-u-boot` (`uboot.pin`, `tools/diag/`,
-`scripts/build.sh`), `tools/linux-ram/`. For the partition list see `02-HARDWARE.md` section 6.
+State: 14 Oct 2026. The tablet boots Fedora from its own storage. The boot chain as installed is:
+ABL -> `boot_b` (U-Boot v3 install build, footered) -> the EFI boot manager on `userdata` -> Fedora's shim and GRUB ->
+`kernel-iceland` 7.3.0-rc7 (queue q89g). The install was done on 13 Oct 2026 by the owner's two writes; sections 5 and 8
+describe the installed state. Sections 1-4 and 6-7 describe the boot chain and the test method as they were on 2 Oct,
+with the status notes that follow each part. For the partition list see `02-HARDWARE.md` section 6.
 
-> **Safety.** This document explains; it is not a procedure. The only write procedure is `docs/INSTALL-GUIDE.md`,
-> and it runs only with the owner's OK, one write at a time. Nothing in the project has written to the tablet so far.
+Status (14 Oct 2026), in short:
+- Installed: `userdata` (write 1, 13 Oct 18:31) and `boot_b` (write 2, 20:47). Fedora booted from `boot_b` at 20:48.
+- The boot counter did not mark the installed slot. The root is a loop device on `userdata` and the boot LUN is
+  read-only, so the slot-marking tool skipped every boot, and the retry count fell to 3. The owner marked slot b by hand
+  on 14 Oct (after safety copies of the partition tables). The fix is in iceland-device 0.28-8 (section 2 and 8).
+- Dual boot with Android: not started. The stock return path (return to stock) is written and dry-run, never executed.
+
+> **Safety.** This document explains; it is not a procedure. The write procedure is `docs/INSTALL-GUIDE.md`. It ran
+> only with the owner's OK, one write at a time, and the owner ran both writes. The project's tools never write the tablet.
 
 ## 1. The stock boot chain
 
@@ -73,6 +81,13 @@ public. Fastboot in ABL is the floor. That is why the boot firmware is never wri
 - **Anti-rollback:** never flash or boot firmware older than 11.A.38. The factory slot b held 11.A.32 until
   `copy-partitions`. The project never switches slots (`set_active` appears only in the owner's return-to-stock
   script).
+- **Status (14 Oct): what the slot flags did.** The flash of `boot_b` on 13 Oct reset slot b's flags, as the open ABL
+  source predicts. Slot b was then booted as installed, and the retry count fell from its post-flash value to 3 by the
+  evening of 13 Oct, because nothing marked the slot successful: `iceland-slot-mark` skipped every boot on the loop root
+  (its guard refused it), so Fedora never ran `qbootctl -m`. The owner marked slot b by hand on 14 Oct with
+  `qbootctl` (b: active 1, successful 1, bootable 1), after copies of the GPT were taken. Until the 0.28-8 fix is in
+  an image and proven on the installed system, the owner checks the slot flags after reboots and marks slot b by hand
+  if the count falls again. Slot a is not used (it holds LineageOS boot images without a system).
 
 ## 3. Verified boot (AVB) and the unlocked state
 
@@ -88,8 +103,12 @@ public. Fastboot in ABL is the floor. That is why the boot firmware is never wri
     ABL continues. That is exactly how today's LineageOS boots: its vbmeta is signed with test keys that ABL's stored
     key does not match.
   - So the image written to `boot_b` **must carry the footer** (`07-INSTALL-REVIEW.md` R-1).
-  - The proof ran on the LineageOS build's images. It is repeated on today's pulled images by `parta-check.sh`.
+  - The proof ran on the LineageOS build's images. It was repeated on the tablet's own pulled images before the install (the Part A check).
   - OnePlus's ABL build itself is closed. The write-2 probe (section 8) is its real test.
+  - **Status (14 Oct):** the real test has passed. After write 2 on 13 Oct, a power-on started the footered `boot_b`,
+    U-Boot found the Fedora disk, and Fedora booted from `boot_b` on its own at 20:48. The footered image that was
+    written has the AVB-PROOF result recorded in the install record (the footer's rollback and TEE values are the
+    ones described above; the record's hashes are in the install guide).
 - **The footer also feeds the TEE.** ABL's `GetOsVerAndSecPactchLevel` hands the trusted environment the
   `os_version` **and** `security_patch` of the boot image's AVB footer, or the boot header's values when the footer
   has none. Round 6's first footer carried only `os_version`, so the TEE would have been given U-Boot's header values
@@ -100,7 +119,11 @@ public. Fastboot in ABL is the floor. That is why the boot firmware is never wri
   why no RAM boot can prove how ABL treats a written `boot_b`.
 - **Never relock** the boot loader while anything but verified stock is installed.
 
-## 4. How the project boots Linux today: RAM boot, nothing written
+## 4. How the project booted Linux before the install: RAM boot, nothing written
+
+Status (14 Oct): this was the test method until the install. The RAM kits and their runner are not published (their
+logs and scripts were removed from the repositories on 13-14 Oct). The installed tablet no longer needs RAM boots for
+normal use; the rehearsal tooling still uses `fastboot boot`.
 
 ```
 PC: fastboot boot diag-L-efi.img        -> ABL loads it into RAM (no write, no verification)
@@ -109,31 +132,33 @@ PC: fastboot boot diag-L-efi.img        -> ABL loads it into RAM (no write, no v
 PC: fastboot boot linux-<kit>.img       -> U-Boot finds kernel, initramfs and device tree in the image
     bootefi                              starts the kernel's EFI stub (earlycon=efifb: output from the first line)
     Linux 7.3-rc4 + queue                our device tree; U-Boot applies ABL's memory map
-    busybox shim (/init)                 USB NCM network 172.16.42.1, live kernel-log stream to the PC,
+    busybox shim (/init)                 USB NCM network to the PC, live kernel-log stream to the PC,
                                          watchdog, auto reboot, report pages; loads modules
     Fedora 44 root (in RAM)              fetched over USB or carried as a cpio; systemd as PID 1, GNOME
 reboot                                   PS_HOLD reset -> ABL -> Android (slot b), untouched
 ```
 
 Details:
-- **U-Boot** (`iceland-u-boot`, v2026.10-rc5 + 14 infiniti + 3 Pad 4 patches).
+- **U-Boot** (`iceland-u-boot`, v2026.10-rc5 + 14 infiniti + 10 Pad 4 patches, `patches/0002-iceland/0001-0010`; the
+  install build is the patch set 0004-0010 on top of the board patches).
   - It is packed as an Android boot image, header v4, with `kernel = gzip(u-boot.bin)`. U-Boot's own device tree sits
     inside the gzip stream; ABL drops a tree appended after it (diagnostic run 3, 28 Sep).
   - It is built **without fastboot flashing** (`CONFIG_FASTBOOT_FLASH` off), so it cannot write the storage.
   - Linux is started through EFI (`bootefi`). An earlier `bootm` path ran the kernel in place from an unaligned buffer
     and failed (Linux test 1).
-- **The kit image.** `tools/linux-ram/build.sh` builds a header-v2 image: kernel `Image`, initramfs (busybox shim +
+- **The kit image.** The kit builder (not published) builds a header-v2 image: kernel `Image`, initramfs (busybox shim +
   optional Fedora root), and a debug device tree. That tree forces USB to peripheral mode; other nodes are switched
   on per kit with `ENABLE=`.
-- **The runner** (`run-linux.ps1` / `relay-run-kit-early.ps1` on Windows) allows only these fastboot commands:
-  `devices`, `getvar`, `boot`, `reboot` and `oem console`. On adb it allows only reading commands and
+- **The runner** (a Windows script, not published) allowed only these fastboot commands:
+  `devices`, `getvar`, `boot`, `reboot` and `oem console`. On adb it allowed only reading commands and
   `reboot bootloader`.
 - **Ways back to Android.** The kit reboots by itself after `AUTOREBOOT_AT` seconds. A watchdog daemon runs, and an
   RTC alarm wakes a sleeping kit. Holding Power about 15 s always restarts into Android.
 
-## 5. The planned install chain (Fedora installed; not done yet)
+## 5. The installed chain (since 13 Oct 2026)
 
-Design: `docs/INSTALL-PLAN.md` sections 0-3, `wf/install/REPORT.md` section 1.
+Design: `docs/INSTALL-PLAN.md` sections 0-3. The chain below is the installed one; the design text is kept as written
+before the install, and the status notes say where the install differs.
 
 ```
 ABL
@@ -143,7 +168,7 @@ ABL
       one explicit boot option Boot0001 = blkmap partition 1, /EFI/fedora/shimaa64.efi (efidebug, RAM only)
       bootefi bootmgr  (EFI variables are kept in RAM only: nothing is stored; no vendor LUN is tried)
       if nothing boots: U-Boot's fastboot; 600 s without a PC command -> power off (U-Boot patch 0007)
-      (boot_b vs recovery_b as the permanent place: an open owner decision pending C0, see section 2)
+      (the permanent place is `boot_b`, the owner's decision of 13 Oct; `recovery_b` was the fallback)
  -> shim  (EFI/fedora/shimaa64.efi on the image's EFI System Partition; shim's fallback is not used)
  -> GRUB 2.12  (Fedora's; reads the BLS entries in /boot/loader/entries)
  -> kernel-iceland (our rpm) + its device tree
@@ -186,6 +211,16 @@ Fedora disk in `userdata` (see `02-HARDWARE.md` section 6).
 - dnf never installs Fedora's kernels, a rescue initramfs, akmods / dkms, bootupd, sdubby or U-Boot images;
 - GRUB, shim and firmware packages are held; Fedora is pinned to release 44 until the next release is rehearsed.
 
+**Status of the installed chain (14 Oct).**
+- The installed system runs GRUB and shim from Fedora (held from updates), `kernel-iceland` 7.3.0~rc7 from the project's
+  package, and the root is btrfs on the loop device over `userdata`, as above. Fedora's own kernels are refused.
+- The loop root is the reason for the slot-marking problem (section 2): `iceland-slot-mark` refused it, so the
+  slot was marked by hand on 14 Oct.
+- The update path (the snapshot before each transaction, the rollback entry, the trial boot of a new kernel) was
+  proven in the rehearsals r142, r142b and r146b. It has not yet been run on the installed system.
+- iceland-device 0.28-8 was installed as one file by hand on 14 Oct (the thermal file). It is not yet in an image and
+  has not been installed through the local repository.
+
 **Updates after the install** (INSTALL-PLAN section 6):
 - New kernels come only from our repository. Each is RAM-tested first and synced to the tablet's local repository
   (`iceland-repo-sync`).
@@ -196,6 +231,11 @@ Fedora disk in `userdata` (see `02-HARDWARE.md` section 6).
 
 ## 6. The rehearsal from RAM (the install's proof without writing)
 
+Status (14 Oct): the rehearsal was the install's proof before the owner's writes. The final rehearsal of the B149
+image passed (r158, 0 FAIL, committed 13 Oct 15:45). The points that the rehearsal could not show (the write-2 ABL
+check, the install build's UFS path, the GRUB environment on the real UFS, the loop carrier on the real partition)
+were seen first in the installed system's tethered boots on 13 Oct, as the plan intended.
+
 ```
 PC: fastboot boot u-boot-iceland-rehearsal.img   (the install build's code WITHOUT SCSI / UFS support,
                                                     bootcmd = fastboot loop; it cannot see the storage)
@@ -203,7 +243,7 @@ PC: fastboot boot head.boot.img                   ("iceland-head": gzip of the i
                                                     small GPT) -> unzip into RAM, blkmap of RAM, bootefi bootmgr
  -> shim -> GRUB -> kernel-iceland               (the same chain as installed)
  -> initramfs: every UFS device read-only FIRST; USB gadget up; root disk = NBD from the PC over USB
-               (PC: golden image + copy-on-write overlay; a relay admits only 172.16.42.1)
+               (PC: golden image + copy-on-write overlay; the relay admits only the tablet's USB network address)
  -> Fedora as installed; the acceptance list runs; a guard returns the tablet to Android on any stall
 ```
 
@@ -222,10 +262,10 @@ PC: fastboot boot head.boot.img                   ("iceland-head": gzip of the i
     package 0.18 in area-combo-94. Run 94's image still lacks three round-6 fixes (B1 omit_drivers, B2 no SELinux
     load into the kit, B4 GPU microcode), so the B run is repeated before R1.
   - The R1 U-Boot fix (blkmap `create` takes 3 words; every failure prints a FAILED line and returns to fastboot) is
-    verified 15 / 15 in an independent U-Boot sandbox (`wf/r1debug/REPORT.md`).
+    verified 15 / 15 in an independent U-Boot sandbox (the sandbox report is not published).
   - The first tablet step is an 8 KiB "not gzip" test head. It proves the return to fastboot and the PC's recovery
     within seconds.
-  - The exact command list is `docs/INSTALL-RERUN-COMMANDS.md`. The first rehearsal boot R1 stopped in the rehearsal U-Boot: its
+  - The exact command list was kept with the install tooling (not published). The first rehearsal boot R1 stopped in the rehearsal U-Boot: its
   `blkmap create` subcommand table still accepted only 2 words. Fixed in round 5: every failure now returns to
   fastboot or resets, and never stops at a prompt. Re-run pending.
 
@@ -266,6 +306,20 @@ written and dry-run, never executed.
 
 ## 8. The two writes, in one paragraph each (for orientation only)
 
+**Status (14 Oct): done.** The owner ran both writes on 13 Oct 2026, each after the owner had seen the partition, the
+file, its size and SHA-256 in chat and had confirmed that one write.
+- Write 1: `userdata` <- the final golden B149 install image (the sparse file's SHA-256 prefix 2246e9a7, 6,732,251,564
+  bytes; it unpacks to the 237,159,641,088 bytes of `userdata`). Done 18:31 (267 s, OKAY).
+- Write 2: `boot_b` <- the footered U-Boot install build v3 (footered SHA-256 prefix 4955ee98; the unfootered build is
+  979b4076). Done 20:47 (2.3 s, OKAY).
+- The sources give these times: 18:31 (write 1), 20:43-20:44 (tethered boots), 20:47 (write 2), 20:48 (Fedora from
+  `boot_b`). Their exact order between the tethered boots and the writes is not recorded (unverified).
+- The C0 probes of 10 Oct (U-Boot into `boot_b`, undone each time, the last probe passed at 17:41) came before the
+  install. The public sources do not settle whether the plan's probe-first order (section 8, "Order decided on 2 Oct")
+  was kept on 13 Oct; the install record is the reference (unverified here).
+- The retry count of slot b fell to 3 on the installed system (section 2 status note). The owner marked slot b by hand
+  on 14 Oct.
+
 - **Write 1:** the rehearsed sparse image into `userdata`, from ABL's fastboot. It erases Android's data. Until
   write 2, a plain power-on still starts Android, which reports damaged data: never confirm its factory reset.
   Undo: write it again, or return to stock.
@@ -278,9 +332,9 @@ before either.
 
 **Order decided on 2 Oct.** The owner accepted the review's proposal (R-3): a **write-2 probe first** (guide part
 "C0", text being written by the install workflow). **The owner runs every write themselves.**
-1. **Part A read.** `parta-read.ps1` pulls today's `boot_b`, `vbmeta_b`, slot flags and `misc` read-only (needs
+1. **Part A read.** The read-only reader pulls today's `boot_b`, `vbmeta_b`, slot flags and `misc` (needs
    "Rooted debugging").
-   - `parta-check.sh` makes `boot_b-before-install.img` (the undo file) and the footered
+   - The checker makes `boot_b-before-install.img` (the undo file) and the footered
      `u-boot-iceland-footered.img`.
    - It reruns the AVB proof on today's images.
    - It stops if `misc` holds `boot-recovery` / `boot-fastboot`.
@@ -302,4 +356,4 @@ before either.
    set `boot-recovery` in `misc` when it cannot mount `userdata`).
 
 **Dual boot:** not now (owner, 2 Oct). A plan with the best safety precautions is to be written
-(`wf/install/DUALBOOT-PLAN.md`, not started).
+(the draft is `docs/DUALBOOT-PLAN.md`; not started on the tablet).

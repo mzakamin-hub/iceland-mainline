@@ -1,12 +1,80 @@
-# OnePlus Pad 4 - Fedora 44 GNOME: release notes of release candidate 1 (RC1)
+# OnePlus Pad 4 - Fedora 44 GNOME: release notes
 
-3 Oct 2026 (docs workflow). The full RC1 notes - what each run proved, the ledger's FAILs explained, the known issues
-and the owner's checks - are in `docs/guide/RC1-NOTES.md`; this page is the short version. **Nothing has been
-installed on the tablet**: every result below is from RAM boots (test kits), from build runs on the tablet, and from
-the install rehearsal, which boots the real install image from the PC's disk without writing the tablet. Installing is
-your decision and your hands (section 6).
+Updated 14 Oct 2026. Section 0 is the final build and the install of 13 Oct. Sections 1 to 7 are the record of
+release candidate 1 (RC1, 3 Oct 2026); they are kept as they were, with the notes added where a later result changes
+them. The full RC1 notes, with what each run proved, the ledger's FAILs and the owner's checks at the time, are in
+`docs/guide/RC1-NOTES.md`.
 
-## 1. The build
+## 0. The final build and the install (14 Oct 2026)
+
+Fedora 44 GNOME has been **installed on the tablet since 13 Oct 2026**. The owner made the two writes after the PC checks:
+`userdata` (the final image) and `boot_b` (U-Boot v3). Fedora boots from `boot_b` on its own. The install record is in
+[INSTALL-GUIDE.md](INSTALL-GUIDE.md) (status note at the top and section 10).
+
+### 0.1 The build that is installed
+
+| Piece | Version / state |
+|---|---|
+| Kernel | `7.3.0-rc7-iceland-00426-g520e85da9244`, queue head q89g on Linux v7.3-rc7 (426 patches: 132 infiniti-mainline, 294 Pad 4); package `kernel-iceland 7.3.0~rc7.iceland.00426`; golden B149 |
+| Device package | `iceland-device` 0.28-7 in the image; 0.28-8 (14 Oct) was added to the tablet by hand and is not yet in an image |
+| Firmware | `iceland-firmware` 11.A.38-3 (generic stock firmware, sha256-pinned; the decoded thermal model is in it) |
+| libcamera | Fedora's 0.7.1-2 (not our build) |
+| U-Boot | install build v3 in `boot_b`, footered for AVB (the plain build's sha256 is in the install guide's record) |
+| Fedora | release 44 with the stable refreshes; GNOME Shell 50.5; Mesa 26.2.4; the minimal holds (sensor programs, alsa-ucm, our kernel and packages) |
+| Image | 1,727 packages in golden B149; the install image is offline-checked (128 PASS, 0 FAIL) |
+
+### 0.2 What changed since RC1 (3 Oct)
+
+- **Kernel:** rebased on Linux v7.3-rc7 (q89e, 11-12 Oct; the iris colour fix is in). 13 Oct: the panel's brightness limit
+  through the kernel (the backlight driver's cooling device, one state per stock gear; GNOME's slider keeps the user's
+  value); the UFS scheduler change no longer fails on the busy tag set; the rear lens held at stock's start position while
+  the camera streams; the USB controller and the Wi-Fi root port are no longer wake sources; the idle refresh compiled in,
+  off by default.
+- **Sound:** the speakers run through a protection chain (150 Hz high-pass, compressor with +9 dB make-up - the owner's
+  choice - and a limiter at -1 dBFS). The microphones: an echo canceller, then a +14 dB limiter, with stock's decimator
+  setting (84); the raw source is named "(raw)". The loudness against Android was not measured (the comparisons were
+  inconclusive); the listening check is the owner's.
+- **Wi-Fi:** the firmware's 802.11d scan is off by default (kernel q86), the fix for the drops after a reconnect (F43).
+- **Bluetooth:** the address helper v2 (0.28-2), and the firmware baud-change fix in the kernel (q89d9): no more
+  "Frame reassembly failed" at power-on.
+- **Thermal:** stock's skin-temperature policy (60 / 61 / 70 C, since 12 Oct); the brightness limit is back through the kernel;
+  0.28-8 adds stock's screen-off table and input boost ceiling.
+- **Camera:** libcamera 0.7.1-2 from Fedora stops the camera stream without the WirePlumber abort (F54: 40 of 40 cycles).
+  The F44 Camera-app failure is in the same family (unverified beyond that).
+- **Updates and firmware:** the minimal Fedora holds (GRUB, shim, Fedora's firmware and libcamera update from Fedora; the
+  sensor programs and `alsa-ucm` are held); `iceland-firmware-fetch` with sha256 pins; the firmware repository is public.
+- **Slot marking:** 0.28-8 (not yet in an image) fixes the Fedora-side marking on the installed layout; until then the
+  owner marked slot b by hand (14 Oct).
+
+### 0.3 Rehearsals and the golden
+
+- Golden B149 (committed 13 Oct 15:45) with the final rehearsal r158 (0 failures in the regression set, no regression
+  against r141) and its update and rollback rehearsals (r158u, r158ub: 25 PASS and the rollback boot 7 of 7).
+- Golden B147 (13 Oct morning, rehearsal r156: one known failure, F54, accepted) and B145 (12 Oct, r141: accepted) are the
+  earlier accepted goldens. B148 (0.28-6, r157) was not used as the image.
+
+### 0.4 The install (13 Oct) and what it showed
+
+- `userdata`: 267 s, OKAY, at 18:31. `boot_b`: 2.3 s, OKAY, at 20:47. Two tethered boots at 20:43-20:44 for the first-boot
+  setup; Fedora from `boot_b` on its own at 20:48. (The guide asks for three tethered boots; the record shows two.)
+- The first-boot setup asked for the user account; the image has no preset user.
+- The slot counter: the Fedora-side marking did not run (its guard refused the loop-mounted root), so ABL's retry count for
+  slot b fell from 7 to 3. The owner marked it by hand with `qbootctl` on 14 Oct (Active 1, Successful 1, Bootable 1).
+- Power diagnostic on 14 Oct: average 2.08 W (screen on at 120 Hz, Wi-Fi power save on, one Electron app open).
+
+### 0.5 Open at the final build
+
+- **Known, not fixed:** DisplayPort over USB-C shows no picture (the monitor is detected); the camera does not negotiate with
+  the hardware H.264 encoder (a new test, VE-CAM); an unofficial Electron app's GPU process crash-looped and fell back to software rendering;
+  a 5 GHz connection is not confirmed; USB host mode with accessories is not tested; the idle refresh is off (74.8 Hz
+  measured instead of 60 Hz); no autofocus; no fast charging.
+- **Owner's checks:** the speaker listening check (50 % and 100 %, against Android); one night unplugged with the cover
+  closed (the standby drain); cover wake from sleep; USB host (keyboard, stick, hub); a 5 GHz connection with its band; a
+  DisplayPort monitor (picture, then sound); the wall chargers, attended; the pen and the keyboard cover.
+- **Next PC work:** 0.28-8 into an image and a rehearsal (rows TS1-TS3 and the slot-mark rows); DP over USB-C; the camera
+  into the hardware encoder; Chromium / Electron GPU acceleration; GStreamer 1.28.9 for BT.601 streams labelled 6/1/6.
+
+## 1. The RC1 build (3 Oct 2026)
 
 | Piece | Version / state |
 |---|---|
@@ -34,7 +102,7 @@ The proof, all on 3 Oct:
 | B run 112 | the RC1 packages built and checked on the tablet | **31 PASS, 0 FAIL**; the builder's RC check 8 / 8 |
 | rehearsal r2i | the RC1 install image booted from the PC's disk | **INSTALL-ACCEPT 46 PASS, 0 FAIL, 0 CHECK; the klog probes 14 / 14 PASS; the debugger's suite 32 PASS, 2 FAIL, 3 CHECK, 1 SKIP**; Fedora's first-boot setup on the screen |
 
-## 2. What works
+## 2. What worked in RC1
 
 On the installed image (rehearsal r2i, 3 Oct; SELinux enforcing; the acceptance list passes without a failure or an
 open check):
@@ -64,7 +132,7 @@ battery life (light use 14-17 h, 1080p video 15-16 h, screen off awake about 3.5
 stock, low-battery limiting, the NPU's processor, the microphones at stock's level, the lid / cover, the pogo keyboard
 and pen charger drivers (without the accessories), per-rail power telemetry.
 
-## 3. Known issues and what this build fixes
+## 3. Known issues and what RC1 fixed (RC1 record)
 
 **Known issues of RC1** (details in `docs/guide/RC1-NOTES.md`, section 3a):
 - **F43 Wi-Fi**: on your network the connection drops after about 110 s, and every reconnect (2.4 and 5 GHz) fails
@@ -97,7 +165,7 @@ What was fixed against the last committed state (2 Oct evening), and every findi
 
 ### The findings and their status in release candidate 1
 
-Ledger G3 check of release candidate 1's rehearsal r2i: 62 records: PASS 51 | FAIL 7 | await 0 | n/a 4 (`wf/ledger/check-r2i.md`; r2i itself: INSTALL-ACCEPT 46 PASS, 0 FAIL, 0 CHECK). Statuses below include the main session's review; the plain explanations of the FAILs and the known issues are in `docs/guide/RC1-NOTES.md` (sections 2a, 3a).
+Ledger G3 check of release candidate 1's rehearsal r2i: 62 records: PASS 51 | FAIL 7 | await 0 | n/a 4 (PC session file, not published; r2i itself: INSTALL-ACCEPT 46 PASS, 0 FAIL, 0 CHECK). Statuses below include the main session's review; the plain explanations of the FAILs and the known issues are in `docs/guide/RC1-NOTES.md` (sections 2a, 3a).
 
 | Id | Area | What it is / what you would notice | Where it matters | Owner | Gate | Status in the final build |
 |---|---|---|---|---|---|---|
@@ -177,7 +245,7 @@ Benign groups (B-ids; noise that is expected on this hardware or first boot):
 | B16 | ledger: info lines that only look like errors (IRQ names 'fatal' / 'overflow', SCMI max-rx-timeout, unit descriptions) | benign (expected noise) |
 | B17 | benign: desktop deprecation warnings (GTK style-*.css, Adw properties, dbus eavesdropping, udev-settle pulled by upower) | benign (expected noise) |
 
-## 4. Known limits (not bugs of this build)
+## 4. Known limits of RC1 (see section 0.5 for the current list)
 
 - Speakers are capped at -12 dB: NXP's speaker protection has no mainline driver.
 - No fast charging (SuperVOOC / PPS). Bypass charging is built and reviewed but deferred (your decision).
@@ -190,7 +258,7 @@ Benign groups (B-ids; noise that is expected on this hardware or first boot):
 - Firefox decodes video in software; the NPU needs Qualcomm's QNN SDK to run networks.
 - The installed system arms no hardware watchdog (a later decision).
 
-## 5. Checks only you can do
+## 5. Checks of RC1 (the open ones are in section 0.5)
 
 | Check | How long | What it shows |
 |---|---|---|
@@ -208,7 +276,7 @@ Benign groups (B-ids; noise that is expected on this hardware or first boot):
 | USB accessories (keyboard, stick, hub) and a USB headset | a few minutes | host mode (the role switch is automatic) |
 | The default apps by finger; colours and sharpness of the cameras; 144 Hz | 30 min | what no automated test can judge |
 
-## 6. Your decisions for the install
+## 6. Decisions for the install (RC1; answered on 13 Oct: boot_b as the boot path, Fedora only, the way back is stock)
 
 Answered: Fedora only for now (dual-boot plan prepared, not done); the write-2 probe C0 first; the GPU microcode from
 Fedora's `qcom-firmware`; the camera driver and stock-derived tuning in the private repositories and your image; the
@@ -235,8 +303,7 @@ the firmware are never written, so fastboot (Volume Down + Power) always answers
 
 ## 7. Where the evidence is
 
-`docs/guide/RC1-NOTES.md` (RC1 in full), the feature matrix (`docs/FEATURES.md`, the published page), the work log
-(`docs/WORKLOG.md`), the run log sets (`docs/tests/area-combo-*`, up to run 112), the install documents
-(`docs/INSTALL-PLAN.md`, `docs/INSTALL-GUIDE.md`), the review and the guide set (`docs/guide/`), the team plan
-(`docs/TEAM-PLAN.md`) and the team's reports with the error ledger's checks (`relay/results/pc-016-020/wf/`). The
-rehearsal logs (r2g, r2h, r2i) stay private; their findings are in section 3.
+`docs/guide/RC1-NOTES.md` (RC1 in full), the feature matrix (`docs/FEATURES.md`), the install documents
+(`docs/INSTALL-PLAN.md`, `docs/INSTALL-GUIDE.md`), the guide set (`docs/guide/`) and the team plan (`docs/TEAM-PLAN.md`).
+The run logs, the team's reports and the rehearsal logs (r2g, r2h, r2i) are not published; their findings are in
+section 3.

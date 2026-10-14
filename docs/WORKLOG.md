@@ -1,5 +1,10 @@
 # Work log - OnePlus Pad 4 mainline
 
+
+> Note (14 Oct 2026): script, log and folder names in this file are PC work-tree names; the published repository does not
+> hold them. The entries from 10 Oct on are condensed; the full PC-session history is not published.
+
+
 Newest entry last. Every entry: what was done, the result, what comes next. Read `STATE.md` for the rules and
 locations, this file for the running history, so no step is repeated. A copy goes to
 `iceland-mainline/docs/WORKLOG.md` with each commit.
@@ -48,7 +53,7 @@ Known before starting (from `docs/repo-docs/`):
   new read-only FAT reader (`an/fatx.py`, verified: its `adsp.mdt` is identical to the kit's copy). Private:
   `build/fwcdsp`, `cdsp-fw.tar`, `cdsp-root.tar` (dsp partition's `cdsp` tree + the unsigned NPU runtime
   `libQnnHtpV81Skel.so` from odm).
-- NPU test client: Qualcomm's open `fastrpc` library (github.com/qualcomm/fastrpc, cloned to `~/mainline/ext/fastrpc`)
+- NPU test client: Qualcomm's open `fastrpc` library (github.com/qualcomm/fastrpc, cloned to `<pc-work>/ext/fastrpc`)
   with its `fastrpc_test` (calculator / HAP / multithreading skels, v75) + `an/htp-open.c` (opens the NPU runtime in an
   unsigned PD: `file:///libQnnHtpV81Skel.so?qnn_skel_handle_invoke&_modver=1.0&_dom=cdsp`).
 - Kit builder: `CDSP_MDT=1` (firmware-name = cdsp.mdt / cdsp_dtb.mdt), node enabled with `SOC_EXTRA`.
@@ -61,7 +66,7 @@ Known before starting (from `docs/repo-docs/`):
     quiet at the tablet; the comparison is relative, same sound for both systems.
   - Stock mixer file: TX_DEC volumes 84 (0 dB) and mic paths in ADC_HIFI; the loudness difference is in the DSP.
   - Left on the tablet: 4 test recordings in Recordings/Sound records (05_26, 05_43, 05_45, 05_46 on 2026-10-01);
-    copies in `C:\OnePlusPad4\mic` (private).
+    copies in `<pc-path>` (private).
 - `gnome-screenshot` cannot capture on GNOME 50 (shell interface refused) -> the webcam is used for the meter.
 - Next: run area-combo-1 (kernel q38): mic take at TX_DEC 84, gain to match stock's loud frames, GNOME meter with the
   webcam; video leftovers (FFmpeg V4L2-M2M, 10-bit VP9, encoder with BT.709); idle sample; CDSP start; FastRPC tests.
@@ -153,7 +158,7 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
 - Run 4b (21:02, kernel q40) results:
   - GStreamer: the patched v4l2 plugin (no colorimetry probing for coded formats) built on the tablet; with it the
     BT.601 encoder stream decodes on Iris 60/60 frames identical to software, and 10-bit VP9 negotiates (P010).
-    The saved `.patch` file is empty (0 bytes) - regenerate the diff from `~/mainline/ext/gst/gstv4l2object.c`.
+    The saved `.patch` file is empty (0 bytes) - regenerate the diff from `<pc-work>/ext/gst/gstv4l2object.c`.
   - Wi-Fi: first load vs two driver reloads: no 5 GHz result either way -> the reload is not the variable.
   - GNOME Web: `bwrap: No permissions to create a new namespace` - the kit ran Fedora in a plain chroot.
     Fix in the kit's init: `ROOTFS_MODE=pid1m` (mount --move the root file system over /, then chroot).
@@ -226,10 +231,10 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   - **Stock: `enable_sbs=0`** in the tablet's WCNSS_qcom_cfg.ini (odm), comment "hardware ... not support sbs mode".
     The stock host sends the dual-MAC configuration (WMI_PDEV_SET_MAC_CONFIG_CMDID: the firmware's default bits, the
     ASYNC_SBS bit only if SBS is enabled - qcacld policy_mgr_init_dbs_config / policy_mgr_init_sbs_fw_config).
-    ath12k never sends it. Reference sources fetched to `~/mainline/ref/fwapi/` (public Qualcomm code, read only).
+    ath12k never sends it. Reference sources fetched to `<pc-work>/ref/fwapi/` (public Qualcomm code, read only).
   - **Camera first light**: both sensors stream 5 frames through CSIPHY -> CSID -> VFE RDI (rear 4160x3120, front
     3264x2448, packed RAW10, stream rc 0). The front preview shows the room (curtains, ceiling edge), dark at the
-    default exposure / gain; the rear looks at the desk. Previews in `C:\OnePlusPad4\camshots` (private).
+    default exposure / gain; the rear looks at the desk. Previews in `<pc-path>` (private).
 - Kernel q45 = queue 0064 + `an/ath12k-mac-config.py` (module parameter `sbs` -1 / 0 / 1, sent before the next scan)
   + camera DT v4. Run 9 first attempt 22:35: **the tablet froze during dnf at ~101-123 s uptime** (heartbeat gaps,
   then silence, hard reset 30 s later, "Reset by PSHOLD") - the 30 Sep freeze signature, with the busy-only USB vote
@@ -238,7 +243,7 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   on 0065. Run 9 relaunched 23:01 with the kit request on.
 - The user asked (22:40) for parallel workflows on: auto-rotate, battery time estimate, s2idle, long sleep, CPU
   scaling + GNOME power modes, GNOME About page. Five background workflows started (analysis + test + fix candidates
-  as files in `~/mainline/build/wf/<name>/`, brief in `docs/WORKFLOW-BRIEF.md`); they do not touch the tablet, the
+  as files in `<pc-work>/build/wf/<name>/`, brief in the workflow briefs (removed 13 Oct, not published)); they do not touch the tablet, the
   kernel tree or the kit builds. Their tests go into one combined run when they report.
 
 ### 2026-10-01 - entry 8: Wi-Fi 5 GHz fixed and queued (0066-0068), camera exposure, the five workflows reported
@@ -260,12 +265,12 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
 - Camera (run 10): both sensors stream again; exposure max (3999 / 2999 lines) changes nothing in the picture, the
   raw gain values 0x1f / 0x3f raise the rear sensor's noise (std 1.4 -> 4.8) but not the front's -> the exposure
   write does not take effect (or the room is simply dark at 23:30). To do in daylight / with a lit target:
-  exposure + gain registers, then libcamera. Previews private in `C:\OnePlusPad4\camshots` (run 10's are named
+  exposure + gain registers, then libcamera. Previews private in `<pc-path>` (run 10's are named
   combo9-*: fetched by the stale probe, see next line).
 - **My mistake**: the run-9 resume probe (`an/area-combo-9-resume.sh`) was still looping when run 10 booted; it
   attached to run 10's session, fetched its logs into `area-combo-9/` and rebooted the tablet at 23:33:37, before
   run 10's About part. Logs moved (`fix-logs-9-10.sh`); the chains now also stop `*-resume.sh` probes. Not a crash.
-- The five workflows reported (deliverables in `~/mainline/build/wf/<name>/`: REPORT.md, NEXT.md, tablet.sh, cand/):
+- The five workflows reported (deliverables in `<pc-work>/build/wf/<name>/`: REPORT.md, NEXT.md, tablet.sh, cand/):
   - about: model row = `/etc/machine-info` (OnePlus / Pad 4 / tablet); Processor row needs a `model name` line in
     arm64 /proc/cpuinfo (GNOME reads only that; local kernel carry = the user's call); SoC id 661 = SM8850P missing
     in socinfo (upstreamable).
@@ -308,7 +313,7 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   0001-0070. **iceland-device 0.14** (`pkg-014.sh`): machine-info, tuned profiles (revision 2.0 floors, turbo steps
   in Performance), npu-off unit path, tests (0 failures); the kits' overlay carries machine-info.
 - **Commit B: iceland-mainline 06f9f8e** (logs of runs 4-11, tools, workflows' reports under
-  `relay/results/pc-016-020/wf/`, matrix 48 working / 13 in progress / 12 not started / 2 not planned, page v24).
+  the relay notes (removed 13 Oct, not published), matrix 48 working / 13 in progress / 12 not started / 2 not planned, page v24).
 - Run 12 (q47, 23:57): the sleep workflow's test. **13 of 13 s2idle cycles clean** (6 s RTC alarm each, wake irq
   pm8xxx_rtc_alarm, no stuck CPU), including one right after a tone (C06) and one during a tone (C10). Cycle 14 is
   the one with a microphone recording before it: it never started. From uptime 227 s one CPU was busy and available
@@ -363,12 +368,12 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   fixed). rotate with `Restart=always`: the daemon stayed up with ONLY the compass (accelerometer not there yet) ->
   a retry policy is not enough.
 - Run 17 (q49): **pkg PASS**: iceland-device-0.14-1.fc44.noarch.rpm built on the tablet, 41 files, install rc 0,
-  `rpm -V` clean; RPM + SRPM in `C:\platform-tools\rpms`. **rotate PASS** with a real readiness wait
+  `rpm -V` clean; RPM + SRPM in `<pc-path>`. **rotate PASS** with a real readiness wait
   (`iceland-ssc-wait 30 /usr/bin/ssccli`: polls an accelerometer sample): bring-up 2.53 s by udev alone, first
   contact W, injection 5/5. Its gdm step: the NEW gnome-shell made 0 ClaimAccelerometer calls in 12 s.
 - Run 18 (q49): `rotate3` = boot order as a functional test (test accelerometer + daemon up, then `systemctl
   restart gdm` = new autologin session, then four orientations): 0 claims in 30 s, turns 1 of 4.
-- mutter 50.5 source read (`~/mainline/ref/mutter/`, reference only): `sync_accelerometer_claimed()` claims only
+- mutter 50.5 source read (`<pc-work>/ref/mutter/`, reference only): `sync_accelerometer_claimed()` claims only
   when `inhibited_count == 0`; `update_panel_orientation_managed()` (monitor manager) calls uninhibit when the panel
   becomes managed (touch mode + accelerometer + built-in panel) - on the very first has-accelerometer notification
   nothing had inhibited yet, so the count goes to -1 and no claim is ever made. Works by accident when
@@ -403,7 +408,7 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   the tablet, mean R 173 G 167 B 168, overexposed in the middle (no auto-exposure without a sensor helper); front
   mean 40 (dark room). `libcamerasrc ! identity eos-after=13 ! jpegenc` gives JPEGs. WirePlumber: two
   `Video/Source` nodes (`libcamera_input...camera_36` and `...camera_10`, "Built-in Front Camera").
-  Previews private in `C:\OnePlusPad4\camshots\run20` / `run22`.
+  Previews private in `<pc-path>` / `run22`.
 - **Queued: iceland-linux 82e192d = 0073** the cameras' device tree (= the tree tested as q49). Queue 0001-0073.
 - Camera open points: libcamera sensor helper + tuning (AE), front gain coding, focus motor, GNOME Snapshot on
   screen (webcam / user), shipping the private sensor module.
@@ -422,7 +427,7 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
     first try, no unpackaged-file warnings; `rpm -Uvh` rc 0 with dependencies checked (iio-sensor-proxy 3.8-2 ->
     3.9-10.iceland1), `rpm -V` clean, user `fastrpc` created, the daemon links libssc; the device package's only
     unresolved requires are `kernel-iceland` and `grubby` (not in a RAM session); with the RPMs in the local
-    repository `dnf check-upgrade iio-sensor-proxy` offers nothing. RPMs + SRPMs: `C:\platform-tools\rpms\sensors`.
+    repository `dnf check-upgrade iio-sensor-proxy` offers nothing. RPMs + SRPMs: `<pc-path>`.
   - **rotpkg start PASS**: the packaged units alone (`modprobe fastrpc` = node added after the rules, as at boot,
     at uptime 131 s; ADSP up at 48.6 s): accelerometer sample after 2.7 s, the daemon found accelerometer, light,
     compass and proximity; GNOME (session already up): 1 claim, 'normal', managed=true.
@@ -536,7 +541,7 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   (3) charge limits, (4) GPU cooling, (5) improved thermals; and a full plan for the install (planning only:
   no bricking, restore to stock OxygenOS at any time, which partitions must never be flashed, default GNOME apps,
   upgrades that cannot brick and only take what fits our setup).
-  -> `docs/WORKFLOW-BRIEF-2.md`; five background workflows started 06:14 (folders `build/wf/{bcl,charging,
+  -> the workflow briefs (removed 13 Oct, not published); five background workflows started 06:14 (folders `build/wf/{bcl,charging,
   chargelimit,gpucool,thermal}`; PC work only, their tests are run by the main session afterwards).
   -> `docs/INSTALL-PLAN.md` written (gates, the two partitions that may be written, the never list, rehearsal
   from RAM with the exact image, the two writes, updates, rescue, return to stock, open decisions).
@@ -655,7 +660,7 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
 ### 2026-10-02 - entry 21: resumed; run 38 (thermal baseline, gpucool); stuck CPU limits found; camera workflow started
 
 - User: "resume", then mid-turn "finalize camera as well in seperate workflow". Brief written
-  (`docs/WORKFLOW-BRIEF-3-camera.md`: driver robustness, focus motor, picture quality with the software ISP, the
+  (the workflow briefs (removed 13 Oct, not published): driver robustness, focus motor, picture quality with the software ISP, the
   apps, flash, shipping the private driver, the bus switch) and the workflow started as a background agent; its
   folder is `build/wf/camera/` (`priv/` for anything that quotes the private driver or stock tuning data).
 - **Run 38** (kit q51 = queue 0073 + 8 mA; first try stopped at the kit build: a quote character in the kit
@@ -811,7 +816,7 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   shifters + focus: pkg2, rotpkg start, cam-b "bus focus flash", cam-d "app").
 - **User (mid-turn): "Start workflows to address below not started items , test run and fix till resolution and
   use autonomous agents till they are working(Display&input,Power&charging, Sleep&powersaving,
-  Software&packaging)".** Brief `docs/WORKFLOW-BRIEF-4.md`; six background agents started, one per not-started
+  Software&packaging)".** Brief the workflow briefs (removed 13 Oct, not published); six background agents started, one per not-started
   row of those sections, folders `build/wf/<name>/`:
   pogo (Pogo keyboard), pencharge (Pen charging), wake (Wake by lid / keyboard / charger), deepsleep (Deep-sleep
   proof), apps (Full GNOME app set), audit (Stock-values audit). Loop: an agent delivers -> the main session
@@ -924,7 +929,7 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
 - Nothing is running: no kit run, no build; the seven agents that were still working were stopped at the usage
   limit (partial work kept in their folders). Tablet in Android.
 - Written for the next model: **`HANDOVER.md`** (orders in force, exact state, every workflow with its next
-  action and agent id, the method, the prompt template, lessons, the first ten minutes), **`docs/WORKFLOW-BRIEF-5.md`**
+  action and agent id, the method, the prompt template, lessons, the first ten minutes), **the workflow briefs (removed 13 Oct, not published)**
   (the task texts of the pkg017 and install agents), CLAUDE.md (pointer + new rules), STATE.md status block,
   memory resume block.
 - State of the workflow folders at the hand-over (`bash build/an/wf-status.sh`): camera, pencharge, pogo,
@@ -1148,7 +1153,7 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   rehearsal boots `u-boot-iceland-rehearsal.img`: no SCSI / UFS in the build, env without the userdata lines,
   bootcmd `fastboot usb 0`; the EFI write guard stays; the initramfs sets every UFS device read-only before
   anything opens it and accepts only /dev/nbd* as carrier; self-check rules A-C, P. The relay accepts only
-  172.16.42.1 (test_relay 8 / 8; rehearse.ps1 starts / stops it). INSTALL-PC-CHECKS 9 PASS.
+  <usb-ip> (test_relay 8 / 8; rehearse.ps1 starts / stops it). INSTALL-PC-CHECKS 9 PASS.
 - **Run 62** (q63 = head 0112 + deepsleep 5 + 6 v2 + wake's L1B always-on): **CX collapse 98 % of a 150 s sleep**
   (cxsd +41), PCIe link down in every sleep, Wi-Fi back, display AHB clock released, rough draw asleep ~0.1 W; aosd
   still +0. The Lid interrupt STILL fired once per sleep with L1B held: the supply is not the cause. Sent to the
@@ -1243,8 +1248,8 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   collapse after the stop (cdspoff L0), a restart brings it back (cdspre L1, long 98 %). Both sent back to the
   deepsleep agent (fix the profile method; drop 7 if no other stock step is found -> the package fallback).
 - **Run 68** (q65, install: devrpm 0.18 + build1 + build2 on the network disk) started; PC side: `rehearsal-pc.sh serve
-  stage0 build` (WSL 127.0.0.1:10810) + `tcp-relay.py --listen=auto --allow=172.16.42.1` (Windows :10809). After the
-  run: stop the relay, look for REFUSED in C:\platform-tools\tcp-relay.log, `rehearsal-pc.sh stop`.
+  stage0 build` (WSL 127.0.0.1:10810) + `tcp-relay.py --listen=auto --allow=<usb-ip>` (Windows :10809). After the
+  run: stop the relay, look for REFUSED in <pc-path>, `rehearsal-pc.sh stop`.
 
 ### 2026-10-02 - entry 41: hardware inventory delivered, install B1 failed on an NBD timeout, quick-wins workflow
 
@@ -1321,8 +1326,8 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   on WSL's own address (peers 127.0.0.1 and the Windows host only), the relay goes there (`--target=wsl:10810`),
   multi-connection server, TCP_NODELAY / keepalive, slow-request log, nbd-client -t 120 -C 2. PC load check through
   the new path: PASS (2 x 1 GiB written + read, 0 errors, 0 slow). dnf5's "superuser" line was a consequence of the
-  read-only btrfs. **Run 71** (q65, install dev + B1 + B2 retry) started; server on 127.0.0.1 + 172.22.46.255:10810,
-  relay -> wsl:10810, peers 172.16.42.1 only. Battery 75 %.
+  read-only btrfs. **Run 71** (q65, install dev + B1 + B2 retry) started; server on 127.0.0.1 + <lan-ip>:10810,
+  relay -> wsl:10810, peers <usb-ip> only. Battery 75 %.
 - **Run 71** (q65, install retry): devrpm PASS; build1 / build2 FAIL "network disk" at once - the tablet's nbd_up()
   never reached the relay (relay alive the whole run, no connection logged; nbd-client.txt empty; no nbd line in the
   tablet's dmesg; the overlay untouched). Likely the new client options (-t 120 -C 2) or a step before the client.
@@ -1405,7 +1410,7 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
 - **install agent: the slow tablet -> PC direction is an f_ncm bug**: ncm_tx_timeout()'s flush is dropped with
   NETDEV_TX_BUSY while all 10 IN requests are queued; the partial NTB waits until full; TCP runs into RTO backoff
   (cwnd 1, backoff 9, 137 / 149 retransmissions D-SACKed). Patch (re-arm the timer while busy), a 30 s `link` test part
-  and linktest-server.py (Windows, --allow=172.16.42.1). Review note for upstream: hrtimer_forward_now() WARNs if
+  and linktest-server.py (Windows, --allow=<usb-ip>). Review note for upstream: hrtimer_forward_now() WARNs if
   another CPU re-armed the timer between the is_queued check and the forward (tiny window). build-q56.sh got case
   `ncm`; building **q73** = head + f_ncm.
 - **User: "the tablet isn't charging?"** Read live (run 77, RAM kernel, read-only): battery 66 %, Discharging -0.75 A
@@ -1416,7 +1421,7 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
 - **q73** 9e83aef14 = head 0124 + f_ncm only (0 warnings). Kits generated and checked: **78** quickwins r2 (q70),
   **79** upsync regression (q71: wifi, gpucool, upsync, qwvideo, usleep, upsync2; -Wait 2500), **80** telemetry v2
   (q72), **81** link baseline (q69, no fix), **82** link with the f_ncm fix (q73); 81 / 82 AUTOREBOOT_AT 4300 -> 900
-  (a 30 s test). linktest-server.py on Windows (0.0.0.0:10811, --allow=172.16.42.1).
+  (a 30 s test). linktest-server.py on Windows (0.0.0.0:10811, --allow=<usb-ip>).
 - run-chain.sh got a **battery gate** (dumpsys battery in Android, read-only): below MINBAT (40 %) it waits until
   45 % before the next run.
 - **Run 77** (q65, gpuisp): **b [app] PASS**: Snapshot on the GPU ISP, CPU 4.05 ms/f + GPU 1.48 ms/f, 5.20 W vs the
@@ -1529,7 +1534,7 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   `Requires: wireplumber >= 0.5.18` (or drop the rule); rear DIFFERENT = exposure / clipping / metering area, not
   geometry (the compare now ignores clipped cells); brightness = GNOME's auto level, now restored while owned. Kit **88**.
 - Servers for 85 / 86 started: NBD `rehearsal-pc.sh serve stage0 build` (WSL 10810), relay 10809 -> wsl:10810,
-  linktest 10811 (Windows), linktest 10811 (WSL, gateway only) + relay 10812; all --allow=172.16.42.1.
+  linktest 10811 (Windows), linktest 10811 (WSL, gateway only) + relay 10812; all --allow=<usb-ip>.
   Chain 85 86 87 88 started.
 - Suspend-time lines checked across runs: PCIe "Timeout waiting for L2 entry" on every suspend since run 67 (67: 8 / 8,
   79: 2 / 2, 83: 3 / 3) and one dpu "frame done wait timed out" / "enc timeout pending" in run 67 already (before any
@@ -1618,7 +1623,7 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
 - **B-run kit 93** (q78, "rr dev b1a b1b b2a b2b", AUTOREBOOT 4300, chain -Wait 4000). Safety read: every storage
   write goes to /dev/nbd0 / its loop; ufs_ro sets the UFS devices read-only first; the 15 "flash/format" matches in the
   kit are LEDs / video formats / an rpm queryformat. ov-build was empty (cow.idx 0 B). Servers: NBD serve stage0 build
-  (WSL 10810), relay 0.0.0.0:10809 -> wsl:10810 and linktest 10811 (Windows), all --allow=172.16.42.1. Gate judged by
+  (WSL 10810), relay 0.0.0.0:10809 -> wsl:10810 and linktest 10811 (Windows), all --allow=<usb-ip>. Gate judged by
   me: rr "+down" slowest < 1 s (the agent's 5 MB/s is too strict, q76 gave 4.54 with no stall). Chain 92 93 queued.
 - **Run 91** (q65, gpuisp round 4): **a PASS** (rear r=1.00, front 0.99; CPU 2.30 vs 21.25 ms/f; 4.81 vs 4.87 W).
   **b**: rpmbuild rc 0 in 104 s, 5 rpms libcamera*-0.7.1-1.fc44.iceland1, SoftISP GPU YES, cam lists 2 cameras;
@@ -1656,7 +1661,7 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   fastboot boot only) + rehearsal-probe.sh accept.
 - **gpuisp workflow FINISHED (green)**: part b's check fixed (build.log apply lines + markers in the built library;
   run 91 replays PASS); 0.18 patcher `pkg-gpuisp.py TREE hold wp0518` (wireplumber >= 0.5.18, libcamera* in the hold;
-  10 / 10 package tests); local rpms: only libcamera + libcamera-ipa, kept in C:\platform-tools\rpms\libcamera
+  10 / 10 package tests); local rpms: only libcamera + libcamera-ipa, kept in <pc-path>
   (stash-rpms.sh, SHA256SUMS), tin / make-repo / the apps package list take them; hold and rpms go together; rebuild
   only for a newer libcamera / a soname change / F45. To do: fold into the final 0.18 (with the deepsleep fallback).
 - G13 was closed in entry 37 (rehearsal U-Boot without SCSI/UFS, initramfs UFS read-only, nbd-only carrier); work-list
@@ -1706,7 +1711,7 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   P1 now 0.17 + install fragment + gpuisp (hold, wp0518) + deepsleep (npu-keep-running); tin + our libcamera rpms;
   accept.sh `camstack`. User asked what rehearse.ps1 whitelists: fastboot devices / getvar / boot / reboot /
   `oem console` (exact); adb devices / get-state / reboot bootloader / shell getprop <[A-Za-z0-9._]+>; else abort.
-- R1 rerun, PC steps: rpms stashed (C:\platform-tools\rpms\libcamera + SHA256SUMS); next-k2p1u1 STEPS="p1 tin": 2 PASS
+- R1 rerun, PC steps: rpms stashed (<pc-path> + SHA256SUMS); next-k2p1u1 STEPS="p1 tin": 2 PASS
   (iceland-pkg-0.18.tgz 5d00a340... = 0.17 @ cc21f47 + fragment + gpuisp + npu; check-device 16 PASS; README tests 10;
   tablet-in 16 files incl. libcamera + -ipa). ov-build (run 93's data, merged into golden) and ov-r1 (empty) deleted;
   serve stage0 build; relay + linktest (tablet only); **run 94 = B rerun** started (battery 51 %). R1 waits for the
@@ -1718,12 +1723,12 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   added to the kits' early module list mods25/all before snd-soc-sc8280xp (backup all.before-hdmi): every kit type
   now loads it at boot as udev does on an installed system.
 - User: "check all errors in kmsg during booting and put a plan to resolve" -> an/kmsg-errors.py on runs 92 (q77 =
-  queue 0166, coldplug) + 93 (q78): 77 groups, 0 WARNING / BUG / Oops. Plan in docs/BOOT-LOG-PLAN.md: P1-a ADSP/CDSP
+  queue 0166, coldplug) + 93 (q78): 77 groups, 0 WARNING / BUG / Oops. Plan in the boot-log plan (removed 13 Oct, not published): P1-a ADSP/CDSP
   firmware -2 at 19 s (pas probes in the initramfs; installed system has nothing that starts it later), P1-b the build
   chroot loads SELinux policy into the kit kernel, P1-c ath12k country setting fails (world domain), P1-d PCIe L2
   timeout at suspend; P2 DT gaps vs stock (PCIe / WCN / backlight supplies, VA macro DMIC rate, SoundWire ports,
   FastRPC memory, UFS MCQ, smem DDR info, SCMI FC); P3 cosmetic / harmless.
-- User: "isn't it better to move most of the hardware to kernel?" -> answer in BOOT-LOG-PLAN.md: built in only what
+- User: "isn't it better to move most of the hardware to kernel?" -> answer in the boot-log plan (removed 13 Oct, not published): built in only what
   must work before root (clocks, power domains, RPMh, interconnects, pinctrl, regulators, SMMU, UFS, watchdog; USB
   gadget + NBD for the rehearsal); firmware-dependent drivers stay modules (built in they fail like P1-a).
 - User: "no setting for charge limit in power setting; can we add a bypass charger mode with a setting in power?" ->
@@ -1779,7 +1784,7 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
 - **Owner: "battery charge settings working fine (preserve, maximize charge) please commit"** (run 95, device package
   0.17 on q77 = queue 0166) -> charge-limit row confirmed by the owner; matrix-c2s (also: the headset row's sentence
   repeated 5x by matrix-c2p - c2p made idempotent -, the EFI row's queue range 0089 -> 0166, 145 test runs);
-  BOOT-LOG-PLAN P1-a corrected (battery data via the SoCCP's pmic_glink, works without the ADSP - docs review); commit t.
+  the boot-log plan (removed 13 Oct, not published) P1-a corrected (battery data via the SoCCP's pmic_glink, works without the ADSP - docs review); commit t.
 - docs agent finished the drafts (wf/docs: PLAN, 01-07, GLOSSARY, INDEX; privacy check clean) + inconsistencies list
   (plan vs guide, firmware path OnePlus/iceland vs iceland, 90-iceland-dtb.install vs the GRUB devicetree line,
   iceland-u-boot README / uboot.pin, FEATURES stale bits, volume key mapping, stale HANDOVER / STATE / PROJECT
@@ -1788,7 +1793,7 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   fetched, tablet rebooted to Android, runner killed); (1) the docs drafts reviewed (privacy scan clean: no serial /
   BD / MAC / GUID; write commands only inside warning blocks) -> docs/guide/; (2) project knowledge: HANDOVER.md
   rewritten (21:00), STATE.md new status block, CLAUDE.md new rules, memory resume block; (3) the kits' module list
-  -> tools/linux-ram/modlist-all.txt. Commit u + the project-folder snapshot.
+  -> the debug tooling (removed 13 Oct, not published) Commit u + the project-folder snapshot.
 - Commit u pushed: iceland-mainline **1c417e9** (docs/guide 10 files, HANDOVER, PROJECT-STATE, PROJECT-CLAUDE, modlist-all; 0 rpm / private / frames). Snapshot refreshed (save-project + fix + wf): privacy scan clean, 1080 files; workflows 521 files in 28 folders, 0 serial / address hits.
 - **r1debug (Fable) finished**: the root cause confirmed independently (the env extracted from the failed image:
   `blkmap create rehearsal 4096`, bootcmd `fastboot usb 0`; the dispatcher returns CMD_RET_USAGE for 3 > maxargs 2;
@@ -1802,7 +1807,7 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
 - User: "change install tooling workflow to opus and rebase its knowledge from our document expert and r1 debugger"
   -> the running install agent asked to finish its current edit, write wf/install/HANDOVER-ROUND6.md and stop; then a
   new Opus install agent starts from that handover + the docs set (07-INSTALL-REVIEW, 03-BOOT-AND-PARTITIONS,
-  02-HARDWARE) + wf/r1debug/REPORT.md and its patches + BOOT-LOG-PLAN, and may ask the docs SME and the r1debug
+  02-HARDWARE) + wf/r1debug/REPORT.md and its patches + the boot-log plan (removed 13 Oct, not published), and may ask the docs SME and the r1debug
   agent directly.
 - **hwfix topic B test-ready** (wf/bootfix, 7 items, BF_ITEMS="wcn bl dmic fastrpc mcq smem nvt"): wcn = WCN7860 PMU
   inputs as stock cnss-peach (vddaon L2G 1.8 V, vddcx S1J; L2G had no Linux vote; vddant stays dummy as stock),
@@ -1823,7 +1828,7 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   parta-read.ps1 (reads only, whitelist) + parta-check.sh (PARTA: READY FOR C0) ready, not run. Not started: guide
   C0 text, DUALBOOT-PLAN.md, R8 / R9 text.
 - **New install agent on Opus** started from that handover + the docs set (07, 03, 02, 06) + r1debug's report and
-  patches + BOOT-LOG-PLAN; may ask the docs SME and r1debug; tasks: re-verify (selfcheck, check-all), the command
+  patches + the boot-log plan (removed 13 Oct, not published); may ask the docs SME and r1debug; tasks: re-verify (selfcheck, check-all), the command
   list for me (P1 + TIN, B run, notgzip test, R1, parta-read / -check), C0 + guide / plan fixes, DUALBOOT-PLAN.md,
   then the unzip hardening.
 - Owner: "tablet is connected proceed" (battery 52 %, 24.1 C) -> run 96 (bootfix topic B on q79) started.
@@ -1856,12 +1861,12 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
 - **Opus install agent, task 1 done** (verified: selfcheck clean, check-all 14 PASS; B1 / B2 / B3 complete; NEW:
   touch accept check fixed, **B4 the run-94 golden had no GPU firmware trio (gen80200 sqe / gmu / aqe) in its
   initramfs** -> fw-list.tsv + 3 vendor items + accept `gpu`; the pwrseq add_drivers drop-in + accept `pcieprobe`;
-  check-b-run.sh). Its full command list is saved in **docs/INSTALL-RERUN-COMMANDS.md** (copy rehearse.ps1 +
+  check-b-run.sh). Its full command list is saved in **the install rerun commands (removed 13 Oct, not published)** (copy rehearse.ps1 +
   parta-read.ps1, P1 + TIN, the notgzip test, the B run, R1, Part A read). **Owner decision open:** GPU firmware in
   the image = stock (GMU v5.3.39, default) or linux-firmware (v5.3.23, the kits' since pc-024).
 - **User: "save state with our documentation expert since will need to compact"** -> HANDOVER.md state table and
   workflows updated (22:30: queue 0174, q79 / q80, the Opus install agent, r1debug finished, run 97 running),
-  INSTALL-RERUN-COMMANDS.md, this entry, the memory resume block; the docs agent updates 01 / 03 / 06 / 07 / INDEX and
+  the install rerun commands (removed 13 Oct, not published), this entry, the memory resume block; the docs agent updates 01 / 03 / 06 / 07 / INDEX and
   writes RESUME-2026-10-02.md; then a commit + the snapshot. **Run 97 (PCIe diagnosis) is RUNNING at this point:**
   judge it from area-combo-97 and send it to the hwfix agent (ab01e21f3f346b12e).
 - User asked the difference stock vs linux-firmware GPU firmware -> answered: same features; v5.3.23 (linux-firmware)
@@ -1870,11 +1875,11 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   install agent (take them from Fedora's firmware package if it has v5.3.23+, else carry linux-firmware's files in
   the device package; the zap shader stays the tablet's; accept `gpu` expects v5.3.23).
 - docs agent: the set brought to 22:30 (01 / 02 / 03 / 06 / 07 status per finding / INDEX / GLOSSARY / 04) + RESUME-2026-10-02.md; HANDOVER base config fixed to out-config-base-0174 everywhere; matrix-c2t (row Internal storage (UFS 4): MCQ, 2.3 GB/s; queue 0174; 147 runs / 88 kernels); commit v.
-- Commit v pushed: iceland-mainline **26f71db** (docs/guide at 22:30 + RESUME-2026-10-02.md, INSTALL-RERUN-COMMANDS.md,
+- Commit v pushed: iceland-mainline **26f71db** (docs/guide at 22:30 + RESUME-2026-10-02.md, the install rerun commands (removed 13 Oct, not published),
   HANDOVER / PROJECT-STATE / PROJECT-CLAUDE, run 96, queue-0167; 0 private files); matrix **v42** (62 / 12 / 5 / 2 of
   81, new row Internal storage (UFS 4)); snapshot refreshed (privacy clean).
-- **hwfix topic C (bypass) test-ready**: run `bash ~/mainline/build/wf/bypass/apply-pkg.sh` once (refreshes
-  wf/bypass/tablet-in), then `python3 ~/mainline/build/wf/bypass/cand/gen-combo-bypass.py N qNN` (setup, bypass,
+- **hwfix topic C (bypass) test-ready**: run `bash <pc-work>/build/wf/bypass/apply-pkg.sh` once (refreshes
+  wf/bypass/tablet-in), then `python3 <pc-work>/build/wf/bypass/cand/gen-combo-bypass.py N qNN` (setup, bypass,
   close) or bypass_parts.LINE["bypass"] (PT 600) after pkg2; any current kernel. Design: the battery guard (the only
   writer of charge_behaviour) gets bypass as one more STOP reason checked after the stock stops and the charge limit;
   holds the level with inhibit-charge (= stock oplus_chg_plc output_suspend), 1 % top-up, threshold from 20 %, ends
@@ -1919,8 +1924,8 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   ERROR); fw-list.tsv back to 23; zap + touch stay the tablet's own. **C0 safety fix:** ABL gives the TEE the
   footer's os_version AND security_patch (else the boot header's) - the round-6 footer had only os_version, so the TEE
   would have seen U-Boot's 16.0.0 / 2026-08; mk-footer.sh now copies both from today's boot_b, avb-proof.sh checks
-  `rot-equal`. INSTALL-RERUN-COMMANDS.md corrected (hashes, 23 items, gpu PASS text, rot-equal).
-- **Install steps 1-2 done (PC only):** rehearse.ps1 8453BB0C + parta-read.ps1 836EBA64 copied to C:\platform-tools
+  `rot-equal`. the install rerun commands (removed 13 Oct, not published) corrected (hashes, 23 items, gpu PASS text, rot-equal).
+- **Install steps 1-2 done (PC only):** rehearse.ps1 8453BB0C + parta-read.ps1 836EBA64 copied to <pc-path>
   after a scan (only whitelisted reads: getprop, bootctl get / is-*, blockdev, pull / dd if=, getvar, reboot);
   old rehearse.ps1 kept as rehearse.ps1.old-1be32e60. Step 2: NEXT-K2P1U1 2 PASS 0 FAIL, 91 conf 2, 90 conf gmu.xz 1,
   accept.sh 7b828177...3881.
@@ -2106,13 +2111,13 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   Power + Volume Up "open ABL, not yet seen on this tablet".
 - **Owner: "yes go ahead and r1"** -> R1b started about 22:33: run 100's build overlay committed into the golden
   (156844 blocks), `serve golden r1` (fresh overlay), head "enforcing=0" (head-20261002-223228); run 100's leftover kit
-  runner stopped; rehearse.ps1 -Yes (log C:\platform-tools\r1b-rehearse.log) + rehearsal-probe.sh accept
+  runner stopped; rehearse.ps1 -Yes (log <pc-path>) + rehearsal-probe.sh accept
   (area-install-r1b, ACCEPT_SUSPEND=0) side by side. Battery 52 %.
 - **R1b: booted, then HUNG - the USB link dropped 5 s after the NBD root connected; nothing written.** rehearse.ps1:
   22:34:13 U-Boot fastboot, 22:34:32 head (470 MB) sent in 19 s, 22:34:49 "the rehearsal system answers on
-  172.16.42.1 after 36 s". relay.log: 22:36:42 NBD connect from 172.16.42.1, 22:36:47 closed after 5 s
+  <usb-ip> after 36 s". relay.log: 22:36:42 NBD connect from <usb-ip>, 22:36:47 closed after 5 s
   (ConnectionAbortedError "aborted by the local system" = the Windows NCM interface went away), no reconnect. Then
-  Windows' UsbNcm adapter Up again with only 169.254.15.70 (APIPA) and reset counters = the gadget re-enumerated without
+  Windows' UsbNcm adapter Up again with only <link-local-ip> (APIPA) and reset counters = the gadget re-enumerated without
   the tablet's IP. Owner saw Fedora's boot splash spinning, then frozen. The tablet rebooted itself (Android kernel
   22:39:29; "Reset by PSHOLD / Hard Reset / SYSOK", cold boot = hung_task_panic + panic=10), pstore empty. Probe + NBD
   stopped. Sent to the install agent: find what resets the USB gadget ~5 s after nbd-client connects (role-switch /
@@ -2164,9 +2169,9 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
 - **Owner: "go ahead with r1c, webcam is on the tablet"** -> R1c started about 23:09: fresh ov-r1, head
   head-20261002-230718 "enforcing=0 initcall_blacklist=pmic_glink_ucsi_driver_init,pmic_glink_altmode_driver_init
   rd.shell=0 rd.emergency=reboot plymouth.enable=0 rd.plymouth=0 console=tty0 loglevel=7 ignore_loglevel
-  log_buf_len=4M systemd.show_status=1 printk.devkmsg=on"; ncm-watch.ps1 -> C:\platform-tools\ncm-watch-r1c.log; webcam
+  log_buf_len=4M systemd.show_status=1 printk.devkmsg=on"; ncm-watch.ps1 -> <pc-path>; webcam
   (cam.ps1, frames every 10 s in the scratchpad's cam/r1c, local only, deleted after the verdict); rehearse.ps1 ->
-  C:\platform-tools\r1c-rehearse.log; probe -> area-install-r1c.
+  <pc-path>; probe -> area-install-r1c.
 - **R1c (23:09-23:12): rebooted by a FULL POWER CYCLE about 100 s into Linux, before any NBD connect; the owner did
   not touch the tablet.** ncm-watch: Up 23:10:35, gone 23:12:11; Android kernel 23:12:16; relay: no connect (the 120 s
   ping wait had not ended); webcam: screen dark from about 23:10:50, no tty0 text despite plymouth off. bootloader_log
@@ -2262,11 +2267,11 @@ mic with TX_DEC 96 in the UCM, camera first light, GStreamer patch test, GNOME W
   5, no SELinux load in the whole session. The owner stopped the pwrloss debug-kit agent (path 1 chosen).
 - **R1d started about 00:14**: run 101 committed into golden (163441 blocks), fresh ov-r1, head head-20261003-001303
   "enforcing=0 rd.shell=0 rd.emergency=reboot iceland.rehearsal_kmsg=10813" (display as in R1b); kmsg-listen.py ->
-  C:\platform-tools\kmsg-r1d.log, ncm-watch -> ncm-watch-r1d.log, webcam cam/r1d every 10 s, rehearse.ps1 ->
+  <pc-path>, ncm-watch -> ncm-watch-r1d.log, webcam cam/r1d every 10 s, rehearse.ps1 ->
   r1d-rehearse.log, probe -> area-install-r1d. Battery 60 %.
 - **R1d: the golden booted to the GNOME desktop - the first complete rehearsal boot. INSTALL-ACCEPT 27 PASS, 6 FAIL,
   4 CHECK in 225 s.** Timeline: head sent 00:15:30, NCM up 00:15:43 / IP 00:15:45 (no later change), "the PC answers
-  on 172.16.42.2:8000 after 0 s", NBD connect 00:15:46, switch_root about 5 s later, SSH 00:16:01, accept to about
+  on <usb-ip>:8000 after 0 s", NBD connect 00:15:46, switch_root about 5 s later, SSH 00:16:01, accept to about
   00:19:50; the owner saw plymouth -> the first-boot setup (skipped) -> the desktop; kmsg stream 1580 lines; no power
   event. PASS incl. grown (218 GiB btrfs), efi, dt, entries, trial, snapshots, storage (162 UFS devices read-only),
   mounts, holds, firmware 23 / no failed load, adsp (soccp attached, adsp + cdsp running), cdsp, gpu (GMU v5.3.23 from
@@ -2478,7 +2483,7 @@ tablet until the guard ends it at about 02:58 (rehearsal_max 1500), then Android
 (SESSION UP + ACCEPT DONE given at about 02:37; no suspend; stop by 02:55) on two items: (1) the rear camera loads
 sc820cs.yaml (the front's tuning), (2) the owner's report "fedora camera app crashes and doesnt open" (GNOME Snapshot;
 R2 had a SIGBUS in pipewire-main-l after portal.Camera:OpenPipeWireRemote). Background shells: r2g rehearse.ps1
-(log C:\platform-tools\r2g-rehearse.log), kmsg-listen (kmsg-r2g.log), ncm-watch (ncm-watch-r2g.log) - stop the last
+(log <pc-path>), kmsg-listen (kmsg-r2g.log), ncm-watch (ncm-watch-r2g.log) - stop the last
 two after Android is back; read /proc/bootloader_log with adb root right after (save to wf/install/priv/).
 
 **Results of the night (3 Oct):**
@@ -2532,7 +2537,7 @@ not seen in a kit or R1b.
 - Owner (about 02:50): "stop building", "fix everything first basis on the logs", "also collect logs from the fedora
   testing agent", "after consolidating the logs from every source pass them through our debugger for verification on
   fixes". q84 is ON HOLD (nothing was building; the kit lock was free).
-- All logs consolidated (private) in WSL ~/mainline/build/an/r2g-logs/ (an/r2g-bundle.sh): pc/ (rehearse, relay, NCM,
+- All logs consolidated (private) in WSL <pc-work>/build/an/r2g-logs/ (an/r2g-bundle.sh): pc/ (rehearse, relay, NCM,
   head.json), tablet-stream/kmsg.log, android/bootloader_log.txt, accept/ (journal, dmesg, cam-*, pw-dump ...),
   fedtest/ (live probes 7-12, suite output, REPORT-r2g.md). The 5 core dumps stay in ov-r2g (cow over golden).
 - FIX-LIST.md there: F1 Snapshot SIGBUS (frame #0 = 0x3: a call through a bad function pointer on the first
@@ -2552,7 +2557,7 @@ not seen in a kit or R1b.
 
 ### 2026-10-03 about 03:05 - the team pipeline (owner: "use a whole team of agents using opus and fable ... automated ... no intervention from my side ... by a timeline ... consolidated")
 
-- Plan: WSL ~/mainline/build/an/team/TEAM-PLAN.md (copy docs/TEAM-PLAN.md). Main = orchestrator, tablet runner,
+- Plan: WSL <pc-work>/build/an/team/TEAM-PLAN.md (copy docs/TEAM-PLAN.md). Main = orchestrator, tablet runner,
   committer. New Opus agents: ledger (one error ledger for every run: ingest / map / board / diff / check, baseline
   r2g + r2f / r2 / r1d), review (independent review: correctness, rule 13, charging safety, privacy, style,
   conflicts), builder (one consolidated q84 build: build-q84.sh from q84.wf, preflight in its own worktree, manifest,
@@ -2690,9 +2695,9 @@ not seen in a kit or R1b.
   guard_input_suspend 58 / 0 failure(s), guard_kernel_limit 27 / FAILURES: 0). In tablet.sh _cs_unit the PASS assignment
   ends with `$([ $who = root ] && echo ...)`, whose status 1 (who=iceland) makes the `||` branch run (reproduced in bash;
   run 103 ran as root). Main counts unit PASS (219 checks as iceland); chgsafe fixing the scorer.
-- B run 107: install's recipe - rehearse.ps1 + tcp-relay.py copied to C:\platform-tools, rehearsal-pc.sh stop, ov-build
+- B run 107: install's recipe - rehearse.ps1 + tcp-relay.py copied to <pc-path>, rehearsal-pc.sh stop, ov-build
   deleted (ov-r1 / r2f / r2g kept), check-load.ps1 "load check: PASS", serve stage0 build (127.0.0.1 + WSL :10810),
-  relay 0.0.0.0:10809 -> wsl:10810 allowed 172.16.42.1 (log tcp-relay-107.log), genwf-install-b.py 107 q84 "dev b1a b1b
+  relay 0.0.0.0:10809 -> wsl:10810 allowed <usb-ip> (log tcp-relay-107.log), genwf-install-b.py 107 q84 "dev b1a b1b
   b2a b2b" 4300 qos=2, chain from the builder (Wait 4000). Tablet 60 %, 26.2 C. Started about 04:22. Expect B-RUN 31 / 0.
 - **B run 107** (04:21-04:28, all five parts in 7 min): `B-RUN: 30 PASS, 1 FAIL`. New checks all PASS: every pipewire
   package at 1.6.9 >= 1.6.8 (10), libcamera 0.7.1-1.fc44.iceland1 (3), every sysusers.d entry has its account (image +
@@ -2714,7 +2719,7 @@ not seen in a kit or R1b.
   3 WARN (pwrseq_qcom_wcn / pci_pwrctrl_pwrseq not initramfs modules = built in by F20, expected; manifest versions in the
   accept step). rehearse.ps1 started with -WaitAndroid 1800 (main's catch: the default 900 s is shorter than the 1500 s
   session and the script stops the NBD relay when it gives up). kmsg-listen (kmsg-r2h.log), ncm-watch (ncm-watch-r2h.log).
-- Boot 04:46:48 (ABL, battery 3966 mV, slot b) -> answers on 172.16.42.1 after 39 s. Live kmsg: "iceland-rehearsal:
+- Boot 04:46:48 (ABL, battery 3966 mV, slot b) -> answers on <usb-ip> after 39 s. Live kmsg: "iceland-rehearsal:
   session limit 1500 s (head 1500 s, extend none) at uptime 11 s", then "(head 1500 s, extend 1500) at uptime 31 s"
   (F07 proven: the probe's extend no longer shortens it); "Kernel command line:" without any *_ignore_unused (F24).
 - **INSTALL-ACCEPT: 45 PASS, 0 FAIL, 0 CHECK in 117 s** (r2g: 42 / 1 / 1) - cameras, iosched, pcieprobe, watchdog,
@@ -2746,7 +2751,7 @@ intermittent) -> klog agent on loop 2 (PC only, running).
 Android); kmsg-listen (kmsg-r2h.log), ncm-watch (45 min). The one-shot crons at 05:02 / 05:33 are STALE (the freeze and G1
 are long done) - ignore them.
 **Next steps:** (1) after Android is back: adb root bootloader_log -> wf/install/priv/r2h-bootloader_log.txt; r1debug
-postsession.sh; stop kmsg-listen; (2) ledger: `ledger.py ingest r2h <area-install-r2h> /mnt/c/platform-tools/kmsg-r2h.log
+postsession.sh; stop kmsg-listen; (2) ledger: `ledger.py ingest r2h <area-install-r2h> <pc-drive>/platform-tools/kmsg-r2h.log
 wf/fedtest/runs/r2h` + `check r2h` (base r2g) + board; (3) fill RESULTS in wf/builder/q84.queue-msg.txt, then
 `DRY=1 bash wf/builder/queue-q84.sh`, then the real run (queues 0175-0185, pushes iceland-linux); (4) docs: copy
 matrix-c2v.py + mk-commit-x.py from wf/docs/staging, run them (commit x: tuning yaml, docs, results, matrix), reviewer
@@ -2829,7 +2834,7 @@ regexes) -> q85 if klog finds fixes. Owner checks: H1-H3 (chgsafe), installed su
   script printed sed errors -> inconclusive. **Decision: usbcjack stays opt-in, out of the final build; final = q85.**
   sleeppower + builder asked to judge the drops / fix the judge.
 - **09:33 incident:** while starting B run 112, main copied golden.body (13.7 GB) to golden-b109.body as a safety copy
-  for the r2h evidence. **Drive D: (D:\WSL\Ubuntu-24.04\ext4.vhdx, 649.7 GB of the 664 GB drive) reached 0 GB free**,
+  for the r2h evidence. **Drive D: (<pc-path>, 649.7 GB of the 664 GB drive) reached 0 GB free**,
   the vhdx could not grow, and WSL's root ext4 was remounted **emergency_ro** ("Read-only file system" / "Input/output
   error"). Nothing on the tablet was running; the q84 queue (cd0bf55) was pushed before. The copy is partial. All agents
   told to PAUSE (no writes). Needs the owner: space on D: and a WSL distro restart (wsl --shutdown stays forbidden).
@@ -2843,8 +2848,8 @@ regexes) -> q85 if klog finds fixes. Owner checks: H1-H3 (chgsafe), installed su
   --terminate Ubuntu-24.04), checks the filesystem, deletes the partial golden-b109 copy and other regenerable files, and
   enables sparse mode so the vhdx shrinks. All agents paused until then.
 - ~10:45 owner: "delete old builds for both lineageos and mainline work and free same space".
-  - D: (Windows) holds only D:\WSL (649.9 GB vhdx) and D:\Download (14 GB, the owner's personal downloads). Deleted on
-    D: only the unpacked duplicate D:\Download\lineage-24.0-20260808-UNOFFICIAL-iceland (2.37 GB; verified identical to
+  - D: (Windows) holds only <pc-path> (649.9 GB vhdx) and <pc-path> (14 GB, the owner's personal downloads). Deleted on
+    D: only the unpacked duplicate <pc-path> (2.37 GB; verified identical to
     the .zip beside it, which stays) -> D: 2.38 GB free.
   - `wsl --terminate Ubuntu-24.04`, then sparse mode refused by WSL 2.7.14 ("disabled due to potential data corruption",
     needs --allow-unsafe: not used). The distro then failed to start (Error code 6, failure step 2, E_FAIL); owner
@@ -2852,13 +2857,13 @@ regexes) -> q85 if klog finds fixes. Owner checks: H1-H3 (chgsafe), installed su
   - Survey: android 439 G (lineage/out 144 G build output, .repo 109 G, prebuilts 61 G, fw 39 G), mainline 178 G
     (build/modstage* ~60 G, wf 60 G of which wf/install 41 G, fwsuper 15 G, fedora 6 G, kit 6 G, out 5.5 G).
   - Cleanup script (dry run checked twice, 239 items, 219.7 GB): KEEP the newest LineageOS flashables moved to
-    ~/android/lineage-keep-20260929 (lineage-24.0-20260929-UNOFFICIAL-iceland.zip + boot / init_boot / vendor_boot /
+    <pc-work>/android/lineage-keep-20260929 (lineage-24.0-20260929-UNOFFICIAL-iceland.zip + boot / init_boot / vendor_boot /
     dtbo / dtb / recovery / vbmeta* / vendor_dlkm / system_dlkm images, SHA256SUMS); DELETE android/lineage/out, mainline
     modstage* / binq* / modfull-* older than q83 (plain "modstage" kept), the partial golden-b109.body, ws44.raw (stage0
     can be re-made by rehearsal-pc.sh prepare), ov-build-b107, old rehearsal head images (their .json records kept; r2h's
     head kept), queue-verify. Kept: sources, .repo, fw, fwsuper, backups / parta, q83-q85 builds, golden / stage0,
     ov-build-b109, run results. Running.
-- ~11:00 cleanup DONE: 239 items, **219.5 GB deleted**; kept 13 files in ~/android/lineage-keep-20260929 (the
+- ~11:00 cleanup DONE: 239 items, **219.5 GB deleted**; kept 13 files in <pc-work>/android/lineage-keep-20260929 (the
   20260929 LineageOS zip + its 11 images + SHA256SUMS; `sha256sum -c` OK, 2.6 G); android/lineage/out gone. WSL / now
   413 G used, 544 G free. D: still 2.4 GB free: the vhdx stays 649.8 GB (the root ext4 is mounted with `discard`, so
   the freed blocks were trimmed, but a non-sparse vhdx does not shrink). **Test:** 1 GiB of new random data written +
@@ -3016,7 +3021,7 @@ regexes) -> q85 if klog finds fixes. Owner checks: H1-H3 (chgsafe), installed su
   linked the non-portal pipewiresrc), so F44 was NOT exercised (no regression either; f44-cross.sh fixed to print the
   error); F05 PROVEN on iceland2. **Main's decision: libcamera iceland2 ships in P1 0.20**; F44's proof moves to r2j
   (root cam front then Snapshot, and the reverse, on the installed image). Review re-pinned F05 abdbf6b5 / F44 af839fc6.
-- iceland2 rpms stashed (/mnt/c/platform-tools/rpms/libcamera, iceland1 kept); accept-iceland2.py applied to both
+- iceland2 rpms stashed (<pc-drive>/platform-tools/rpms/libcamera, iceland1 kept); accept-iceland2.py applied to both
   accept.sh copies (f081d750, camstack wants iceland2 + EGL + F05 + F44 markers).
 - **Packages for the final candidate:** K3 q86 kernel-iceland-...00327.g1833a6deb42d.1-1 (PASS; D: unchanged 2.446 GB),
   **P1 iceland-pkg-0.20.tgz 1e44ae55** (iceland-mainline 9002850), TIN 17 files with libcamera 0.7.1-1.fc44.iceland2
@@ -3031,8 +3036,8 @@ regexes) -> q85 if klog finds fixes. Owner checks: H1-H3 (chgsafe), installed su
 - debugger: F05 / F44 re-verdicts CONFIRMED; r2j camlink rebuilt around Snapshot (both orders forced by
   last-camera-id = PipeWire node.description).
 - Owner: "save everything ... logs automatically at a repo ... recall the bypass charging agent on resume". Done:
-  session-independent watcher an/autosave.sh -> local git repo ~/mainline/build/an/autosave (masked kit 116 results +
-  ledger next.sh kit 116; never pushed - kit journals hold the SSID); run scripts kept in ~/mainline/build/an/resume/;
+  session-independent watcher an/autosave.sh -> local git repo <pc-work>/build/an/autosave (masked kit 116 results +
+  ledger next.sh kit 116; never pushed - kit journals hold the SSID); run scripts kept in <pc-work>/build/an/resume/;
   RESUME-2026-10-03-1300.md written (+ pointer at the top of HANDOVER.md and STATE.md); memory updated.
 - **Kit 116 phase B (ath12k reloaded with enable_11d=1) ALSO PASSED: "klog-f43o: PASS owner network: 6/6 connects,
   4-way handshakes 6, beacon losses 0, timeouts 0, reason-4 drops 0, connected after the 10 min hold".** The A/B on the
@@ -3050,7 +3055,7 @@ regexes) -> q85 if klog finds fixes. Owner checks: H1-H3 (chgsafe), installed su
   brief updated.
 
 ### 2026-10-03 13:20 - RESUME: kit 116 result, B run 118 started, planner + bypass agent spun (parallel)
-- Autosave repo (~/mainline/build/an/autosave, local git, 3 commits 13:14): **kit 116 done - f43o A PASS 6/6 (8
+- Autosave repo (<pc-work>/build/an/autosave, local git, 3 commits 13:14): **kit 116 done - f43o A PASS 6/6 (8
   handshakes), B (enable_11d=1) PASS 6/6, A2 PASS 6/6 -> "klog43o: A/B FAIL ... B PASS"**: the owner's network
   connects and holds on q86 in all phases; r2i's failure NOT reproduced -> F43's 11d cause unproven (ledger: F43 G2,
   k116 FAIL = the A/B rule). save-project 13:00 done (privacy scan clean). klog asked: did 11d start in B, what differs
@@ -3177,7 +3182,7 @@ regexes) -> q85 if klog finds fixes. Owner checks: H1-H3 (chgsafe), installed su
 - 14:40 K119: hwproof rng FAIL (debugger), gyro waived (no package), hwinv PASS. Item 3 answered by sleeppower (top
   steps not sustained on either OS; perf-noturbo.py gated on K120 cputurbo2). Builder: bypass proof on the installed
   0.21 = accept-bypass.sh in B121 + r2k accepts; ITEM6 skips to 0.22 if not confirmed in time.
-- **Kit 119 DONE** (14:38, q86; bundle ~/mainline/build/area-combo-119; the tablet went back to Android):
+- **Kit 119 DONE** (14:38, q86; bundle <pc-work>/build/area-combo-119; the tablet went back to Android):
   - cputurbo: boost no gain.
   - pkg2: FAIL (BuildRequires; fixed for K120).
   - rotpkg: no package.
@@ -3221,7 +3226,7 @@ regexes) -> q85 if klog finds fixes. Owner checks: H1-H3 (chgsafe), installed su
     worktree: 95,989 files, 1.8 GB) to the project folder; my 14:34 re-run was killed by its 1500 s timeout.
   - Stopped the old chain by PID and removed the partial copy workflows/klog/wt (the source in WSL is untouched).
   - save-project-wf.sh now excludes */wt/* and */.git/*; the snapshot is re-run in the background.
-- **Kit 120 DONE** (14:57-15:19, q87 + iceland-device 0.21; bundle ~/mainline/build/area-combo-120, 226 files;
+- **Kit 120 DONE** (14:57-15:19, q87 + iceland-device 0.21; bundle <pc-work>/build/area-combo-120, 226 files;
   tablet back in Android, 73 %, 34 C):
   - pkg2 PASS (0.21 built on the tablet); pkggate PASS (0.21, guard active, OFFSET_BALANCED=0).
   - cputurbo2: undecided (boost no gain) -> Performance profile unchanged (O4).
@@ -3272,10 +3277,10 @@ regexes) -> q85 if klog finds fixes. Owner checks: H1-H3 (chgsafe), installed su
 - 20:18 queue 0190 pushed (iceland-linux 2afea47); r2m postsession done; the Fable agents resumed.
 
 - 9 Oct 2026: commit z DONE (iceland-mainline a8739a6, pushed, guard 0 hits; status HELD; queue 0190 = iceland-linux 2afea47). Result fields in LOOP4-NOTES / FINAL-REPORT filled.
-  Handoff package created: C:\Users\lucne\OnePlusPad4-Loop5 (CLAUDE.md, RULES.md, NEXT-TESTS.md, STATE-AT-HANDOFF.md, agents/BRIEFS.md, wsl-snapshot/, docs/history/). Loop 5 continues there; F55 first.
+  Handoff package created: <pc-path> (CLAUDE.md, RULES.md, NEXT-TESTS.md, STATE-AT-HANDOFF.md, agents/BRIEFS.md, wsl-snapshot/, docs/history/). Loop 5 continues there; F55 first.
 
 - 9 Oct 2026 (later): **upstream scan for Kaanapali** (patchwork.kernel.org / linuxtv API, qcom *-for-7.4 + msm-next fetched
-  into WSL ~/mainline/research/qcom74.git, linux-next 20261008). Mainline = 7.3-rc7; qcom 7.4 pulls tagged.
+  into WSL <pc-work>/research/qcom74.git, linux-next 20261008). Mainline = 7.3-rc7; qcom 7.4 pulls tagged.
   In 7.4 (qcom): GPU DT (A840 + SMMU + QFPROM + cooling, = our infiniti 0006-0011), GCC CX power domain (new to us),
   PCIe WAKE# polarity fix. msm-next 7.4: A840 CLX, RPMh dependency-vote fixes (= our 0146/0149), GMU FW timeout, DP HPD
   serialise / PUSH_IDLE / link-training fixes, DPU dual-intf fixes (slave encoder order, compressed INTF width, CRTC bw).
@@ -3286,7 +3291,7 @@ regexes) -> q85 if klog finds fixes. Owner checks: H1-H3 (chgsafe), installed su
   graph fails" (Zhang Jiaxi, 4 patches) - candidate for the klog micfresh item. Nothing built or run.
 
 - 10 Oct 2026: **full upstream scan by hardware block** (patchwork kernel.org + linuxtv, ~110 keywords from
-  wf/hwinv INVENTORY; 22 maintainer trees fetched to WSL ~/mainline/research/trees + qcom74.git; infiniti master
+  wf/hwinv INVENTORY; 22 maintainer trees fetched to WSL <pc-work>/research/trees + qcom74.git; infiniti master
   vs our pin: rebased on 7.3-rc4, 21 commits new to us (IPA / modem / NFC not ours); map220v unchanged since 17 Aug;
   Mesa nothing A8xx-specific). Report: docs/UPSTREAM-SCAN-2026-10-10.md (20 top picks, per-block lists, drops at the
   7.4 rebase). Nothing built or run.
@@ -3309,3 +3314,94 @@ regexes) -> q85 if klog finds fixes. Owner checks: H1-H3 (chgsafe), installed su
   0244-0245 (GPU back). Cleared: 0254 is not the cause of the SWR clsh / wcd9390 parity lines (still x11 / x4
   without it: open item of the rc6 base; 0254 untested). F55 replay PASSED on q89b (first clean fresh-boot replay,
   not yet proof). BT -84 cause = our own WCN7860 baud patch (no flush); cosmetic.
+
+## 10-14 Oct 2026 (condensed: loop 5, the install day, the repository cleanup)
+
+Results only; the logs are not published.
+
+### 10 Oct
+
+- Upstream scan by hardware block (about 110 keywords, 22 maintainer trees, read only); 20 top picks; nothing built at the time.
+- Kernel q89 (v7.3-rc6 base + 0001-0254) rebased to q89b. Dropped as breakers: the q6apm RFC 0202-0205 (a size error in the
+  read-done payload: every microphone open came back empty), the DW9800K update 0253 (cameras did not come up), the GPU CLX
+  0244-0245 (the GPU did not start). The first fresh-boot replay of the F55 microphone stall passed on q89b.
+- Golden B130 (q89b + 0.24) confirmed by r2w (07:12).
+- Install day started at 12:24 with read-only checks (AVB footer proof, rollback indexes, slot state, backup verification).
+  The C0 probe wrote `boot_b` with the install U-Boot. The tablet reset itself several times from `boot_b`, the slot's retry
+  count went 7 -> 0, and the write was undone the same day. Android was intact. Two RAM tests of a fixed U-Boot (patch 0008:
+  no self-reset, no power-off, a hold loop) passed at 13:42 and 13:44; nothing was written.
+- Other Pad-family ports were reviewed read only (tb323fu, SuperTurtleDev's iceland tree). Their useful items (the CPU
+  cold-soak quirk, the RTC offset in SDAM2, power_now from V x I, memory bus DVFS, others) were queued for one kit.
+
+### 11 Oct
+
+- Audio: the speaker chain made loud music about 12-17 dB quieter than stock (make-up 0 dB, limiter -3). The -12 dB cap was a
+  labelled placeholder in the topology, not a kernel value. The amplifier tables were set to stock values.
+- Rehearsals became autonomous (no owner steps; a test user and autologin on rehearsal boots only; the install keeps the
+  first-boot wizard). The Bluetooth regression of r139 was an address-setting race in our helper (fixed in 0.28-2).
+- Minimal holds: Fedora updates everything except the kernel, the device packages, the sensor stack, libcamera, GRUB, shim,
+  the firmware and alsa-ucm. The first hold list was too wide and was narrowed in B143.
+- Firmware rule (owner): generic blobs may be published and used from a dedicated firmware repository with sha256 records;
+  unit-specific data stays private.
+
+### 12 Oct
+
+- Golden B143 (q89d8 + 0.28-2) and the first clean final rehearsal r139c (36 rows, 0 FAIL).
+- The firmware repository `iceland-firmware` was created (public; release 11.A.38-2, 278 generic files with sha256 records).
+- Golden B145 (q89d9 + 0.28-3 + firmware 11.A.38-2) accepted by r141 (64 rows, 48 PASS; the one FAIL was a test expectation).
+- Skin policy proven in emulation (r150b): every trip walked and released; 62 of 62 gear steps at stock.
+- libcamera 0.7.1-2 proven (r152). The matrix was re-audited (19 changes, applied on 13 Oct).
+- Sound make-up set to +8 dB, then to +9 dB (the owner's choice; the like-for-like Android reference was inconclusive).
+- The decoded generic thermal model was published as `/etc/iceland/thermal-model.json` in iceland-firmware 11.A.38-3
+  (encrypted inputs, the key and the decoder stay private).
+- Camera module check (r148c): the loaded `sc1320cs` is the in-tree driver packaged by `kernel-iceland`; the private
+  out-of-tree module is no longer used.
+- Brightness probe r151: a cap in user space fought GNOME's automatic brightness (case A FAIL). The owner chose a kernel
+  clamp, built with the rc7 round.
+- The rc7 rebase (q89e) started.
+
+### 13 Oct
+
+- Kernel rebased onto v7.3-rc7 (q89e, 0 warnings). A WSL outage during a build (the D: drive filled up) was fixed by the owner
+  by emptying the recycle bin and removing old overlays; the build was rerun with fewer jobs.
+- Golden B146 (q89e + 0.28-4) committed 04:13. Confirmation rehearsal r155: no regression on 36 rows, but three FAILs, one of
+  them the processed speech level. This led to the microphone chain of 0.28-5.
+- Golden B147 (q89e + 0.28-5 microphone chain + firmware 11.A.38-3) committed 06:02. r156: the one FAIL was G4 (the F54 libcamera
+  stop race of Fedora 0.7.1-1); the speech level passed.
+- Kernel round K1-K11 prepared and checked: the brightness clamp (cooling device), a UFS scheduler lock fix (K3), wake and lens
+  fixes (K6, K7), and an idle refresh compiled in and off by default. K1 (a U-Boot-written address) and K5 were not taken; the
+  regulatory setting K9 was kept.
+- Golden B148 (q89f + 0.28-6) committed 12:04. r157 (14:05): brightness-limit 8/8 PASS, G4 PASS with libcamera 0.7.1-2, K3 and K6
+  PASS, no regression on the rows of r141. Two FAILs: the lens stopped at 434 instead of 450, and the DW9800K configured sink was
+  cleared during start-up.
+- Fix round: the lens is read back after the ramp and rewritten until it holds (q89g patch); the start-up race was corrected in
+  the package. Golden B149 (q89g + 0.28-7 + firmware 11.A.38-3 + libcamera 0.7.1-2; 1,727 packages) committed 15:45. r158
+  (16:51): 0 FAIL, 2 known CHECKs (ERLE, VE-601L), no regression; screen recording on the hardware encoder PASS.
+- The install image was rebuilt from B149 at 17:09 and held: 6,732,251,564 bytes, sha256 prefix `2246e9a7`, offline check
+  128 PASS, 0 FAIL.
+- Owner writes: write 1 (`userdata`) at 18:31, OKAY, 267 s. Tethered boots at 20:43 and 20:44. Write 2 (`boot_b`, footered
+  U-Boot v3) at 20:47, OKAY, 2.3 s. Fedora booted from `boot_b` at 20:48.
+- After the install: GNOME Software's first refresh finished by itself (21:34). A "system generally slow" report (late evening)
+  was traced to heat: the stock table capped the big cores at gear 5, and the shell estimate sat below the skin sensor. Storage,
+  network and I/O were fine. An Electron app's GPU crash loop fell back to software rendering.
+- Slot counter: after the untethered boots the retry count for slot b read 3 (it was 7 after write 2). The flag stayed unmarked
+  because the guard refused the loop root.
+
+### 14 Oct
+
+- Root cause of the slot counter found (the loop root and the read-only boot LUN; see KNOWLEDGE section 0). The owner marked
+  slot b by hand with `qbootctl -m` after GPT copies; qbootctl then showed slot b active, successful and bootable.
+- iceland-device 0.28-8 (screen-off thermal table, boost ceiling, the slot-mark fix) committed (946ff95 after the later history
+  rewrite); its PC tests passed. Its thermal file was installed on the tablet by hand, with a backup of 0.28-7 kept.
+- Power diagnosis on the installed system: 2.08 W average at idle (see KNOWLEDGE section 0); the 10.7 W reading was load.
+- Feature matrix r160 published: page v62, 104 rows (83 ok, 13 part, 5 todo, 3 out).
+- DP over USB-C: the monitor is detected and gets power (contract 5 V x 2 A), but there is no picture (see KNOWLEDGE
+  section 0). Open.
+- Repository cleanup: the test documents, relay folders, rehearsal scripts, debug patches and the U-Boot test tools were
+  removed from the public repositories, with history rewritten (iceland-mainline 243 -> 188 commits, then one more rewrite for
+  the last related files). The firmware repository was checked and kept (generic files only). The kernel queue and the U-Boot
+  series were checked for unit data and kept. A privacy scan found one old file with a network name; it was removed.
+- The owner decided that the related repositories are public. The iceland-linux `main` branch was moved forward to the q89g
+  queue (it was rc4).
+- The vendor-blob repository was made public on 14 Oct by the owner's choice, after a scan of every blob in its history
+  (serial, Bluetooth address as text and as raw bytes) found nothing unit-specific.

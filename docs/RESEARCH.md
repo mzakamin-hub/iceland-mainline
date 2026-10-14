@@ -1,5 +1,12 @@
 # OnePlus Pad 4 mainline — research notes (discovery 2026-09-27, formerly PLAN v2)
 
+> **Status 14 Oct 2026.** This note is the discovery of 27 Sep and plan v2, kept as history. The phases in its "Plan"
+> section are superseded by `PLAN.md` (status block of 14 Oct). The feature matrix has the row-by-row state. In short:
+> the install is done; the speakers, microphones, display, GPU, video, sensors and camera streaming work; the open items
+> are those listed in `INSTALL-PLAN.md`, `TODO.md` and the matrix. Names of relay folders, scripts and logs are PC names
+> and are not published.
+
+
 ## Context
 Goal: one mainline kernel (+ DTB, firmware, U-Boot) for the OnePlus Pad 4 that boots **any** arm64 rootfs —
 Fedora, Ubuntu/Debian, Arch, pmOS, Kali, … (pmOS only as the first debug rootfs because of its bring-up tooling).
@@ -239,7 +246,7 @@ loader's `devicetree` directive; U-Boot's own minimal DTB must never reach Linux
 - First actions after approval (cloud only): write the capture script + README into `iceland-mainline` (so the user can
   run it while DSU is loaded), then Phase 0 (kernel fork + patch queue + CI, U-Boot fork, firmware manifest, tooling).
 - DSU root is available on the tablet now (user, 2026-09-27) → Phase 1 capture runs when the user chooses to execute the
-  capture script (committed to `iceland-mainline/tools/capture/`, read-only, output uploaded to the private repo minus
+  capture script (committed to `iceland-mainline/the debug tooling (removed 13 Oct, not published)`, read-only, output uploaded to the private repo minus
   anything secret/blob). The tablet is attached to the user's PC, not this container.
 
 ## Plan

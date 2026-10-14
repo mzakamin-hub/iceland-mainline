@@ -1,20 +1,23 @@
-# 04 - Build your own kernel and RAM-boot it on your OnePlus Pad 4
+# 04 - Build your own kernel, U-Boot and packages for the OnePlus Pad 4
 
-A step-by-step guide for a Linux user with their own Pad 4. State: 3 Oct 2026 (queue 0001-0185, the final build).
+State: 14 Oct 2026. The kernel is Linux 7.3-rc7 with the queue head `q89g` (branch `iceland-7.3-rc7-q89g`, tag `q89g`).
+U-Boot is `v2026.10-rc5` with the install build v3. The packages are `iceland-device` 0.28-8 and `iceland-firmware`
+11.A.38-3. Fedora 44 GNOME has been installed on the owner's tablet since 13 Oct 2026 (`INSTALL-GUIDE.md`).
 
-The project itself works from Windows 11 with WSL (Ubuntu 24.04) for building and PowerShell for the tablet runs.
-**Steps marked "untested here" were not run that way by the project.** The underlying commands are the same, but
-nobody has walked this exact path on a plain Linux PC yet.
+The project develops on Windows 11 with WSL (Ubuntu 24.04). **Steps marked "untested here" were not run that way by
+the project.** The scripts named in this guide are the ones in the public repositories. The project's test tooling
+(the RAM-kit builder, the runners and their logs) is not published, and this guide does not depend on it.
 
 > **WARNING - read before anything else**
-> - Nothing in this guide writes to your tablet's storage. A RAM boot (`fastboot boot`) loads an image into memory;
->   a reboot returns you to Android.
+> - The builds in this guide touch only your PC. The one tablet step is a RAM boot (`fastboot boot`), which loads an
+>   image into memory; a reboot returns the tablet to its installed boot.
 > - To RAM-boot at all, the boot loader must be **unlocked**. Unlocking **erases all data** on the tablet and is
 >   your decision, at your own risk (section 1.3).
 > - Never type `fastboot flash`, `erase`, `format`, `-w`, `set_active` or `flashing lock` while following this
->   guide. None of them is needed here.
-> - Firmware from your tablet is proprietary. Keep it on your own machine; never upload or share images that
->   contain it.
+>   guide. None of them is needed here. Writing a partition is the install, a separate documented decision
+>   (`INSTALL-GUIDE.md`).
+> - Firmware from your tablet is proprietary. Keep your own extraction on your own machine. The generic firmware is
+>   published (section 5); unit-specific data never is.
 > - The Pad 4 has no public emergency-download loader. If the boot loader or firmware partitions were ever damaged,
 >   there would be no way back at home. This guide never touches them.
 
@@ -22,12 +25,12 @@ nobody has walked this exact path on a plain Linux PC yet.
 
 | Stage | Proven by the project | Section |
 |---|---|---|
-| Your own kernel from our queue, built reproducibly (tree hashes checked) | yes (every test kernel since 28 Sep) | 2-3 |
-| U-Boot (RAM-boot "diag L" build) | yes (diagnostic runs 3-4, every kit) | 4 |
-| A minimal Linux RAM boot: USB network, kernel log over HTTP, display on the boot framebuffer | yes (Linux tests 2-7, 28 Sep) | 6-7 |
-| The full kit: native display, sound, Wi-Fi, sensors, a Fedora 44 GNOME root in RAM | yes, with the project's Windows tooling | 8 |
-| The device package and the sensor packages as RPMs | yes (built in RAM sessions on the tablet) | 9 |
-| Installing Fedora to the tablet | **no** (planned; see `03-BOOT-AND-PARTITIONS.md`, `07-INSTALL-REVIEW.md`) | - |
+| Your own kernel from our queue, built reproducibly (tree hashes checked by `prepare.sh`) | yes (q89g is the head since 13 Oct; every test kernel since 28 Sep) | 3 |
+| The kernel package `kernel-iceland` (Fedora rpm) | yes (installed on the owner's tablet) | 3.4 |
+| U-Boot install build v3 (RAM boots on 10 Oct; written to `boot_b` on 13 Oct) | yes | 4 |
+| The device, firmware and sensor packages (rpm) | yes (installed on the owner's tablet; the sensor packages were built on the tablet in a RAM session) | 7 |
+| A Linux and Fedora RAM test kit | the kit builder and its runner are not published | 6 |
+| Installing Fedora to the tablet | yes, by the owner, 13 Oct 2026 (`INSTALL-GUIDE.md`); this guide does not repeat it | - |
 
 ## 1. Prerequisites
 
@@ -36,23 +39,22 @@ nobody has walked this exact path on a plain Linux PC yet.
 | Need | Packages (Debian / Ubuntu names; Fedora has equivalents) | Why |
 |---|---|---|
 | Git, make, a C toolchain | `git make bc bison flex libssl-dev libelf-dev cpio zstd xz-utils python3` | kernel build |
-| LLVM / clang with lld | `clang lld llvm` | the queue's `scripts/build.sh` builds with `LLVM=1`. The project uses Android's clang r596125 (LLVM 22); a distribution LLVM 18 or newer is expected to work (untested here) |
-| Device-tree tools | `device-tree-compiler` (`dtc`, `fdtget`, `fdtput`) | the RAM-kit builder edits the device tree |
-| An aarch64 GCC for U-Boot | `gcc-aarch64-linux-gnu` | `iceland-u-boot` builds with `CROSS_COMPILE=aarch64-linux-gnu-` |
-| Android tools | `android-sdk-platform-tools` (`adb`, `fastboot`) | RAM boot, reading from Android |
-| Busybox package tools | `dpkg-deb` (in `dpkg`) | the kit builder unpacks a pinned static busybox |
-| Space | about 10 GB | kernel tree + build |
+| LLVM / clang with lld | `clang lld llvm` | `scripts/build.sh` builds with `LLVM=1`. The project's clang version is not recorded in the public repository (unverified for the current build); a distribution LLVM 18 or newer is expected to work (untested here) |
+| An aarch64 GCC | `gcc-aarch64-linux-gnu` | `iceland-u-boot` builds with `CROSS_COMPILE=aarch64-linux-gnu-` |
+| Network access during the U-Boot build | - | `iceland-u-boot/scripts/build.sh` clones the pinned `mkbootimg` (commit `808ecd09`) |
+| RPM tools (section 3.4 and 7 only) | `rpm-build`, `zstd`, `tar`, `git`, on Fedora 44 | the packaging scripts set the `.fc44` dist tag and build aarch64 packages |
+| Android tools (optional) | `android-sdk-platform-tools` (`adb`, `fastboot`) | the RAM test of U-Boot (section 4) and reading from Android |
+| Space | about 10 GB | kernel tree and build |
 
 Fastboot and adb on Linux need no driver. You may need a udev rule for your user. The tablet's ABL and our U-Boot
-both use vendor id 18d1, product d00d.
+both use USB vendor id 18d1, product d00d.
 
 ### 1.2 The tablet
 
-- OnePlus Pad 4 (OPD2514) on stock OxygenOS **11.A.38** or a ROM built on its firmware. The project's tablet runs
-  LineageOS 24.0 on that firmware.
+- OnePlus Pad 4 (OPD2514). For a RAM test it runs stock OxygenOS **11.A.38** or a ROM built on its firmware.
 - **Never** downgrade the firmware: anti-rollback.
-- Battery above 50 %. A USB-C cable to a USB port **directly** on the PC. The project uses a USB 2 link; the tablet
-  draws more than a PC port gives during a run, so about 1 % of battery goes per 10-minute test.
+- Keep the battery above 50 % for bring-up work. Use a USB-C cable to a USB port **directly** on the PC. A PC port gives
+  less current than a wall charger, so long sessions drain the tablet.
 
 ### 1.3 Unlocking the boot loader (only if not done yet)
 
@@ -62,30 +64,33 @@ both use vendor id 18d1, product d00d.
 > - `adb reboot bootloader`;
 > - `fastboot flashing unlock`, then confirm on the tablet.
 >
-> The project did this once with `C:\OnePlusPad4\scripts\01-Unlock-Bootloader.ps1` (it records ABL's state first).
-> **Never relock** while anything non-stock is on the tablet.
+> The project used its own unlock script (not published). **Never relock** while anything non-stock is on the tablet.
 
 ### 1.4 Back up first (read-only, strongly recommended)
 
-The project's first step was a full, checksummed copy of all 151 partitions except `userdata`. It holds the
-calibration and identity of that one tablet; no download replaces it.
-- It needs root over adb. The project got it from a temporary DSU system image, without flashing anything.
+The project's first step was a full, checksummed copy of all 151 partitions except `userdata`. It holds the calibration
+and identity of one tablet; no download replaces it.
+- It needs root over adb. The project got it from a temporary system image, without flashing anything.
 - Each partition was read with `dd` from `/dev/block/by-name/<name>` and hashed on both sides.
 - Keep it on two disks, and never share it.
 
-A RAM boot does not need the backup, but any later step on the install path does (INSTALL-GUIDE Part A).
+Any later step on the install path needs it (`INSTALL-GUIDE.md`, Part A).
 
 ## 2. Get the trees
 
-The three repositories are **private** today (GitHub user `mzakamin-hub`). Ask the owner for access. Nothing is
-published without the owner's OK.
+All four repositories are public on GitHub under `mzakamin-hub`.
 
 ```sh
 mkdir -p ~/pad4 && cd ~/pad4
-git clone https://github.com/mzakamin-hub/iceland-linux        # kernel patch queue
-git clone https://github.com/mzakamin-hub/iceland-u-boot       # U-Boot patch queue
-git clone https://github.com/mzakamin-hub/iceland-mainline     # tools, packaging, docs
+git clone https://github.com/mzakamin-hub/iceland-linux         # kernel patch queue
+git -C iceland-linux checkout q89g                              # the tag (branch iceland-7.3-rc7-q89g)
+git clone https://github.com/mzakamin-hub/iceland-u-boot        # U-Boot patch queue
+git clone https://github.com/mzakamin-hub/iceland-mainline      # packaging, phase4 scripts, firmware notes, docs
+git clone https://github.com/mzakamin-hub/iceland-firmware      # generic firmware package (optional, section 5)
+git -C iceland-firmware checkout 11.A.38-3                      # the current firmware release
 ```
+
+The `main` branch of `iceland-linux` still holds the older rc4 queue. Build from the `q89g` tag, not from `main`.
 
 ## 3. Prepare and build the kernel
 
@@ -97,15 +102,16 @@ scripts/prepare.sh ./src
 ```
 
 What it does (read `scripts/prepare.sh`; it changes nothing outside `./src`):
-1. Shallow-clones `torvalds/linux` at **v7.3-rc4**. It checks that the commit equals `UPSTREAM_COMMIT` in
-   `kernel.pin` (93f51579e7df...).
-2. Applies `patches/0001-infiniti/*.patch` (138 commits of the OnePlus 15 port of the same SoC) with `git am`, so
-   every patch keeps its author, date and message. It checks that the tree hash equals `TREE_AFTER_0001_infiniti`.
-3. Applies `patches/0002-iceland/*.patch` (the Pad 4 series, 0001-0185) and checks `TREE_AFTER_0002_iceland`.
+1. Shallow-clones `torvalds/linux` at tag **v7.3-rc7** if `./src` has no git tree. It checks that the commit equals
+   `UPSTREAM_COMMIT` in `kernel.pin` (`24a19b953e2a...`).
+2. Applies `patches/0001-infiniti/*.patch` (132 commits: the OnePlus 15 port of the same SoC) with `git am`, so every
+   patch keeps its author, date and message. It checks the tree hash against `TREE_AFTER_0001_infiniti`.
+3. Applies `patches/0002-iceland/*.patch` (294 Pad 4 patches; the numbers have gaps, the newest is 0306) and checks
+   `TREE_AFTER_0002_iceland`.
 4. Prints `source ready: ./src (<commit>)`. A tree-hash mismatch stops it: your tree would not be the tested one.
 
-If the GitHub clone stalls (it did twice for the project), clone `v7.3-rc4` by hand into `./src` and run the script
-again. It reuses an existing `./src/.git`.
+If the GitHub clone stalls, clone `v7.3-rc7` by hand into `./src` and run the script again. It reuses an existing
+`./src/.git`.
 
 ### 3.2 The configuration
 
@@ -114,12 +120,12 @@ again. It reuses an existing `./src/.git`.
 | Layer | File | Role |
 |---|---|---|
 | 1 | `arch/arm64/configs/defconfig` | upstream arm64 defaults |
-| 2 | `arch/arm64/configs/sm8850.config` (added by queue patch 0003) | the SoC and board drivers; drift is only reported |
-| 3 | `configs/distro-neutral.config` | **merged and checked strictly**: built-in root path (UFS, ext4 / btrfs / xfs / vfat, dm-crypt), the early framebuffer, EFI stub, systemd / container features, SELinux **and** AppArmor built in (`CONFIG_LSM` starts SELinux by default), compressed firmware (xz / zstd), `DMABUF_DEBUG=n` (else hardware-decoded video shows green), `GPIO_SHARED_PROXY=y` (else the backlight never probes), the Pad 4 drivers (pen charger, pogo keyboard, telemetry), `FW_DEVLINK_SYNC_STATE_TIMEOUT=y` |
+| 2 | `arch/arm64/configs/sm8850.config` (from the source tree) | the SoC and board drivers; drift from it is only reported |
+| 3 | `configs/distro-neutral.config` | **merged and checked strictly**: built-in root path (UFS, ext4 / btrfs / xfs / vfat, dm-crypt), the early framebuffer, EFI stub, systemd / container features, SELinux **and** AppArmor built in (`CONFIG_LSM` starts SELinux by default), compressed firmware (xz / zstd), `DMABUF_DEBUG=n` (else hardware-decoded video shows green), `GPIO_SHARED_PROXY=y` (else the backlight never probes), the Pad 4 drivers, `FW_DEVLINK_SYNC_STATE_TIMEOUT=y` |
 | 4 | `configs/required.config` | must be present in the final `.config` (checked, not merged) |
 
-Each line of `distro-neutral.config` carries a comment with the reason and the run that proved it. Read them before
-you change anything. `configs/debug-hang.config` is a debugging extra, not for normal builds.
+Each line of `distro-neutral.config` carries a comment with the reason and the test that proved it. Read them before you
+change anything. The debugging fragment used in the project's test runs is not published and is not needed.
 
 ### 3.3 Build
 
@@ -130,38 +136,81 @@ ls out/dist/
 # Image  Image.gz  kaanapali-oneplus-iceland.dtb  config-<release>  modules-<release>.tar.zst  BUILD_INFO  SHA256SUMS
 ```
 
-- The release string looks like `7.3.0-rc4-iceland-NNNNN-g<hash>`.
-- A config check failure means a fragment line was dropped silently (an unmet dependency): fix that, do not set
+- The release string of q89g is `7.3.0-rc7-iceland-00426-g520e85da9244`.
+- A config check failure means a fragment line was dropped silently (an unmet dependency). Fix that; do not set
   `ALLOW_CONFIG_DRIFT=1` without reading the message.
 - Build time depends on your CPU (a full build with modules).
-- The project's own test builds use `~/mainline/build/build-q2.sh` / `build-q56.sh`. They are the same make
-  invocation on a local branch, plus the workflow candidates. Not needed for your build.
 
-## 4. Build U-Boot (the RAM-boot "diag L" image)
+### 3.4 Package the kernel as `kernel-iceland` (Fedora)
+
+```sh
+cd ~/pad4/iceland-linux
+git checkout q89g                                        # the source rpm carries the queue at HEAD
+packaging/fedora/build-rpm.sh ./out ./rpms [RELEASE]     # RELEASE defaults to 1
+```
+
+- `build-rpm.sh BUILD_OUT_DIR RPM_OUT_DIR [RELEASE]` reads `out/dist`, `out/System.map` and `out/.config`. It makes a
+  binary rpm for aarch64 and a source rpm that carries the whole queue at HEAD, so check out the tag first.
+- The rpm version replaces the `-` of the release string, because rpm versions cannot hold `-`. The rule is in
+  `packaging/fedora/README.md`.
+- `kernel-iceland` is installonly and keeps three versions. Its `%posttrans` runs `kernel-install`, which writes the
+  boot entry. The plug-in `90-iceland-dtb.install` copies the device tree to the ESP, where U-Boot loads it.
+- It needs rpmbuild on Fedora (untested here on other distributions).
+
+## 4. Build U-Boot (the install build v3)
 
 ```sh
 cd ~/pad4/iceland-u-boot
-scripts/prepare.sh ./src               # u-boot v2026.10-rc5 + 14 infiniti + 3 Pad 4 patches, tree hashes checked
-tools/diag/build-diag.sh ./src ./out   # CROSS_COMPILE=aarch64-linux-gnu- by default
-ls out/dist/                           # diag-C-fastboot.img  diag-D-normal.img  diag-E-info.img  diag-L-efi.img  SHA256SUMS
+scripts/prepare.sh ./src        # v2026.10-rc5 + 14 infiniti patches + 10 Pad 4 patches; tree hashes checked
+scripts/build.sh ./src ./out    # CROSS_COMPILE=aarch64-linux-gnu- by default; JOBS=N
+ls out/dist/                    # u-boot-iceland-v4.img  u-boot-iceland-v2.img  u-boot.bin.gz  u-boot.dtb  BUILD_INFO  SHA256SUMS
 ```
 
-- **Use `diag-L-efi.img`.** It shows its log on the screen, waits in its own fastboot, and starts what you send it
-  through the kernel's EFI stub.
-- It is built **without fastboot flashing**: it cannot write the tablet's storage.
-- Its USB product id is ABL's (0xd00d). U-Boot's fastboot reports `product: oneplus-iceland`, ABL's reports
-  `canoe`. That is how you tell them apart.
-- Do not RAM-boot `diag-D-normal.img` unless you know why. Its normal boot command maps `userdata` (read-only) to look
-  for an installed system. It is harmless on Android's encrypted data, but it is not needed for a test.
+- The Pad 4 series is `patches/0002-iceland`: 0001-0003 are the board (`iceland_defconfig`, `iceland.env`), and
+  0004-0010 are the install build: blkmap mapping of `userdata`, EFI disk rules (every block device except the blkmap
+  disk is read-only for EFI programs), the install environment, a fastboot idle timeout, no reset or power-off by itself,
+  USB brought up without ABL, and `fastboot reboot-bootloader`.
+- `u-boot-iceland-v4.img` is the header-v4 image (U-Boot with its device tree in the kernel slot), the form ABL starts.
+  `u-boot-iceland-v2.img` is an alternative.
+- The record of the tested build is `tools/install/BUILD_INFO-v3.txt` in `iceland-u-boot`: U-Boot commit
+  `aac9e744ec6f`, mkbootimg `808ecd09`, boot header `os_version 17.0.0`, patch level `2026-09`. Its raw image
+  `u-boot-iceland-usb.img` (540,672 bytes) has sha256 prefix `979b4076`. The image written to `boot_b` on 13 Oct is
+  that build with an AVB hash footer made for that day's `boot_b`; the footer step is part of the install record.
+  Whether a fresh build reproduces the record's hash is **unverified**: U-Boot embeds its build time, so the hash
+  changes with each build.
+- The boot header values in `uboot.pin` must match the boot image of the slot you write (anti-rollback).
 
-## 5. Firmware from your own tablet (read-only)
+RAM test (nothing is written):
 
-The kernel boots and shows a console without any firmware. The panel's own driver, touch, GPU, video, sound,
-Wi-Fi, Bluetooth and the sensors need the tablet's firmware (table in `02-HARDWARE.md` section 7). Three ways to
-get it, all read-only:
+```sh
+adb reboot bootloader                      # or: power off, hold Volume Down + Power, connect USB
+fastboot getvar product                    # read only: ABL reports canoe
+fastboot boot ~/pad4/iceland-u-boot/out/dist/u-boot-iceland-v4.img
+# after a few seconds U-Boot's text appears and U-Boot's own fastboot takes over
+fastboot getvar product                    # now: oneplus-iceland (U-Boot)
+```
 
-**A. From a running, rooted Android over adb** (untested here as a recipe; the project used the backup and a
-FAT reader). Pull the stock paths listed in `iceland-mainline/firmware/manifest.tsv`, column `stock_path`:
+The project's RAM boots of this build ran on 10 Oct 2026: fastboot came up after 2-7 s, the boot manager failed cleanly
+and the slot flags were unchanged. A RAM boot of an image built here is untested here. If U-Boot's text does not
+appear, leave the tablet alone: a reboot returns it to its installed boot.
+
+## 5. Firmware: the generic set and your own tablet
+
+The panel, touch, GPU, video, sound, Wi-Fi, Bluetooth and the sensors need firmware (`02-HARDWARE.md` section 7). It comes
+in two kinds:
+
+- **Generic** firmware (ADSP, CDSP, SOCCP, GPU, Wi-Fi / Bluetooth, touch, camera and VPU files) is the same on every
+  Pad 4 with stock 11.A.38. The project publishes it in the `iceland-firmware` repository (release 11.A.38-3, with the
+  GitHub releases 11.A.38-2 and 11.A.38-3). `MANIFEST.tsv` gives each file's stock source and sha256; `NOTICE.md` has
+  the vendor notices. Before you use a copy from anywhere, compare its sha256 with your own extraction.
+- **Unit-specific** data (the partition backups, persist, modem and EFS data, calibration and key material, the serial,
+  the MAC and Bluetooth addresses) is never published. It comes only from your own tablet. `EXCLUDED.tsv` lists what the
+  package leaves out.
+
+Three read-only ways to get the files from your own tablet:
+
+**A. From a running, rooted Android over adb** (untested here as a recipe). The stock paths are listed in
+`iceland-mainline/firmware/manifest.tsv`, column `stock_path`:
 
 ```sh
 adb root                                  # needs a userdebug ROM with "Rooted debugging" (LineageOS) - read only
@@ -177,163 +226,89 @@ adb unroot
 
 Then convert them to the Linux names:
 - Squash each split image (`adsp.mdt` + `adsp.bNN`, the same for `cdsp`) into one `.mbn` with `pil-squasher`
-  (linux-msm, public tool).
+  (linux-msm, a public tool).
 - Strip the touch image's 80-byte header with `iceland-mainline/firmware/convert-nt36536.py`.
-- Rename as in the manifest. Use the directory `qcom/kaanapali/iceland/` (the names the device tree asks for); the
-  manifest's `OnePlus/` sub-folder is stale.
+- Rename as in the manifest. Use the directory `qcom/kaanapali/iceland/` (the names the device tree asks for).
 - Take `qcom/gen80200_{sqe.fw,gmu.bin,aqe.fw}` from upstream **linux-firmware**.
 
-**B. The project's on-device extractor** (`~/mainline/build/wf/install/cand/fwx/iceland-fw-extract` +
-`fw-list.tsv`).
-- It runs as root in a RAM session on the tablet. It sets every source partition read-only before opening it, reads
-  FAT and ext4 itself and the EROFS images inside `super` through a read-only loop.
-- It writes `/usr/lib/firmware/updates/...`, the sensor-hub tree `/usr/share/qcom/kaanapali/OnePlus/iceland/` and a
-  record of what came from where, with hashes.
-- Checked on the owner's backup: 23 of 23 items. It is the planned install's extractor; it is not yet in a public
-  repository.
+**B. The project's on-device extractor** (`iceland-fw-extract`) is not published. It runs as root in a RAM session on
+the tablet, sets every source partition read-only before opening it, and writes the firmware tree with a record of
+what came from where.
 
-**C. From the stock OTA package** of the same version (11.A.38). You download it yourself; the partition images
-are inside its payload. Never use firmware from another version.
+**C. From the stock OTA package** of the same version (11.A.38). You download it yourself; the partition images are
+inside its payload. Never use firmware from another version.
 
-Keep the result in one folder laid out like `/lib/firmware` (for example `~/pad4/fw/`). This is the `FWDIR` of the
-next section. **It is private:** never commit it, never upload a kit that contains it.
+Keep your own extraction in one folder laid out like `/lib/firmware`. **It is private:** never commit it, and never
+upload an image that contains it.
 
-## 6. Build a RAM-boot Linux image
+## 6. A RAM-boot Linux image (not published)
 
-`iceland-mainline/tools/linux-ram/build.sh` makes an Android boot image (header v2) with:
-- your kernel;
-- a debug copy of your device tree: USB forced to peripheral mode, and the GPU, remote processors, PCIe, pmic_glink
-  and native display switched off unless you ask for them;
-- a small busybox initramfs whose `/init` brings up a USB network and serves read-only report pages.
+The project built its RAM test kits (a debug device tree, a busybox initramfs with a USB network and read-only report
+pages, and optionally a Fedora root, section 7.2) with a kit builder that was project test tooling. That builder, its shim and its
+runner are **not** in the public repositories (removed 13-14 Oct 2026 with the test tooling). The public scripts stop at
+the kernel and U-Boot: `scripts/build.sh` gives you `out/dist/Image.gz` and the device tree for any boot image.
 
-```sh
-cd ~/pad4
-git clone https://github.com/LineageOS/android_system_tools_mkbootimg mkbootimg
-git -C mkbootimg checkout 808ecd09666ffe0ff5800f02af693abce56eb395      # the pin in iceland-u-boot/uboot.pin
-# smallest first boot: no firmware, boot framebuffer only
-iceland-mainline/tools/linux-ram/build.sh iceland-linux/out/dist iceland-linux/out ./mkbootimg ./img-first
-ls img-first/      # linux-iceland-debug.img  iceland-debug.dtb  BUILD_INFO  SHA256SUMS
-```
+If you build your own RAM-boot image, the format the project used is Android header v2 (kernel, ramdisk, device tree),
+made with the pinned `mkbootimg` (commit `808ecd09`). On the installed system the kernel command line must not carry
+`clk_ignore_unused pd_ignore_unused regulator_ignore_unused`: the install decision of 3 Oct 2026 removed them
+(finding F24). This guide gives no tested recipe for your own image; test it yourself.
 
-Useful environment knobs (read the script for all of them):
+## 7. Packages and the phase-4 Fedora root
 
-| Variable | Effect |
-|---|---|
-| `FWDIR=~/pad4/fw` | puts your firmware folder into the initramfs (**the image becomes private**) |
-| `MODDIR=<modules_install dir>`, `MODLIST=<file>` | carries modules and a load list |
-| `NATIVE_DISPLAY=1` | keeps the display subsystem and backlight (needs the panel driver and firmware for touch) |
-| `WIFI=1` | keeps PCIe for the Wi-Fi chip |
-| `ENABLE="/soc@0/remoteproc@6800000 /pmic-glink"` | keeps nodes of the disabled list (ADSP, battery / USB-C) |
-| `ADSP_MDT=1` | the ADSP loads the split `.mdt` firmware instead of `.mbn` |
-| `PMSG_ANDROID=1` | the kernel log goes to a pmsg zone that Android shows after a reset |
-| `ROOTFS_CPIO=<file>` | appends a root file system (the Fedora-in-RAM kits, section 8) |
-| `CMDLINE_EXTRA="..."` | adds kernel arguments |
-
-The kit's kernel command line always has `clk_ignore_unused pd_ignore_unused regulator_ignore_unused`. The boot screen
-runs on the firmware's framebuffer until the display driver takes over, and these keep its clocks and rails. (The
-installed system boots without them, as every rehearsal did: finding F24 in the release notes.)
-
-## 7. RAM-boot it (nothing is written)
-
-The project runs this with `tools/linux-ram/run-linux.ps1` on Windows. The same steps by hand on Linux (untested
-here):
-
-```sh
-adb reboot bootloader                      # or: power off, hold Volume Down + Power, connect USB
-fastboot getvar product                    # must say: canoe   (read only)
-fastboot boot ~/pad4/iceland-u-boot/out/dist/diag-L-efi.img
-# about 5-10 s: U-Boot's text appears on the screen, then U-Boot's own fastboot
-fastboot getvar product                    # now: oneplus-iceland (U-Boot)
-fastboot boot ~/pad4/img-first/linux-iceland-debug.img
-```
-
-What you should see:
-- The kernel log scrolls on the screen (`earlycon=efifb`).
-- After about 30-40 s, a USB network device appears on the PC. The tablet is `172.16.42.1`; its busybox DHCP server
-  gives the PC `172.16.42.2`.
-
-Read the report pages, which are read-only:
-
-```sh
-curl http://172.16.42.1/cgi-bin/info
-curl http://172.16.42.1/cgi-bin/dmesg > dmesg.txt
-curl http://172.16.42.1/cgi-bin/deferred      # drivers waiting for something
-curl http://172.16.42.1/cgi-bin/unbound       # devices without a driver
-# also: timeline genpd interconnect regulators clocks gpio pinctrl drm thermal power buses irq pstore kmsg
-```
-
-Back to Android: `curl http://172.16.42.1/cgi-bin/reboot`, or hold Power about 15 s. The kit also reboots by itself
-after its timer (`AUTOREBOOT_AT`).
-
-**If the screen turns white or black after the text:** that is the display hand-over problem the project solved in
-queue 0022 / 0026-0027 (`docs/tests/README.md`, Linux tests 3-7). Make sure your device tree is from the full queue.
-
-**If nothing happens after `fastboot boot` of U-Boot:** ABL drops a device tree appended after a gzip'd kernel. Only
-images built by `build-diag.sh` / `build.sh` (kernel = gzip of U-Boot with its tree inside) work.
-
-## 8. The full kit: Fedora 44 + GNOME in RAM (the project's method)
-
-The project's daily kits add, on top of section 6:
-- the tablet's firmware;
-- the full module tree;
-- a Fedora 44 root file system in RAM (`phase4/make-rootfs.sh`, from the official Container Base image, grown by dnf
-  through a small proxy on the PC: `tools/relay/usb-proxy.py`);
-- systemd as PID 1 (`ROOTFS_MODE=pid1`);
-- ssh with the PC's key;
-- a GNOME autologin session.
-
-Large roots are fetched at boot over the USB network from an HTTP server on the PC (`ROOTFS_URL`). How it fits
-together:
-- `iceland-mainline/phase4/README.md`;
-- `~/mainline/build/make-kit26.sh` (the kit builder: kernel `BIN_TAG`, `USB_QOS`, `KIT_LABEL`, `KIT_DESC` without
-  quotes);
-- `~/mainline/build/an/genwf.py` (the generator of a run's tablet script and PC probe);
-- `docs/memory/iceland-autonomous-kit-runs.md`.
-
-Lessons that matter if you rebuild it:
-- Never `switch_root` away from the busybox shim: its safety jobs die and the tablet resets. Use `pid1` mode.
-- A root in RAM moves the kernel firmware loader's root along with PID 1. The shim binds `/lib/firmware` into the
-  root first.
-- Install `systemd-pam` and `dbus-daemon` before GDM in a root grown from the Container Base image.
-- Re-trigger udev for driverless devices ("coldplug"); otherwise the sound card can wait for ever for the DP audio
-  codec.
-
-## 9. The device package and the sensor packages
+### 7.1 The device, firmware and sensor packages
 
 | Package | Where | Build | Notes |
 |---|---|---|---|
-| `kernel-iceland` | `iceland-linux/packaging/fedora/` (spec, `build-rpm.sh`, `90-iceland-dtb.install`) | `build-rpm.sh BUILD_OUT RPM_OUT [RELEASE]` on a machine with rpmbuild | installs side by side (installonly). The install workflow's newer spec and plug-ins (`wf/install/cand/kernel-iceland/`) are not merged yet |
-| `iceland-device` (noarch) | `iceland-mainline/packaging/iceland-device/` | `./build-rpm.sh OUT` on Fedora (needs `m4`, `alsa-utils`, `alsa-topology-utils`; it builds the AudioReach topology) | configuration and scripts only, no firmware. Every setting and its reason is in its README. Version 0.17 is committed; 0.18 adds the install parts |
-| `hexagonrpc`, `libssc`, `iio-sensor-proxy` 3.9 (patched) | `iceland-mainline/packaging/sensors/` | `mk-sensor-pkg.sh` makes the sources; `build-rpm.sh` on **Fedora 44 aarch64** (the project builds them on the tablet in a RAM session, 10 s); `libssc` before `iio-sensor-proxy` | the sensor hub's file tree from your tablet is needed at run time |
+| `iceland-device` 0.28-8 (noarch) | `iceland-mainline/packaging/iceland-device/` | `packaging/iceland-device/build-rpm.sh OUT_DIR` on Fedora (needs rpmbuild and git). It fetches the pinned `audioreach-topology` (commit `993a17d`) from GitHub, and the spec builds the AudioReach topology with `m4` and `alsatplg` | configuration and scripts only, no firmware. The reason for each setting is in the README and the spec's `%changelog` |
+| `iceland-firmware` 11.A.38-3 (noarch) | `iceland-firmware` repository (`iceland-firmware.spec`, `MANIFEST.tsv`, `root/`) | archive the tree as `iceland-firmware-11.A.38/` (the spec's `Source0`), then `rpmbuild -ba iceland-firmware.spec` (untested here) | the generic firmware of section 5, plus the decoded generic thermal model. It needs the `fastrpc` group, which the sensor packages provide |
+| `hexagonrpc`, `libssc` (+ `-devel`), `iio-sensor-proxy` 3.9 (patched) | `iceland-mainline/packaging/sensors/` (specs, `build-rpm.sh`) | `packaging/sensors/build-rpm.sh TOP OUT_DIR` on **Fedora 44 aarch64**. `TOP` holds `SPECS/` and `SOURCES/`. The script builds `hexagonrpc`, then `libssc` (installed), then `iio-sensor-proxy` | pins: `hexagonrpc` `598b591`, `libssc` `54dd13e`, `iio-sensor-proxy` 3.9; the patches are in `iceland-mainline/docs/sensors/patches/`. The script named in the sensors README that assembles `TOP` (`mk-sensor-pkg.sh`) is not in the public repository, so `TOP` is prepared by hand (unverified) |
 
-In a RAM session the project builds and installs them with its `pkg2` part, then starts the sensor hub (`rotpkg
-start`). The camera and sensor tests only mean something after that.
+The sensor programs need the tablet's own sensor-hub file tree at `/usr/share/qcom/kaanapali/OnePlus/iceland`. The
+firmware package supplies the public part; the unit-specific registry comes from your own tablet (section 5).
 
-## 10. Testing and getting logs
+### 7.2 The phase-4 Fedora root (`iceland-mainline/phase4/`)
 
-- **Live kernel log.** The shim streams kmsg to the PC (`kmsgall` page). The project saves the streams per run. A
-  repeating heartbeat line in the stream means the tablet froze.
-- **After a reset.** pstore does not survive (PS_HOLD hard reset). Use `PMSG_ANDROID=1`, then read
-  `/sys/fs/pstore/pmsg-ramoops-0` in Android. Or read the reset reason from Android's `/proc/bootloader_log` (root).
-- **The project's tests.** Each topic has a `tablet.sh` with one function `wf_<name>` that writes one summary line.
-  They are in `~/mainline/build/wf/<name>/` (for example `wf/hwinv/tablet.sh`: a read-only inventory of unbound,
-  deferred and failed devices). The log sets of every run are in `iceland-mainline/docs/tests/area-combo-NN/`.
+- `fetch-fedora.sh [base|workstation|all] [OUT_DIR]` downloads the Fedora 44 aarch64 images and verifies them against
+  Fedora's CHECKSUM files. `base` is the Container Base image (systemd, no GNOME; the RAM root). `workstation` is the
+  Workstation raw disk image (the install image). The GPG check runs when Fedora's key is placed in `OUT_DIR/fedora.gpg`.
+- `make-rootfs.sh OCI_TAR_XZ OUT_DIR MODSTAGE KVER FWDIR MODLIST BUSYBOX LINUX_RAM_DIR` unpacks the base (or a rootfs
+  tarball from an earlier boot) under fakeroot, adds report pages, a telnet shell, your firmware and a module subset,
+  and writes `rootfs.cpio.gz`. Its last argument is the kit builder's directory (section 6), which is not published.
+  As published, the script cannot run from the repository alone (unverified how to supply that directory).
+- `rootfs-post-wayland.sh` is a test script for a Wayland compositor on the Adreno GPU (seatd, cage, glmark2). Nothing
+  needs it to build.
+- `phase4/README.md` lists the GNOME package set and these lessons:
+  - Never `switch_root` away from the busybox shim (its safety jobs die and the tablet resets). Use systemd as PID 1
+    in a chroot of the rootfs.
+  - Install `systemd-pam` and `dbus-daemon` before GDM in a root grown from the Container Base image.
+  - Re-trigger udev for driverless devices ("coldplug"); otherwise the sound card can wait for ever for the DP audio codec.
+
+## 8. Testing and getting logs
+
+- The project's test suite, its RAM-kit runners and the run logs are not published (removed 13-14 Oct 2026). The
+  rehearsal logs stay private: they carry network names and unit data. This guide therefore has no test script to run.
+- The feature matrix in `iceland-mainline/docs/features/` (`features-data.py`, `build.py`) records how each feature was
+  proven: page v62, 104 rows, 83 ok, 13 part, 5 todo, 3 out.
+- **Live kernel log.** Read `dmesg` (or the journal on an installed system) for the run.
+- **After a reset.** pstore does not survive a hard reset (PS_HOLD). Read the reset reason from Android's
+  `/proc/bootloader_log` (root), or keep a kit's kernel log in a pmsg zone (the kit builder is not published).
 - **Rules that come from accidents** (`06-PROCESS-HISTORY.md` section 4):
   - never read every `/sys/kernel/debug/regmap/*/registers`;
   - never read TLMM pad registers through `/dev/mem`;
   - never poke driver-owned registers from user space.
   Each of these has reset the tablet.
 
-## 11. What is not covered, and the risks
+## 9. What is not covered, and the risks
 
-- **No install.** Writing `userdata` or a boot partition is not part of this guide. The project's install plan is
-  not executed yet and has open review findings (`07-INSTALL-REVIEW.md`).
-- **The camera sensor driver** (SC1320CS / SC820CS) is in the private kernel queue since the final build (queue
-  0175, owner's decision of 3 Oct; it carries register lists from a trace of stock), and its stock-derived tuning
-  files are in the private device package. A build of only the public parts has no cameras.
-- **Wall chargers, the pen, the keyboard cover, a monitor** have not all been tested with real accessories. Read
-  the feature matrix row before relying on one.
+- **The install** is not part of this guide. The owner installed Fedora 44 on 13 Oct 2026; the steps and the record are
+  in `INSTALL-GUIDE.md`. The install image itself is not published. `07-INSTALL-REVIEW.md` is the review of 2 Oct, from
+  before the install.
+- **Cameras.** The camera sensor drivers (SC1320CS, SC820CS) are in the kernel queue. Their tuning files (`sc1320cs.yaml`,
+  `sc820cs.yaml`) are in the `iceland-device` package. Without the tuning there are no cameras, on any distribution. The
+  feature matrix gives the state of each camera row, including the camera into the hardware encoder (not negotiating yet).
+- **Accessories** (wall chargers, the pen, the keyboard cover, a DisplayPort monitor, USB host devices) are not all
+  tested. Read the feature matrix row before you rely on one.
 - **Risk summary.**
-  - A RAM boot cannot damage the tablet's storage: nothing in these images can write it.
-  - The remaining risks are a hang or reset (hold Power 15 s), and battery drain during long sessions on a PC port.
-  - Unlocking (1.3) is the only destructive step, and it is yours.
+  - A RAM boot cannot damage the tablet's storage: `fastboot boot` writes nothing.
+  - The remaining risks are a hang or reset (hold Power about 15 s), and battery drain during long sessions on a PC port.
+  - Unlocking (1.3) and any write to a partition are destructive, and both are the owner's decision.

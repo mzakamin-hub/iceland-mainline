@@ -1,5 +1,16 @@
 # Offline preparation: display area (Mainline, 2026-09-29)
 
+## Status (14 Oct 2026)
+
+These are pre-install research notes from 29 Sep 2026, written before Fedora 44 was installed on 13 Oct. Read them as history. The current state is in the [hardware guide](../../guide/02-HARDWARE.md) and the [feature matrix](../../features/feature-matrix.html).
+
+- Settled: the native 3392x2400 panel switches live between 30, 60, 90, 120 and 144 Hz (GP1 exact at 60, 120 and 144 Hz). The backlight limit runs through the kernel's ktz8869 cooling device. Night Light is out (dropped 10 Oct: the display path has no gamma / DSPP block).
+- Working on the installed system: touch, pen (not tested in depth), lid and power keys, auto-rotate. The pogo keyboard driver works; the keyboard part needs the cover attached and is still the owner's check.
+- Open: a picture on a DP monitor over USB-C (HPD and EDID work and GNOME enables DP-1 at 3840x2160, but no frames are produced; investigation 14 Oct). Smooth window drags under load are only partly done.
+- The idle refresh is off by default. Its switch-on waits for a debug round (r157 measured 120 -> 60 Hz as 74.8 Hz).
+- The UBWC / HBB register findings and the pink-glitch analysis below are not closed by the current sources (unverified). Treat them as reader claims.
+
+
 Reader findings from the cloud session's source analysis (kernel queue tree 0001-0052, stock live FDT, past PC results).
 The three-lens verification and synthesis steps were cut off by a usage limit, so treat each item as a reader's claim
 (cited, not independently re-verified) and check it on the tablet or in the source before acting.
@@ -15,7 +26,7 @@ READER 1 result: the shared UBWC configuration object that both the Adreno 840 (
 - Stock: qcom,sde-highest-bank-bit = <0x08 0x03 0x07 0x02> -> for this unit's DDR type 8: field 3 -> HBB 16 (see R1-02, R1-03)
 - Action: Nothing for the glitch (values agree). Optional kernel patch: add print_hex_dump of SMEM item 603 (or a debugfs 'ddr_info_raw') and a pr_info in qcom_ubwc_config_get_data() stating 'UBWC HBB %d (source: smem|static)', so the tablet log shows the source explicitly.
 - Test: On the tablet: `dmesg | grep 'DRAM info struct'` (expect size = 872), `ls /sys/kernel/debug/qcom_smem/` (expect no 'hbb' file), and `msmparam` MSM_PARAM_HIGHEST_BANK_BIT (expect 16). If any run ever shows a value other than 16, the config object becomes the prime suspect.
-- Evidence: /home/user/k45/drivers/soc/qcom/ubwc_config.c:81-84,115; /home/user/k45/drivers/soc/qcom/ubwc_config.c:198-213; /home/user/k45/drivers/soc/qcom/smem_dramc.c:201-210; /home/user/k45/drivers/soc/qcom/smem_dramc.c:384-393; /home/user/iceland-mainline/docs/tests/linux-runpc26u/S19/late-dmesg.txt:621; /home/user/k45/drivers/soc/qcom/smem.c:1250-1252
+- Evidence: k45/drivers/soc/qcom/ubwc_config.c:81-84,115; k45/drivers/soc/qcom/ubwc_config.c:198-213; k45/drivers/soc/qcom/smem_dramc.c:201-210; k45/drivers/soc/qcom/smem_dramc.c:384-393; (rehearsal log, not published); k45/drivers/soc/qcom/smem.c:1250-1252
 
 ### R1-02 Convention of stock's qcom,sde-highest-bank-bit: pairs of (SMEM DDR type, HBB-13 register field); the MDSS field is UBWC_STATIC[6:4], not [15:13] (low, inference)
 
@@ -24,7 +35,7 @@ READER 1 result: the shared UBWC configuration object that both the Adreno 840 (
 - Stock: DDR type 8 -> field 3 (HBB 16); DDR type 7 -> field 2 (HBB 15). The downstream parser itself is not on this machine, so the pairing is inferred from the 3-bit field width and the 'minus 13' encoding mainline uses for the same register.
 - Action: nothing
 - Test: Read MDSS UBWC_STATIC at physical 0x9800144 (mdss reg = <0x0 0x09800000 0x0 0x1000>, kaanapali.dtsi:4482-4484) at the ABL splash BEFORE the KMS take-over (ABL's own programming) and again under GNOME; bits [6:4] should read 3 in both. A different ABL value would show stock uses another HBB.
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/registers/display/mdss.xml:24-32; /home/user/k45/drivers/gpu/drm/msm/msm_mdss.c:204-205; /home/user/k45/drivers/gpu/drm/msm/adreno/a8xx_gpu.c:311-318; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp.c:251-255; /home/user/k45/drivers/soc/qcom/smem_dramc.c:25-26; /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:27747
+- Evidence: k45/drivers/gpu/drm/msm/registers/display/mdss.xml:24-32; k45/drivers/gpu/drm/msm/msm_mdss.c:204-205; k45/drivers/gpu/drm/msm/adreno/a8xx_gpu.c:311-318; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp.c:251-255; k45/drivers/soc/qcom/smem_dramc.c:25-26; (device capture, not published)
 
 ### R1-03 This unit's DDR type is 8 = LPDDR5; stock's table therefore gives HBB 16, equal to mainline (low, fact)
 
@@ -33,7 +44,7 @@ READER 1 result: the shared UBWC configuration object that both the Adreno 840 (
 - Stock: DDR type 8 (LPDDR5) -> HBB 16; the cmdline token ddr_info=6|8|1|5|12 has an unverified format (the second field '8' is plausibly the same type code: inference)
 - Action: nothing
 - Test: Nothing needed; optionally `cat /proc/device-tree/memory/ddr_device_type | xxd` under mainline (ABL passes the same FDT node) to confirm 0x08 at runtime.
-- Evidence: /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:28-30; /home/user/k45/drivers/soc/qcom/smem_dramc.c:50-61; /home/user/iceland-mainline/docs/device-facts/capture-20260927-3/cmdline.txt:2; /home/user/iceland-mainline/docs/device-facts/capture-20260927-3/getprop.txt:(grep -i ddr)
+- Evidence: (device capture, not published); k45/drivers/soc/qcom/smem_dramc.c:50-61; (device capture, not published); (device capture, not published):(grep -i ddr)
 
 ### R1-04 Field-by-field: every UBWC parameter mainline programs equals stock's SDE/GPU property for kaanapali (low, inference)
 
@@ -42,7 +53,7 @@ READER 1 result: the shared UBWC configuration object that both the Adreno 840 (
 - Stock: sde-ubwc-version 0x60000000, sde-ubwc-swizzle 6, sde-macrotile-mode 1, sde-ubwc-static 1, GPU ubwc-mode 6, GPU min-access-length 0x20 (= 32 bytes), sde-dram-channels 4, sde-ubwc-bw-calc-version 1. That 'qcom,sde-ubwc-static = 1' is exactly the bank-spread bit (UBWC_STATIC bit 3) and that kgsl 'ubwc-mode 6' means UBWC 6.0 are inferences: the downstream parsers are not on this machine and the k45 tree is a shallow snapshot (git history starts at 93f51579e7df), so the older mainline code that named bit 3 'ubwc_static' cannot be shown here.
 - Action: nothing
 - Test: Compare the ABL-programmed MDSS UBWC_STATIC/UBWC_CTRL_2/UBWC_PREDICTION_MODE (read at the splash, before take-over) with mainline's under GNOME (R1-05). Any bit difference in UBWC_STATIC bits 0-2 (swizzle), 3 (bank spread), 8-9 (min acc len) or 12 (macrotile) would falsify this finding; a different UBWC_CTRL_2 tag would indicate stock uses another decoder version tag for 6.0.
-- Evidence: /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:27728,27742-27747; /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:13907-13921; /home/user/k45/include/linux/soc/qcom/ubwc.h:38,54-57,66-74,97-106; /home/user/k45/drivers/gpu/drm/msm/adreno/a8xx_gpu.c:279-281,314; /home/user/k45/drivers/gpu/drm/msm/msm_mdss.c:208-212; /home/user/k45/drivers/gpu/drm/msm:(grep dram_channels|num_dram|dram-channels|UBWC_DEC_HW_VERSION over *.c *.h)
+- Evidence: (device capture, not published); (device capture, not published); k45/include/linux/soc/qcom/ubwc.h:38,54-57,66-74,97-106; k45/drivers/gpu/drm/msm/adreno/a8xx_gpu.c:279-281,314; k45/drivers/gpu/drm/msm/msm_mdss.c:208-212; k45/drivers/gpu/drm/msm:(grep dram_channels|num_dram|dram-channels|UBWC_DEC_HW_VERSION over *.c *.h)
 
 ### R1-05 Exact register values mainline programs on kaanapali (ready-made expectations for the tablet dump) (medium, fact)
 
@@ -51,7 +62,7 @@ READER 1 result: the shared UBWC configuration object that both the Adreno 840 (
 - Stock: Unknown numerically: the downstream SDE writer for UBWC 6.0 is not available offline. ABL's programming is readable at the splash before take-over.
 - Action: test step for the tablet (no code): dump the three MDSS registers at the splash (before the KMS take-over) and under GNOME, plus msmparam; then compare with the values above.
 - Test: devmem 0x9800144 / 0x9800150 / 0x9800154 only while the MDSS is runtime-active (pc-022 rules); expect 0x103E / 0x5 / 0x1 under GNOME. If the ABL values differ (e.g. different UBWC_CTRL_2 tag or extra UBWC_STATIC bits), that difference is the candidate fix (set to stock per rule 13). If they match and noubwc still cures the glitch, the mismatch is in Mesa's a8xx tile layout, not in this config object.
-- Evidence: /home/user/iceland-mainline/docs/tests/linux-runpc26u/S19/late-dmesg.txt:1230; /home/user/k45/drivers/gpu/drm/msm/msm_mdss.c:245-250; /home/user/k45/drivers/gpu/drm/msm/msm_mdss.c:216-225; /home/user/k45/include/linux/soc/qcom/ubwc.h:109-112; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp.c:319-327; /home/user/k45/drivers/gpu/drm/msm/adreno/adreno_gpu.c:432-449; /home/user/k45/arch/arm64/boot/dts/qcom/kaanapali.dtsi:4482-4484
+- Evidence: (rehearsal log, not published); k45/drivers/gpu/drm/msm/msm_mdss.c:245-250; k45/drivers/gpu/drm/msm/msm_mdss.c:216-225; k45/include/linux/soc/qcom/ubwc.h:109-112; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp.c:319-327; k45/drivers/gpu/drm/msm/adreno/adreno_gpu.c:432-449; k45/arch/arm64/boot/dts/qcom/kaanapali.dtsi:4482-4484
 
 ### R1-06 Consumers of the UBWC config object (all read the same struct; no second source of truth) (low, fact)
 
@@ -60,7 +71,7 @@ READER 1 result: the shared UBWC configuration object that both the Adreno 840 (
 - Stock: n/a (stock reads per-node DT properties: SDE node and kgsl node separately)
 - Action: nothing
 - Test: n/a
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/msm_mdss.c:442; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c:1189; /home/user/k45/drivers/gpu/drm/msm/adreno/a6xx_gpu.c:2782; /home/user/k45/drivers/gpu/drm/msm/adreno/a5xx_gpu.c:1770; /home/user/k45/drivers/media/platform/qcom/iris/iris_probe.c:255; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c:1784-1791
+- Evidence: k45/drivers/gpu/drm/msm/msm_mdss.c:442; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c:1189; k45/drivers/gpu/drm/msm/adreno/a6xx_gpu.c:2782; k45/drivers/gpu/drm/msm/adreno/a5xx_gpu.c:1770; k45/drivers/media/platform/qcom/iris/iris_probe.c:255; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c:1784-1791
 
 ### R1-07 The queue's splash take-over does not leave stale or missing UBWC_STATIC state (low, fact)
 
@@ -69,7 +80,7 @@ READER 1 result: the shared UBWC configuration object that both the Adreno 840 (
 - Stock: n/a
 - Action: nothing
 - Test: Reading UBWC_STATIC under GNOME (R1-05) already covers it; a value of 0x0 or an ABL-looking value would contradict this finding.
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/msm_mdss.c:342-349; /home/user/k45/drivers/gpu/drm/msm/msm_mdss.c:382-393; /home/user/k45/drivers/gpu/drm/msm/msm_kms.c:271-277; /home/user/k45/drivers/gpu/drm/msm/msm_mdss.c:255-284
+- Evidence: k45/drivers/gpu/drm/msm/msm_mdss.c:342-349; k45/drivers/gpu/drm/msm/msm_mdss.c:382-393; k45/drivers/gpu/drm/msm/msm_kms.c:271-277; k45/drivers/gpu/drm/msm/msm_mdss.c:255-284
 
 ### R1-08 The tablet's SMEM DDR-info item (872 bytes) matches none of the nine known layouts; the HBB override is dead code on this SoC until a layout is added (low, inference)
 
@@ -78,10 +89,10 @@ READER 1 result: the shared UBWC configuration object that both the Adreno 840 (
 - Stock: stock's XBL/ABL know the real HBB (it produced ddr_device_type = 8 and the ddr-regions node); the raw item is not captured
 - Action: kernel patch (debug first): in smem_dram_parse() print_hex_dump the item when INFO_UNKNOWN, or add a debugfs 'ddr_info_raw'; once the offset of highest_bank_addr_bit is located (expect a le32 = 0x10 = 16 near a ddr_region_num field, with device_type byte = 0x08 at offset 1) add an INFO_V8 case. Only worth doing if the tablet's HBB turns out to be anything but 16.
 - Test: Dump the 872 bytes (via the debug patch, or by locating item 603 in the smem@81d00000 region) and check that offset 1 reads 0x08 (LPDDR5) and that a 32-bit 16 (0x10) sits where the regions header would be; if it reads 15 or 17 instead, mainline's static 16 is wrong for this unit and the config object becomes the prime suspect.
-- Evidence: /home/user/k45/drivers/soc/qcom/smem_dramc.c:17,291-345; /home/user/k45/drivers/soc/qcom/smem_dramc.c:154-162,273-278; /tmp/claude-0/-home-user/7da4e007-e5ba-51a8-aec0-c5128226301b/scratchpad/sz.c:(output); /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:22-26
+- Evidence: k45/drivers/soc/qcom/smem_dramc.c:17,291-345; k45/drivers/soc/qcom/smem_dramc.c:154-162,273-278; (scratch output, not published):(output); (device capture, not published)
 
 #### Open Questions
-- Mesa side is not on this machine (no freedreno_devices.py under /home/user; build-src and iceland-src are kernel trees): does Mesa 26.x's a840 entry (chip id 0x44050a31) take HBB/macrotile from MSM_PARAM_HIGHEST_BANK_BIT/MACROTILE_MODE (expect 16/1) and does its UBWC 6.0 tile layout match the DPU's >= 5.0 SSPP decode path (dpu_hw_sspp.c:321-327 has no dedicated 6.0 branch)? Relay 018 item 2 covers this.
+- Mesa side is not on this machine (no freedreno_devices.py under the work tree; build-src and iceland-src are kernel trees): does Mesa 26.x's a840 entry (chip id 0x44050a31) take HBB/macrotile from MSM_PARAM_HIGHEST_BANK_BIT/MACROTILE_MODE (expect 16/1) and does its UBWC 6.0 tile layout match the DPU's >= 5.0 SSPP decode path (dpu_hw_sspp.c:321-327 has no dedicated 6.0 branch)? PC note 018 item 2 covers this.
 - Stock's exact UBWC_CTRL_2 (decoder version tag) and UBWC_PREDICTION_MODE values for UBWC 6.0 are unknown offline (no downstream techpack source on this machine); mainline writes 5 and 1. Read them at the ABL splash before take-over.
 - Is 'qcom,sde-ubwc-static = 1' exactly the UBWC_STATIC bank-spread bit (bit 3)? Mainline's mdss.xml names bit 3 UBWC_BANK_SPREAD and older mainline called the same field ubwc_static, but the k45 tree is a shallow snapshot (history begins at 93f51579e7df) so this could not be shown from source here.
 - Where does stock kgsl get the GPU's HBB? The stock GPU node has qcom,ubwc-mode = 6 and qcom,min-access-length = 0x20 but no highest-bank-bit property; presumably from the same SMEM DDR type table. Unverifiable offline.
@@ -97,10 +108,10 @@ GPU-side (UBWC writer) offline analysis for the OnePlus Pad 4 pink/blocky GNOME 
 
 - Claim: Both the a840 (`adreno_gpu->ubwc_config`) and the MDSS/DPU (`msm_mdss->mdss_data`, `dpu_kms->mdss`, `hw_pipe->ubwc`) obtain the same `qcom_ubwc_cfg_data` via `qcom_ubwc_config_get_data()`, which for the root compatible `qcom,kaanapali` is `ubwc_6_0_hbb16` = {ubwc_enc_version 0x60000000, highest_bank_bit 16, flags 0}; derived helpers give swizzle LVL2|LVL3 = 6, macrotile_mode true (>= 3.1), amsbc true (>= 3.0), min_acc_len_64b false (32 B), ubwc_mode false, bank_spread true, version tag 5.
 - Mainline: enc 0x60000000 (6.0), HBB 16, swizzle 0x6 (LVL2|LVL3), macrotile 1, AMSBC 1, min_acc_len 32 B, bank spread 1, tag 5
-- Stock: SDE: qcom,sde-ubwc-version = 0x60000000, sde-ubwc-swizzle = 6, sde-macrotile-mode = 1, sde-ubwc-static = 1, sde-highest-bank-bit = <8 3 7 2>; GPU: qcom,ubwc-mode = 6, qcom,min-access-length = 0x20 (32 B) (live-fdt-redacted.dts:27742-27747, 13915-13916)
+- Stock: SDE: qcom,sde-ubwc-version = 0x60000000, sde-ubwc-swizzle = 6, sde-macrotile-mode = 1, sde-ubwc-static = 1, sde-highest-bank-bit = <8 3 7 2>; GPU: qcom,ubwc-mode = 6, qcom,min-access-length = 0x20 (32 B) ((device capture, not published))
 - Action: nothing (values agree with stock); keep as the reference table the tablet run checks against
 - Test: msmparam: expect HIGHEST_BANK_BIT=16, UBWC_SWIZZLE=6, MACROTILE_MODE=1. devmem (only while MDSS is runtime-active): 0x9800144 == 0x0000103e, 0x9800150 == 0x5, 0x9800154 == 0x1.
-- Evidence: /home/user/k45/drivers/soc/qcom/ubwc_config.c:81-84,115; /home/user/k45/arch/arm64/boot/dts/qcom/kaanapali-oneplus-iceland.dts:39; /home/user/k45/drivers/gpu/drm/msm/adreno/a6xx_gpu.c:2782; /home/user/k45/drivers/gpu/drm/msm/msm_mdss.c:442; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c:1189; /home/user/k45/include/linux/soc/qcom/ubwc.h:29-37,64-75,95-106,110-124
+- Evidence: k45/drivers/soc/qcom/ubwc_config.c:81-84,115; k45/arch/arm64/boot/dts/qcom/kaanapali-oneplus-iceland.dts:39; k45/drivers/gpu/drm/msm/adreno/a6xx_gpu.c:2782; k45/drivers/gpu/drm/msm/msm_mdss.c:442; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c:1189; k45/include/linux/soc/qcom/ubwc.h:29-37,64-75,95-106,110-124
 
 ### G2 The SMEM HBB override does not happen on this unit: DRAM info struct size 872 is unknown, so HBB stays the static 16 (low, fact)
 
@@ -109,7 +120,7 @@ GPU-side (UBWC writer) offline analysis for the OnePlus Pad 4 pink/blocky GNOME 
 - Stock: HBB per DDR type: type 8 -> 16, type 7 -> 15 (sde-highest-bank-bit pairs); this unit's DDR type unknown
 - Action: kernel patch (later, correctness of bandwidth not of pixels): teach smem_dramc.c the 872-byte layout once its fields are known; not a glitch fix by itself
 - Test: Tablet: `dmesg | grep 'DRAM info'` (expect the 872 line), `ls /sys/kernel/debug/qcom_smem 2>/dev/null` (no `hbb` file expected). Under Android/Lineage: `getprop | grep -i ddr` or the SMEM DDR info to learn the DDR type.
-- Evidence: /home/user/k45/drivers/soc/qcom/ubwc_config.c:198-213; /home/user/k45/drivers/soc/qcom/smem_dramc.c:201-209,294-341,390; /home/user/iceland-mainline/docs/tests/linux-runpc21/R7/linux-dmesg.txt:616; /tmp/claude-0/-home-user/7da4e007-e5ba-51a8-aec0-c5128226301b/scratchpad/sz.c (output of ./sz):1-3; /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:27747, 39202
+- Evidence: k45/drivers/soc/qcom/ubwc_config.c:198-213; k45/drivers/soc/qcom/smem_dramc.c:201-209,294-341,390; (rehearsal log, not published); (scratch output, not published) (output of ./sz):1-3; (device capture, not published)
 
 ### G3 Exact a840 UBWC encoder register values written by a8xx_set_ubwc_config for this config (medium, fact)
 
@@ -117,8 +128,8 @@ GPU-side (UBWC writer) offline analysis for the OnePlus Pad 4 pink/blocky GNOME 
 - Mainline: GRAS 0x60, RB_CCU 0x46, RB_CMP 0x28046, SP 0x26, TPL1 0x6, RBBM 0x1, UCHE_MODE_CNTL 0x80080000
 - Stock: not available offline (kgsl gen8 register values are not in the FDT; only qcom,ubwc-mode = 6 and min-access-length = 32 B are)
 - Action: test step; a downstream comparison (kgsl gen8 `_set_ubwc_config`) is needed before any change
-- Test: The PC's CLO sweep (relay 010) should pull kgsl's gen8 UBWC setup (search kgsl for `RB_CMP_NC_MODE_CNTL`/`yuvnotcomptofc`) and compare bit by bit with these values; on the tablet there is no register dump path for GX registers besides a devcoredump.
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/adreno/a8xx_gpu.c:274-362; /home/user/k45/drivers/gpu/drm/msm/adreno/a6xx_catalog.c:2110-2111, 2140; /home/user/k45/drivers/gpu/drm/msm/adreno/a6xx_gpu.c:803-807; /home/user/k45/drivers/gpu/drm/msm/registers/adreno/a6xx.xml:730, 2217, 2871, 2883, 4332, 4548
+- Test: The PC's CLO sweep (PC note 010) should pull kgsl's gen8 UBWC setup (search kgsl for `RB_CMP_NC_MODE_CNTL`/`yuvnotcomptofc`) and compare bit by bit with these values; on the tablet there is no register dump path for GX registers besides a devcoredump.
+- Evidence: k45/drivers/gpu/drm/msm/adreno/a8xx_gpu.c:274-362; k45/drivers/gpu/drm/msm/adreno/a6xx_catalog.c:2110-2111, 2140; k45/drivers/gpu/drm/msm/adreno/a6xx_gpu.c:803-807; k45/drivers/gpu/drm/msm/registers/adreno/a6xx.xml:730, 2217, 2871, 2883, 4332, 4548
 
 ### G4 All NC_MODE registers are CP-protected on a840: Mesa cannot program a different encoder config than the kernel (medium, fact)
 
@@ -127,7 +138,7 @@ GPU-side (UBWC writer) offline analysis for the OnePlus Pad 4 pink/blocky GNOME 
 - Stock: n/a
 - Action: nothing; narrows the search to (a) buffer layout agreement and (b) the kernel's own encoder/decoder bits
 - Test: `dmesg | grep -i 'protect'` after the glitch: a CP protected-mode fault would appear if Mesa tried to write these; none expected.
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/adreno/a6xx_catalog.c:2157, 2179-2182, 2189, 2194; /home/user/k45/drivers/gpu/drm/msm/adreno/a8xx_gpu.c:721-722
+- Evidence: k45/drivers/gpu/drm/msm/adreno/a6xx_catalog.c:2157, 2179-2182, 2189, 2194; k45/drivers/gpu/drm/msm/adreno/a8xx_gpu.c:721-722
 
 ### G5 Values Mesa gets from MSM_PARAM on kaanapali (HBB 16, swizzle 6, macrotile 1, chip 0xfc44050a31, GMEM 18 MiB) (low, fact)
 
@@ -136,7 +147,7 @@ GPU-side (UBWC writer) offline analysis for the OnePlus Pad 4 pink/blocky GNOME 
 - Stock: chipid 0x44050a01, bin 0xfc: 18 levels 1.2 GHz..160 MHz incl. 1.1 GHz; no gmem property in the FDT (not found)
 - Action: nothing for the glitch; optional DT change later: add opp-1100000000 (stock has it) - low priority
 - Test: msmparam output must read exactly these numbers; `rpm -q mesa-dri-drivers` to know whether Mesa 26.2.3 (as in Y8) is still in use.
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/adreno/adreno_gpu.c:381-394, 432-452; /home/user/k45/drivers/gpu/drm/msm/adreno/a8xx_gpu.c:112-113; /home/user/k45/drivers/gpu/drm/msm/adreno/adreno_device.c:170-171; /home/user/k45/drivers/gpu/drm/msm/adreno/a6xx_catalog.c:2443-2484; /home/user/k45/drivers/gpu/drm/msm/adreno/a6xx_gpu.c:2756-2759, 2777; /home/user/k45/arch/arm64/boot/dts/qcom/kaanapali.dtsi:3034, 3193-3207, 7547-7549; /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:13917-13918, 14147, 14157, 14161-14167, 18053-18055; /home/user/iceland-mainline/relay/results/pc-011-battery-gpu.md:27
+- Evidence: k45/drivers/gpu/drm/msm/adreno/adreno_gpu.c:381-394, 432-452; k45/drivers/gpu/drm/msm/adreno/a8xx_gpu.c:112-113; k45/drivers/gpu/drm/msm/adreno/adreno_device.c:170-171; k45/drivers/gpu/drm/msm/adreno/a6xx_catalog.c:2443-2484; k45/drivers/gpu/drm/msm/adreno/a6xx_gpu.c:2756-2759, 2777; k45/arch/arm64/boot/dts/qcom/kaanapali.dtsi:3034, 3193-3207, 7547-7549; (device capture, not published); (PC note, not published)
 
 ### G6 Where UBWC 6.0 is handled like 5.x (and where it is not) (medium, fact)
 
@@ -145,7 +156,7 @@ GPU-side (UBWC writer) offline analysis for the OnePlus Pad 4 pink/blocky GNOME 
 - Stock: unknown for the SSPP/GPU bits (needs downstream sde_hw_sspp.c / kgsl gen8 for the 'canoe' target)
 - Action: test step first; candidate patch only if the tablet proves the UBWC layer (see G7)
 - Test: `FD_MESA_DEBUG=noubwc` clean => UBWC layer. Then read one active RGB SSPP's UBWC_STATIC_CTRL (sspp base + 0x44; e.g. VIG0 at 0x9801000+0x2c000+0x44 per stock's sde-sspp-off, but only while the MDSS is active) and expect 0xC0000000; `dmesg` must not contain 'Unknown UBWC version'.
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp.c:319-329; /home/user/k45/drivers/gpu/drm/msm/msm_mdss.c:218-225; /home/user/k45/drivers/gpu/drm/msm/adreno/a8xx_gpu.c:289-303; /home/user/k45/include/linux/soc/qcom/ubwc.h:110-115
+- Evidence: k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp.c:319-329; k45/drivers/gpu/drm/msm/msm_mdss.c:218-225; k45/drivers/gpu/drm/msm/adreno/a8xx_gpu.c:289-303; k45/include/linux/soc/qcom/ubwc.h:110-115
 
 ### G7 Encoder/decoder asymmetry for RGB at >= 5.0: GPU rgba8888_lossless OFF vs DPU SSPP BIT(31) ON for every RGB non-DX plane (medium, inference)
 
@@ -154,7 +165,7 @@ GPU-side (UBWC writer) offline analysis for the OnePlus Pad 4 pink/blocky GNOME 
 - Stock: unknown (needs downstream sde_hw_sspp.c `sde_hw_sspp_setup_format` and kgsl gen8 UBWC config for canoe/kaanapali)
 - Action: test step + source fetch on the PC; if confirmed, two mutually exclusive candidate patches: (a) dpu_hw_sspp.c: drop BIT(31) for >= 5.0 RGB, or (b) a8xx_gpu.c: set rgba8888_lossless for 6.0 too - pick the one that matches the downstream values (rule 13)
 - Test: After `noubwc` proves the layer and G8 rules out a layout mismatch: A/B a kernel with BIT(31) removed in dpu_hw_sspp.c (RAM boot, runtime-identical otherwise). Also try an XRGB2101010 (DX) scanout format in mutter if easy: DX planes get BIT(30) only; if 10-bit is clean and 8-bit is not, BIT(31) is the culprit.
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/adreno/a8xx_gpu.c:295-297, 337-344; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp.c:321-326; /home/user/k45/drivers/soc/qcom/ubwc_config.c:166
+- Evidence: k45/drivers/gpu/drm/msm/adreno/a8xx_gpu.c:295-297, 337-344; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp.c:321-326; k45/drivers/soc/qcom/ubwc_config.c:166
 
 ### G8 The DPU derives the UBWC buffer layout itself and ignores fb pitches/offsets; the GPU-written (Mesa) layout must match its fixed formula (high, fact)
 
@@ -163,7 +174,7 @@ GPU-side (UBWC writer) offline analysis for the OnePlus Pad 4 pink/blocky GNOME 
 - Stock: n/a (gralloc/kgsl side not captured); stock's `qcom,sde-macrotile-mode = 1` is the only layout-relevant stock value and it matches
 - Action: test step (framebuffer debugfs dump) then, if mismatched, a Mesa-side fix or a kernel patch that honours fb->pitches/offsets for UBWC - decided by the numbers
 - Test: While GNOME shows the glitch: `cat /sys/kernel/debug/dri/*/framebuffer` (needs debugfs); for gnome-shell's fbs record modifier (0x0800000000000001 = QCOM_COMPRESSED; 0 = linear, which would rule UBWC out entirely), size, pitches[] and offsets[]. Expect pitches[0] == 9728 and either offsets[0] == 0 with the pixel data known to sit at 163840 (Mesa meta-first convention) or a mismatch. Also `cat /sys/kernel/debug/dri/*/state` for the plane's fb id/format. A mismatch in pitch (e.g. 9600 or 9856) or meta size (e.g. 4096-unaligned 162816) is the smoking gun.
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_formats.c:13, 118-143, 189-203, 262, 324-331; /home/user/k45/drivers/gpu/drm/msm/msm_fb.c:123, 183-185; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c:1784-1790; /tmp/claude-0/-home-user/7da4e007-e5ba-51a8-aec0-c5128226301b/scratchpad/mesa-probe.txt:1
+- Evidence: k45/drivers/gpu/drm/msm/disp/dpu1/dpu_formats.c:13, 118-143, 189-203, 262, 324-331; k45/drivers/gpu/drm/msm/msm_fb.c:123, 183-185; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c:1784-1790; (scratch output, not published)
 
 ### G9 IFPC is enabled on a840 and all UBWC registers are on a restore list; the restore values are snapshots taken after hw_init (low, inference)
 
@@ -172,7 +183,7 @@ GPU-side (UBWC writer) offline analysis for the OnePlus Pad 4 pink/blocky GNOME 
 - Stock: unknown (kgsl gen8 also uses IFPC with its own lists; not captured)
 - Action: test step only; a kernel experiment (quirk without IFPC) only if the pattern is idle-correlated
 - Test: Note whether the pink blocks appear right after the screen was static (idle -> IFPC) and vanish during continuous animation. A/B: keep IFPC blocked by holding MSM_PARAM_SYSPROF=1 from a root process (msmparam can be extended with a set_param), or a RAM-boot kernel with ADRENO_QUIRK_IFPC removed from the 0x44050a01 entry; if the glitch disappears, it is the restore path.
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/adreno/a6xx_catalog.c:2452-2455, 2224, 2244, 2247, 2274-2276, 2363, 2374-2375; /home/user/k45/drivers/gpu/drm/msm/adreno/a8xx_gpu.c:417-431, 456-461, 682, 824-827; /home/user/k45/drivers/gpu/drm/msm/adreno/a6xx_gmu.c:2103-2105, 2303-2304
+- Evidence: k45/drivers/gpu/drm/msm/adreno/a6xx_catalog.c:2452-2455, 2224, 2244, 2247, 2274-2276, 2363, 2374-2375; k45/drivers/gpu/drm/msm/adreno/a8xx_gpu.c:417-431, 456-461, 682, 824-827; k45/drivers/gpu/drm/msm/adreno/a6xx_gmu.c:2103-2105, 2303-2304
 
 ### G10 No patch in the queue touches the GPU driver or the UBWC config; the GPU-relevant queue/infiniti changes are DT-only, plus msm_mdss takeover refactors (low, fact)
 
@@ -181,7 +192,7 @@ GPU-side (UBWC writer) offline analysis for the OnePlus Pad 4 pink/blocky GNOME 
 - Stock: n/a
 - Action: nothing
 - Test: none needed; record that the kernel under test carries stock upstream GPU UBWC code (so any GPU-side finding also applies to other kaanapali devices)
-- Evidence: /home/user/k45 (git log v7.3-rc4..HEAD -- drivers/gpu/drm/msm/ drivers/soc/qcom/ubwc_config.c include/linux/soc/qcom/ubwc.h):output; /home/user/k45/drivers/gpu/drm/msm/msm_mdss.c:233-252, 284; /home/user/iceland-mainline/docs/tests/linux-runpc21/R7/linux-dmesg.txt:line with 20.389746; /home/user/k45 (git show 2f232a0bd8e3):diff
+- Evidence: k45 (git log v7.3-rc4..HEAD -- drivers/gpu/drm/msm/ drivers/soc/qcom/ubwc_config.c include/linux/soc/qcom/ubwc.h):output; k45/drivers/gpu/drm/msm/msm_mdss.c:233-252, 284; (rehearsal log, not published):line with 20.389746; k45 (git show 2f232a0bd8e3):diff
 
 ### G11 Firmware, zap and GMU naming for the a840 vs stock (low, fact)
 
@@ -190,7 +201,7 @@ GPU-side (UBWC writer) offline analysis for the OnePlus Pad 4 pink/blocky GNOME 
 - Stock: gen8-2-1 kgsl, zap memory-region only
 - Action: nothing
 - Test: `dmesg | grep -i 'zap\|GMU firmware\|SECVID'` - 'Zap shader not enabled' would mean SECVID_TRUST_CNTL fallback; expect the zap to load.
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/adreno/a6xx_catalog.c:2445-2449, 2465; /home/user/k45/arch/arm64/boot/dts/qcom/kaanapali-oneplus-iceland.dts:980-981; /home/user/k45/drivers/gpu/drm/msm/adreno/a6xx_gmu.c:648-649; /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:13926, 13930-13932; /home/user/iceland-mainline/relay/results/pc-010-survey.md:92
+- Evidence: k45/drivers/gpu/drm/msm/adreno/a6xx_catalog.c:2445-2449, 2465; k45/arch/arm64/boot/dts/qcom/kaanapali-oneplus-iceland.dts:980-981; k45/drivers/gpu/drm/msm/adreno/a6xx_gmu.c:648-649; (device capture, not published); (PC note, not published)
 
 ### G12 How Mesa uses the three UBWC params is unverifiable here; the kernel provides them but cannot see what freedreno gen8 does with them (medium, inference)
 
@@ -198,8 +209,8 @@ GPU-side (UBWC writer) offline analysis for the OnePlus Pad 4 pink/blocky GNOME 
 - Mainline: params: HBB 16 / swizzle 6 / macrotile 1 / chip 0xfc44050a31
 - Stock: n/a
 - Action: PC task: read Mesa 26.2.3's src/freedreno/common/freedreno_devices.py (a840 / chip 0x44050a31 entry), src/freedreno/fdl/fd6_layout.c (UBWC meta pitch/height/size alignment and pixel pitch for gen8) and src/gallium/drivers/freedreno/freedreno_resource.c (handle offset/modifier export) and compare with G8's formula
-- Test: Same as G8 (framebuffer debugfs); additionally `FD_MESA_DEBUG=noubwc` and `LIBGL_ALWAYS_SOFTWARE=1` as already planned in relay 011.
-- Evidence: /tmp/claude-0/-home-user/7da4e007-e5ba-51a8-aec0-c5128226301b/scratchpad (curl results):output; /home/user/iceland-mainline/relay/answers/011-prep-gnome-pink-glitches.md:Checked in the kernel tree section; /home/user/iceland-mainline/docs/KNOWLEDGE.md:859
+- Test: Same as G8 (framebuffer debugfs); additionally `FD_MESA_DEBUG=noubwc` and `LIBGL_ALWAYS_SOFTWARE=1` as already planned in PC note 011.
+- Evidence: (scratch output, not published) (curl results):output; (PC note, not published):Checked in the kernel tree section; iceland-mainline/docs/KNOWLEDGE.md:859
 
 #### Open Questions
 - What is this unit's DDR type (LPDDR5 = SMEM type 8 -> stock HBB 16, LPDDR4X = 7 -> 15, or a newer type absent from stock's table)? The captures contain no DDR type and smem_dramc.c cannot parse the 872-byte DRAM info struct; the HBB the kernel uses (16) is therefore a static default on both GPU and DPU.
@@ -220,7 +231,7 @@ READER 3 (DPU / MDSS side, k45 = v7.3-rc4 + queue). Kaanapali is MDSS 13.0 / UBW
 - Stock: See R3-02: the same 0x103E / 5 / 1 is expected (inference)
 - Action: nothing to change; read back the three registers on the tablet (via a debug print in msm_mdss_setup_ubwc, see R3-12) and confirm 0x103E / 0x5 / 0x1; also print UBWC_DEC_HW_VERSION (0x9800058) since mainline never reads it
 - Test: If the read-back differs from 0x103E/5/1 while GNOME is pink, the MDSS decoder setup is wrong or lost (e.g. after a reset); if it matches, the MDSS-level setup is ruled out and the problem is per-pipe or in the buffer layout
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/msm_mdss.c:201-226; /home/user/k45/drivers/gpu/drm/msm/registers/display/mdss.xml:24-35; /home/user/k45/include/linux/soc/qcom/ubwc.h:66-74, 97-106, 109-112; /home/user/k45/drivers/soc/qcom/ubwc_config.c:81-84, 115; /home/user/k45/drivers/gpu/drm/msm/msm_mdss.c:244-253, 284, 382-393; /home/user/iceland-mainline/docs/tests/linux-runpc21/R7/linux-dmesg.txt:986; /home/user/k45/arch/arm64/boot/dts/qcom/kaanapali.dtsi:4482-4485, 4515-4519
+- Evidence: k45/drivers/gpu/drm/msm/msm_mdss.c:201-226; k45/drivers/gpu/drm/msm/registers/display/mdss.xml:24-35; k45/include/linux/soc/qcom/ubwc.h:66-74, 97-106, 109-112; k45/drivers/soc/qcom/ubwc_config.c:81-84, 115; k45/drivers/gpu/drm/msm/msm_mdss.c:244-253, 284, 382-393; (rehearsal log, not published); k45/arch/arm64/boot/dts/qcom/kaanapali.dtsi:4482-4485, 4515-4519
 
 ### R3-02 Stock OxygenOS values for the same registers (from its DT): UBWC_STATIC 0x103E, CTRL_2 5, PREDICTION_MODE 1 - identical to mainline (low, inference)
 
@@ -229,16 +240,16 @@ READER 3 (DPU / MDSS side, k45 = v7.3-rc4 + queue). Kaanapali is MDSS 13.0 / UBW
 - Stock: UBWC_STATIC = (6) | (1<<3) | (3<<4) | (1<<12) = 0x103E for DDR type 8; 0x102E would apply only to a DDR-type-7 (LPDDR4X) unit; UBWC_CTRL_2 = 5 (version tag for enc 0x60000000, by the same 4.0->2, 4.3->3, 5.0->4, 6.0->5 ladder mainline encodes), PREDICTION_MODE = 1 - the CTRL_2/PREDICTION values are inference
 - Action: nothing; if root on stock is ever available, read 0x9800144/0x150/0x154 there to turn this inference into a fact
 - Test: Compare the mainline read-back (R3-01) with 0x103E/5/1; equality means stock and mainline agree at the MDSS level and the glitch must come from the per-pipe programming, the buffer layout or the GPU side
-- Evidence: /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:27742-27747; /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:28-30; /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:39202; /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:13915-13916; /home/user/k45/drivers/soc/qcom/smem_dramc.c:50-61
+- Evidence: (device capture, not published); (device capture, not published); (device capture, not published); (device capture, not published); k45/drivers/soc/qcom/smem_dramc.c:50-61
 
 ### R3-03 HBB source: the tablet's SMEM DRAM record is not parsed (size 872), so mainline uses the table default 16 - which is also stock's choice (DDR type 8 -> code 3) (low, fact)
 
 - Claim: qcom_ubwc_config_get_data() overrides highest_bank_bit only when qcom_smem_dram_get_hbb() succeeds; on the tablet smem_dram_parse() rejects the SMEM item 603 ('unknown type ... size = 872', none of the V3..V7 sizes match), so -ENODATA is returned and the static 16 stays; stock derives HBB from ddr_device_type 8 -> code 3 -> bit 16, so both agree; GPU (a8xx_set_ubwc_config) and DPU consume the same struct, so within mainline the encoder and the decoder cannot disagree on HBB.
 - Mainline: highest_bank_bit = 16 (table default; SMEM not parsed). Struct-size arithmetic (natural alignment): sizeof(ddr_details_v7)=264, ddr_region_v5=40, misc_v6=44, shub=68 -> V7 = 536 B, V7_6regions = 616 B; 872 B is a newer, unhandled layout (+256 B over V7_6regions)
 - Stock: HBB code 3 (bit 16) from qcom,sde-highest-bank-bit pair <0x08 0x03> matched by ddr_device_type = 0x08
-- Action: optional kernel debug patch: in smem_dram_parse() print_hex_dump the 872-byte item on INFO_UNKNOWN so the real highest_bank_addr_bit can be read (a u32 in 13..19 just after four u64 rank/cs fields); log MSM_PARAM_HIGHEST_BANK_BIT (msmparam) as the relay already asks
+- Action: optional kernel debug patch: in smem_dram_parse() print_hex_dump the 872-byte item on INFO_UNKNOWN so the real highest_bank_addr_bit can be read (a u32 in 13..19 just after four u64 rank/cs fields); log MSM_PARAM_HIGHEST_BANK_BIT (msmparam) as the PC note already asks
 - Test: msmparam HIGHEST_BANK_BIT must print 16 and UBWC_SWIZZLE 6; anything else means the config struct differs from this analysis. A wrong-but-shared HBB would not by itself explain GPU->DPU corruption, since both sides use the same struct
-- Evidence: /home/user/k45/drivers/soc/qcom/ubwc_config.c:198-213; /home/user/iceland-mainline/docs/tests/linux-runpc21/R7/linux-dmesg.txt:616; /home/user/k45/drivers/soc/qcom/smem_dramc.c:201-209, 291-345, 388-392; /home/user/k45/drivers/gpu/drm/msm/adreno/a8xx_gpu.c:277, 315-318; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c:1189
+- Evidence: k45/drivers/soc/qcom/ubwc_config.c:198-213; (rehearsal log, not published); k45/drivers/soc/qcom/smem_dramc.c:201-209, 291-345, 388-392; k45/drivers/gpu/drm/msm/adreno/a8xx_gpu.c:277, 315-318; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c:1189
 
 ### R3-04 Every UBWC 6.0 / MDSS 13.0 decision falls into a generic branch; the only 6.0-specific line is the version tag 5 (medium, fact)
 
@@ -247,7 +258,7 @@ READER 3 (DPU / MDSS side, k45 = v7.3-rc4 + queue). Kaanapali is MDSS 13.0 / UBW
 - Stock: unknown for the per-pipe bits (downstream source not available here); the DT does not encode them
 - Action: nothing until the run says the DPU is at fault; then compare the per-pipe bits against a downstream sde_hw_sspp.c for UBWC 6.0 (lossy/FP16/new-bit handling) - flagged as an open question
 - Test: FD_MESA_DEBUG=noubwc clean + screenshot clean while the screen is pink puts the fault in the UBWC decode; then R3-05..R3-08 and R3-15 are the candidates
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp.c:319-327; /home/user/k45/drivers/gpu/drm/msm/msm_mdss.c:246-247; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c:1781-1793; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_formats.c:56-143; /home/user/k45/drivers/gpu/drm/msm/adreno/a8xx_gpu.c:292-293; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_13_0_kaanapali.h:446
+- Evidence: k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp.c:319-327; k45/drivers/gpu/drm/msm/msm_mdss.c:246-247; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c:1781-1793; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_formats.c:56-143; k45/drivers/gpu/drm/msm/adreno/a8xx_gpu.c:292-293; k45/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_13_0_kaanapali.h:446
 
 ### R3-05 The new v13 per-SSPP path writes no per-pipe HBB/FETCH_CONFIG and leaves SSPP_CMN_ADDR_CONFIG, UBWC_STATIC_CTRL_OVERRIDE and SRC_IMG_SIZE unprogrammed (medium, fact)
 
@@ -256,7 +267,7 @@ READER 3 (DPU / MDSS side, k45 = v7.3-rc4 + queue). Kaanapali is MDSS 13.0 / UBW
 - Stock: unknown (downstream sde_hw_sspp.c for the v13 SSPP is not on this machine)
 - Action: test step first (dump), then if a field looks like an HBB/UBWC config that differs from the MDSS value, a kernel patch adding the write to dpu_hw_sspp_setup_format_v13()
 - Test: While GNOME is pink, dump DMA0 (sspp_8) CMN 0x9898000..0x9898084 and REC0 0x9899000..0x9899180 (REC1 0x989b000..): record ADDR_CONFIG (0x9898014), UBWC_STATIC_CTRL (0x9899090, expect 0xC0000000 for XR24 UBWC), _OVERRIDE (0x9899094), SRC_IMG_SIZE (0x9899010). Note the stock firmware's ABL only scans out a linear splash, so these fields may still hold power-on defaults under mainline
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp.c:250-256, 751-754; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp_v13.c:129-150; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp_v13.c:17, 47, 78-79; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c:245-259, 306-314; /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:27759, 27770-27771, 27884-27886
+- Evidence: k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp.c:250-256, 751-754; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp_v13.c:129-150; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp_v13.c:17, 47, 78-79; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c:245-259, 306-314; (device capture, not published)
 
 ### R3-06 v13 packs the UBWC meta pitch into SRC_YSTRIDE0[31:16] (legacy: YSTRIDE1[15:0]) - correct value must be verified on the tablet (medium, fact)
 
@@ -265,7 +276,7 @@ READER 3 (DPU / MDSS side, k45 = v7.3-rc4 + queue). Kaanapali is MDSS 13.0 / UBW
 - Stock: unknown (needs downstream v13 sde_hw_sspp.c); Qualcomm authored the mainline v13 file, so this is presumably from the register spec, but UBWC on this path has no upstream test record
 - Action: if the run points at DPU decode and R3-05/R3-08 are clean: kernel test patch swapping to the legacy packing (ystride0 = pitch0 | pitch1<<16, ystride1 = pitch2 | pitch3<<16) for one boot
 - Test: Dump REC0 0x5c/0x60 during the pink frame and confirm they read 0x01003500 / 0 (register content matches the code); the swap experiment then tells whether the hardware wants the meta stride elsewhere
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp_v13.c:226-234; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp.c:498-502; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_formats.c:129-139, 324-331
+- Evidence: k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp_v13.c:226-234; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp.c:498-502; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_formats.c:129-139, 324-331
 
 ### R3-07 Expected per-SSPP register values for a GNOME XR24 UBWC frame (DMA0 = sspp_8, REC0/REC1 parallel multirect) - the dump list for the tablet run (medium, fact)
 
@@ -274,7 +285,7 @@ READER 3 (DPU / MDSS side, k45 = v7.3-rc4 + queue). Kaanapali is MDSS 13.0 / UBW
 - Stock: QoS/CDP: same numbers as stock's first creq/danger/safe entries and cdp <1 1>; the format/UBWC control words are not in the DT (unknown)
 - Action: no change; use these as the reference for the dump (R3-12 gives the safe way to take it)
 - Test: A dump that matches these values shows the driver programmed what the code intends; the remaining differences to stock can then only be in unwritten registers (R3-05), the stride packing (R3-06) or the buffer layout (R3-08)
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp.c:291-317, 344-370; /home/user/k45/drivers/gpu/drm/msm/registers/display/mdp_common.xml:50-70; /home/user/k45/drivers/gpu/drm/msm/disp/mdp_format.c:570-585; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_util.c:537-554, 485-492; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_util.c:85-88; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_13_0_kaanapali.h:86-91, 434-451; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c:702-704, 735-737; /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:27699-27702; /home/user/iceland-mainline/docs/tests/linux-runpc21/R7/linux-drm.txt:72-80; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c:1013-1021, 951-964
+- Evidence: k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp.c:291-317, 344-370; k45/drivers/gpu/drm/msm/registers/display/mdp_common.xml:50-70; k45/drivers/gpu/drm/msm/disp/mdp_format.c:570-585; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_util.c:537-554, 485-492; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_util.c:85-88; k45/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_13_0_kaanapali.h:86-91, 434-451; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c:702-704, 735-737; (device capture, not published); (rehearsal log, not published); k45/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c:1013-1021, 951-964
 
 ### R3-08 The DPU ignores the framebuffer's pitches/offsets for UBWC and scans out its own fixed layout (meta 155,648 B first, pixels at +155,648, pitch 13,568 for 3392x2400); a Mesa gen8 layout that differs is exactly a tile-granular pink/blocky mismatch (high, fact)
 
@@ -283,7 +294,7 @@ READER 3 (DPU / MDSS side, k45 = v7.3-rc4 + queue). Kaanapali is MDSS 13.0 / UBW
 - Stock: n/a (Android gralloc and the stock SDE agree by construction); the uAPI comment in dpu_formats.c:129 fixes the DRM convention: plane[0] = pixels, plane[1] empty, plane[2] = meta
 - Action: test first; if the fb's offsets/pitches disagree with the numbers above, the fix is on the Mesa side (a8xx UBWC layout) or a dpu_formats.c change if UBWC 6.0 changed the meta/pixel alignment - compare with Mesa's fdl6_layout for chip 0x44050a31 (not available here)
 - Test: While GNOME is running: cat /sys/kernel/debug/dri/1/framebuffer (and /state). Record modifier (0x0100000000000001 = QCOM_COMPRESSED), size, pitch[0], offset[0], and any plane 1/2 pitch/offset. Expected if Mesa agrees with the DPU: pitch[0] = 13568, offset[0] = 155648 (0x26000), bo size >= 32,718,848. A different offset[0] or pitch, or a modifier 0x0 with the glitch still present, decides between DPU-UBWC-decode and rendering
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_formats.c:119-139; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_formats.c:189-203; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_formats.c:262, 324-331; /home/user/k45/drivers/gpu/drm/msm/msm_fb.c:176-186; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c:60-71, 91-95; /home/user/iceland-mainline/docs/tests/linux-runpc21/R7/linux-drm.txt:28-42
+- Evidence: k45/drivers/gpu/drm/msm/disp/dpu1/dpu_formats.c:119-139; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_formats.c:189-203; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_formats.c:262, 324-331; k45/drivers/gpu/drm/msm/msm_fb.c:176-186; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c:60-71, 91-95; (rehearsal log, not published)
 
 ### R3-09 UBWC XRGB8888 is decoded with the ABGR element order (kernel table) - a possible R/B swap, not a tile-granular fault (low, fact)
 
@@ -292,7 +303,7 @@ READER 3 (DPU / MDSS side, k45 = v7.3-rc4 + queue). Kaanapali is MDSS 13.0 / UBW
 - Stock: unknown
 - Action: nothing
 - Test: A screenshot vs photo with uniformly swapped red/blue (no blocks) would point here; blocky pink does not
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/disp/mdp_format.c:570-585; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp.c:304-305
+- Evidence: k45/drivers/gpu/drm/msm/disp/mdp_format.c:570-585; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp.c:304-305
 
 ### R3-10 Writeback: mainline never enables UBWC on WB (rejects non-linear fbs, WB_UBWC_STATIC_CTRL 0x144 never written) - irrelevant to the panel glitch (low, fact)
 
@@ -301,7 +312,7 @@ READER 3 (DPU / MDSS side, k45 = v7.3-rc4 + queue). Kaanapali is MDSS 13.0 / UBW
 - Stock: n/a
 - Action: nothing
 - Test: none needed; the Writeback-1 connector is not part of the GNOME pipeline
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_wb.c:44, 66-124; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_writeback.c:76-77; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_13_0_kaanapali.h:357-368; /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:27800-27802
+- Evidence: k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_wb.c:44, 66-124; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_writeback.c:76-77; k45/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_13_0_kaanapali.h:357-368; (device capture, not published)
 
 ### R3-11 No patch in the queue touches UBWC, format or SSPP code; the two msm_mdss.c changes keep UBWC setup correct across the ABL splash hand-over (low, fact)
 
@@ -310,7 +321,7 @@ READER 3 (DPU / MDSS side, k45 = v7.3-rc4 + queue). Kaanapali is MDSS 13.0 / UBW
 - Stock: n/a
 - Action: nothing
 - Test: If the glitch appeared only with the queue, bisecting would be pointless here; it should reproduce on plain v7.3-rc4 + the iceland DT
-- Evidence: /home/user/k45 (git log):log -- msm_mdss.c dpu_hw_sspp.c dpu_hw_wb.c dpu_formats.c dpu_plane.c dpu_hw_catalog.c dpu_13_0_kaanapali.h dpu_kms.c; /home/user/k45/drivers/gpu/drm/msm/msm_mdss.c:342-349, 367-394; /home/user/iceland-mainline/docs/tests/linux-runpc21/R7/linux-dmesg.txt:971, 977 (grep); /home/user/iceland-linux/patches/0002-iceland:directory listing
+- Evidence: k45 (git log):log -- msm_mdss.c dpu_hw_sspp.c dpu_hw_wb.c dpu_formats.c dpu_plane.c dpu_hw_catalog.c dpu_13_0_kaanapali.h dpu_kms.c; k45/drivers/gpu/drm/msm/msm_mdss.c:342-349, 367-394; (rehearsal log, not published) (grep); iceland-linux/patches/0002-iceland:directory listing
 
 ### R3-12 How to take the register dump safely: dpu debugfs covers only the 0x84-byte CMN block per pipe, the MDSS top is not in debugfs, and /dev/mem display reads have crashed the tablet before - add a debug print patch (low, fact)
 
@@ -319,7 +330,7 @@ READER 3 (DPU / MDSS side, k45 = v7.3-rc4 + queue). Kaanapali is MDSS 13.0 / UBW
 - Stock: n/a
 - Action: kernel debug patch (RAM-boot only): (a) in msm_mdss_setup_ubwc() read back and dev_info HW_VERSION 0x0, UBWC_DEC_HW_VERSION 0x58, UBWC_STATIC 0x144, UBWC_CTRL_2 0x150, UBWC_PREDICTION_MODE 0x154; (b) in _dpu_hw_sspp_init_debugfs() add regsets 'rec0_blk' (sblk->sspp_rec0_blk.base + cfg->base, len 0x180) and 'rec1_blk' when the sblk has them; (c) optional: in dpu_hw_setup_format_impl() read UBWC_ERROR_STATUS/META_ERROR_STATUS before clearing and DRM_DEBUG them. If /dev/mem must be used, do it only while the display is actively scanning (GNOME up, no DPMS), one shot, never in a loop
 - Test: n/a (instrumentation); enables R3-01, R3-05, R3-06, R3-07 and R3-15 to be measured
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp.c:682-687; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c:223-234; /home/user/iceland-mainline/docs/KNOWLEDGE.md:712, 832; /home/user/k45-out/.config:3243, 9027, 9246
+- Evidence: k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp.c:682-687; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c:223-234; iceland-mainline/docs/KNOWLEDGE.md:712, 832; k45-out/.config:3243, 9027, 9246
 
 ### R3-13 UBWC / META error status registers are cleared but never read by mainline - reading them during the pink frame is a direct DPU-decode indicator (medium, fact)
 
@@ -328,10 +339,10 @@ READER 3 (DPU / MDSS side, k45 = v7.3-rc4 + queue). Kaanapali is MDSS 13.0 / UBW
 - Stock: unknown
 - Action: include in the debug print (R3-12): read DMA0 REC0 0x98990cc/0x98990d0 and REC1 0x989b0cc/0x989b0d0 (VIG0: 0x982d0cc/0x982d0d0) while the glitch is on screen and after 'noubwc'
 - Test: non-zero low bits in UBWC_ERROR_STATUS/META_ERROR_STATUS during the glitch = DPU decode error (mismatch between the buffer and the decoder's config); zero = not a decoder-detected error
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp.c:369-370; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp_v13.c:93-94, 146
+- Evidence: k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp.c:369-370; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp_v13.c:93-94, 146
 
 #### Open Questions
-- Mesa gen8 (a8xx, chip 0x44050a31) UBWC layout for XR24: does fdl6_layout still produce meta stride round_up(w/16,64) x round_up(h/4,16) lines, 4096-aligned meta first, pitch round_up(w*4,256)? Not on this machine (no mesa checkout under /home/user); the tablet's framebuffer debugfs offsets/pitches answer it empirically (R3-08).
+- Mesa gen8 (a8xx, chip 0x44050a31) UBWC layout for XR24: does fdl6_layout still produce meta stride round_up(w/16,64) x round_up(h/4,16) lines, 4096-aligned meta first, pitch round_up(w*4,256)? Not on this machine (no mesa checkout under the work tree); the tablet's framebuffer debugfs offsets/pitches answer it empirically (R3-08).
 - What the v13 SSPP fields SSPP_CMN_ADDR_CONFIG (CMN+0x14), SSPP_REC_UBWC_STATIC_CTRL_OVERRIDE (REC+0x94) and SSPP_REC_SRC_IMG_SIZE (REC+0x10) mean and what stock writes there; the downstream kaanapali sde_hw_sspp.c is not available here (R3-05).
 - Whether the UBWC 6.0 decoder needs bits beyond the generic >=5.0 per-pipe BIT30|BIT31 and the MDSS-level 0x103E/5/1 (e.g. lossy/FP16/new prediction bits); only a downstream sde source or a stock register dump can tell (R3-04).
 - The real highest bank bit of this unit: SMEM item 603 is 872 bytes and unparsed; both mainline (table) and stock (DDR type 8 -> code 3) land on 16, but a raw dump of the item would make it a fact (R3-03).
@@ -349,7 +360,7 @@ READER 4 verdict (offline, sources only): the bandwidth/clock/QoS side of the ka
 - Stock: Stock MDP max = 650,000,000 Hz (FDT clock-max-rate 0x26be3680 for lut_clk; ABL 650 MHz). Stock's per-rate request (decoded in R4-02): 144 Hz 635,959,296 Hz -> 650 MHz OPP; 120/60 Hz 576,979,200 Hz -> 600 MHz OPP; 90 Hz 397,474,560 Hz -> 417 MHz OPP. Mainline therefore votes >= stock at every rate.
 - Action: nothing for the glitch (no headroom exists to 'raise the MDP clock'; reverting 0035 only removes the 144 Hz mode). Optional upstream-quality cleanup later: divide the mode term in _dpu_core_perf_calc_clk by dpu_crtc_get_num_lm() so 60/120 Hz run at stock's 600 MHz instead of 650 MHz (power only).
 - Test: cat /sys/kernel/debug/dri/1/debug/core_perf/max_core_clk_rate (expect 650000000) and core_clk_rate (expect 650000000 at 60, 120 and 144 Hz); cat /sys/kernel/debug/dri/1/crtc-0/state (expect 'core_clk_rate: 1211351040' at 144 Hz, 1099008000 at 60/120 Hz: the uncapped vote); grep disp_cc_mdss_mdp_clk /sys/kernel/debug/clk/clk_summary at each rate (expect 650000000 everywhere). If the glitch disappears at 60 Hz while these read the same, the clock is exonerated.
-- Evidence: /home/user/iceland-linux/patches/0002-iceland/0035-drm-msm-dpu-kaanapali-no-clock-inefficiency-factor.patch:7-9,24-25; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_core_perf.c:102-112; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_core_perf.c:401-402; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c:1304-1310,1232-1238; /home/user/k45/arch/arm64/boot/dts/qcom/kaanapali.dtsi:4571-4607; /home/user/k45/drivers/clk/qcom/dispcc-kaanapali.c:665-676; /home/user/k45/drivers/gpu/drm/panel/panel-novatek-nt36536.c:632-690; /home/user/iceland-mainline/docs/tests/linux-runpc26b/F0/late-clocks.txt:grep disp_cc_mdss_mdp; /home/user/iceland-mainline/docs/tests/linux-runpc21/R1/late-clocks.txt:grep disp_cc_mdss_mdp_clk; /home/user/iceland-mainline/docs/KNOWLEDGE.md:240
+- Evidence: iceland-linux/patches/0002-iceland/0035-drm-msm-dpu-kaanapali-no-clock-inefficiency-factor.patch:7-9,24-25; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_core_perf.c:102-112; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_core_perf.c:401-402; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c:1304-1310,1232-1238; k45/arch/arm64/boot/dts/qcom/kaanapali.dtsi:4571-4607; k45/drivers/clk/qcom/dispcc-kaanapali.c:665-676; k45/drivers/gpu/drm/panel/panel-novatek-nt36536.c:632-690; (rehearsal log, not published):grep disp_cc_mdss_mdp; (rehearsal log, not published):grep disp_cc_mdss_mdp_clk; iceland-mainline/docs/KNOWLEDGE.md:240
 
 ### R4-02 Stock applies a 1.05 clock factor too (decoded from the stock SDE event log); 0035 conflicts with rule 13, the rule-13 fix is in dpu_crtc_mode_valid (low, inference)
 
@@ -358,7 +369,7 @@ READER 4 verdict (offline, sources only): the bandwidth/clock/QoS side of the ka
 - Stock: factor 1.05 applied to (hactive/2) x vtotal x fps: 120 Hz 1696 x 2700 x 120 x 1.05 = 576,979,200 Hz (= 0x22640100 in the evtlog, exact); 144 Hz 1696 x 2480 x 144 x 1.05 = 635,959,296 Hz (< 650 MHz, so stock admits 144 Hz with the factor). No DT property; the value is the HAL/kernel software constant.
 - Action: kernel patch replacing 0035: revert the catalog to clk_inefficiency_factor = 105 and in dpu_crtc_mode_valid compute the checked clock as (u64)mode->hdisplay * mode->vtotal * drm_mode_vrefresh(mode) / 1000 (kHz) before dpu_core_perf_adjusted_mode_clk(); 3392 x 2480 x 144 = 1,211,351,040 -> x1.05/2 = 635,959,296 Hz < 650,000,000, 144 Hz stays valid; 120 Hz 1,099,008,000 -> 576,979,200 Hz valid. This matches stock's arithmetic and is upstreamable.
 - Test: No tablet test needed for the arithmetic; confirm with 'modetest -M msm -c' or /sys/class/drm/card1-DSI-1/modes that the 144/120/90/60/30 Hz modes are all listed on the replacement kernel.
-- Evidence: /home/user/iceland-mainline/docs/device-facts/lineage-20260928/dmesg.txt:906; /home/user/iceland-mainline/docs/device-facts/lineage-20260928/dmesg.txt:168; /home/user/iceland-mainline/docs/KNOWLEDGE.md:356-358; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_crtc.c:1612-1623; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_core_perf.c:40-52; /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:27663-27866; /home/user/iceland-mainline/relay/results/pc-023-024-144hz-extractor-fedora.md:16-19
+- Evidence: (device capture, not published); (device capture, not published); iceland-mainline/docs/KNOWLEDGE.md:356-358; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_crtc.c:1612-1623; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_core_perf.c:40-52; (device capture, not published); (PC note, not published)
 
 ### R4-03 Bandwidth vote at 144 Hz under GNOME is 5.81 GB/s (already measured), far below the 30.2 GB/s stock/mainline cap; 60 and 120 Hz vote almost the same (low, fact)
 
@@ -367,7 +378,7 @@ READER 4 verdict (offline, sources only): the bandwidth/clock/QoS side of the ka
 - Stock: max-bw-high 0x1ccd0c0 = 30,200,000 kBps (30.2 GB/s), max-bw-low 0x14689c0 = 21,400,000 kBps, min-core-ib 0x2625a0 = 2,500,000 kBps, min-llcc-ib 0, min-dram-ib bytes 00 0c 35 00 = 0x000c3500 = 800,000 kBps; per-pipe caps 0x44aa20 = 4,500,000 kBps (high 0x6c5660 = 7,100,000). Stock's own ab (with UBWC comp-ratio and its ib-ff) is not recoverable offline; the evtlog bw word 0x541c3800 = 1,411,135,488 (boot animation scene) is not decodable without the layer list.
 - Action: nothing; record the values. Real uncompressed scanout need is 3392 x 2400 x 144 x 4 = 4,689,100,800 B/s (4.69 GB/s) at 144 Hz and 1,953,792,000 B/s (1.95 GB/s) at 60 Hz, so the physical load does scale with refresh even though the vote barely does.
 - Test: grep -B1 -A3 display-subsystem /sys/kernel/debug/interconnect/interconnect_summary at 144/120/60 Hz: expect '7 5814484 800000' at 144 Hz and '7 5275238 800000' at 60 and 120 Hz (plus '7 0 400000' from msm_mdss_enable's MIN_IB_BW and '3 0 57000' on the reg bus); cat /sys/kernel/debug/dri/1/crtc-0/state -> 'bw_ctl: 5814485k' 'max_per_pipe_ib: 800000'. dmesg must not contain 'exceeds bandwidth'. If the glitch tracks refresh rate while these votes stay put, the DPU votes are not the variable.
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c:141-156; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_core_perf.c:73-82,201-215; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c:952-968; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_13_0_kaanapali.h:428-433,453; /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:27729-27733; /home/user/iceland-mainline/docs/tests/linux-runpc26b/F0/linux-interconnect.txt:grep display-subsystem; /home/user/iceland-mainline/docs/tests/linux-runpc26b/F0/late-drm.txt:232; /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:27762-27763
+- Evidence: k45/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c:141-156; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_core_perf.c:73-82,201-215; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c:952-968; k45/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_13_0_kaanapali.h:428-433,453; (device capture, not published); (rehearsal log, not published):grep display-subsystem; (rehearsal log, not published); (device capture, not published)
 
 ### R4-04 Mainline never votes stock's 2.5 GB/s data-bus ib (min_core_ib); the BCM aggregation makes ib matter for LLCC/DDR (low, inference)
 
@@ -376,7 +387,7 @@ READER 4 verdict (offline, sources only): the bandwidth/clock/QoS side of the ka
 - Stock: three paths: data-bus0 mmss_noc:0x17 -> gem_noc:0x22a (MASTER_MDP -> SLAVE_LLCC) ib >= 2,500,000 kBps; ebi-bus mc_virt:3 -> mc_virt:0x200 (LLCC -> EBI) ib 800,000 kBps; llcc path 0; reg-bus gem_noc:2 -> cnoc_cfg:0x207 (APPSS -> DISPLAY_CFG). qcom,sde-num-nrt-paths = 0, qcom,sde-dram-channels = 4.
 - Action: test step first (no rebuild): PERF_MODE_FIXED with stock's ib: echo 650000000 > /sys/kernel/debug/dri/1/debug/core_perf/fix_core_clk_rate; echo 5814484 > fix_core_ab_vote; echo 2500000 > fix_core_ib_vote; echo 2 > perf_mode, then force a commit (move the cursor / toggle a window). Do NOT use perf_mode 1: despite the 'minimum performance mode ... max clk and BW' comment, _dpu_core_perf_crtc_update_bus votes avg_bw = peak_bw = 0 in that mode (dpu_core_perf.c:231-233). If FIXED cures it, kernel patch: peak_bw = max(perf_cfg->min_core_ib, perf_cfg->min_dram_ib) on the mdp0-mem path (stock value 2,500,000).
 - Test: interconnect_summary should show the display-subsystem row become '7 5814484 2500000' after the FIXED-mode write; watch /sys/kernel/debug/dri/1/encoder-*/status underrun counters and the screen. Unchanged glitch with 2.5 GB/s ib rules the ib difference out.
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_core_perf.c:134-136,240-247; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_core_perf.c:486-491; /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:27669,27671-27672; /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:10062-10082,10007-10026; /home/user/k45/arch/arm64/boot/dts/qcom/kaanapali.dtsi:4495-4501; /home/user/k45/drivers/interconnect/qcom/bcm-voter.c:102-108; /home/user/k45/drivers/interconnect/qcom/kaanapali.c:306-308,412-414; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c:416-427
+- Evidence: k45/drivers/gpu/drm/msm/disp/dpu1/dpu_core_perf.c:134-136,240-247; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_core_perf.c:486-491; (device capture, not published); (device capture, not published); k45/arch/arm64/boot/dts/qcom/kaanapali.dtsi:4495-4501; k45/drivers/interconnect/qcom/bcm-voter.c:102-108; k45/drivers/interconnect/qcom/kaanapali.c:306-308,412-414; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c:416-427
 
 ### R4-05 QoS creq/danger/safe LUTs: linear and macrotile match stock; stock's landscape safe LUT (0xfff0) and qseed creq LUT (0x0011223366666666) have no mainline counterpart (low, inference)
 
@@ -385,7 +396,7 @@ READER 4 verdict (offline, sources only): the bandwidth/clock/QoS side of the ka
 - Stock: assumed convention (INFERENCE, matches the data pattern and the sm8450+ techpack enums SDE_CREQ_LUT_TYPE_{NOQSEED,QSEED} / SDE_DANGER_SAFE_LUT_TYPE_{PORTRAIT,LANDSCAPE}): linear: creq noqseed 0x0011223344556666 / qseed 0x0011223366666666, danger 0xffff / 0xffff, safe 0xff00 (portrait) / 0xfff0 (landscape); macrotile identical to linear; NRT: creq 0, danger 0, safe 0xffff; entries 3-4 (CWB) creq 0x7777666666666540 / 0x7777654100000000, safe 0x1 / 0x3ff; entries 5-6 repeat linear/macrotile (inline/qseed usages); entry 7 zero (offline WB); entry 8 an inverted write LUT (danger 0xffff0000, safe 0xff, creq 0x5555554433221100).
 - Action: nothing unless danger_status shows activity: the only mainline-vs-stock deltas are a LESS eager safe assertion (0xff00 asserts 'safe' only from fill level 8, 0xfff0 from level 4, so mainline keeps higher bus priority longer) and the missing qseed LUT (affects only scaled planes; mutter scans out unscaled). If stock is confirmed to use the landscape entry for this panel, a catalog patch safe_lut_tbl = {0xfff0, 0xfff0, 0xffff} would be the rule-13 value; it cannot fix tile corruption.
 - Test: while the glitch is visible, sample 10x at 100 ms: cat /sys/kernel/debug/dri/1/debug/danger/danger_status and safe_status (per-SSPP 2-bit fields from DANGER_STATUS/SAFE_STATUS; nonzero danger on the active VIG/DMA pipe = fill level starvation). Also dump the live LUTs via /sys/kernel/debug/dri/1/debug/sspp/<idx>/src_blk to confirm 0x44556666/0x00112233/0xffff/0xff00 were written. PC: verify the enum order in the user's LineageOS sm8850 display techpack (sde_hw_catalog.h: enum sde_qos_lut_usage, SDE_CREQ_LUT_TYPE_*, SDE_DANGER_SAFE_LUT_TYPE_*) and which orientation index sde_plane picks for a 3392x2400 mode.
-- Evidence: /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:27700-27702; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_13_0_kaanapali.h:434-447; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c:702-704,735-737,751-753; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_util.c:471-476; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c:259-275,225-235; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.h:229-233
+- Evidence: (device capture, not published); k45/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_13_0_kaanapali.h:434-447; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c:702-704,735-737,751-753; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_util.c:471-476; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c:259-275,225-235; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.h:229-233
 
 ### R4-06 CDP (client-driven prefetch) settings match stock; mainline enables UBWC meta prefetch and tile amortize for UBWC formats (low, fact)
 
@@ -394,7 +405,7 @@ READER 4 verdict (offline, sources only): the bandwidth/clock/QoS side of the ka
 - Stock: <1 1 1 0> = RT rd 1, RT wr 1, NRT rd 1, NRT wr 0 (convention: downstream sde_hw_catalog parses the four cells as rt_rd, rt_wr, nrt_rd, nrt_wr).
 - Action: nothing. (CDP differs between the clean linear fbcon and the glitchy UBWC compositor only by the meta/amortize bits, which are the documented UBWC settings; a test kit could clear CDP_UBWC_META_ENABLE to see whether prefetching the UBWC metadata plane is involved, but that is a UBWC-decode question for Reader 1-3, not bandwidth.)
 - Test: read SSPP_CDP_CNTL from /sys/kernel/debug/dri/1/debug/sspp/<idx>/src_blk for the active pipe under GNOME (expect 0x1|0x2|0x4 style bits set: enable, ubwc meta, tile amortize, preload 64) vs under fbcon.
-- Evidence: /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:27699,27739; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_13_0_kaanapali.h:448-451; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_util.c:545-555; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c:1518-1523
+- Evidence: (device capture, not published); k45/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_13_0_kaanapali.h:448-451; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_util.c:545-555; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c:1518-1523
 
 ### R4-07 Prefill/prog-fetch: stock has no prefill properties in the FDT; at 144 Hz the 54-line vbp+vsw exceeds mainline's 24-line worst case and the 35-line prefill term never dominates (low, fact)
 
@@ -403,7 +414,7 @@ READER 4 verdict (offline, sources only): the bandwidth/clock/QoS side of the ka
 - Stock: not found in the stock FDT (no qcom,sde-*prefill* or prog-fetch property in the SDE node); cannot compare.
 - Action: nothing.
 - Test: dmesg | grep -i 'low vbp+vfp' (pr_warn_once from programmable_fetch_get_num_lines) should be absent; if present the mode's porches, not the perf data, are wrong.
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_vid.c:178-191; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_13_0_kaanapali.h:399-415,433; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c:148-156; /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:27663-27866
+- Evidence: k45/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_vid.c:178-191; k45/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_13_0_kaanapali.h:399-415,433; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c:148-156; (device capture, not published)
 
 ### R4-08 VBIF: OT limits are not programmed by mainline (stock: read 40, write 32 + dynamic write table); memtype and QoS remaps match (medium, fact)
 
@@ -412,7 +423,7 @@ READER 4 verdict (offline, sources only): the bandwidth/clock/QoS side of the ka
 - Stock: default OT read 0x28 = 40, write 0x20 = 32; dynamic write OT: 0x3b53800 = 62,208,000 px/s (1080p30) -> 2, 0x76a7000 = 124,416,000 px/s -> 6, 0x1da9c000 = 497,664,000 px/s (4K60) -> 16; no dynamic read table; memtype 3 x 16; rt-remap {4,4,5,5,5,5,5,6} (twice), nrt-remap {3 x 16}; also cwb/lutdma/cnoc/wb-rot remaps that mainline does not program.
 - Action: kernel patch candidate for a test kit (rule-13 values): a kaanapali_vbif copy of sm8650_vbif with .default_ot_rd_limit = 40, .default_ot_wr_limit = 32 (stock). Effect: dpu_vbif_set_ot_limit then halts the xin and writes the limit for every plane update. A too-low inherited OT limit throttles the SSPP's outstanding UBWC tile reads (UBWC fetches are 64/128-byte tile bursts, more requests per byte than linear), which under load ends in an INTF underrun, not in pink tiles, so this is medium only via the 'garbage while recovering' branch.
 - Test: cat /sys/kernel/debug/dri/1/debug/vbif/default_rd_ot_limit (expect 0 = not programmed on the current kernel). Read the live registers only while the MDSS is active (pc-022 rule): VBIF base 0x09b16000, VBIF_OUT_RD_LIM_CONF0 at +0x0d0 and VBIF_OUT_WR_LIM_CONF0 at +0x0d4 (dpu_hw_vbif.c:25-26; one byte per xin, 4 xins per 32-bit word, next words at +8) for xin 0/4/8/12 (VIG0-3) and 1/5/9/13 (DMA0-3); compare with stock's 40/32. Then run the test kit with the OT patch and count underruns.
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c:641-656,520-521; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_vbif.c:111-121; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_13_0_kaanapali.h:486; /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:27709-27714,27716
+- Evidence: k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c:641-656,520-521; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_vbif.c:111-121; k45/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_13_0_kaanapali.h:486; (device capture, not published)
 
 ### R4-09 Register bus vote: mainline 57,000 kBps fixed vs stock's three levels 14,000 / 140,000 / 310,000 kBps (low, fact)
 
@@ -421,7 +432,7 @@ READER 4 verdict (offline, sources only): the bandwidth/clock/QoS side of the ka
 - Stock: reg bus vectors: 0x36b0 = 14,000 kBps (LOW), 0x222e0 = 140,000 kBps (MEDIUM), 0x4baf0 = 310,000 kBps (HIGH); which level stock holds during scanout is not derivable offline (INFERENCE: downstream raises it with the core clock / for RT clients).
 - Action: nothing now; if frame-done or CTL-flush timeouts appear, a test kit could set reg_bus_bw = 310000 (stock HIGH) via a kaanapali-specific msm_mdss data entry. A slow register bus delays programming, it does not corrupt fetched pixels.
 - Test: interconnect_summary row 'qhs_display_cfg ... 9800000.display-subsystem 3 0 57000'; dmesg | grep -iE 'frame_done|pp done|ctl.*timeout|wait_for_commit' should be empty.
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/msm_mdss.c:587-591,610,262-268; /home/user/k45/drivers/gpu/drm/msm/msm_mdss.c:26; /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:27682; /home/user/iceland-mainline/docs/tests/linux-runpc26b/F0/linux-interconnect.txt:grep qhs_display_cfg
+- Evidence: k45/drivers/gpu/drm/msm/msm_mdss.c:587-591,610,262-268; k45/drivers/gpu/drm/msm/msm_mdss.c:26; (device capture, not published); (rehearsal log, not published):grep qhs_display_cfg
 
 ### R4-10 CPU latency QoS: stock pins a 300 us DMA/IRQ latency on CPUs 0-1 while the display is up; mainline has no such vote (low, fact)
 
@@ -430,7 +441,7 @@ READER 4 verdict (offline, sources only): the bandwidth/clock/QoS side of the ka
 - Stock: cpu mask 0x3 (CPU0, CPU1), dma latency 300 us, irq latency 300 us.
 - Action: nothing for this bug (it bounds CPU idle-exit latency for the vsync/frame-done handlers; scanout data does not pass through the CPU).
 - Test: if GNOME shows stutter rather than corruption, compare /sys/kernel/debug/dri/1/crtc-0/status 'vblank fps' with 144; corruption with a steady 144 fps count excludes this item.
-- Evidence: /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:27695-27698; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_core_perf.c:1-519
+- Evidence: (device capture, not published); k45/drivers/gpu/drm/msm/disp/dpu1/dpu_core_perf.c:1-519
 
 ### R4-11 Linewidth / pixel-RAM caps: mainline max_linewidth 8192 vs stock sspp linewidth 5120; mixer width 2560 both; the 3392-wide desktop plane is fetched as two 1696-px rects (low, fact)
 
@@ -439,16 +450,16 @@ READER 4 verdict (offline, sources only): the bandwidth/clock/QoS side of the ka
 - Stock: sspp linewidth 5120 px, mixer 2560 px, dsc 2560 px, wb 4096 px, blend stages 11; no pixel-RAM property (downstream default, not in the FDT).
 - Action: optional rule-13 catalog tidy: .max_linewidth = 5120; no effect on this bug.
 - Test: none needed; /sys/kernel/debug/dri/1/state shows the plane's src/dst rects (expect two 1696x2400 halves via the two mixers).
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_13_0_kaanapali.h:9-18; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c:101-103; /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:27748,27752-27755; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c:915-924,944-947
+- Evidence: k45/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_13_0_kaanapali.h:9-18; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c:101-103; (device capture, not published); k45/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c:915-924,944-947
 
 ### R4-12 Underrun bookkeeping already exists and pc-026 GNOME at 144 Hz recorded zero; what the run must capture to close the bandwidth/clock theory (medium, fact)
 
 - Claim: Mainline counts INTF underruns per encoder (phys_enc->underrun_cnt, shown in /sys/kernel/debug/dri/1/encoder-*/status), takes a display snapshot (devcoredump) on the first one, and exposes the danger/safe status registers; the pc-026 GNOME session at 144 Hz reported 0 underruns, so the 'underrun / garbage while recovering' branch currently has no supporting evidence and the run only needs to confirm the counters while the glitch is on screen.
 - Mainline: expected on the current kernel at 144 Hz under GNOME: core_perf/max_core_clk_rate 650000000, core_clk_rate 650000000, perf_mode 'mode 0', max_core_ab 30200000, low_core_ab 21400000, min_core_ib 2500000, min_dram_ib 800000; crtc-0/state core_clk_rate 1211351040, bw_ctl 5814485k, max_per_pipe_ib 800000; clk_summary disp_cc_mdss_mdp_clk 650000000 (parent disp_cc_pll0 1950000000 / 3); interconnect_summary display-subsystem rows '7 5814484 800000', '7 0 400000', '3 0 57000'; encoder-0/1 status underrun 0; core_irq counts for idx 26/28 (INTF1/INTF2 underrun) unchanged across the glitch.
 - Stock: stock's comparable telemetry is the SDE evtlog (core_clk 576,979,200 Hz at 120 Hz) and 0 'underrun' strings in both stock dmesg captures.
-- Action: test steps for the tablet, in this order, each while the glitch is visible: (1) cat /sys/kernel/debug/dri/1/encoder-*/status and /sys/kernel/debug/dri/1/debug/core_irq twice 10 s apart (underrun counters must stay 0; a nonzero count also leaves a devcoredump under /sys/class/devcoredump/); (2) dmesg | grep -iE 'underrun|exceeds bandwidth|frame_done|vblank timeout|low vbp'; (3) the core_perf, crtc-0/state, clk_summary and interconnect_summary reads above at 144, 120 and 60 Hz; (4) danger_status/safe_status sampling (R4-05); (5) the PERF_MODE_FIXED experiment with ib 2,500,000 (R4-04); (6) only if (1) is nonzero: the OT-limit test kit (R4-08). Update relay/answers/011 line 23: reverting 0035 cannot add headroom, the clock is already at the 650 MHz maximum.
+- Action: test steps for the tablet, in this order, each while the glitch is visible: (1) cat /sys/kernel/debug/dri/1/encoder-*/status and /sys/kernel/debug/dri/1/debug/core_irq twice 10 s apart (underrun counters must stay 0; a nonzero count also leaves a devcoredump under /sys/class/devcoredump/); (2) dmesg | grep -iE 'underrun|exceeds bandwidth|frame_done|vblank timeout|low vbp'; (3) the core_perf, crtc-0/state, clk_summary and interconnect_summary reads above at 144, 120 and 60 Hz; (4) danger_status/safe_status sampling (R4-05); (5) the PERF_MODE_FIXED experiment with ib 2,500,000 (R4-04); (6) only if (1) is nonzero: the OT-limit test kit (R4-08). Update (PC note, not published) line 23: reverting 0035 cannot add headroom, the clock is already at the 650 MHz maximum.
 - Test: underrun counters and danger bits at 0 while pink tiles are visible = bandwidth/clock/QoS excluded; counters rising with the glitch = pursue R4-04 then R4-08; glitch gone at 60 Hz with identical votes = look at real fetch load/DSI/DSC timing, not the DPU perf tables.
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c:1502-1509,2508; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c:184-191; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_core_perf.c:474-499; /home/user/iceland-mainline/relay/results/pc-026-critical-items.md:45; /home/user/iceland-mainline/docs/tests/linux-runpc21/R1/late-drm.txt:772-790; /home/user/iceland-mainline/relay/answers/011-prep-gnome-pink-glitches.md:23-24
+- Evidence: k45/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c:1502-1509,2508; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c:184-191; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_core_perf.c:474-499; (PC note, not published); (rehearsal log, not published); (PC note, not published)
 
 #### Open Questions
 - Exact downstream enum order for the 9 QoS LUT usages and the two second-dimension types in the sm8850 (canoe) display techpack: verify SDE_QOS_LUT_USAGE_*, SDE_CREQ_LUT_TYPE_{NOQSEED,QSEED} and SDE_DANGER_SAFE_LUT_TYPE_{PORTRAIT,LANDSCAPE} in the user's LineageOS sm8850-modules tree (sde_hw_catalog.h/.c, _sde_perf_parse_dt_cfg) and which orientation entry sde_plane selects for the 3392x2400 landscape panel (decides whether stock's safe LUT for this device is 0xff00 or 0xfff0).
@@ -467,28 +478,28 @@ Reader 5 (what the earlier tablet runs already tell us). The decisive new facts 
 
 - Claim: In every GNOME state dump plane-0 carries a gnome-shell framebuffer XR30 with modifier 0x0500000000000001 (QCOM vendor 0x05, code 1 = DRM_FORMAT_MOD_QCOM_COMPRESSED), whereas the fbcon framebuffer is XR24 with modifier 0x0; so the glitchy and the clean cases differ in compression AND in pixel format (10-bit 'DX'), not just in who rendered them.
 - Mainline: plane-0 = XR30 + DRM_FORMAT_MOD_QCOM_COMPRESSED, pitch 13568 B (= 3392 px x 4 B), GEM object 33,554,432 B (32 MiB; linear would be 13568 x 2400 = 32,563,200 B, so +991,232 B for the UBWC meta plane/alignment)
-- Stock: Not captured: the stock composer's scanout format/modifier is not in any capture (getprop shows ro.surface_flinger.has_wide_color_display=true, wcg_composition_dataspace=143261696, vendor.display.disable_fp16_support=0 at getprop.txt:1394,1403,1620 - stock does compose wide-colour, format unknown)
+- Stock: Not captured: the stock composer's scanout format/modifier is not in any capture (getprop shows ro.surface_flinger.has_wide_color_display=true, wcg_composition_dataspace=143261696, vendor.display.disable_fp16_support=0 at (device capture, not published) - stock does compose wide-colour, format unknown)
 - Action: Test step for the tablet (before any patch): run the isolation with the format held constant - (a) GNOME as is (XR30 UBWC), (b) a compositor that scans out XR24 (cage/weston, check `grep -A6 'plane-0' /sys/kernel/debug/dri/1/state` for format/modifier while it runs), (c) GNOME with UBWC off (`FD_MESA_DEBUG=noubwc`, expect modifier 0x0 in the state dump - confirm, do not assume). Record the state dump next to each photo.
 - Test: Photo + `/sys/kernel/debug/dri/1/state` for each case. Pink only when modifier=0x0500000000000001 -> UBWC (GPU encode or DPU decode). Pink with XR30 linear but not XR24 linear -> 10-bit format handling (DPU DX unpack or Mesa). Pink in all -> bandwidth/DSC/timing.
-- Evidence: /home/user/iceland-mainline/docs/tests/linux-runpc26b/F0/late-drm.txt:75-91; /home/user/iceland-mainline/docs/tests/linux-runpc26b/F0/late-drm.txt:57-71; /home/user/iceland-mainline/docs/tests/linux-runpc24i/Y9/late-drm.txt:81-88; /home/user/iceland-mainline/docs/tests/linux-runpc21/R2/late-drm.txt:50-57; /home/user/k45/include/uapi/drm/drm_fourcc.h:482, 831
+- Evidence: (rehearsal log, not published); (rehearsal log, not published); (rehearsal log, not published); (rehearsal log, not published); k45/include/uapi/drm/drm_fourcc.h:482, 831
 
 ### R5-02 The DPU's UBWC>=5.0 SSPP path treats the DX (10-bit) format differently, and the 10-bit UBWC formats are 'ARGB2101010 natively' only (high, fact)
 
 - Claim: For UBWC 5.0/6.0 the SSPP UBWC control gets BIT(30) only for XR30 (DX) but BIT(30)|BIT(31) for XR24; mdp_format.c notes the hardware supports only ARGB2101010 UBWC natively and aliases XRGB2101010 onto it; there is no 6.0-specific branch. Combined with R5-01 this is the kernel-side path unique to the GNOME case.
 - Mainline: SSPP_UBWC_STATIC_CTRL (0x44 / REC1 0x1c0) = BIT(30) for XR30 UBWC; = BIT(30)|BIT(31) for XR24 UBWC; UBWC error status (0x138 / 0x1c8) is cleared at every format setup and never read or logged
-- Stock: Not in the capture (SDE register programming is in the vendor kernel, not the DT). Stock DT only gives qcom,sde-ubwc-version 0x60000000, swizzle 6, macrotile 1, ubwc-static 1 (live-fdt-redacted.dts:27742-27747)
+- Stock: Not in the capture (SDE register programming is in the vendor kernel, not the DT). Stock DT only gives qcom,sde-ubwc-version 0x60000000, swizzle 6, macrotile 1, ubwc-static 1 ((device capture, not published))
 - Action: Debug kernel patch (cheap, no behaviour change): in dpu_hw_sspp_setup_format read SSPP_UBWC_ERROR_STATUS before the BIT(31) clear and DRM_ERROR_RATELIMITED it when non-zero, with the format fourcc and rect index; plus expose it via debug/sspp. If the DPU decoder complains, the pink is scanout-side regardless of the screenshot result.
 - Test: With the debug print: non-zero UBWC error status during pink -> DPU decode rejects what the GPU wrote (compare with FD_MESA_DEBUG=noubwc: status must stay 0). Zero status while pink -> the decoder accepted the tiles, look at GPU encode/Mesa layout or bandwidth.
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp.c:319-326; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp.c:353-354, 369-370; /home/user/k45/drivers/gpu/drm/msm/disp/mdp_format.c:594-602
+- Evidence: k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp.c:319-326; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_sspp.c:353-354, 369-370; k45/drivers/gpu/drm/msm/disp/mdp_format.c:594-602
 
 ### R5-03 The GNOME plane is split into two multirect-parallel rects on one SSPP, UBWC on both halves (medium, fact)
 
 - Claim: Both the console and GNOME planes are split 1696+1696 px into rect_0/rect_1 of sspp_8 (parallel multirect) for the two layer mixers; with GNOME this is UBWC+DX on multirect, a combination the console never exercises. If the corruption is confined to one half of the panel (x >= 1696) the REC1 address/offset path is implicated.
 - Mainline: max_linewidth 8192 -> UBWC parallel allowed up to 4096 px per rect; used: 1696 px per rect (1696 = 106 x 16-px UBWC tiles, tile aligned)
-- Stock: qcom,sde-sspp-linewidth = <0x1400> = 5120 px (live-fdt-redacted.dts:27754); qcom,sde-mixer-linewidth = <0xa00> = 2560 px (line 27755)
+- Stock: qcom,sde-sspp-linewidth = <0x1400> = 5120 px ((device capture, not published)); qcom,sde-mixer-linewidth = <0xa00> = 2560 px (line 27755)
 - Action: Test step: ask for the photo's geometry (is the corruption on both halves, only right of x=1696, only at the seam?). Rule-13 side note: catalog max_linewidth 8192 vs stock 5120 - not the glitch by itself (1696 passes both) but a stock-value correction to queue.
 - Test: Corruption only on the right half or along the x=1696 seam -> REC1 UBWC addressing; uniformly distributed tiles -> encode/decode config; horizontal bands -> bandwidth.
-- Evidence: /home/user/iceland-mainline/docs/tests/linux-runpc26b/F0/late-drm.txt:100-111; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c:1013-1020; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_13_0_kaanapali.h:16
+- Evidence: (rehearsal log, not published); k45/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c:1013-1020; k45/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_13_0_kaanapali.h:16
 
 ### R5-04 Underruns were never measured: mainline counts them, it does not print them, and no dump captured the counters (high, fact)
 
@@ -497,25 +508,25 @@ Reader 5 (what the earlier tablet runs already tell us). The decisive new facts 
 - Stock: n/a (stock SDE prints underrun events; irrelevant here)
 - Action: Test step: at every isolation stage (60/120/144 Hz, GNOME idle vs animating) `cat /sys/kernel/debug/dri/1/encoder-0/status /sys/kernel/debug/dri/1/encoder-1/status` twice 30 s apart, plus `cat /sys/kernel/debug/dri/1/debug/core_perf /sys/kernel/debug/dri/1/debug/danger` and `/sys/kernel/debug/clk/disp_cc_mdss_mdp_clk_src/clk_rate`; add these to the kit's late `drm` page permanently.
 - Test: Counter rising while pink at 144 Hz and flat at 60 Hz -> bandwidth/clock (revisit 0035 or the bw votes). Counter flat while pink -> not an underrun; drop the bandwidth suspect.
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c:1495-1510; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c:2508-2512; /home/user/iceland-mainline/docs/tests/linux-runpc26b/probe/f1-probe.sh:21; /home/user/iceland-mainline/docs/tests/linux-runpc26b/F0/late-drm.txt:866-868; /home/user/iceland-mainline/relay/results/pc-023-024-144hz-extractor-fedora.md:21-28
+- Evidence: k45/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c:1495-1510; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c:2508-2512; (rehearsal log, not published); (rehearsal log, not published); (PC note, not published)
 
 ### R5-05 Mesa on the rootfs is 26.2.3, unchanged across all GNOME runs; the a840 entry carries no HBB (medium, fact)
 
 - Claim: The only Mesa version evidence is the renderer string 'OpenGL ES 3.2 Mesa 26.2.3' (Y8 kmscube, Y9 cage) and libgallium-26.2.3.so in the current rootfs-gnome.tar.gz; no `rpm -q mesa-dri-drivers` was ever run. Mesa's a840 entry sets no highest_bank_bit (default HBB 15, swizzle 0x6, macrotile 1), but the PC drop found gallium never reads those on a8xx (the kernel programs the NC_MODE registers from qcom_ubwc_config).
 - Mainline: Mesa 26.2.3 (Fedora 44 updates); freedreno a840 entry: HBB default 15, swizzle 0x6, macrotile 1 (unused by gallium on a8xx per the PC's grep); kernel: ubwc_6_0_hbb16 with SMEM override
-- Stock: n/a for Mesa; stock GPU DT: qcom,ubwc-mode = <0x06>, qcom,min-access-length = <0x20>, qcom,chipid = <0x44050a01>, qcom,gpu-model = "Adreno840v2" (live-fdt-redacted.dts:13915-13918)
+- Stock: n/a for Mesa; stock GPU DT: qcom,ubwc-mode = <0x06>, qcom,min-access-length = <0x20>, qcom,chipid = <0x44050a01>, qcom,gpu-model = "Adreno840v2" ((device capture, not published))
 - Action: Test step: `rpm -q mesa-dri-drivers mesa-vulkan-drivers mesa-libgbm mutter gnome-shell` on the current rootfs and record it in the result (still missing). Compare the kernel's `qcom,ubwc-mode`-equivalent (qcom_ubwc_get_ubwc_mode(cfg) written to RB_CMP_NC_MODE_CNTL bit 15 as 'mode' = version tag) and min_acc_len against stock's ubwc-mode 6 / min-access-length 0x20 = 32 B - the kernel a8xx path sets min_acc_len_64b=false, i.e. 32 B, consistent.
 - Test: Pink in the screenshot AND gone with FD_MESA_DEBUG=noubwc -> Mesa a8xx UBWC encode for XR30 (report the rpm version upstream). Pink in the screenshot and NOT gone with noubwc but gone with notile / LIBGL_ALWAYS_SOFTWARE -> a8xx tiling/rendering bug.
-- Evidence: /home/user/iceland-mainline/docs/tests/linux-runpc24h/probe/y8-probe3-215219.txt:10; /home/user/iceland-mainline/docs/tests/linux-runpc24i/probe/y9-cage-221153.txt:13; /home/user/iceland-mainline/relay/pc-drop/pink-glitches/README.md:3-5, 15-22; /home/user/iceland-mainline/relay/pc-drop/pink-glitches/mesa-26.2.3-freedreno_devices-a840.txt:4-8; /home/user/iceland-mainline/relay/pc-drop/pink-glitches/mesa-26.2.3-ubwc-hbb-grep.txt:8-9
+- Evidence: (rehearsal log, not published); (rehearsal log, not published); (PC note, not published); (PC note, not published); (PC note, not published)
 
 ### R5-06 GPU dmesg facts: no chip id / UBWC / HBB / speedbin is ever printed; firmware set and GMU version are known; no faults in any GNOME run (low, fact)
 
 - Claim: The kernel prints only the adreno bind (dummy vdd/vddcx), the three firmware loads and 'Loaded GMU firmware v5.3.23'; the chip id 0xfc44050a31 comes from the msmparam tool (pc-011), not dmesg. No dmesg of any GNOME run (Y8, Y9, F0, S2..S19) contains a GPU hang, gpu fault, SMMU context fault, frame_done timeout, vblank timeout or *ERROR*. KNOWLEDGE.md's 'GMU firmware v5.3.39' is stale.
 - Mainline: gen80200_sqe.fw / gen80200_gmu.bin / gen80200_aqe.fw from linux-firmware (GMU v5.3.23) + the tablet's OEM-signed qcom/kaanapali/iceland/gen80200_zap.mbn; HBB/UBWC values never logged
 - Stock: stock GMU v5.03.17 / SQE v0.88 (different binaries, per pc-024 Y8 notes); qcom,chipid 0x44050a01
-- Action: Test step (relay 018 item 1, still open): log `msmparam` HIGHEST_BANK_BIT / UBWC_SWIZZLE / MACROTILE_MODE, `/sys/kernel/debug/qcom_smem/hbb`, and the DDR type; fix KNOWLEDGE.md:303 to v5.3.23. Optional A/B: kit with the stock gmu/sqe firmware (extracted, never uploaded) to rule the firmware revision out.
+- Action: Test step (PC note 018 item 1, still open): log `msmparam` HIGHEST_BANK_BIT / UBWC_SWIZZLE / MACROTILE_MODE, `/sys/kernel/debug/qcom_smem/hbb`, and the DDR type; fix KNOWLEDGE.md:303 to v5.3.23. Optional A/B: kit with the stock gmu/sqe firmware (extracted, never uploaded) to rule the firmware revision out.
 - Test: If HBB from SMEM != 16 (or the DDR type is 9 = LPDDR5X, absent from stock's <8 3 7 2> table) the UBWC bank swizzle is the prime suspect; if 16/LPDDR5, HBB is cleared as a cause.
-- Evidence: /home/user/iceland-mainline/docs/tests/linux-runpc26b/F0/late-dmesg.txt:1226-1237; /home/user/iceland-mainline/docs/tests/linux-runpc26b/F0/late-dmesg.txt:1286-1490; /home/user/iceland-mainline/relay/results/pc-011-battery-gpu.md:25-30; /home/user/iceland-mainline/docs/KNOWLEDGE.md:303; /home/user/iceland-mainline/relay/results/pc-023-024-144hz-extractor-fedora.md:153-155
+- Evidence: (rehearsal log, not published); (rehearsal log, not published); (PC note, not published); iceland-mainline/docs/KNOWLEDGE.md:303; (PC note, not published)
 
 ### R5-07 Timeline: the pink report follows the first GNOME kits at 144 Hz; the 120 Hz GNOME runs were unattended overnight (medium, fact)
 
@@ -524,16 +535,16 @@ Reader 5 (what the earlier tablet runs already tell us). The decisive new facts 
 - Stock: n/a
 - Action: Test step: the 60/120/144 Hz comparison is the cheapest discriminator and directly re-tests the only display-affecting queue change (0035) between the unwatched-clean and the reported-pink states. Ask the user whether they saw the Y9-Y11 screens (22:08-23:30 on 09-28).
 - Test: Pink at 120 Hz too -> not 0035/bandwidth, focus on UBWC/XR30 (R5-01/02). Pink only at 144 Hz -> bandwidth/clock, read the underrun counters (R5-04).
-- Evidence: /home/user/iceland-mainline/docs/tests/linux-runpc24i/probe/y9-probe-20260928-220806.txt:5; /home/user/iceland-mainline/docs/tests/linux-runpc24k/probe/y11-probe-20260928-225608.txt:5; /home/user/iceland-mainline/docs/tests/linux-runpc24i/Y9/late-drm.txt:238; /home/user/iceland-mainline/docs/tests/linux-runpc26b/F0/late-dmesg.txt:5; /home/user/iceland-mainline/docs/tests/linux-runpc26b/F0/late-drm.txt:232; /home/user/iceland-mainline/relay/results/pc-026-critical-items.md:29, 50, 75; /home/user/iceland-mainline/relay/requests/011-gnome-pink-glitches.md:7; /home/user/k45:git log --oneline positions 20-22 of 192 after v7.3-rc4
+- Evidence: (rehearsal log, not published); (rehearsal log, not published); (rehearsal log, not published); (rehearsal log, not published); (rehearsal log, not published); (PC note, not published); (PC note, not published); k45:git log --oneline positions 20-22 of 192 after v7.3-rc4
 
 ### R5-08 0035 removed the 5 % MDP clock margin; bandwidth caps already equal stock; the 144 Hz timing is stock's (medium, fact)
 
 - Claim: 0035 changes only clk_inefficiency_factor 105 -> 100 so that 1261.347 MHz / 2 mixers = 630.7 MHz fits under the 650 MHz core clock (x1.05 = 662.2 MHz did not); the catalog's max_bw_low/high and min_core_ib equal stock's DT values, and the CRTC mode is stock's 144 Hz timing. Bandwidth is therefore stock-equivalent on paper, but the MDP clock now runs with zero headroom at 144 Hz.
 - Mainline: clk_inefficiency_factor 100, bw_inefficiency_factor 120; pixel clock 1,261,347 kHz = 1261.347 MHz -> 630.7 MHz per LM; max_bw_high 30,200,000 kB/s = 30.2 GB/s, max_bw_low 21,400,000 kB/s = 21.4 GB/s, min_core_ib 2,500,000 kB/s = 2.5 GB/s
 - Stock: sde-max-bw-high-kbps 0x1ccd0c0 = 30,200,000 (30.2 GB/s); sde-max-bw-low-kbps 0x14689c0 = 21,400,000 (21.4 GB/s); sde-min-core-ib-kbps 0x2625a0 = 2,500,000 (2.5 GB/s): identical to the catalog. Stock's own clock-margin factor is not in the DT (vendor driver constant, not captured).
-- Action: Nothing to patch yet; the 60/120/144 Hz step plus the encoder-0/status counters (R5-04) decide. If underruns appear only at 144 Hz, the candidate is a higher MDP OPP or stock's danger/safe/creq LUTs (live-fdt-redacted.dts:27700-27702) rather than reverting 0035.
+- Action: Nothing to patch yet; the 60/120/144 Hz step plus the encoder-0/status counters (R5-04) decide. If underruns appear only at 144 Hz, the candidate is a higher MDP OPP or stock's danger/safe/creq LUTs ((device capture, not published)) rather than reverting 0035.
 - Test: Underrun counter rising at 144 Hz under GNOME animation (and not at 120 Hz) -> clock/bandwidth; flat counters -> exclude.
-- Evidence: /home/user/iceland-linux/patches/0002-iceland/0035-drm-msm-dpu-kaanapali-no-clock-inefficiency-factor.patch:6-9, 20-24; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_13_0_kaanapali.h:428-430, 452; /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:27731-27733; /home/user/iceland-mainline/relay/results/pc-023-024-144hz-extractor-fedora.md:16-19, 23
+- Evidence: iceland-linux/patches/0002-iceland/0035-drm-msm-dpu-kaanapali-no-clock-inefficiency-factor.patch:6-9, 20-24; k45/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_13_0_kaanapali.h:428-430, 452; (device capture, not published); (PC note, not published)
 
 ### R5-09 The queue's DSC compressed-width fix is shared by console and GNOME; DSC is the least likely layer (low, inference)
 
@@ -542,16 +553,16 @@ Reader 5 (what the earlier tablet runs already tell us). The decisive new facts 
 - Stock: stock 144 Hz porches reproduced (pc-023); stock DSC parameters not compared in this reader
 - Action: Test step only: have the user (or a photo) confirm the fbcon text at 144 Hz is clean before gdm starts (e.g. `systemctl stop gdm`, look at the console for 30 s, `chvt`), and again with `LIBGL_ALWAYS_SOFTWARE=1` GNOME (linear XR24 from llvmpipe - confirm via the state dump).
 - Test: Clean fbcon + clean software-GL GNOME at 144 Hz -> DSC/timing excluded. Pink even with software GL -> DSC/timing/panel (then compare dsc config with stock).
-- Evidence: /home/user/k45:git show 2f232a0bd8e3 (dpu_encoder_phys_vid.c +131..+141); /home/user/iceland-mainline/relay/results/pc-023-024-144hz-extractor-fedora.md:10-12, 28; /home/user/iceland-mainline/relay/requests/011-gnome-pink-glitches.md:27
+- Evidence: k45:git show 2f232a0bd8e3 (dpu_encoder_phys_vid.c +131..+141); (PC note, not published); (PC note, not published)
 
 ### R5-10 No run has captured the MDSS UBWC registers, the DPU debug files or a screenshot; the pc-drop covers Mesa only (medium, fact)
 
-- Claim: The evidence needed by the decision tree in answers/011 (UBWC_STATIC/UBWC_CTRL_2/UBWC_PREDICTION_MODE reads, SMEM HBB and DDR type, screenshot vs photo, dri debugfs danger/sspp/core_perf/encoder status) does not exist yet in relay or docs/tests; the only P0 drop delivered is relay/pc-drop/pink-glitches (Mesa source excerpts).
+- Claim: The evidence needed by the decision tree in answers/011 (UBWC_STATIC/UBWC_CTRL_2/UBWC_PREDICTION_MODE reads, SMEM HBB and DDR type, screenshot vs photo, dri debugfs danger/sspp/core_perf/encoder status) does not exist yet in the PC notes or the rehearsal logs (not published); the only P0 drop delivered is (PC note, not published) (Mesa source excerpts).
 - Mainline: n/a
-- Stock: stock SDE: ubwc-version 0x60000000, swizzle 6, macrotile 1, ubwc-static 1, dram-channels 4, highest-bank-bit <8 3 7 2> (live-fdt-redacted.dts:27728, 27742-27747)
-- Action: Test-run checklist to add on top of relay 011's steps: (1) `cat /sys/kernel/debug/dri/1/state` + encoder-0/status + debug/danger + debug/core_perf + debug/sspp at each stage; (2) msmparam HBB/swizzle/macrotile + /sys/kernel/debug/qcom_smem/hbb; (3) the three MDSS UBWC registers read only while the MDSS is active (pc-022 rule); (4) `rpm -q` Mesa/mutter; (5) photo with geometry notes (whole screen / one half / moving only).
+- Stock: stock SDE: ubwc-version 0x60000000, swizzle 6, macrotile 1, ubwc-static 1, dram-channels 4, highest-bank-bit <8 3 7 2> ((device capture, not published))
+- Action: Test-run checklist to add on top of PC note 011's steps: (1) `cat /sys/kernel/debug/dri/1/state` + encoder-0/status + debug/danger + debug/core_perf + debug/sspp at each stage; (2) msmparam HBB/swizzle/macrotile + /sys/kernel/debug/qcom_smem/hbb; (3) the three MDSS UBWC registers read only while the MDSS is active (pc-022 rule); (4) `rpm -q` Mesa/mutter; (5) photo with geometry notes (whole screen / one half / moving only).
 - Test: n/a (evidence gathering).
-- Evidence: /home/user/iceland-mainline/relay/pc-drop:ls; /home/user/iceland-mainline/relay/requests/018-pc-pull-list.md:21-26; /home/user/iceland-mainline/relay/answers/pc-drop-pink-glitches.md:41-53; /home/user/iceland-mainline/docs/FEATURES.md:27
+- Evidence: (PC note, not published):ls; (PC note, not published); (PC note, not published); iceland-mainline/docs/FEATURES.md:27
 
 #### Open Questions
 - Did the user look at the screen during Y9/Y10/Y11 (09-28 22:08-23:30, GNOME at 120 Hz, same XR30 UBWC scanout format, kernel 00172 without 0035)? If those were clean by eye, the 144 Hz/0035 path gains weight; if unwatched, the 120 Hz test in the next run is the first real data point.
@@ -560,11 +571,11 @@ Reader 5 (what the earlier tablet runs already tell us). The decisive new facts 
 - Why does mutter pick XR30 (10-bit) on this device - does the current mutter 50.5 prefer XRGB2101010 whenever the driver exposes it, and can it be forced to XR24 for an A/B (mutter env/gsettings not verifiable offline)?
 - Is the kit's reported 'Y11 = pen-caps kernel' a mislabel (probe uname shows 00172 and the pen was still ignored)? It matters only for the timeline of which kernel first showed GNOME.
 - Does the DPU decoder report anything in SSPP_UBWC_ERROR_STATUS (0x138/0x1c8) during the glitch? The driver clears it at every format setup and never reads it; a debug print is the cheapest way to split GPU-encode from DPU-decode.
-- What is the SMEM HBB and DDR type of this unit (relay 018 item 1 still open)? Stock's table maps LPDDR5 (8) -> HBB 16 and LPDDR4X (7) -> 15 and has no LPDDR5X (9) entry.
+- What is the SMEM HBB and DDR type of this unit (PC note 018 item 1 still open)? Stock's table maps LPDDR5 (8) -> HBB 16 and LPDDR4X (7) -> 15 and has no LPDDR5X (9) entry.
 
 ## Reader summary
 
-READER 6 (DSC / DSI / panel timing). The mainline display path is structurally identical to stock (OxygenOS 11.A.38 live FDT node "XN251 p d dsc video mode panel", live-fdt-redacted.dts:34481-34589) in every parameter that would corrupt the console: 4 lanes x 2 DSI at 1696 px each, DSC 8 bpc / 8 bpp / slice 848x20 / 2 slices per packet / block prediction, video mode non-burst sync-event, EOT append, BLLP LP, non-continuous clock, lane map 0123, 120/90/60/30 Hz porches equal to stock's DFPS lists (x2), bit clock within -0.09..-0.25 % of stock's panel-clockrate (tablet measured 227,128,150 Hz pclk / 170,346,112 Hz byte at 144 Hz = exactly what dsi_host.c predicts), DSI ctrl v2.10 and PHY v7.2 entries present, DSC register map identical (0x9800000+0x182000 == 0x9801000+0x181000). Nothing here predicts a globally broken picture, which matches "fbcon clean". The differences that matter for the "still pink with software GL" branch: (1) DSC forced to 1.1 (stock 1.2) and the init sequence omits stock's 0x91/0x92 writes; the stock 0x91/0x92 bytes decode exactly to the DRM helper output with first_line_bpg_offset=13 (568/11/1402/823, final_offset 0x10e0), our 1.1 PPS carries 12 (nfl 1294, scale_inc 597). If the NT36536 decodes from its 0x91 table rather than the PPS, that is a content-dependent rate-control divergence: flat console text fine, busy GNOME content broken in 848x20 slice blocks. The queue's 1.2 path (9b29fbbad19c) now yields the panel's exact 13-table, so a dsc_version_minor=2 build (optionally plus 0x91/0x92) is the candidate fix for this branch. (2) GNOME runs the 144 Hz mode (index 0 = PREFERRED, confirmed in linux-runpc26c drm state); stock's base timing is 120 Hz, and stock's default topology is 4 LM/4 DSC/2 INTF while mainline is 2 LM/2 DSC: at 144 Hz the 2-LM line rate needs 605.7 of the 650 MHz MDP clock (7 % margin; 120 and 60 Hz 18 %; 90 Hz 72 %). Expectation for the run: an INTF underrun through DSC is NOT a solid blue underflow colour but decoder garbage in 20-px-tall slice bands, and it is only visible in /sys/kernel/debug/dri/1/encoder-*/status (underrun counter), never in dmesg. Low-relevance stock deviations (rule 13 clean-ups, not glitch causes): 144 Hz hfp 68 vs stock 64, D-PHY timing registers computed longer than stock's table, PLL SSC off (stock down-spread), reset pulse timing, PPS sent before sleep-out, 50/48 Hz modes missing.
+READER 6 (DSC / DSI / panel timing). The mainline display path is structurally identical to stock (OxygenOS 11.A.38 live FDT node "XN251 p d dsc video mode panel", (device capture, not published)) in every parameter that would corrupt the console: 4 lanes x 2 DSI at 1696 px each, DSC 8 bpc / 8 bpp / slice 848x20 / 2 slices per packet / block prediction, video mode non-burst sync-event, EOT append, BLLP LP, non-continuous clock, lane map 0123, 120/90/60/30 Hz porches equal to stock's DFPS lists (x2), bit clock within -0.09..-0.25 % of stock's panel-clockrate (tablet measured 227,128,150 Hz pclk / 170,346,112 Hz byte at 144 Hz = exactly what dsi_host.c predicts), DSI ctrl v2.10 and PHY v7.2 entries present, DSC register map identical (0x9800000+0x182000 == 0x9801000+0x181000). Nothing here predicts a globally broken picture, which matches "fbcon clean". The differences that matter for the "still pink with software GL" branch: (1) DSC forced to 1.1 (stock 1.2) and the init sequence omits stock's 0x91/0x92 writes; the stock 0x91/0x92 bytes decode exactly to the DRM helper output with first_line_bpg_offset=13 (568/11/1402/823, final_offset 0x10e0), our 1.1 PPS carries 12 (nfl 1294, scale_inc 597). If the NT36536 decodes from its 0x91 table rather than the PPS, that is a content-dependent rate-control divergence: flat console text fine, busy GNOME content broken in 848x20 slice blocks. The queue's 1.2 path (9b29fbbad19c) now yields the panel's exact 13-table, so a dsc_version_minor=2 build (optionally plus 0x91/0x92) is the candidate fix for this branch. (2) GNOME runs the 144 Hz mode (index 0 = PREFERRED, confirmed in linux-runpc26c drm state); stock's base timing is 120 Hz, and stock's default topology is 4 LM/4 DSC/2 INTF while mainline is 2 LM/2 DSC: at 144 Hz the 2-LM line rate needs 605.7 of the 650 MHz MDP clock (7 % margin; 120 and 60 Hz 18 %; 90 Hz 72 %). Expectation for the run: an INTF underrun through DSC is NOT a solid blue underflow colour but decoder garbage in 20-px-tall slice bands, and it is only visible in /sys/kernel/debug/dri/1/encoder-*/status (underrun counter), never in dmesg. Low-relevance stock deviations (rule 13 clean-ups, not glitch causes): 144 Hz hfp 68 vs stock 64, D-PHY timing registers computed longer than stock's table, PLL SSC off (stock down-spread), reset pulse timing, PPS sent before sleep-out, 50/48 Hz modes missing.
 
 ### R6-1 DSC version forced to 1.1; stock runs DSC 1.2 and the queue now has a proper 1.2 path (medium, fact)
 
@@ -573,7 +584,7 @@ READER 6 (DSC / DSI / panel timing). The mainline display path is structurally i
 - Stock: qcom,mdss-dsc-version = 0x12 (DSC 1.2; 1.2-444 RC table idx10-14 = (5,10,-10)(5,11,-12)(5,11,-12)(9,12,-12)(12,13,-12); first_line_bpg_offset 13 per the panel's 0x91 register, see R6-2)
 - Action: Test build A: set csot_iceland_dsc_cfg.dsc_version_minor = 2 (rule 13; the queue's 1.2 path then emits first_line_bpg_offset 13, nfl 1402, scale_inc 568, matching stock's 0x91). Keep 1.1 as fallback if slice errors reappear on the console.
 - Test: Only relevant if the screenshot is clean and software GL still shows the pink blocks. Then boot A and compare a photo of the same busy content (photo, not screenshot). DSC-side corruption is confined to 848-px-wide x 20-px-tall slice rectangles and gets worse with high-entropy content (photos, gradients, anti-aliased text), stays away from flat areas. With mainline's dyndbg on dsi_host.c the DSC params are not printed, so add a one-line pr_info of first_line_bpg_offset/nfl_bpg_offset/scale_increment_interval in dsi_populate_dsc_params to confirm 13/1402/568 on A.
-- Evidence: /home/user/k45/drivers/gpu/drm/panel/panel-novatek-nt36536.c:692-705; /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:34558-34562; /home/user/k45/drivers/gpu/drm/msm/dsi/dsi_host.c:1911-1916; git -C /home/user/k45 log (commit ffe1cfb8255d message):18; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dsc_1_2.c:133-139
+- Evidence: k45/drivers/gpu/drm/panel/panel-novatek-nt36536.c:692-705; (device capture, not published); k45/drivers/gpu/drm/msm/dsi/dsi_host.c:1911-1916; git -C k45 log (commit ffe1cfb8255d message):18; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dsc_1_2.c:133-139
 
 ### R6-2 Init sequence omits stock's 0x91/0x92 DSC registers; their bytes are the DSC 1.2 parameter set with first_line_bpg_offset = 13, our PPS carries 12 (medium, inference)
 
@@ -581,8 +592,8 @@ READER 6 (DSC / DSI / panel timing). The mainline display path is structurally i
 - Mainline: no 0x91/0x92 writes; PPS (DSC 1.1) with first_line_bpg_offset 12, nfl_bpg_offset 1294, slice_bpg_offset 823, scale_increment_interval 597, scale_decrement_interval 11, initial_dec_delay 681, final_offset 4320, initial_xmit_delay 512, initial_offset 6144
 - Stock: 0x91 = 89 a8 00 14 d2 00 00 00 02 38 00 0b 05 7a 03 37 (slice_height 20, scale_inc 568, scale_dec 11, nfl 1402, slice_bpg 823), 0x92 = 10 e0 (final_offset 4320); i.e. first_line_bpg_offset 13 (the OnePlus 15 panel's 0x91 decodes the same way: 441/6/1402/1464 with 13)
 - Action: Panel driver patch (rule 13): after 0x90 03 add mipi_dsi_dcs_write_seq_multi(0x91, 0x89,0xa8,0x00,0x14,0xd2,0x00,0x00,0x00,0x02,0x38,0x00,0x0b,0x05,0x7a,0x03,0x37) and (0x92, 0x10,0xe0) exactly as stock, and switch to the 1.2 path (R6-1) so the PPS also says 13. Do the two as separate builds (B = 1.1 + 0x91/0x92, A = 1.2 without, C = both) so the run tells which one the panel honours.
-- Test: If the panel decodes from PPS, all three builds look the same; if it decodes from 0x91, build B/C fix the busy-content slice corruption while A alone may still differ. Also readable on the panel: stock's ESD check reads DCS 0xAB (2 bytes, expected 00 00, oplus,mipi-err-check-reg = [ab] at live-fdt-redacted.dts:34495); a small debug read of 0xAB via a panel debugfs hook while the glitch is on screen tells whether the panel counts link/decode errors at all (0 = the corruption is upstream of the panel).
-- Evidence: /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:34576; /home/user/k45/drivers/gpu/drm/panel/panel-novatek-nt36536.c:615-624; /home/user/k45/drivers/gpu/drm/display/drm_dsc_helper.c:369-376; /home/user/k45/drivers/gpu/drm/display/drm_dsc_helper.c:1381-1409; /home/user/k45/drivers/gpu/drm/panel/panel-novatek-nt36536.c:266-272
+- Test: If the panel decodes from PPS, all three builds look the same; if it decodes from 0x91, build B/C fix the busy-content slice corruption while A alone may still differ. Also readable on the panel: stock's ESD check reads DCS 0xAB (2 bytes, expected 00 00, oplus,mipi-err-check-reg = [ab] at (device capture, not published)); a small debug read of 0xAB via a panel debugfs hook while the glitch is on screen tells whether the panel counts link/decode errors at all (0 = the corruption is upstream of the panel).
+- Evidence: (device capture, not published); k45/drivers/gpu/drm/panel/panel-novatek-nt36536.c:615-624; k45/drivers/gpu/drm/display/drm_dsc_helper.c:369-376; k45/drivers/gpu/drm/display/drm_dsc_helper.c:1381-1409; k45/drivers/gpu/drm/panel/panel-novatek-nt36536.c:266-272
 
 ### R6-3 GNOME runs the 144 Hz mode (our PREFERRED); stock's base timing and Android's first listed mode is 120 Hz (medium, fact)
 
@@ -591,7 +602,7 @@ READER 6 (DSC / DSI / panel timing). The mainline display path is structurally i
 - Stock: base timing 120 Hz (htotal per half 1830 = 1696+50+32+52, vtotal 2700); DFPS list 120, 144, 90, 60, 50, 48, 30 at a fixed bit clock
 - Action: Reorder csot_iceland_modes so the 120 Hz entry is index 0 (stock default, rule 13) and keep 144 selectable; add the missing 50/48 Hz entries from the DFPS lists (per half hfp 210/hpw 80/hbp 160, vfp 2010 and 2196, vbp 52).
 - Test: The planned 60/120/144 comparison, plus 90 Hz: 60 Hz has the SAME line rate as 120 Hz (same htotal, same pixel clock, only vfp grows), so 60 Hz does not test line-rate headroom; 90 Hz does (see R6-4). Clean at 90 but pink at 60 = per-line throughput; clean at 60 = frame-level bandwidth or GPU load.
-- Evidence: /home/user/k45/drivers/gpu/drm/panel/panel-novatek-nt36536.c:629-641,169-171; /home/user/iceland-mainline/docs/tests/linux-runpc26c/S1/linux-drm.txt:199-210; /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:34578,34489; /home/user/iceland-mainline/docs/device-facts/capture-20260927-3/drm-connectors.txt:2
+- Evidence: k45/drivers/gpu/drm/panel/panel-novatek-nt36536.c:629-641,169-171; (rehearsal log, not published); (device capture, not published); (device capture, not published)
 
 ### R6-4 Topology: mainline 2 LM + 2 DSC, stock default topology 4 LM + 4 DSC + 2 INTF; at 144 Hz the 2-LM line rate has 7 % headroom on the 650 MHz MDP clock (medium, inference)
 
@@ -600,7 +611,7 @@ READER 6 (DSC / DSI / panel timing). The mainline display path is structurally i
 - Stock: 4 LM x 848 px, 4 DSC x 1 slice (DSC merge, slice-per-pkt 2), 2 INTF; same 650 MHz MDP
 - Action: No kernel change available offline (mainline has no quad-pipe DSI topology in this tree; upstream status of the quad-pipe series could not be checked). Use R6-3 (120 Hz preferred) as the mitigation and hand the 2-vs-4 LM headroom to the clock/bandwidth reader.
 - Test: Read /sys/kernel/debug/dri/1/encoder-0/status (fields: vsync, underrun, frame_done_cnt) before and after a glitch episode at 144, 120, 90 and 60 Hz. A rising underrun counter that follows the line-rate ordering (144 worst, 120 = 60, 90 clean) confirms this; a counter that stays 0 while the picture is pink rules out underruns entirely.
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c:677-692; /home/user/iceland-mainline/docs/tests/linux-runpc26c/S1/linux-drm.txt:245-249; /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:34552-34553; /home/user/iceland-mainline/docs/tests/linux-runpc26c/S1/linux-clocks.txt:220; /home/user/iceland-linux/patches/0002-iceland/0035-drm-msm-dpu-kaanapali-no-clock-inefficiency-factor.patch:4-8
+- Evidence: k45/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c:677-692; (rehearsal log, not published); (device capture, not published); (rehearsal log, not published); iceland-linux/patches/0002-iceland/0035-drm-msm-dpu-kaanapali-no-clock-inefficiency-factor.patch:4-8
 
 ### R6-5 Expectation: an INTF underrun with DSC in the path shows as slice-band decoder garbage, not the solid underflow colour, and is only counted in debugfs (high, inference)
 
@@ -609,7 +620,7 @@ READER 6 (DSC / DSI / panel timing). The mainline display path is structurally i
 - Stock: n/a (stock has the same hardware behaviour; its sde driver logs underruns to its own event log)
 - Action: Nothing to patch; add to the run script: cat /sys/kernel/debug/dri/1/encoder-*/status at boot, after GNOME is up, and right after each observed glitch, at each refresh rate; optionally a tiny debug patch that pr_info()s in dpu_encoder_underrun_callback so the timestamp lands in dmesg next to the photo time.
 - Test: Underrun counter increments in step with the glitches = bandwidth/clock branch (readers 3/4), not DSC/timing; counter flat while pink = rendering or DSC parameter branch (R6-1/R6-2) or UBWC. Visual: underrun garbage is horizontal bands 20 px tall spanning from the stall point to the right edge of a 1696-px half; UBWC decode garbage is 4x4/16x4-tile noise anywhere; DSC parameter drift is 848x20 rectangles that depend on content.
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_vid.c:90; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_intf.c:191-203; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c:1495-1510,2508-2512
+- Evidence: k45/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_vid.c:90; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_intf.c:191-203; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c:1495-1510,2508-2512
 
 ### R6-6 144 Hz horizontal front porch is 68 (stock 2 x 32 = 64); all other per-mode porches equal stock's DFPS lists (low, fact)
 
@@ -618,7 +629,7 @@ READER 6 (DSC / DSI / panel timing). The mainline display path is structurally i
 - Stock: 144 Hz DFPS entry: hfp 32 / hpw 16 / hbp 20 per half = 64 / 32 / 40 (htotal 3528), vfp 26 / vpw 2 / vbp 52
 - Action: Rule-13 clean-up in the panel driver: 144 Hz hsync_start = 3392 + 64 (htotal 3528, clock 1259919 kHz); add 50 and 48 Hz modes. Not a corruption candidate: 2 extra front-porch pixels per half only stretch the line by 0.11 %.
 - Test: None needed; if the run pins the glitch to 144 Hz only, retest 144 Hz with the corrected porch to close the item.
-- Evidence: /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:34484-34490; /home/user/k45/drivers/gpu/drm/panel/panel-novatek-nt36536.c:632-640
+- Evidence: (device capture, not published); k45/drivers/gpu/drm/panel/panel-novatek-nt36536.c:632-640
 
 ### R6-7 Pixel and byte clock derivation matches stock's regime (within -0.25 %) and is confirmed by the tablet's clock tree (low, fact)
 
@@ -627,7 +638,7 @@ READER 6 (DSC / DSI / panel timing). The mainline display path is structurally i
 - Stock: fixed 1.36404 Gbps per lane at every refresh rate; effective line = 701.67 pclk at 120 Hz (2 slices x 848 B + 7 B overhead) / 3 + porches
 - Action: Nothing. (Optional rule-13 cosmetic: none; a -0.25 % PLL difference is within the same PHY operating point.)
 - Test: None; already confirmed by the tablet's clk tree. If someone insists, dyndbg on dsi_host.c prints pclk=/bclk= at modeset.
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/dsi/dsi_host.c:616-628,661-670; /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:34577; /home/user/iceland-mainline/docs/device-facts/capture-20260927-3/clk_summary.txt:44-46; /home/user/iceland-mainline/docs/tests/linux-runpc26c/S1/linux-clocks.txt:175,186; /home/user/k45/drivers/gpu/drm/msm/dsi/dsi_host.c:1066-1080
+- Evidence: k45/drivers/gpu/drm/msm/dsi/dsi_host.c:616-628,661-670; (device capture, not published); (device capture, not published); (rehearsal log, not published); k45/drivers/gpu/drm/msm/dsi/dsi_host.c:1066-1080
 
 ### R6-8 Kaanapali DSI controller and PHY entries match stock's hardware versions (ctrl v2.10, PHY v7.2, same addresses, DSI1 slaved to DSI0's PLL) (low, fact)
 
@@ -636,7 +647,7 @@ READER 6 (DSC / DSI / panel timing). The mainline display path is structurally i
 - Stock: qcom,dsi-ctrl-hw-v2.10 x2; qcom,dsi-phy-v7.2 x2 with pll-label dsi_pll_3nm; pll_byte_clk0/pll_dsi_clk0 for both controllers
 - Action: Nothing.
 - Test: None.
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/dsi/dsi_cfg.c:344-347,208-217; /home/user/k45/drivers/gpu/drm/msm/dsi/phy/dsi_phy_7nm.c:1554-1573; /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:34608,34680,34489; /home/user/k45/arch/arm64/boot/dts/qcom/kaanapali-oneplus-iceland.dts:1182-1199; /home/user/k45/drivers/gpu/drm/msm/dsi/dsi_host.c:811-817
+- Evidence: k45/drivers/gpu/drm/msm/dsi/dsi_cfg.c:344-347,208-217; k45/drivers/gpu/drm/msm/dsi/phy/dsi_phy_7nm.c:1554-1573; (device capture, not published); k45/arch/arm64/boot/dts/qcom/kaanapali-oneplus-iceland.dts:1182-1199; k45/drivers/gpu/drm/msm/dsi/dsi_host.c:811-817
 
 ### R6-9 D-PHY timing registers computed by mainline differ from stock's per-panel table (longer hs_exit/hs_zero/clk_pre/clk_post, shorter hs_rqst) (low, inference)
 
@@ -645,7 +656,7 @@ READER 6 (DSC / DSI / panel timing). The mainline display path is structurally i
 - Stock: [00 2c 0c 0c 1d 1a 0c 0c 0b 02 04 00 24 11]
 - Action: Optional later rule-13 patch: a DT/panel override of the 14 timing bytes for this panel (mainline has no such hook today; would be a new msm_dsi_phy property). Not for the glitch run.
 - Test: Enable dyndbg for dsi_phy.c (the DBG line prints clk_pre, clk_post, clk_zero, clk_trail, clk_prepare, hs_exit, hs_zero, hs_prepare, hs_trail, hs_rqst) to confirm the computed set; only relevant if the picture shows whole-line dropouts or the panel's 0xAB error counter is non-zero.
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/dsi/phy/dsi_phy.c:linear_inter + msm_dsi_dphy_timing_calc_v4 body; /home/user/k45/drivers/gpu/drm/msm/dsi/phy/dsi_phy_7nm.c:1178-1190; /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:34554; /home/user/iceland-mainline/docs/tests/linux-runpc26c/S1/linux-dmesg.txt:1222-1235
+- Evidence: k45/drivers/gpu/drm/msm/dsi/phy/dsi_phy.c:linear_inter + msm_dsi_dphy_timing_calc_v4 body; k45/drivers/gpu/drm/msm/dsi/phy/dsi_phy_7nm.c:1178-1190; (device capture, not published); (rehearsal log, not published)
 
 ### R6-10 PLL spread spectrum: stock enables down-spread SSC on both DSI PLLs, mainline hard-codes it off (low, fact)
 
@@ -654,7 +665,7 @@ READER 6 (DSC / DSI / panel timing). The mainline display path is structurally i
 - Stock: SSC enabled, down-spread (31.5 kHz / 4800 ppm are mainline's unused defaults; stock's actual ssc values are not in the DT)
 - Action: Nothing for the glitch; EMI-only difference. Could be enabled later as a rule-13 item if the PLL code gains a DT switch.
 - Test: None.
-- Evidence: /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:34664-34665; /home/user/k45/drivers/gpu/drm/msm/dsi/phy/dsi_phy_7nm.c:117-125
+- Evidence: (device capture, not published); k45/drivers/gpu/drm/msm/dsi/phy/dsi_phy_7nm.c:117-125
 
 ### R6-11 Video-mode link settings match stock; remaining small deviations are the reset pulse timing and the PPS position (low, fact)
 
@@ -663,7 +674,7 @@ READER 6 (DSC / DSI / panel timing). The mainline display path is structurally i
 - Stock: same link settings; reset 10/5/10 ms; PPS after on-command (downstream behaviour)
 - Action: Optional rule-13 tidy: reset sequence 10/5/10 ms. Not a glitch candidate (the panel initialises and shows a clean console).
 - Test: None.
-- Evidence: /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:34527-34539; /home/user/k45/drivers/gpu/drm/msm/dsi/dsi_host.c:762-770,840-842,904-905,1727-1730; /home/user/k45/drivers/gpu/drm/panel/panel-novatek-nt36536.c:76-86,714-715,427
+- Evidence: (device capture, not published); k45/drivers/gpu/drm/msm/dsi/dsi_host.c:762-770,840-842,904-905,1727-1730; k45/drivers/gpu/drm/panel/panel-novatek-nt36536.c:76-86,714-715,427
 
 ### R6-12 DSC hardware description matches stock (register map, sub-block offsets, native-4:2:x capability, line widths) (low, fact)
 
@@ -672,16 +683,16 @@ READER 6 (DSC / DSI / panel timing). The mainline display path is structurally i
 - Stock: identical addresses and sub-offsets, dsc_1_2, native422-supp, linewidth 2560
 - Action: Nothing.
 - Test: None.
-- Evidence: /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_13_0_kaanapali.h:313-323; /home/user/k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c:479-487; /home/user/iceland-mainline/docs/device-facts/capture-20260927-2/live-fdt-redacted.dts:27777-27785,27752,27859-27860; /home/user/k45/arch/arm64/boot/dts/qcom/kaanapali.dtsi:4515-4517
+- Evidence: k45/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_13_0_kaanapali.h:313-323; k45/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c:479-487; (device capture, not published); k45/arch/arm64/boot/dts/qcom/kaanapali.dtsi:4515-4517
 
 ### R6-13 In the latest capture the scanned-out plane is a linear XR24 buffer (modifier 0x0); context of the dump unknown (medium, fact)
 
 - Claim: The linux-runpc26c S1 DRM state shows plane-0 with fb 105, format XR24, modifier=0x0 while the crtc is active at 144 Hz; if this dump was taken with GNOME on screen it means mutter scanned out a linear buffer (no UBWC decode in the DPU), which would move the pink/blocky cause to the GPU render side or to the DSC/underrun branches above; if it was fbcon it says nothing. The run/session logs do not say when in the session the dump was taken.
 - Mainline: modifier 0x0 (linear) on the only enabled plane at dump time
 - Stock: n/a
-- Action: Nothing to patch; add cat /sys/kernel/debug/dri/1/state under GNOME to the run (already suggested in relay/answers/pc-drop-pink-glitches.md) and note the modifier per plane next to each photo.
+- Action: Nothing to patch; add cat /sys/kernel/debug/dri/1/state under GNOME to the run (already suggested in (PC note, not published)) and note the modifier per plane next to each photo.
 - Test: modifier 0x0 under GNOME with the glitch present rules out the DPU UBWC decoder; a DRM_FORMAT_MOD_QCOM_COMPRESSED modifier keeps it in play.
-- Evidence: /home/user/iceland-mainline/docs/tests/linux-runpc26c/S1/linux-drm.txt:53-59,199-210; /home/user/iceland-mainline/docs/tests/linux-runpc26c/session.log:3
+- Evidence: (rehearsal log, not published); (rehearsal log, not published)
 
 #### Open Questions
 - Was map220v's observation (DSC 1.2 shows slice decode errors, 1.1 does not) made on a tree with or without infiniti's 9b29fbbad19c (1.2 RC table + first_line_bpg_offset 13) and 63732d8eda92? In the queue the panel commit ffe1cfb8255d comes after both, but the note says 'on mainline', which may mean map220v's own tree. Only a tablet run with dsc_version_minor = 2 answers it.

@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 # Docs workflow, 3 Oct 2026: the final-build edition of the three install documents.
-#   in : ~/mainline/build/wf/install/proposed/INSTALL-GUIDE.md, INSTALL-PLAN.md (round 7, 01:25), wf/install/DUALBOOT-PLAN.md
-#   out: ~/mainline/build/wf/docs/final/INSTALL-GUIDE.md, INSTALL-PLAN.md, DUALBOOT-PLAN.md
+#   in : (private build tree) wf/install/proposed/INSTALL-GUIDE.md, INSTALL-PLAN.md (round 7, 01:25), wf/install/DUALBOOT-PLAN.md
+#   out: (private build tree) wf/docs/final/INSTALL-GUIDE.md, INSTALL-PLAN.md, DUALBOOT-PLAN.md
+# Status 14 Oct 2026: the inputs are private build folders that are not in this repository, so this script cannot run
+# from here. Its output is the install documents of release candidate 1 (3 Oct 2026); the installed state is dated in
+# docs/INSTALL-GUIDE.md (Fedora installed 13 Oct 2026).
 # Adds: the first-boot setup note (F8), the current state of the rehearsal (R1d .. r2g), the corrected initramfs design
 # (the SoCCP / ADSP / CDSP stack is IN the initramfs since R1c), no suspend in rehearsals, and a section
 # "Known issues and what this build fixes" whose table comes from tools/known_issues.py (refreshed from the ledger and
@@ -36,7 +39,7 @@ KNOWN_GUIDE = (
     "Status " + STAMP + ". The findings come from the logs of the release candidate's rehearsal (r2g, 3 Oct 02:44:\n"
     "INSTALL-ACCEPT 42 PASS, 1 FAIL, 1 CHECK), consolidated as F1-F23 (`an/r2g-logs/FIX-LIST.md`, private) and grown\n"
     "by the team's error ledger to F50 and B1-B18; the status column is the ledger's G3 check of release candidate 1's\n"
-    "rehearsal r2i (`wf/ledger/check-r2i.md`) with the main session's review (re-run `wf/docs/tools/mk-final-docs.py`).\n"
+    "rehearsal r2i (the ledger's check is not published) with the main session's review (generator: docs/guide/tools/mk-final-docs.py).\n"
     "What RC1 contains, what each run proved, its known issues (F43 Wi-Fi, F44 Camera app) and the owner's checks:\n"
     "`docs/guide/RC1-NOTES.md`. \"Rehearsal only\" and \"test only\" items do not exist on the installed\n"
     "tablet; \"log only\" items change nothing you would notice.\n\n" + NIGHT +

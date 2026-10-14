@@ -1,5 +1,38 @@
 # OnePlus Pad 4: plan for the full install of Fedora 44 GNOME (planning only)
 
+> **Status 14 Oct 2026: installed.** The plan below was carried out on 13 Oct with these results:
+>
+> - **Write 1, 18:31:** `userdata` <- the final golden B149 image (`fedora-iceland.sparse.img`, 6,732,251,564 bytes, sha256
+>   prefix `2246e9a7`; it unpacks to the 237,159,641,088-byte `userdata`). 9 of 9 sparse pieces OKAY, 267 s. Android no
+>   longer starts.
+> - **Write 2, 20:47:** `boot_b` <- the footered U-Boot install build v3 (footer sha prefix `4955ee98`; the unfootered build
+>   is `979b4076`). Two tethered boots came first (20:43 and 20:44). Fedora booted from `boot_b` on its own at 20:48.
+> - **Each write was shown to the owner first** (partition, file, size, sha256) and confirmed in chat. The image and U-Boot
+>   hashes matched their records before the writes.
+> - **Decisions:** 3 = `boot_b` (not `recovery_b`); 7 = the recommended set (U-Boot from us; GRUB and shim from Fedora; Fedora 44
+>   until Fedora 45 is rehearsed; Fedora's default apps); 8 = return to stock 11.A.38 only, not run.
+> - **Checks before the writes:** G1 full backup of 151 partitions (intact); G2 stock 11.A.38 images (24 of 24 OK); G3 the
+>   return-to-stock dry run (13 Oct, nothing written); G4 a second copy on another drive; the AVB footer proof of the
+>   U-Boot build.
+> - **Lesson 1 (10 Oct, the C0 probe):** the first install U-Boot reset itself several times after a `boot_b` start and used
+>   up the slot's retries (7 -> 0); the owner undid it the same day. The fix is patch 0008 in the U-Boot series (no
+>   self-reset, no power-off, a hold loop); two RAM tests passed (13:42 and 13:44) before the write.
+> - **Lesson 2 (14 Oct, the slot counter):** ABL counts one try per power-on of a slot that is not marked successful.
+>   Only `qbootctl -m` marks a slot, and only Android or Fedora run it. On the installed system `iceland-slot-mark` skipped
+>   every boot because its guard refused the loop root (`/dev/loop0p3`, backed by `userdata`), and the boot LUN is read-only
+>   through `iceland-storage-ro`. The count for slot b fell 7 -> 3. The owner marked slot b by hand on 14 Oct after taking
+>   GPT copies: qbootctl now shows slot b active, successful and bootable. The fix is iceland-device 0.28-8 (commit 946ff95):
+>   it accepts a loop root backed by `userdata` and makes the boot LUN writable only for the one `qbootctl -m`. It is not
+>   yet in an image or a rehearsal.
+> - **Open after the install** (owner's checks): the speaker listening check at 50 and 100 % (make-up +9 dB); one night
+>   unplugged; cover wake; USB host with a keyboard, a stick and a hub; a 5 GHz connection; a DP monitor (detected, no
+>   picture yet); the keyboard cover; the wall chargers; the pen. Technical: DP over USB-C picture, camera into the hardware
+>   encoder, Chromium / Electron GPU acceleration, the idle refresh (off), the 0.28-8 image and rehearsal.
+>
+> The sections below are the plan as written on 2 Oct. Section 5 is the procedure that was run; the probe of 10 Oct (5.0)
+> failed and was undone. Section 9 is answered as above. Section 8 (the way back to stock) is still available and was not run.
+
+
 Written 2 Oct 2026, updated the same afternoon with the findings of the install workflow (its PC-side tooling is
 built and checked) and of runs 45-60, and revised that evening (install workflow round 7) for the independent review
 (`docs/guide/07-INSTALL-REVIEW.md` R-1 to R-4: the AVB footer, the undo file, the probe-first order, which U-Boot the
@@ -20,7 +53,7 @@ the first-boot setup, the rehearsal results to r2g, the known-issues pointer).
    USB cable, the tablet boots it through the real chain, and the file that was rehearsed is byte for byte the file
    that is written.
 4. Return to stock OxygenOS 11.A.38 is possible at every stage with the backup and the scripts that already exist
-   (`C:\OnePlusPad4\scripts\39-Return-To-Stock.ps1`).
+   (`<pc-path>`).
 5. On the installed system Fedora's updates can only change files inside `userdata`. The kernel and the few
    packages that are special on this tablet come from our own repository and are held against Fedora's versions;
    boot code and firmware never update by themselves.
@@ -29,8 +62,8 @@ the first-boot setup, the rehearsal results to r2g, the known-issues pointer).
 
 | Gate | State (2 Oct, afternoon) | How it is closed |
 |---|---|---|
-| G1 Backup of all 151 partitions, sha256-verified | exists: `C:\OnePlusPad4\backups\20260927-1933-unknown` | re-verify the checksums on the PC on the day |
-| G2 Stock 11.A.38 images + checksums | exists: `C:\OnePlusPad4\stock-11.A.38` | re-verify `SHA256SUMS.txt` |
+| G1 Backup of all 151 partitions, sha256-verified | exists: `<pc-path>` | re-verify the checksums on the PC on the day |
+| G2 Stock 11.A.38 images + checksums | exists: `<pc-path>` | re-verify `SHA256SUMS.txt` |
 | G3 Return-to-stock scripts reviewed against today's partition state | scripts exist (30 / 31 / 39) | dry run (`30-Restore-Stock.ps1` without `-Execute`) and read its plan |
 | G4 Second copy of G1 + G2 on another disk | not done | copy; the backup holds the per-device calibration that no download has |
 | G5 File copy of Android's `/data/vendor` and `persist` | not done | from LineageOS with `adb root`, read only (the raw `userdata` backup is encrypted and useless) |
@@ -362,7 +395,7 @@ backup holds everything else.
 |---|---|
 | Only RAM boots so far (today) | nothing: reboot, Android starts |
 | During the probe C0, or after write 2, only the boot path should go back | `fastboot flash boot_b boot_b-before-install.img` (today's LineageOS `boot_b` from guide Part A step 6; **not** the 27 Sep backup's) |
-| Full return to stock (written and dry-run, never executed; leaves the tablet on slot a) | `C:\OnePlusPad4\scripts\39-Return-To-Stock.ps1`: verifies the backup and the stock images, shows a dry run, then (after you type the confirmation) writes the stock boot set to both slots and `super` from your backup, erases `userdata`, and proves the result is byte-identical stock |
+| Full return to stock (written and dry-run, never executed; leaves the tablet on slot a) | `<pc-path>`: verifies the backup and the stock images, shows a dry run, then (after you type the confirmation) writes the stock boot set to both slots and `super` from your backup, erases `userdata`, and proves the result is byte-identical stock |
 | Locked boot loader as from the factory (optional) | `31-Relock-Bootloader.ps1`, only after the script's own check says the tablet is exactly stock |
 
 Before the first write the return path is rehearsed as far as it can be without writing: checksums of the backup

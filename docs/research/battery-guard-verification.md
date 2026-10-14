@@ -1,6 +1,14 @@
 # Battery guard and charger inputs: verification against Pad 4 stock (2026-09-29)
 
-Source: the live stock DT (`docs/device-facts/capture-20260927-2/live-fdt-redacted.dts`), nodes `oplus,comm` (l. 40196),
+Status (14 Oct 2026): the battery guard is shipped in iceland-device (the current package is 0.28-8). The guard, with
+the stock JEITA regions and the connector cut, is marked ok in the feature matrix, as are the battery reporting, the
+charge limit and the low-battery limiting. The
+kernel layer of the guard (K4, enforce mode) is not in the q89g kernel, and the comparison with the
+usbtemp_protect_v2 patch is open: whether either is still planned is unverified. The 4.508 V / 4.600 V / 77 C
+values below are the stock values the package uses; the "Not stock (ours)" list below still waits for
+confirmation.
+
+Source: the live stock DT of a stock 11.A.38 capture (the raw capture is not published), nodes `oplus,comm` (l. 40196),
 `oplus,wired` (l. 40170) and `oplus,mms_wired` (l. 40024). The units were checked on the tablet: `qcom-battmgr-bat`
 `temp` is in tenths of °C (its thermal zone read 30000–32000 = 30–32 °C in pc-026), and `voltage_now` is in µV
 (0029).
@@ -59,4 +67,5 @@ below 3.300 V while discharging (`vbat_uv_thr_mv`).
 - 3 readings before the low-voltage power-off.
 - Stock's thermal "cool_down" levels (screen-on current reductions driven by the thermal HAL) aren't mirrored.
 
-Tests: `packaging/iceland-device/tests/test_battery_guard.py` (30 cases, fake sysfs, dry-run): all pass.
+Tests: 30 cases with a fake sysfs and a dry run, run on the PC when the guard was written (the test file is not in the
+public repository): all passed then.

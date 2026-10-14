@@ -1,5 +1,11 @@
 # OnePlus Pad 4: plan for porting Windows on ARM (planning only)
 
+> **Status 14 Oct 2026: planning only.** No Windows work is recorded in the sources for 10-14 Oct, and the sources show no
+> W-phase result (unverified whether any was started earlier). The Linux install does not change the plan. What it adds
+> for a later Windows attempt is the boot chain as installed: ABL starts `boot_b`, which is our footered U-Boot, and ABL's
+> try counter applies to every slot that is not marked successful (see `INSTALL-PLAN.md`).
+
+
 Written 2 Oct 2026, late evening. **Nothing in this plan has been done, and nothing in it writes to the tablet.**
 Every tablet step is a RAM boot through `fastboot boot`, exactly like the Linux kits, and runs only after you have
 connected the tablet and said go. The plan uses what the Linux project has proven (the hardware tables in
@@ -39,7 +45,7 @@ WORKLOG lessons) and what other projects have published for this chip and its re
 | Layer | What it is | State for the Pad 4 | Where it comes from |
 |---|---|---|---|
 | Boot firmware | A UEFI that Windows' boot manager can run on | **exists for the chip**, not for the tablet | Mu-Silicium `KaanapaliPkg` + `infinitiPkg` (OnePlus 15); a new `icelandPkg` for the Pad 4 |
-| Firmware drivers inside the UEFI | Qualcomm's own UEFI drivers (storage, PMIC, pins, clocks, USB), taken as binaries from the tablet's stock `uefi` / `xbl` images | to be extracted from **your backup** (private, never committed) | `C:\OnePlusPad4\backups\20260927-1933-unknown` |
+| Firmware drivers inside the UEFI | Qualcomm's own UEFI drivers (storage, PMIC, pins, clocks, USB), taken as binaries from the tablet's stock `uefi` / `xbl` images | to be extracted from **your backup** (private, never committed) | `<pc-path>` |
 | ACPI tables | Windows' description of the hardware (Linux uses the device tree instead) | **missing for the whole chip** | to be written from our device tree; the X2 Elite laptops' tables as the model |
 | Windows build | The CPU cores are Oryon generation 3 | Windows 11 26H1 (build 28000) is the release made for these cores; older builds may refuse them | Microsoft's ARM64 media |
 | Generic Windows drivers | Display on the firmware's picture, the interrupt controller, timers, CPU start (PSCI), UFS and USB by their standards | should work once ACPI describes them | in Windows |

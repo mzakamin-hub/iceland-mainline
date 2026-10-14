@@ -1,7 +1,12 @@
 # qualcomm-linux/kernel vs the Pad 4 port (deep research, 12 Oct 2026)
 
+> **Status 14 Oct 2026.** Recommendation 3 is done: the Pad 4 kernel is on v7.3-rc7 (queue q89e on 13 Oct, then q89f
+> and q89g). The three patches that the rc7 notes named as merged upstream were dropped at the rebase. Recommendations
+> 1 and 2 still stand. The sources do not record a new read of the Kaanapali branches after 12 Oct (unverified).
+
+
 Run wf_3ad3121e-5ba: 103 agents, claims checked by 3-vote verification. The coordinator then checked the findings
-against our tree (WSL ~/mainline/build/src, branch iceland).
+against our tree (WSL <pc-work>/build/src, branch iceland).
 
 ## What the repo is
 - The kernel for **Qualcomm Linux (QLI)**, Qualcomm's embedded / IoT distribution.

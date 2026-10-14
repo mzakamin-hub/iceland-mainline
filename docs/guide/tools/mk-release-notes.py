@@ -3,6 +3,9 @@
 # candidate 1 (kernel q85 + iceland-device 0.19, rehearsal r2i). The facts are those of docs/guide/RC1-NOTES.md
 # (environment variables of the same name override them for a later build). The known-issues tables come from
 # tools/known_issues.py (the ledger's G3 check of r2i, fix records, verdicts).
+# Status 14 Oct 2026: the facts below are those of release candidate 1 (3 Oct 2026); the output is a historical document.
+# Its inputs are private build folders, so the script cannot run from this repository. The installed system (13 Oct 2026)
+# is described in docs/INSTALL-GUIDE.md and docs/guide/04-BUILD-YOUR-OWN.md.
 import os, subprocess, sys
 
 H = os.path.expanduser("~/mainline/build/")
@@ -24,8 +27,9 @@ T = f"""# OnePlus Pad 4 - Fedora 44 GNOME: release notes of release candidate 1 
 3 Oct 2026 (docs workflow). The full RC1 notes - what each run proved, the ledger's FAILs explained, the known issues
 and the owner's checks - are in `docs/guide/RC1-NOTES.md`; this page is the short version. **Nothing has been
 installed on the tablet**: every result below is from RAM boots (test kits), from build runs on the tablet, and from
-the install rehearsal, which boots the real install image from the PC's disk without writing the tablet. Installing is
-your decision and your hands (section 6).
+the install rehearsal, which boots the real install image from the PC's disk without writing the tablet. (At RC1 nothing
+had been installed. The owner installed Fedora 44 on 13 Oct 2026, after the final rehearsal r158; section 6 is the
+decision that was taken then.)
 
 ## 1. The build
 
@@ -160,10 +164,9 @@ the firmware are never written, so fastboot (Volume Down + Power) always answers
 ## 7. Where the evidence is
 
 `docs/guide/RC1-NOTES.md` (RC1 in full), the feature matrix (`docs/FEATURES.md`, the published page), the work log
-(`docs/WORKLOG.md`), the run log sets (`docs/tests/area-combo-*`, up to run 112), the install documents
-(`docs/INSTALL-PLAN.md`, `docs/INSTALL-GUIDE.md`), the review and the guide set (`docs/guide/`), the team plan
-(`docs/TEAM-PLAN.md`) and the team's reports with the error ledger's checks (`relay/results/pc-016-020/wf/`). The
-rehearsal logs (r2g, r2h, r2i) stay private; their findings are in section 3.
+(`docs/WORKLOG.md`), the install documents (`docs/INSTALL-PLAN.md`, `docs/INSTALL-GUIDE.md`), the review and the guide
+set (`docs/guide/`) and the team plan (`docs/TEAM-PLAN.md`). The run log sets, the team's reports and the error ledger's
+checks are not published. The rehearsal logs (r2g, r2h, r2i) stay private; their findings are in section 3.
 """
 open(OUT, "w", encoding="utf-8", newline="\n").write(T)
 print("wrote", OUT)

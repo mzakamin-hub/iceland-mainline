@@ -1,7 +1,17 @@
 # OnePlus Pad 4 - Fedora 44 GNOME: loop 3 (after release candidate 1)
 
+## Status (14 Oct 2026)
+
+Loop 3 is closed and superseded. Its kernel (q86, Linux 7.3-rc4) and its libcamera iceland2 build went on through loop 4
+and loop 5; the image they fed was never installed. Results of this loop that still stand: the F43 Wi-Fi drop was not
+reproduced with the 802.11d scan off (patch 0189 stays, it is stock's setting), and F5 (sensor data) and F44 (camera
+links) were proven here (kit 117, r2j). After this loop: the final golden B149 (kernel q89g on Linux 7.3-rc7, committed
+13 Oct 2026 15:45, rehearsal r158 with 0 FAIL) and the Fedora 44 install on the tablet on 13 Oct 2026. For the path
+from here see [LOOP5-NOTES.md](LOOP5-NOTES.md) and [FINAL-REPORT.md](FINAL-REPORT.md). The version numbers and the
+"nothing installed" statements below are the state of 3 Oct.
+
 3 Oct 2026 (docs workflow), with the results of the rehearsal r2j, the ledger's G3 check of r2j and the queue push of
-0189 (iceland-linux 67adee0). **Nothing has been installed on the tablet**:
+0189 (iceland-linux 67adee0). **Nothing had been installed on the tablet by 3 Oct** (the install came on 13 Oct):
 every result here is from RAM boots (test kits), from build runs on the tablet, and from install rehearsals that boot
 the real install image from the PC's disk without writing the tablet. RC1 itself: `RC1-NOTES.md`.
 
@@ -55,8 +65,6 @@ Loop 4: kernel q87 (queue 0190.., the 60 / 61 °C loop) and iceland-device 0.21 
 
 ## 5. Where the evidence is
 
-The kit and build-run logs `docs/tests/area-combo-113` to `-118` (run 116 without its journal: it ran on the owner's
-network), the ledger's checks (`relay/results/pc-016-020/wf/ledger/check-k113.md` to `check-k117.md`, `check-b118.md`,
-`check-r2j.md`), klog's 0189 record text (`relay/results/pc-016-020/wf/klog/cand/k9-*`), camfix's libcamera patches
-and recipe (`relay/results/pc-016-020/wf/camfix/cand/libcamera/`). The rehearsal logs stay private; their findings
-are in the ledger.
+The kit and build-run logs (area-combo-113 to -118, not published; run 116 ran on the owner's network and has no
+journal), the ledger's checks (not published), klog's 0189 record text and camfix's libcamera patches and recipe (not
+published as separate files). The rehearsal logs stay private; their findings are in the ledger.

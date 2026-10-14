@@ -1,5 +1,8 @@
 # Galaxy Tab S6 mainline (bentlybro): lessons for the Pad 4
 
+Status (14 Oct 2026): research only. The Galaxy Tab S6 (SM8150) is unrelated to the shipped Pad 4 build; none of the
+points below is part of the 14 Oct build unless the feature matrix says so.
+
 **Source:** the blog post "Mainline Linux on the Galaxy Tab S6: a 32-byte field and one line of device tree"
 (bentlybro.com, blocked from the cloud container) and its repo
 [Bentlybro/gts6l-mainline-linux](https://github.com/Bentlybro/gts6l-mainline-linux) (GPL-2.0, read at 41fa9b8,

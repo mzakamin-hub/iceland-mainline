@@ -1,7 +1,16 @@
 # Feature matrix audit, 13 Oct 2026 (PC only, read-only)
 
+> **Status 14 Oct 2026.** Most of the changes in sections 1 and 4 are applied. The matrix is now page v62 (14 Oct;
+> 104 rows: 83 ok, 13 part, 5 todo, 3 out). Changes since this audit: B1 and B2 (the rc7 rebase is done: q89e, then q89f
+> and q89g on 13 Oct); B7 (firmware 11.A.38-3, pinned fetch proven); B21 and B27 (the GStreamer colour fix and the
+> microphone chain are in B146 and B147); B37 (the brightness cap is a kernel clamp in q89f and q89g, 8 of 8 PASS in r157
+> and r158); B42 and B43 (libcamera 0.7.1-2 from Fedora stable: G4 PASS in r157 and r158); B15 (the lower idle refresh is
+> compiled in q89g and off by default: 120 -> 60 Hz measured 74.8 Hz in r157). The owner checks in section 1 stay open.
+> Script and folder names are PC names and are not published.
+
+
 Scope: every `part` / `todo` row and every `Fixing:` / `Add:` / `Tune:` item of
-`~/mainline/gh/iceland-mainline/docs/features/features-data.py` at 488c469 (pulled 13 Oct; 104 rows: 79 ok, 16 part,
+`<pc-work>/gh/iceland-mainline/docs/features/features-data.py` at 488c469 (pulled 13 Oct; 104 rows: 79 ok, 16 part,
 6 todo, 3 out). Owner checks of ok rows are listed only where they duplicate another row or became stale.
 Nothing was run on the tablet; no repo file was changed.
 
@@ -9,11 +18,11 @@ Evidence (newest wins):
 - Loop 5 `R138-TRACKER.md` (to 13 Oct ~01:10) and `WORKLOG.md` tail (to 13 Oct ~02:40, the owner's merge of N1-N4
   into B146), `STATE-2026-10-12-1400.md`;
 - run logs r141 / r141u / r141ub, r142 / r142b, r144-r147, r148c, r150 / r150b, r151, r152, r153;
-- main `WORKLOG.md` tail, `docs/TIMETABLE-B146-2026-10-12.md` (incl. the 02:10 and 02:40 adjustments),
+- main `WORKLOG.md` tail, the B146 timetable (removed 13 Oct, not published) (incl. the 02:10 and 02:40 adjustments),
   `MATRIX-AUDIT-2026-10-12.md`, `SOUND-PLAN-2026-10-12.md`, `QUALCOMM-LINUX-KERNEL-2026-10-12.md`,
   `AUTOMATE-FINAL-2026-10-12.md`;
-- `~/mainline/gh/iceland-linux` (origin has `iceland-7.3-rc6-q89d8` and `iceland-7.3-rc6-q89d9`, tags `q89d8` and `q89d9`;
-  no q89e yet), `~/mainline/gh/iceland-firmware` (tags 11.A.38-2 and 11.A.38-3, 70ea8f1), `wf/rc7`, `wf/b146`
+- `<pc-work>/gh/iceland-linux` (origin has `iceland-7.3-rc6-q89d8` and `iceland-7.3-rc6-q89d9`, tags `q89d8` and `q89d9`;
+  no q89e yet), `<pc-work>/gh/iceland-firmware` (tags 11.A.38-2 and 11.A.38-3, 70ea8f1), `wf/rc7`, `wf/b146`
   (0.28-4 tgz built; check-b146.sh covers fetch, BRIGHTNESS=0, no random seed, N4), `wf/n2mic`, `wf/n3rng`, `wf/n4gst`.
 
 Classes: DONE, IN PROGRESS, STALE, DUPLICATE, REGRESSION-RISK, OPEN-VALID (priority high / med / low; owner = needs

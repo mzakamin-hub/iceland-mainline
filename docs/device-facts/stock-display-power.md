@@ -1,13 +1,21 @@
 # Stock display power, bandwidth and CPU thermal (OnePlus Pad 4, 11.A.38)
 
-Read on the user's PC on 2026-09-28 by the PC relay session (see [relay/](../../relay/README.md)). The sources stay on
-the PC and are not committed:
+Status (14 Oct 2026): the installed system's display path, from the feature matrix and the 14 Oct power report:
+- Native 3392x2400 with dual DSI and DSC; refresh 30, 60, 90, 120, 144 Hz with live switching (GP1 exact at 60, 120 and
+  144 Hz).
+- Night Light is out: it was dropped on 10 Oct because the display path has no gamma / DSPP block.
+- Idle refresh is off by default. At 60 Hz it would save 64 mW, and at 30 Hz 466 mW, but the switch from 120 to 60 Hz
+  measured 74.8 Hz (run r157). It stays off until a debug round (raise / drop timestamps, an idle 60 Hz row, a control
+  run) is done.
+- The stock rail and vote tables below are the reference for the regulators; they were read on 28 Sep.
 
-- `merged-stock.dts`: the stock base DTB with the "iceland-O IN" overlay merged, from the DSU capture of 2026-09-28 03:00
-  (WSL `~/android/captures/dsu-stock-20260928-0300/`).
-- `live-screen-on-20260928-031810.txt`: stock Android with the screen on (`C:\platform-tools\`), including the
-  regulator summary.
-- `thermal-zones.txt` and `cooling-devices.txt` from the same capture.
+Read on the PC on 2026-09-28 by the PC relay session (the relay notes are not published). The sources stay on the PC
+and are not committed:
+
+- `merged-stock.dts`: the stock base DTB with the "iceland-O IN" overlay merged, from the DSU capture of 2026-09-28
+  (kept on the PC).
+- A stock Android screen-on dump with the regulator summary (kept on the PC).
+- The thermal-zone and cooling-device lists from the same capture (kept on the PC).
 
 ## RPMh rails: names used by the stock kernel
 
@@ -55,8 +63,8 @@ DSI PHY GDSCs `9ac1000`/`9ac4000` were on.
 
 ## Compared with Linux test 6
 
-`linux-run6/linux-genpd.txt`: `mmcx on 384`, while `mx`, `mx_ao`, `mxc`, `mxc_ao` and `cx` were all `off-0`.
-`linux-interconnect.txt`: `qnm_mdp` was 0/0. The stock data shows that the rail dispcc needs besides MMCX is **MX, not
+The Linux test 6 power-domain log (not published): `mmcx on 384`, while `mx`, `mx_ao`, `mxc`, `mxc_ao` and `cx` were all `off-0`.
+The Linux interconnect log (not published): `qnm_mdp` was 0/0. The stock data shows that the rail dispcc needs besides MMCX is **MX, not
 MXC**.
 
 ## CPU thermal (stock)

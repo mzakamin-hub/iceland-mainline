@@ -1,5 +1,17 @@
 # USB-C bring-up plan: host / OTG / PD, accessories, DisplayPort (OnePlus Pad 4)
 
+Status (14 Oct 2026):
+- USB device mode works (USB 2 speed; SuperSpeed not verified). USB host and OTG are not yet proven with accessories;
+  the owner's accessory checks (keyboard, stick, hub) are open.
+- DisplayPort over USB-C: the DP-1 connector, hot plug and EDID work with a bus-powered 4K USB-C monitor. GNOME enables
+  DP-1 at 3840x2160 with DPMS on, but there is no picture: the DP pipeline timed out at disable (no frames produced).
+- Power: the port is a host with the tablet as the source. The PD contract is 5 V at 2 A (10 W); the stock OTG current
+  limit is 2000 mA. The battery charger's VBUS read 5.07-5.08 V and its current rose to 2.45 A over successive samples,
+  so the monitor may draw more than the contract (unverified: a possible over-current cut-off).
+- Bandwidth: 4K60 at 24 bpp needs about 12.8 Gbit/s, the limit of two HBR3 lanes beside USB3 (computed, not measured).
+  The next step is a DP link-training and mode log on the installed system, with the lane count decided from it.
+- The headset over USB-C (accessory mode) is still a todo.
+
 Status 2026-09-30: prepared offline (the user's request: "prep ... usb host/otg/pd, usb accessories (headsets,
 keyboards,etc) and display port usb-c"). Rule 13 applies: board values from Pad 4 stock only.
 
@@ -11,7 +23,7 @@ keyboards,etc) and display port usb-c"). Rule 13 applies: board values from Pad 
 | Data role | dwc3 `usb@a600000` with `usb-role-switch` (UCSI drives host/device); HS endpoint → dwc3, eUSB2 repeater with stock's tuning |
 | SuperSpeed + DP lanes | Kaanapali USB3+DP combo PHY (queue 0087/0088), connector SS endpoint → `usb_dp_qmpphy_out` |
 | SBU / analog audio | WCD9395 USB-SS mux (`qcom,wcd9395-usbss`, mode + orientation switch, 0085) on the connector's SBU endpoint; WCD939x Type-C mode changes (0114) |
-| DisplayPort controller | Kaanapali DP (0105-0108), `mdss_dp0` in kaanapali.dtsi — **disabled on the Pad 4** (the OnePlus 15 DTS enables it) |
+| DisplayPort controller | Kaanapali DP (0105-0108), `mdss_dp0` in kaanapali.dtsi — disabled in the first Pad 4 DT (the OnePlus 15 DTS enables it); enabled since (see status) |
 | Kernel config | TYPEC, TYPEC_UCSI, UCSI_PMIC_GLINK, QCOM_PMIC_GLINK, USB_ROLE_SWITCH, DWC3 dual-role, xHCI, PHY_QCOM_QMP_COMBO, DRM_MSM_DP, DRM_AUX_HPD_BRIDGE, TYPEC_MUX_WCD939X_USBSS (y); TYPEC_DP_ALTMODE, USB_HID, HID_GENERIC, SND_USB_AUDIO, USB Ethernet (r8152, ax88179, cdc_ether), USB_SERIAL (m); USB_STORAGE (y); **USB_UAS not set** |
 
 ## 2. What stock says (read locally from the private stock DTs, not committed)
@@ -31,10 +43,10 @@ keyboards,etc) and display port usb-c"). Rule 13 applies: board values from Pad 
    Prepared: `build/mk-modfull.sh` packs the full stripped module tree (q28: 949 modules, 12.5 MB); a probe unpacks it
    into `/lib/modules/<kver>`, runs `depmod` and replays udev (`udevadm trigger --action=add`). The installed system
    ships all modules anyway; this is only the RAM kit.
-2. **DP enable (DT candidate):** `&mdss_dp0 { status = "okay"; }` and `&mdss_dp0_out` with
-   `link-frequencies = /bits/ 64 <1620000000 2700000000 5400000000 8100000000>` (stock's HBR3 tables), then compare
-   the combo PHY's Kaanapali swing / pre-emphasis tables with stock's Pad 4 HBR/RBR override.
-3. **UAS** for fast USB storage: `CONFIG_USB_UAS=m` (Fedora's own kernel has it).
+2. **DP enable (applied; the picture is open):** `&mdss_dp0 { status = "okay"; }` and `&mdss_dp0_out` with
+   `link-frequencies = /bits/ 64 <1620000000 2700000000 5400000000 8100000000>` (stock's HBR3 tables). The combo PHY's
+   Kaanapali swing / pre-emphasis tables against stock's Pad 4 HBR/RBR override are still to compare (unverified).
+3. **UAS** for fast USB storage: `CONFIG_USB_UAS=m` (Fedora's own kernel has it). Whether the 14 Oct kernel sets it is unverified.
 
 ## 4. Tests
 
@@ -43,7 +55,7 @@ keyboards,etc) and display port usb-c"). Rule 13 applies: board values from Pad 
 source capabilities (`/sys/class/usb_power_delivery`), the UCSI power supply, the DP connector appearing as `DP-1`
 (disconnected) with the DT candidate, the port's alt modes (DP SVID 0xff01), the WCD USB-SS mux bound. Faults: 0.
 
-**B. With the user (deferred; one session, 10 min):** host mode needs the port, and the kit's control link is that
+**B. With the user (deferred; one session, 10 min; the owner's accessory checks are open, see the status block):** host mode needs the port, and the kit's control link is that
 same port, so a script on the tablet logs to RAM while the PC cable is out and the probe fetches the log when the
 PC is plugged back. In order: a USB keyboard and mouse (HID), a USB stick (storage), a USB-C digital headset
 (snd-usb-audio: playback + mic), a USB-C to 3.5 mm adapter (analog audio accessory mode through the WCD USB-SS mux and
@@ -52,5 +64,5 @@ adapter, and a DP monitor or dock (alt mode: 4 lanes, or 2 lanes + USB3 behind a
 back). Each item is judged from the logs (enumeration, the driver bound, audio levels, DRM modes); the user only
 plugs.
 
-**C. PD (with the charger tests, power.md T2-T6):** the PD contract as a sink (9 V, never 12 V) and as a source
+**C. PD (with the charger tests; the charger test plan is not published):** the PD contract as a sink (9 V, never 12 V) and as a source
 (OTG VBUS to a device), both through UCSI's power supplies.

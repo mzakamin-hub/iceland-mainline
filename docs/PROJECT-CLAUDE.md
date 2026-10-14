@@ -1,5 +1,12 @@
 # OnePlus Pad 4 mainline Linux - instructions for Claude sessions in this folder
 
+> **Status 14 Oct 2026.** The install is done: Fedora 44 GNOME has run on the tablet since 13 Oct. The two install writes
+> were run after the owner confirmed each one in chat (see `INSTALL-PLAN.md`). The rules below that forbid flashing, unlocking,
+> wiping or installing applied to the PC sessions before the install; they stay in force for every write after it. The
+> workflow model in "How the work is organised" ended on 13 Oct with loop 5. The hard-won rules still apply. File, script
+> and folder names in this document are PC work-tree names and are not published.
+
+
 Before doing anything, read in this order:
 
 0. `HANDOVER.md` - the exact state, every workflow with its next
@@ -18,14 +25,14 @@ Standing orders from the user:
   commit with the privacy guards, and republish the matrix page (see `STATE.md`).
 - Tests are fully automated; anything that needs the user's hands or eyes is deferred and listed.
 - Never flash, unlock, wipe or install; never commit private data; mask the serial, addresses and network names.
-- The live work is in WSL (`~/mainline`); this folder is a snapshot plus the log. Refresh the snapshot with
+- The live work is in WSL (`<pc-work>`); this folder is a snapshot plus the log. Refresh the snapshot with
   `build/save-project.sh` + `save-project-fix.sh` after larger changes.
 
 How the work is organised since 2 Oct 2026 
 
 - One background agent ("workflow") per open topic prepares on the PC only (analysis, candidates, a tablet test)
-  in WSL `~/mainline/build/wf/<name>/`; the main session reviews, builds, runs the test in a RAM kit run, and sends
-  the results back to the agent until the topic is green. Briefs: `docs/WORKFLOW-BRIEF-2.md`, `-3-camera.md`,
+  in WSL `<pc-work>/build/wf/<name>/`; the main session reviews, builds, runs the test in a RAM kit run, and sends
+  the results back to the agent until the topic is green. Briefs: the workflow briefs (removed 13 Oct, not published), `-3-camera.md`,
   `-4.md`, `-5.md`.
 - Runs and waits always go into the background; the completion notice continues the work. The user backgrounds
   every foreground wait.

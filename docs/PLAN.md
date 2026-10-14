@@ -1,5 +1,25 @@
 # OnePlus Pad 4 (`iceland`, SM8850P) — mainline Linux plan v4
 
+> **Status 14 Oct 2026.** This is plan v4 (28 Sep). Its phases as they stand on 14 Oct:
+>
+> | Phase | Status 14 Oct |
+> |---|---|
+> | 1 U-Boot bring-up | done |
+> | 2 First Linux shell from RAM | done |
+> | 3 Core hardware over RAM boot | done, except what needs a person (pen, lid and keyboard events, the 5 GHz connection, USB host) |
+> | 4 Fedora 44 GNOME install | **done 13 Oct** (Fedora from `boot_b` on the tablet; see `INSTALL-PLAN.md`) |
+> | 4-DB Dual boot with Android | not started (decision 1 = Fedora only) |
+> | 5 Remaining hardware | mostly done for the matrix rows; open: DP over USB-C, OTG / USB host, pogo keyboard, pen, headset, wall chargers |
+> | 5-PM Sleep, thermal, power | thermal done (stock table; screen-off table and boost ceiling in 0.28-8, not yet in an image); sleep done in the RAM kits; the overnight drain open |
+> | 5-GN GPU and NPU | GPU done (Vulkan 1.4 on Mesa 26.2.4; video decode and encode done); the NPU is not reported in the sources (unverified) |
+> | 5-CAM Cameras | both sensors stream through libcamera 0.7.1-2; focus fixed, no autofocus; camera into the hardware encoder open |
+> | 6 Upstreaming | not done; the owner decides what goes upstream (0292 is held) |
+> | 7 Other distros | not started |
+>
+> The hard stops below are the owner's rules. The install was carried out under the 13 Oct decisions listed in
+> `INSTALL-PLAN.md`. The feature matrix (`docs/features/`) has the row-by-row state.
+
+
 Version 4, 2026-09-28 (evening). Replaces v3 (v3's history is in git; v2 and the discovery notes are in
 [RESEARCH.md](RESEARCH.md)).
 
@@ -64,7 +84,7 @@ user agrees. The PC session runs kits unattended (KNOWLEDGE §2 rule 11), so kit
 ### Phase 4 — Fedora 44 Workstation (GNOME) install
 
 **4a. RAM rehearsal (no writes; in progress on the PC).** This uses the proven `phase4/` workflow: Container Base
-rootfs → dnf through `tools/relay/usb-proxy.py` → `rootfstar` hand-back → `ROOTFS_URL`, with systemd as PID 1 in
+rootfs → dnf through the debug tooling (removed 13 Oct, not published) → `rootfstar` hand-back → `ROOTFS_URL`, with systemd as PID 1 in
 `ROOTFS_MODE=pid1` (never `switch`).
 - Y10: boot `rootfs-gnome.tar.gz` and judge the GNOME session from the journal. The user gives a 30 s touch window.
 - **Rehearse the real install in RAM too.** Loop-mount the official `Fedora-Workstation-Disk-44` raw image's
@@ -493,5 +513,5 @@ Private GitHub repos:
 - `iceland-linux`: kernel patch queue, config, CI;
 - `iceland-u-boot`: U-Boot patch queue, test scripts.
 
-Shared memory of both sessions: [KNOWLEDGE.md](KNOWLEDGE.md). Test history: `docs/tests/README.md`. PC results:
-`relay/results/`.
+Shared memory of both sessions: [KNOWLEDGE.md](KNOWLEDGE.md). Test history: the test documents (removed 13 Oct, not published). PC results:
+the relay notes (removed 13 Oct, not published).

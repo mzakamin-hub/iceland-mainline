@@ -1,5 +1,13 @@
 # OnePlus Pad 4: a plan for Fedora next to LineageOS (dual boot) - PLAN ONLY
 
+> **Status 14 Oct 2026: plan only, not started.** Decision 1 = Fedora only (owner, 13 Oct). The install used all of
+> `userdata` for Fedora (Android's data is gone and Android does not start), so a dual boot would now need the shrink and
+> repartition of section 4.3, its own rehearsal and a new U-Boot placement. None of that is done. The U-Boot route that
+> reads a `fedora` partition exists in the U-Boot patch series (commit 721219e), and the repository has a `tools/dualboot`
+> folder; the sources do not say whether those still match the installed layout (unverified). The boot-counter lesson of
+> `INSTALL-PLAN.md` (slot marking needs `qbootctl -m` from a running system) applies to any dual-boot design.
+
+
 > **For the owner, in five lines.**
 > - What you get: LineageOS stays the default at power-on; Fedora starts from the recovery path ("Restart to
 >   recovery" in LineageOS, `adb reboot recovery`, probably Power + Volume Up).

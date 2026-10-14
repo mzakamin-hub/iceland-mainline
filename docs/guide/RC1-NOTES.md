@@ -1,14 +1,23 @@
 # OnePlus Pad 4 - Fedora 44 GNOME: release candidate 1 (RC1)
 
+## Status (14 Oct 2026)
+
+RC1 (kernel q85, Linux 7.3-rc4, iceland-device 0.19) is superseded and was never installed. Its three headset-codec
+fixes (0186-0188, the F18 class) are part of the kernel queue that followed (q89g carries them). The install came on
+13 Oct 2026: the owner wrote the install image built from the final golden B149 (kernel q89g on Linux 7.3-rc7,
+iceland-device 0.28-7, iceland-firmware 11.A.38-3, libcamera 0.7.1-2 from Fedora), and Fedora 44 GNOME has run from it
+since then. The F43 and F44 items of section 3a were closed in loops 3 and 4 (see LOOP3-NOTES.md and LOOP4-NOTES.md). The sections below are the state of
+3 Oct; where they name rc4, q85 or iceland-device 0.19 as current, read the status above.
+
 3 Oct 2026, 12:10 (docs workflow), with the results of B run 112, the rehearsal r2i, the ledger's G3 check of r2i
-and the queue push of 0186-0188. **Nothing has been installed on the tablet**: every result here is from RAM boots (test kits), from build runs on the tablet, and from install
+and the queue push of 0186-0188. **Nothing had been installed on the tablet by 3 Oct** (the install came on 13 Oct): every result here is from RAM boots (test kits), from build runs on the tablet, and from install
 rehearsals that boot the real install image from the PC's disk without writing the tablet.
 
 ## 1. What RC1 is
 
 | Piece | Version | What is new against the q84 build (r2h, 45 / 0 / 0) |
 |---|---|---|
-| Kernel | **q85** = `7.3.0-rc4-iceland-00324-ge0373b2308fc`: Linux 7.3-rc4 + 138 SM8850 base patches + the Pad 4 queue 0001-0185 (iceland-linux cd0bf55) + **0186-0188** (queued and verified: iceland-linux a9b55d4, the queued tree equals q85's) | the three headset-codec fixes for F18 (below) |
+| Kernel (superseded: q89g on 7.3-rc7 since 13 Oct) | **q85** = `7.3.0-rc4-iceland-00324-ge0373b2308fc`: Linux 7.3-rc4 + 138 SM8850 base patches + the Pad 4 queue 0001-0185 (iceland-linux cd0bf55) + **0186-0188** (queued and verified: iceland-linux a9b55d4, the queued tree equals q85's) | the three headset-codec fixes for F18 (below) |
 | Kernel packages | K2 `kernel-iceland-7.3.0~rc4.iceland.00324.ge0373b2308fc-1.fc44`, K3 `...ge0373b2308fc.1-1.fc44` (the twin for the update rehearsal) | rebuilt from q85 |
 | Device package | P1: `iceland-device` 0.19, the package of B run 109 (battery guard v3.1 with the charger input cut, PipeWire 1.6.8 or newer, Wi-Fi regulatory domain US, no TPM modules in the initramfs, the UFS scheduler one disk at a time, no `*_ignore_unused` flags, the camera tuning) | unchanged |
 | Tablet-side tooling | TIN: the rehearsal / install bundle the tablet receives (acceptance list, tablet script, firmware extractor, rescue script) | as for r2h |
@@ -107,7 +116,7 @@ The writes are the owner's alone: Part A (read only) -> C0 (the write-2 probe, u
 
 ## 5. Where the evidence is
 
-The kit and build-run logs (`docs/tests/area-combo-106` to `-112`), the ledger's checks (`relay/results/pc-016-020/wf/
-ledger/check-*.md`; the r2i check and its scripts come with the loop-3 commit), the fix records' text (`relay/results/pc-016-020/wf/klog/cand/`), the queue commit for 0186-0188
+The kit and build-run logs (area-combo-106 to -112, not published), the ledger's checks (not published; the r2i check
+and its scripts are in the loop-3 work), the fix records' text (not published), the queue commit for 0186-0188
 (iceland-linux a9b55d4), the release notes of the q84 build (`docs/RELEASE-NOTES.md`). The rehearsal
 logs (r2h, r2i) stay private; their findings are in the ledger.

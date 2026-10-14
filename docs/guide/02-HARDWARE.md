@@ -1,10 +1,13 @@
 # 02 - The hardware as Linux sees it
 
-State: 2 Oct 2026, about 22:30. Kernel queue 0001-0174 (`iceland-linux` a88cf03, head "Input: nt36536: do not log the
-panel wait deferral as an error"). Main sources:
-`iceland-mainline/docs/reference/pad4-hardware-boot-partitions.md` (28 Sep), the hardware inventory
-`~/mainline/build/wf/hwinv/INVENTORY.md` (112 rows, tablet run area-combo-70), the stock-values audit
-`wf/audit/REPORT.md`, `docs/FEATURES.md`, `docs/BOOT-LOG-PLAN.md`, `docs/KNOWLEDGE.md` section 4.
+State: 14 Oct 2026, the installed system. Kernel `7.3.0-rc7-iceland-00426-g520e85da9244` from the queue head q89g
+(`iceland-linux` branch `iceland-7.3-rc7-q89g`, tag `q89g`; 426 queue patches: 132 base, 294 Pad 4).
+
+Status (14 Oct 2026): the rows below were first written on 2 Oct 2026 (kernel queue 0001-0174, rc4 base). Where a row
+or a paragraph is out of date, a short "Status (14 Oct)" note follows it. The 2 Oct evidence names are kept as the
+record of the run that proved each row; the run logs themselves are not published. Main sources for the current state:
+`reference/pad4-hardware-boot-partitions.md` (28 Sep), `docs/FEATURES.md` (page v62, 14 Oct), `docs/KNOWLEDGE.md`
+section 4, and the stock-values audit and hardware inventory summarised in sections 3 and 9.
 
 **How to read the status column.**
 
@@ -32,29 +35,31 @@ recorded in `docs/device-facts/` (the raw stock trees themselves are private and
 
 ## 2. The SoC blocks
 
-The kernel is mainline v7.3-rc4. On top of it come the **infiniti series** (138 patches, the OnePlus 15 port of the
+The kernel is mainline v7.3-rc7 (rebased from rc6 on 11-12 Oct; the rc4 base named in the 2 Oct evidence is superseded).
+On top of it come the **infiniti series** (132 patches after the rc7 rebase, the OnePlus 15 port of the
 same SoC, `patches/0001-infiniti/`: Kaanapali clocks fixes, GPU, Iris, CAMSS, QCE, DP, ADC5 Gen4, WCN7860, the
-OnePlus charger variant of `qcom_battmgr`) and the **Pad 4 series** (`patches/0002-iceland/0001-0174`). "Base"
-below means mainline + infiniti; a number is a Pad 4 queue patch.
+OnePlus charger variant of `qcom_battmgr`) and the **Pad 4 series** (`patches/0002-iceland/`, 294 patches at q89g).
+"Base" below means mainline + infiniti; a number is a Pad 4 queue patch from the 2 Oct numbering (the numbers moved
+with the rebases; the patch subjects are the stable reference).
 
 | Block | Linux driver (DT node) | Source | Status (evidence) |
 |---|---|---|---|
-| CPUs: 8 Qualcomm Oryon cores; cluster 0 = CPUs 0-5 (0.384-3.629 GHz), cluster 1 = CPUs 6-7 (0.768-4.397 GHz) | `scmi-cpufreq` over the CPUCP firmware (2 SCMI performance domains), schedutil | base; stock capacities 799 / 1024 and energy model 0055 | **proven** (area-combo-11, hwinv R70). Stock's top steps 4.5 / 4.6 GHz are accepted but not granted by the firmware (area-combo-14) |
+| CPUs: 8 Qualcomm Oryon cores; cluster 0 = CPUs 0-5 (0.384-3.629 GHz), cluster 1 = CPUs 6-7 (0.768-4.397 GHz) | `scmi-cpufreq` over the CPUCP firmware (2 SCMI performance domains), schedutil | base; stock capacities 799 / 1024 and energy model 0055 | **proven** (area-combo-11, inventory R70). Stock's top steps 4.5 / 4.6 GHz are accepted but not granted by the firmware (area-combo-14) |
 | CPU idle, cluster low-power modes | PSCI cpuidle (WFI, cpu-sleep-0, cluster states) | base | **proven**: s2idle; CX collapse in 98 % of a 150 s sleep (area-combo-64) |
-| GPU: Adreno 840 (gen8 "gen80200"), 18 MiB GMEM, 160 MHz-1.2 GHz in 18 levels | `msm` (a6xx/a8xx family), GMU, GPU SMMU | base + 0011 (GMU address), 0054 (stock levels), 0144-0149 (upstream A8x GMU / RPMh vote fixes) | **proven**: Mesa freedreno OpenGL ES 3.2 / OpenGL 4.6, turnip Vulkan 1.4; dEQP and WebGL results in FEATURES (area-graphics-1..3) |
-| Video: Iris VPU 4.0 | `qcom-iris` (`/dev/video0` decoder, `/dev/video1` encoder) | base + 0062 (DT enable) + 0157-0160 (upstream fixes) | **proven**: H.264 / HEVC / VP9 (incl. 10-bit) / AV1 decode bit-exact, H.264 / HEVC encode (results-video-2, area-combo-6) |
+| GPU: Adreno 840 (gen8 "gen80200"), 18 MiB GMEM, 160 MHz-1.2 GHz in 18 levels | `msm` (a6xx/a8xx family), GMU, GPU SMMU | base + 0011 (GMU address), 0054 (stock levels), 0144-0149 (upstream A8x GMU / RPMh vote fixes) | **proven**: Mesa freedreno OpenGL ES 3.2 / OpenGL 4.6, turnip Vulkan 1.4; dEQP and WebGL results in FEATURES (area-graphics-1..3). Status (14 Oct): Mesa 26.2.4; GNOME drawn by the GPU on the installed system; Chromium and Electron GPU acceleration still open |
+| Video: Iris VPU 4.0 | `qcom-iris` (`/dev/video0` decoder, `/dev/video1` encoder) | base + 0062 (DT enable) + 0157-0160 (upstream fixes) | **proven**: H.264 / HEVC / VP9 (incl. 10-bit) / AV1 decode bit-exact, H.264 / HEVC encode (results-video-2, area-combo-6). Status (14 Oct): the camera into the encoder does not negotiate a format (VE-CAM, open) |
 | Display: MDSS 13.0 / DPU, UBWC 6.0, 2 x DSI + 2 x DSI PHY, DSC 1.2 | `msm` DPU + DSI | base + 0001, 0006, 0025-0027, 0035, 0058, 0060, 0114, 0138, 0151 | **proven** at 30 / 60 / 90 / 120 / 144 Hz (area-display-7) |
-| DisplayPort over USB-C (QMP combo PHY) | `msm` DP | base + 0133-0134 | **bound** (DP-1 "disconnected", DP audio joins the sound card, area-combo-73/-78); never tried with a monitor |
+| DisplayPort over USB-C (QMP combo PHY) | `msm` DP | base + 0133-0134 | **bound** (DP-1 "disconnected", DP audio joins the sound card, area-combo-73/-78). Status (14 Oct): with a portable 4K monitor on the installed system, HPD and EDID work and DP-1 enables at 3840x2160, but no picture is produced (the DP pipeline times out at disable). Open: the link training and the USB-C power contract (the contract is 5 V x 2 A; the monitor may draw more; unverified, see the DisplayPort note in section 4) |
 | Camera subsystem: CAMSS (CSID / VFE Gen4), CSIPHY 4 and 5 | `qcom-camss`, `phy-qcom-mipi-csi2` | base + 0073, 0128 | **proven** with both sensors (area-combo-46, -50, -52). Loaded on demand (udev coldplug); the hardware ISP (ICP / IPE / JPEG) has **no mainline driver**: libcamera's software ISP is used instead |
 | Hexagon ADSP (audio, sensor hub, FastRPC) | `qcom_q6v5_pas` + GPR / APM / PRM, FastRPC | base + 0018, 0061, 0170 (stock's 12 MiB FastRPC heap) | **proven** (sound, sensors). Started after its firmware is reachable (section 8) |
 | Hexagon CDSP (NPU) | `qcom_q6v5_pas`, FastRPC on the CDSP | base + 0117-0124 (cooling over QMI TMD) | **proven**: unsigned test programs and the tablet's NPU runtime library load (area-combo-1/-2); cooling (area-combo-75). **Do not stop it** at run time: a stop leaves its CX vote behind until the next reboot (area-combo-66/-67) |
 | SoCCP (charger and USB-PD co-processor) | `qcom_q6v5_pas` in attach mode (started by the boot chain) | base | **proven** (attached; pmic_glink channels) |
-| SPSS (secure processor) | - | **no mainline driver** | offline on stock too; it is the reason the deepest sleep state (AOSS sleep) is out of reach (wf/deepsleep) |
+| SPSS (secure processor) | - | **no mainline driver** | offline on stock too; it is the reason the deepest sleep state (AOSS sleep) is out of reach |
 | Modem / GNSS | - | **absent** on SM8850P | - |
-| PCIe0 (to the Wi-Fi chip, Gen3 x2) | `pcie-qcom`, `pci-pwrctrl-pwrseq` | base + 0040 (WAKE# polarity), 0113 (no hot-plug slot bit) | **proven**; the link goes down in sleep since 0113. Open: "Timeout waiting for L2 entry" at every suspend (BOOT-LOG-PLAN P1-d). Diagnosis (wf/bootfix topic A): without wake-on-WLAN, ath12k's suspend resets the WLAN SoC, and the reset chip never answers PME_Turn_Off; the controller logs the timeout and continues, and ath12k reloads its firmware on resume. Stock keeps the WLAN firmware alive. Test-only kit run 97 is running. The 14 probe deferrals are the power-control driver waiting for `pci-pwrctrl-pwrseq` |
+| PCIe0 (to the Wi-Fi chip, Gen3 x2) | `pcie-qcom`, `pci-pwrctrl-pwrseq` | base + 0040 (WAKE# polarity), 0113 (no hot-plug slot bit) | **proven**; the link goes down in sleep since 0113. Open: "Timeout waiting for L2 entry" at every suspend. Diagnosis: without wake-on-WLAN, ath12k's suspend resets the WLAN SoC, and the reset chip never answers PME_Turn_Off; the controller logs the timeout and continues, and ath12k reloads its firmware on resume. Stock keeps the WLAN firmware alive. The 14 probe deferrals are the power-control driver waiting for `pci-pwrctrl-pwrseq` |
 | USB: DWC3 dual-role, M31 eUSB2 PHY, eUSB2 repeater (in PMIH0108), QMP USB3-DP combo PHY | `dwc3-qcom`, `phy-qcom-m31-eusb2`, `phy-qcom-eusb2-repeater`, `phy-qcom-qmp-combo` | base + 0063 / 0065 (CPU-latency hold while USB is up), 0109-0112 (stock repeater tuning), 0153-0154, 0162 (f_ncm flush retry) | **proven** in device mode (the test link, USB 2 speed). Host mode works by design (UCSI role switch) but is untested with an accessory |
 | UFS 4.0 host + QMP UFS PHY + inline crypto | `ufs-qcom`, `phy-qcom-qmp-ufs`, `qcom-ice` | base + 0099 (stock UFS PHY supply), 0171 (MCQ, multi-queue) | **proven** (read-only use; HS-G5 x2). MCQ since 0171: 9 queues, a 256 MiB direct read at 2.3 GB/s (area-combo-96) |
-| RPMh (RSC, power domains, regulators, BCM) | `qcom_rpmh`, `rpmhpd`, `qcom-rpmh-regulator` | base + 0084-0085 (PMH0101 level shifters) | **proven**. Mainline sends only active-set votes: a vote Linux holds stays in force while the SoC sleeps (wf/audit, wf/deepsleep) |
+| RPMh (RSC, power domains, regulators, BCM) | `qcom_rpmh`, `rpmhpd`, `qcom-rpmh-regulator` | base + 0084-0085 (PMH0101 level shifters) | **proven**. Mainline sends only active-set votes: a vote Linux holds stays in force while the SoC sleeps (the stock-values audit and the deep-sleep tests) |
 | AOSS / AOP, PDC, IPCC, SMP2P, SMEM | `qcom_aoss`, `qcom-pdc`, `qcom-ipcc`, `smp2p`, `smem` | base | **proven** (remote processors, wake interrupts) |
 | Sleep statistics | `qcom_stats` (RPMh stats) | base | **bound** on demand; used by the deep-sleep tests |
 | SMEM DRAM information (872-byte layout) | `qcom_smem` | 0172 (backport of the upstream Glymur DRAM-info support, author kept), 0173 (a 32-bit overflow fix) | **proven**: the DRAM frequency plan is parsed (area-combo-96). Its highest-bank-bit field is 0, so the UBWC table value 16 stays in use, which is stock's value too |
@@ -73,13 +78,13 @@ below means mainline + infiniti; a number is a Pad 4 queue patch.
 | Part | Bus / address (Linux view) | Driver | Source | Status (evidence) |
 |---|---|---|---|---|
 | Panel: CSOT XN251 LCD, 13.2", **3392x2400** landscape-native, two DSI links of 1696x2400, DSC, video mode | DSI0 + DSI1 | `panel-novatek-nt36536` (upstream driver + Pad 4 mode) | 0002, 0007, 0103 (stock 144 Hz porch), 0108 (stock reset sequence) | **proven** 30-144 Hz |
-| Backlight: 2 x Kinetic KTZ8869 (master + slave, shared enable line on TLMM 1) | I2C 0x11 on two buses | `ktz8869_iceland` | 0004-0005, 0024, 0102, 0168 (I/O supply optional, as stock has none); `CONFIG_GPIO_SHARED_PROXY=y` | **proven** (2..4095; stock's normal range ends at 3542, above is its sunlight boost: an owner decision, wf/audit) |
+| Backlight: 2 x Kinetic KTZ8869 (master + slave, shared enable line on TLMM 1) | I2C 0x11 on two buses | `ktz8869_iceland` | 0004-0005, 0024, 0102, 0168 (I/O supply optional, as stock has none); `CONFIG_GPIO_SHARED_PROXY=y` | **proven** (2..4095; stock's normal range ends at 3542, above is its sunlight boost: an owner decision, from the stock-values audit) |
 | Touch + active pen: Novatek NT36536 TDDI (no flash: firmware loaded into its SRAM at every probe) | SPI (QUP4) + TLMM 158 | `nt36536` touch driver | 0009-0010, 0036-0037, 0174 (the panel-wait deferral no longer logged as an error) | **proven** touch; pen working per the owner, little tested |
 | Pen wireless charger: Maxic MT5806 + an hBoost in PMIH0108 | I2C 0x2b behind PMH0101 level shifters 3 / 4 | `mt5806_pen_charger` + pmic_glink hBoost client | 0090-0093 | **queued, needs owner**: proven without a pen (area-combo-47/-49); one 90 s pen session remains |
 | Pogo keyboard cover (private protocol, one data line, 921600 baud) | GENI UART QUP3 SE4 (`1990000`; BT is `1994000`) | `oneplus-pogo-keyboard` (serdev) | 0094-0097 | **queued, needs owner**: proven without a cover (area-combo-49/-52) |
-| Speakers: 6 x NXP TFA9865 on TDM (8 x 32 bit, 48 kHz) | I2C 0x34 / 0x36 / 0x37 on two buses | `tfa9865` (simple driver) + AudioReach TDM | 0014-0015, 0038-0051, 0104 | **proven** (all six, stereo); volume capped at -12 dB because speaker protection has **no mainline driver** |
+| Speakers: 6 x NXP TFA9865 on TDM (8 x 32 bit, 48 kHz) | I2C 0x34 / 0x36 / 0x37 on two buses | `tfa9865` (simple driver) + AudioReach TDM | 0014-0015, 0038-0051, 0104 | **proven** (all six, stereo). Status (14 Oct): the amplifiers are at stock values (246 of 268 fields equal to stock, none above). The old -12 dB cap is gone; the protection is the PipeWire chain (150 Hz high-pass, compressor with the owner's +9 dB make-up, limiter). Speaker protection itself still has **no mainline driver** |
 | Codec: Qualcomm WCD9395 (SoundWire RX / TX) + USB-SS audio switch | SoundWire; switch at I2C 0x0e | `wcd939x`, `wcd939x-usbss` | base + 0052, 0059, 0107, 0169 (VA macro DMIC rate) | **proven** microphones; analog USB-C headset untested |
-| Microphones (2) | WCD9395 TX path | UCM profile (+12 dB as stock's DSP adds) | `audio/ucm/` | **proven** (area-combo-1..3) |
+| Microphones (2) | WCD9395 TX path | UCM profile (+12 dB as stock's DSP adds) | `audio/ucm/` | **proven** (area-combo-1..3). Status (14 Oct): the default chain is TX_DEC 84 (stock's value) with the echo canceller and a +14 dB processed chain; fresh opens after idle were clean in the final rehearsal |
 | Rear camera: SmartSens SC1320CS 13 MP; front: SC820CS 8 MP | GENI I2C bus `884000` (stock uses this bus, not CCI): rear 0x36, front 0x10 | `sc1320cs` (one driver for both sensors; built from a trace of stock; **in-tree in the private kernel queue** since the owner's decision of 3 Oct, queued after the final build's proof) | | DT 0073, 0086 | **proven** at 30 fps (area-combo-46/-50/-52) |
 | Camera bus level shifters (PMH0101 LS1B / LS2B, RPMh XOB resources) | RPMh | `qcom-rpmh-regulator` | 0084-0086 | **proven**: without them the bus only worked while the sensor hub streamed |
 | Focus motor: Dongwoon DW9800K | I2C 0x0c | `dw9719` (+ I/O supply) | 0087-0089 | **proven**; held at stock's start position (no autofocus in libcamera's simple pipeline) |
@@ -87,16 +92,16 @@ below means mainline + infiniti; a number is a Pad 4 queue patch.
 | Rear flash: PMH0101 flash LED, two dies | SPMI | `leds-qcom-flash` | 0031 | **proven** as torch (one node lights the scene) |
 | Sensors: Bosch BMI3x0 accel / gyro, AKM AK0991x magnetometer, Sensortek STK36C01 light / RGB / proximity, ROHM BU52053NVX hall | all behind the **ADSP sensor hub** (SSC) | user space: `hexagonrpcd` + `libssc` + `iio-sensor-proxy` 3.9 | packaging/sensors | **proven** accel / compass / light / proximity (area-combo-23/-26); gyro and RGB offered by the hub but unused |
 | Hall / lid switch | TLMM 98, active low | `gpio-keys` SW_LID | 0030, 0115-0116 | **proven** (cover wake from sleep since 0116) |
-| Keys | power = PMK8850 PON; volume up = PON RESIN; volume down = PMH0101 GPIO 6 via gpio-keys (hwinv J02) | `pm8941-pwrkey`, `gpio-keys` | base | **proven** |
-| Wi-Fi 7: Qualcomm WCN7860 "peach" hw2.0 (PCIe 17cb:110e), board_id 0xff | PCIe0 + the WCN power sequencer | `ath12k` (module, loaded late) | base + 0066-0068 (no SBS, as stock's `enable_sbs=0`), 0082, 0139-0143, 0167 (the power sequencer's inputs as stock: L2G 1.8 V now voted) | **proven** 2.4 GHz connect; 5 GHz found; country setting fails (BOOT-LOG-PLAN P1-c) |
+| Keys | power = PMK8850 PON; volume up = PON RESIN; volume down = PMH0101 GPIO 6 via gpio-keys (inventory J02) | `pm8941-pwrkey`, `gpio-keys` | base | **proven** |
+| Wi-Fi 7: Qualcomm WCN7860 "peach" hw2.0 (PCIe 17cb:110e), board_id 0xff | PCIe0 + the WCN power sequencer | `ath12k` (module, loaded late) | base + 0066-0068 (no SBS, as stock's `enable_sbs=0`), 0082, 0139-0143, 0167 (the power sequencer's inputs as stock: L2G 1.8 V now voted) | **proven** 2.4 GHz connect; 5 GHz networks found. The regulatory-domain refusal lines of the final build are gone (the device package sets the US domain; 802.11d off). Status (14 Oct): a 5 GHz connection on the installed system is open |
 | Bluetooth (same chip) | GENI UART `1994000`, 3.2 Mbaud | `hci_uart` + `btqca` | base | **proven** incl. pairing; the address comes from a file written at install (`iceland-bdaddr`) |
-| Battery + charger: 13,380 mAh design (about 13,786 mAh full measured), charger firmware on the SoCCP | pmic_glink (`oneplus,iceland-pmic-glink`), UCSI | `qcom_battmgr` (OnePlus variant), `ucsi_glink` | base + 0013, 0028-0029, 0039, 0053, 0057, 0071-0072, 0074, 0078-0080, 0098, 0137 | **proven** on the PC port: stock's charging steps, the charge limit, the time estimate; wall chargers need one owner session |
+| Battery + charger: 13,380 mAh design (about 13,786 mAh full measured), charger firmware on the SoCCP | pmic_glink (`oneplus,iceland-pmic-glink`), UCSI | `qcom_battmgr` (OnePlus variant), `ucsi_glink` | base + 0013, 0028-0029, 0039, 0053, 0057, 0071-0072, 0074, 0078-0080, 0098, 0137 | **proven** on the PC port: stock's charging steps, the charge limit, the time estimate. Status (14 Oct): the installed system reports the battery and runs the guard; the wall chargers are still the owner's check |
 | Fast-charge pumps (2 x SC8547D), battery authentication (Maxim 1-wire) | I2C / GPIO 88 | - | - | **no mainline driver** (OnePlus-proprietary; fast charging not planned) |
-| Haptics, NFC, fingerprint, IR, FM, SD slot, RGB LED | - | - | - | **absent** (hwinv section K-M) |
+| Haptics, NFC, fingerprint, IR, FM, SD slot, RGB LED | - | - | - | **absent** (inventory section K-M) |
 
 ## 4. Power: PMICs, rails, protection
 
-**PMICs on SPMI** (reference doc 6.10, hwinv B01-B06):
+**PMICs on SPMI** (reference doc 6.10, inventory B01-B06):
 
 | PMIC (SPMI SID) | Linux uses it for |
 |---|---|
@@ -107,7 +112,7 @@ below means mainline + infiniti; a number is a Pad 4 queue patch.
 | PMIH0108 (7) | eUSB2 repeater, BCL, the second temperature alarm (0127), the hBoost for the pen charger |
 | PMD8028, PMR735D, PM8010 x 2 | reference-board PMICs in stock's tree, **not fitted** |
 
-**Rails the audit set to stock** (wf/audit, queued 0099-0101, proven in area-combo-50/-52/-58):
+**Rails the audit set to stock** (the stock-values audit, queued 0099-0101, proven in area-combo-50/-52/-58):
 
 | Rail | Consumer | Value now | Stock |
 |---|---|---|---|
@@ -135,11 +140,26 @@ Every limit is stock's or lower: the audit found nothing above stock in the char
 |---|---|
 | CPU | passive 105 C, then 112 / 114 C (stock), critical 125 C. Fix 0077: the step-wise governor no longer keeps a stale limit |
 | GPU | a 105 C loop stepping 1200 -> 160 MHz, power-off at 125 C (stock's thermal service does the same) |
-| Skin (a fast hot spot) | 48 C throttle, 51 C deepest gear, 70 C off. Stock uses 60 / 61 C together with a shell-temperature policy (the device package's daemon); which to use is the owner's choice |
+| Skin (a fast hot spot) | Status (14 Oct): the stock skin loop at 60 / 61 C, with the 20-gear policy of the device package (`iceland-thermal`, shell-temperature estimate; 70 C shutdown). The 2 Oct kernel values (48 / 51 / 70 C) are superseded by the stock loop |
 | XO | stock's 78 / 80 / 90 C steps |
 | PMIC alarms | 95 C: GPU from 826 MHz down, each CPU group to its lowest speed (0081-0083) |
 | Board / flash thermistors, three USB-C connector thermistors | ADC5 Gen4 channels (all present, area-combo-70) |
 | NPU (CDSP) | cooling over QMI TMD with stock's three maps (0117-0124) |
+
+**Status (14 Oct) of power, thermal and the display port.** These come from the installed system.
+- Power at idle on the installed system (a 60 s read-only report on 14 Oct: screen on at 1305 / 4095, 120 Hz, Wi-Fi power
+  save on, one Electron app open): average 2.08 W from current times voltage (upower's rate 3.05 W in the same minute).
+  CPU busy 8.7 %; the top wakeups are the architected timer and IPI1. GPU 342 MHz and UFS 75 MHz at idle. The first
+  evening (13 Oct) read about 10.7 W; the cause was first-day load (an Electron app's GPU crash loop, Wi-Fi power save
+  switched off for a test), so it is not a platform leak.
+- Thermal on the installed system (13 Oct evening): the shell estimate 34.0 C was below the skin sensor (39.9-47.7 C), so
+  the reading was right. The stock table caps the big cores to 1.86 GHz from a 33 C estimate and 1.63 GHz from 35 C.
+  Stock raises the cap by about one level during input boosts; 0.28-8 adds that boost ceiling (not yet in an image).
+- DisplayPort over USB-C (14 Oct, a bus-powered portable 4K monitor): the USB-C port is a host with the tablet as the
+  source. The power contract is 5 V x 2 A (10 W), and stock's OTG current limit is 2000 mA. The charger's VBUS read
+  5.07-5.08 V and its current rose to 2.45 A over successive samples, so the monitor may draw more than the contract
+  (unverified: a possible over-current cut-off). The DP link is set up to HBR3 on two lanes; 4K at 60 Hz and 24 bpp needs
+  about 12.8 Gbit/s, at the limit of two HBR3 lanes in the USB 3 + DP mode (computed, not measured).
 
 ## 5. Memory and storage
 
@@ -157,14 +177,14 @@ sectors does not boot as it is (`03-BOOT-AND-PARTITIONS.md` section 4).
 
 151 partitions on 6 LUNs. Sizes are the model's layout (identical on every Pad 4 with this firmware); they come from
 the partition listing of the owner's backup and the LineageOS capture. No GUIDs or device-unique values here.
-**Written by our plan** marks the only two partitions the install ever writes. Everything else is never written.
+**Written by our plan** marks the only two partitions the install writes. Both were written by the owner on 13 Oct 2026. Everything else is never written.
 
 | LUN (size) | Partitions | Role | Linux / our plan |
 |---|---|---|---|
-| sda (~253 GB, the user LUN) | `ssd`, `persist` (128 MiB), `misc`, `keystore`, `frp`, `vbmeta_system_a/_b`, `vbmeta_vendor_a/_b`, `metadata` (64 MiB), `rawdump`, `splash_odm`, `hybridswap`, `super` (14.6 GB: Android's dynamic system, vendor, odm partitions), `userdata` (237,159,641,088 bytes, the last partition) | Android data and system; per-device calibration in `persist` | `persist`, `super` (vendor / odm inside) are **read** once for firmware and sensor data. **`userdata` is written by our plan** (write 1: the Fedora disk image) |
+| sda (~253 GB, the user LUN) | `ssd`, `persist` (128 MiB), `misc`, `keystore`, `frp`, `vbmeta_system_a/_b`, `vbmeta_vendor_a/_b`, `metadata` (64 MiB), `rawdump`, `splash_odm`, `hybridswap`, `super` (14.6 GB: Android's dynamic system, vendor, odm partitions), `userdata` (237,159,641,088 bytes, the last partition) | Android data and system; per-device calibration in `persist` | `persist`, `super` (vendor / odm inside) are **read** once for firmware and sensor data. **`userdata` was written on 13 Oct** (write 1: the Fedora disk image; Android's data is gone) |
 | sdb / sdc (8 MiB each) | `xbl`, `xbl_config`, `tme_*`, `multiimg*`, `apdp` (slot a on sdb, slot b on sdc) | primary boot loader set | never touched |
 | sdd (12 MiB) | `cdt`, `ddr` (DDR training), `engineering_cdt_a/_b`, `ocdt`, `dinfo` | per-device configuration | never touched |
-| sde (~2 GB, A/B firmware and boot set) | per slot: `uefi`, `abl`, `aop*`, `tz*`, `hyp*`, `devcfg`, `qupfw`, `shrm`, `cpucp*`, `keymaster`, `modem` (FAT: ADSP / CDSP / Wi-Fi firmware), `bluetooth` (FAT), `dsp` (ext4: DSP libraries), `soccp*`, `boot` (96 MiB), `init_boot` (8 MiB), `vendor_boot` (96 MiB), `dtbo` (24 MiB), `vbmeta` (64 KiB), `recovery` (100 MiB), `pvmfw`, ...; singletons: **`efisp` (3 MiB)**, `devinfo` (unlock state), `storsec`, `uefivarstore`, `secdata`, `logfs`, `toolsfv`, ... | the firmware chain and Android's boot set | `modem_a`, `bluetooth_a`, `dsp_a` are **read** for firmware. **One boot partition of the active slot (`boot_b` today) is written by our plan** (write 2: U-Boot) |
+| sde (~2 GB, A/B firmware and boot set) | per slot: `uefi`, `abl`, `aop*`, `tz*`, `hyp*`, `devcfg`, `qupfw`, `shrm`, `cpucp*`, `keymaster`, `modem` (FAT: ADSP / CDSP / Wi-Fi firmware), `bluetooth` (FAT), `dsp` (ext4: DSP libraries), `soccp*`, `boot` (96 MiB), `init_boot` (8 MiB), `vendor_boot` (96 MiB), `dtbo` (24 MiB), `vbmeta` (64 KiB), `recovery` (100 MiB), `pvmfw`, ...; singletons: **`efisp` (3 MiB)**, `devinfo` (unlock state), `storsec`, `uefivarstore`, `secdata`, `logfs`, `toolsfv`, ... | the firmware chain and Android's boot set | `modem_a`, `bluetooth_a`, `dsp_a` are **read** for firmware. **`boot_b` was written on 13 Oct** (write 2: the footered U-Boot install build v3; the slot's flags were reset by the flash, see `03-BOOT-AND-PARTITIONS.md` section 2) |
 | sdf (~461 MB) | `oplusreserve1/2/3/5`, `nonmodemst1/2`, `DRIVER`, `ompdt` | OnePlus reserve, per-device data | never touched |
 
 **A/B.** The firmware and boot partitions come in `_a` / `_b` pairs. ABL boots the active slot (`b` on the test
@@ -209,15 +229,21 @@ still say `qcom/kaanapali/OnePlus/iceland/`, which is stale).
 | sensor hub tree (`/usr/share/qcom/kaanapali/OnePlus/iceland/`) | `dsp_a`, vendor sensor configs, `persist` sensor registry, odm sensor configs | served to the ADSP by `hexagonrpcd`; private |
 | `soccp` | already running from the boot chain; Linux only attaches | no file needed |
 
+**Status (14 Oct).** The generic firmware files that may be published (ADSP, CDSP, SoCCP, GPU, Wi-Fi / BT, touch,
+camera, VPU, and the decoded generic thermal model) are in the `iceland-firmware` package, release 11.A.38-3, with a
+manifest that gives each file's path, sha256, source and notice. The unit's own files (the sensor-hub registry, the
+calibration and the partition copies) are never packaged.
+
 **Tools.**
-- `iceland-fw-extract`: the install workflow's on-device extractor, `wf/install/cand/fwx/` with its list
-  `fw-list.tsv`. It sets each source partition read-only before opening it. Checked on the owner's backup: 23 of 23
-  items, 627 files identical to what the kits load.
-- `tools/linux-ram/fw-extract.sh`: the older busybox version for the RAM kits.
+- `iceland-fw-extract`: the on-device extractor of the install tooling. It sets each source partition read-only before
+  opening it, and it takes the list of items from its own list file (not published). Checked on the owner's backup:
+  23 of 23 items, 627 files identical to what the kits load.
+- An older busybox extractor served the RAM kits; it is not published.
 
 ## 8. Built in or module, and what must be in the initramfs
 
-From `docs/BOOT-LOG-PLAN.md` (boot logs of area-combo-92 / -93) and `configs/distro-neutral.config`:
+From the boot-log review of the test runs (area-combo-92 / -93; the review is not published) and `configs/distro-neutral.config`
+in `iceland-linux`:
 
 - **Built in:** what is needed before the root file system exists.
   - clocks, power domains, RPMh, interconnects, pinctrl, regulators, the SMMU;
@@ -232,13 +258,13 @@ From `docs/BOOT-LOG-PLAN.md` (boot logs of area-combo-92 / -93) and `configs/dis
   remote processors, GPU microcode users, Wi-Fi, Bluetooth, video, cameras, audio), plus drivers that are only useful
   on demand (crypto, CAMSS, telemetry).
   - Built in, they would probe before the firmware is reachable and fail. `remoteproc` does not retry: "Direct
-    firmware load ... failed with error -2" for `adsp.mdt` / `cdsp.mdt` at 19 s (BOOT-LOG-PLAN P1-a).
+    firmware load ... failed with error -2" for `adsp.mdt` / `cdsp.mdt` at 19 s (boot-log review, 2 Oct).
   - Modules also keep the kernel usable by any distribution and allow reloading in tests.
 - **The rule for an initramfs:** either keep `qcom_q6v5_pas` (and other firmware users) out of it, so that they load
   after `switch_root` when `/lib/firmware` is the real one, or put their firmware into the initramfs too. Without
   the ADSP there is no sound and no sensors. The battery does **not** depend on it: its data travels over the SoCCP's
-  pmic_glink channel (`PMIC_RTR_SOCCP_APPS`, hwinv O03), and the kits read the battery at 30 s while the ADSP was
-  still offline (BOOT-LOG-PLAN P1-a, corrected 2 Oct).
+  pmic_glink channel (`PMIC_RTR_SOCCP_APPS`, inventory O03), and the kits read the battery at 30 s while the ADSP was
+  still offline (boot-log review, corrected 2 Oct).
 - **The install's answer, revised after R1c (3 Oct; proven in R1d .. r2g):**
   - the SoCCP / ADSP / CDSP stack goes **into** the initramfs: `qcom_q6v5_pas` with the kits' early stack (glink, the
     protection-domain mapper, QRTR, the battery manager) and the tablet's ADSP / CDSP firmware (private, like the
@@ -259,8 +285,8 @@ From `docs/BOOT-LOG-PLAN.md` (boot logs of area-combo-92 / -93) and `configs/dis
 
 ## 9. Hardware inventory summary
 
-`wf/hwinv/INVENTORY.md` compares 112 hardware blocks from stock's device tree, modules and logs with what mainline
-binds (tablet run area-combo-70, before the quick wins):
+The hardware inventory (not published; it names unit data) compares 112 hardware blocks from stock's device tree, modules
+and logs with what mainline binds (tablet run area-combo-70, before the quick wins):
 
 | Status | Rows |
 |---|---|

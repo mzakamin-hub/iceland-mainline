@@ -5,6 +5,9 @@
 #   wf/<agent>/fixes/F<nn>.json (fix record, "status"), wf/fedtest/verdicts/F<nn>.json, wf/review/verdicts/F<nn>.json,
 #   wf/builder/manifest-<tag>.json (G2), an/ledger/errors.json (G3 / benign), an/ledger/LEDGER.md.
 # Read only. Prints Markdown to stdout (or writes it with --out FILE). Never prints log lines (they may be private).
+# Status 14 Oct 2026: its inputs (the team's records under the private build folder, named in B and LEDGER_DIR below)
+# are not in this repository, so only the built-in tables print here. The tables describe release candidate 1 (3 Oct
+# 2026); the state after it is in docs/guide/RC1-NOTES.md and docs/guide/04-BUILD-YOUR-OWN.md.
 import glob, json, os, sys
 
 B = os.path.expanduser("~/mainline/build/")

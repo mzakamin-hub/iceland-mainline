@@ -1,6 +1,12 @@
 # Device facts — OnePlus Pad 4 (OPD2514, project 25978, IN variant)
 
-Source: `capture-20260927-1/` (DSU GSI root, first capture run; stopped after `gpio.txt`, see note).
+Status (14 Oct 2026): this folder is the index of the decoded stock facts. The raw captures are NOT published. Several
+of them hold unit data (identifiers, properties, network and device dumps, a live device tree), so only the decoded
+values below are kept in the repository. The files that are published here are `memory-map.txt` and
+`stock-display-power.md`. The stock values in this index are still the reference for the device tree; the 13 Oct install
+changed the layout of the tablet, not these stock values (see `reference/pad4-hardware-boot-partitions.md`, section 3).
+
+Source: the first capture run of 27 Sep 2026 (DSU GSI root; stopped after the GPIO dump; not published).
 Note: capture 1 used `od -tx4`, which prints each big-endian DT cell byte-swapped; values below are decoded.
 
 ## RAM (`/memory` reg, ABL-provided) — 20 segments, 11.50 GiB
@@ -114,8 +120,8 @@ Segment 8 has size 0 (as reported by ABL).
 
 ## Live device tree (capture 2)
 
-`capture-20260927-2/live-fdt-redacted.dtb` (+ decompiled `.dts`, 44,174 lines) = stock base DTB with the
-"iceland-O IN" overlay applied by ABL; serial number overwritten with X.
+The live device tree of the second capture (binary and decompiled; not published) = stock base DTB with the
+"iceland-O IN" overlay applied by ABL. The serial number field is redacted in the capture.
 - `model = "Qualcomm Technologies, Inc. Canoe MTP,iceland-O IN"`, compatible `qcom,canoe-mtp / qcom,canoep`.
 - `qcom,msm-id = <0x295 0x20000 0x294 0x10000 …>` (this unit: 0x295 = SM8850P, rev 2.0), `qcom,board-id = <0x08 0x00>`
   → values a direct-ABL boot DTB must carry.
@@ -125,18 +131,18 @@ Segment 8 has size 0 (as reported by ABL).
 - Slot `_a`, ABL `oplusboot.verifiedbootstate=orange`, `oplusboot.prjname=25978`, `oplusboot.sku=23`, `oplus_region=167`.
 - `device_info.ddr_info=6|8|1|5|12` (12 GB).
 - Stock cmdline disables the geni console (`qcom_geni_serial.con_enabled=0`, `console=ttynull`).
-- Bluetooth address present in stock props (`persist.vendor.service.bdroid.bdaddr`) — redacted here; source for the
-  real BD address in Phase 6.
+- The stock properties hold the unit's Bluetooth address. It is not published.
 
-## Capture 3 (complete run)
+## Capture run 3 (complete run; not published as raw files)
 
-Folder `capture-20260927-3/`. Stock `dtbo_a`/`vendor_boot_a` images are not committed (vendor_boot carries a
-proprietary ramdisk); their sha256 is in `stock-images.sha256`, decompiled DTs of this unit are in `dtbs/`.
+The stock `dtbo_a` / `vendor_boot_a` images are not published (vendor_boot carries a proprietary ramdisk), and neither
+are the decompiled DTs of the unit. The sha256 values of the stock images are kept off the repository as well. The
+summary below is the published part.
 
 - **Device trees:** dtbo = 10 overlays (iceland 0x6546, iceland-O 0x6547, iceland-O O EU 0x6579,
   iceland-O EU/IN 0x657a). This unit = `dtbo_a-06`/`-08` "iceland-O IN" (project-id 0x657a, board-id 8).
   vendor_boot = 14 base SoC DTBs (Alor/Canoe/CanoeP); this unit = `vendor_boot_a-12` "CanoeP v2 SoC".
-  `iceland-O-IN-fixups.txt` = the 202 base symbols the stock overlay binds (cross-check list for map220v's DTS).
+  The list of the 202 base symbols the stock overlay binds is kept as a cross-check list for the device tree (not published).
 - **I2C map (stock):** TFA98xx-v6 amps 0-0034/36/37 and 22-0034/36/37; KTZ8869 master 14-0011 / slave 15-0011;
   **SC8547D charge pumps 12-006a and 24-006a**; **MT5806 pen charger 25-002b**; WCD939x USB-SS 3-000e;
   **cameras on i2c9 (qup2 @884000): sensors 0x20 and 0x6c, EEPROMs 0x50/0x58, actuator 0x18**;
@@ -153,4 +159,5 @@ proprietary ramdisk); their sha256 is in `stock-images.sha256`, decompiled DTs o
   (gpuss-0..10, usb_therm, …); stock cooling devices incl. cpufreq per cluster, kgsl/gpu, display-fps, panel backlight.
 - **Partitions (bytes):** boot/vendor_boot 100663296, init_boot 8388608, dtbo 25165824, vbmeta 65536, recovery 104857600,
   modem 367001600, bluetooth 12582912, dsp 77594624, soccp 8388608, xbl 3670016, uefi 5242880, abl 1048576,
-  persist 134217728, super 14612955136, userdata 237159641088 — full list in `partitions.txt`.
+  persist 134217728, super 14612955136, userdata 237159641088 (the full list is not published; the sizes of the boot-chain
+  partitions are in the reference note).

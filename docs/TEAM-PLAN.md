@@ -1,5 +1,10 @@
 # Iceland team plan - from the r2g logs to a complete, proven, committed build (started Sat 3 Oct 2026 03:00)
 
+> **Status 14 Oct 2026.** This team plan (3 Oct) is history. The round it organised ended with the loop 5 work
+> (9-13 Oct), the golden build B149, and the install on 13 Oct. The loop 5 folders and the agent ledger are not in the
+> repository. The roles and gates below no longer run.
+
+
 Owner's order (3 Oct about 03:00): "use a whole team of agents using opus and fable ... an automated process with no
 intervention from my side to reach a complete working build with everything. Project should be completed by a timeline
 and fixes and error collection should be consolidated to avoid multiple re-iterations and repetitive actions."

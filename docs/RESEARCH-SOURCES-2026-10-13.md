@@ -1,5 +1,11 @@
 # Deep research over the project's sources (13 Oct 2026)
 
+> **Status 14 Oct 2026.** Item 3 of the suggestions (the rc7 rebase) is done in q89e, q89f and q89g (13 Oct). Still open
+> from this report, and not recorded as done in the sources (unverified): the CodeLinaro `kaanapali` scan; the Adreno GMU
+> level check (all 19 OPPs) and the HFI-24 patch; the re-checks of the SoCCP, C-PHY, QMI and GPU DT series at the v7.3
+> final rebase. The DPU DMA REC fix is already in the tree (no action).
+
+
 Question: what is new in the listed sources that the Pad 4 port lacks (A), and what is the upstream status of the
 patches / bugs we carry or track (B). Workflow run wf_889ba4b6-6b7: 107 agents, 24 sources fetched, 95 claims, 25 verified
 (3-vote adversarial), 22 confirmed, 3 refuted. Coverage is NARROW: most listed sources produced no verified claim
