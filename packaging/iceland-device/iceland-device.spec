@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        9%{?dist}
+Release:        10%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -655,6 +655,20 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
 
 %changelog
+* Wed Oct 14 2026 mzak <mzak.amin@gmail.com> - 0.28-10
+- iceland-battery-guard: the power key with a charger in (owner, 14 Oct: on a charger the power key did nothing).
+  The guard's logind sleep block (KEEP_AWAKE=1, kept: the guard has to keep enforcing the temperature regions, the
+  USB-C connector rules and the 85 % limit) makes logind refuse GNOME's power-button suspend (gnome-settings-daemon
+  50.1 SuspendWithFlags(SKIP_INHIBITORS) needs the polkit grant suspend-ignore-inhibit, auth_admin_keep), and GNOME
+  has no fallback. Now, only while that block is in force, a short press of the power key (KEY_POWER from the PMIC
+  power key's evdev node, found by its capabilities, read only, never grabbed; one select() thread) locks and blanks
+  seat0's active graphical session: org.gnome.ScreenSaver.SetActive(true) on that user's session bus (setpriv as
+  the user, 3 s time-out; gsd-power blanks the panel when the screen saver comes on), as stock turns the screen off
+  while charging. Acts at the release of the press (an event after the blank would light the panel again), once per
+  press, auto-repeat ignored, at most one action per second; a screen saver that is on already is left to GNOME (the
+  press wakes the screen); GNOME not reachable: loginctl lock-session. One journal line per action. Without a
+  charger nothing changes. POWER_KEY_BLANK=1 in battery-guard.conf (0 = as 0.28-9)
+
 * Wed Oct 14 2026 mzak <mzak.amin@gmail.com> - 0.28-9
 - field report of the installed system (14 Oct 2026), four separate changes, none above stock:
 - (1) brightness on the first boot: iceland-backlight-default (a oneshot pulled in by 70-iceland-backlight-default.rules

@@ -50,6 +50,17 @@
 #              the cover does nothing: the careful side. Read again every LID_RECHECK_S while a charger is in;
 #              BLOCK_LID_SWITCH=yes in the conf file blocks the lid switch always (the cover then does nothing on
 #              a charger).
+#  The power key with a charger in (0.28-10, wf/pwrkey): GNOME's power-button action is suspend; gnome-settings-
+#              daemon (media-keys, 50.1) asks logind for SuspendWithFlags(SKIP_INHIBITORS), which logind refuses
+#              without the polkit grant suspend-ignore-inhibit (auth_admin_keep), so with the block above the key did
+#              nothing at all. Stock turns the screen off (and locks) while charging. So while the guard's block is in
+#              force a short press of the power key (KEY_POWER from the PMIC's power key input device, read only,
+#              never grabbed) locks and blanks the graphical session: org.gnome.ScreenSaver.SetActive(true) on the bus
+#              of seat0's active user session (gsd-power blanks the panel as soon as the screen saver comes on). It
+#              acts at the key's RELEASE (one action per press; auto-repeat ignored): an event after the blank would
+#              count as user activity and gsd-power would light the panel again. An active screen saver is left
+#              alone (the press wakes the screen, as GNOME does); GNOME not reachable: loginctl lock-session. Without
+#              a charger (no block) nothing changes: GNOME suspends. POWER_KEY_BLANK=0 in the conf file: as 0.28-9.
 #  OURS (not stock values): the input-current check: three readings in a row with the
 #  measured input current more than 15 % + 50 mA above the limit the firmware reports -> stop charging until the
 #  charger is unplugged (before patch 0053 the tablet drew 1.2-1.9 A from a PC port); a status line in the journal
@@ -130,6 +141,7 @@
 #              that does not exist keeps its old meaning (an older kernel).
 import errno
 import glob, math, os, signal, stat, subprocess, sys, syslog, time
+import pwd, select, shutil, struct, threading
 
 BAT = os.environ.get("ICELAND_BAT", "/sys/class/power_supply/qcom-battmgr-bat")
 USB = os.environ.get("ICELAND_USB", "/sys/class/power_supply/qcom-battmgr-usb")
@@ -183,6 +195,20 @@ ALERT = RUN + "/charge-alert"             # the last safety event, for iceland-c
 USB_RELEASE_T = 55.0                      # stock USB_55C: the input cut ends below it once the cable is out
 ICL_RELEASE_UA = 500000                   # the release value when the limit read before the cut is unknown (stock's 500 mA at boot)
 CUT_MARK = RUN + "/input-cut"             # exists while a guard of this boot holds the input cut (tmpfs: gone at every boot)
+# 0.28-10: the power key while the block is in force (header "The power key with a charger in")
+INPUT = os.environ.get("ICELAND_INPUT", "/dev/input")              # evdev nodes, opened read only, never grabbed
+INPUT_SYS = os.environ.get("ICELAND_INPUT_SYS", "/sys/class/input") # their capabilities and names
+PWRKEY_DEV = os.environ.get("ICELAND_PWRKEY_DEV")  # tests: one node (a pipe carrying input_event records) instead
+USER_RUN = os.environ.get("ICELAND_USER_RUN", "/run/user")         # the session's bus: USER_RUN/<uid>/bus
+EV_SYN, EV_KEY, SYN_DROPPED, KEY_POWER = 0, 1, 3, 116
+KEY_A, KEY_Z, KEY_SPACE = 30, 44, 57
+EV_FMT = "llHHi"                          # struct input_event: struct timeval, type, code, value (native longs)
+EV_SIZE = struct.calcsize(EV_FMT)
+PWRKEY_RESCAN_S = 30                      # no power key node (yet: its module loads after the guard) -> look again
+PWRKEY_SETTLE_S = 0.2                     # after the release: the compositor has taken the last event of the press
+PWRKEY_GAP_S = 1.0                        # at most one action in this time (a bouncing key)
+PWRKEY_CMD_S = 3                          # time-out of each loginctl / gdbus call
+SS_DEST = ["--dest", "org.gnome.ScreenSaver", "--object-path", "/org/gnome/ScreenSaver"]
 
 def rd(path, default=None):
     try:
@@ -613,6 +639,9 @@ class Guard:
             "off (THERMAL_CAP=0)" if conf().get("THERMAL_CAP", "1") == "0" else
             "%d mA" % tcap if tcap else "none now (%s)" % THERMAL_CAP), syslog.LOG_NOTICE)
         log("iceland-battery-guard: with a charger in the block covers %s (%s)" % awake_what(), syslog.LOG_NOTICE)
+        log("iceland-battery-guard: the power key with a charger in (sleep blocked): %s" % (
+            "nothing (POWER_KEY_BLANK=0)" if conf().get("POWER_KEY_BLANK", "1") == "0" else
+            "locks and blanks the session (POWER_KEY_BLANK=1)"), syslog.LOG_NOTICE)
         log("iceland-battery-guard: bypass charging %s (requests in %s)" % (
             "off (BYPASS=0)" if conf().get("BYPASS", "1") == "0" else "allowed", BYPASS_REQ), syslog.LOG_NOTICE)
         return missing
@@ -1029,6 +1058,233 @@ class Guard:
         self.status_line(plugged, temp, volt, soc, vbus)
         return plugged
 
+LONG_BITS = struct.calcsize("l") * 8
+
+def bits(path):
+    """a sysfs capability bitmap (hex words, the most significant first, one unsigned long each) as an int"""
+    v = 0
+    for w in (rd(path, "") or "").split():
+        try:
+            v = (v << LONG_BITS) | int(w, 16)
+        except ValueError:
+            return 0
+    return v
+
+def pwrkey_nodes():
+    """0.28-10: the power key's evdev nodes, [(path, name)]: the nodes with KEY_POWER whose name says pwrkey (the
+    PMIC's power key, pm8941_pwrkey / pmic_pwrkey); if there is none, every node with KEY_POWER that is not a full
+    keyboard"""
+    if PWRKEY_DEV:
+        return [(PWRKEY_DEV, "test")]
+    try:
+        names = sorted(n for n in os.listdir(INPUT_SYS) if n.startswith("event"))
+    except OSError:
+        return []
+    found = []
+    for n in names:
+        cap = INPUT_SYS + "/" + n + "/device/capabilities/"
+        ev, key = bits(cap + "ev"), bits(cap + "key")
+        if not (ev >> EV_KEY & 1 and key >> KEY_POWER & 1):
+            continue
+        kbd = all(key >> b & 1 for b in (KEY_A, KEY_Z, KEY_SPACE))
+        found.append((os.path.join(INPUT, n), rd(INPUT_SYS + "/" + n + "/device/name", "") or "?", kbd))
+    named = [(p, nm) for p, nm, kbd in found if "pwrkey" in nm.lower()]
+    return named or [(p, nm) for p, nm, kbd in found if not kbd]
+
+def pk_cmd(cmd, user=None):
+    """0.28-10: (exit code, stdout) of a short command, (None, "") if it can't run or times out. user = (uid, gid,
+    name, home): run as that user with the session bus USER_RUN/<uid>/bus (setpriv; runuser if there is none)"""
+    env = None
+    if user is not None:
+        uid, gid, name, home = user
+        rt = "%s/%d" % (USER_RUN, uid)
+        env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": home, "USER": name, "LOGNAME": name,
+               "XDG_RUNTIME_DIR": rt, "DBUS_SESSION_BUS_ADDRESS": "unix:path=%s/bus" % rt}
+        if shutil.which("setpriv"):
+            cmd = ["setpriv", "--reuid=%d" % uid, "--regid=%d" % gid, "--init-groups"] + cmd
+        elif shutil.which("runuser"):
+            cmd = ["runuser", "-u", name, "--"] + cmd
+        else:
+            return None, ""
+    try:
+        r = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=PWRKEY_CMD_S, env=env)
+    except (OSError, subprocess.SubprocessError):
+        return None, ""
+    return r.returncode, r.stdout
+
+def kv_lines(text):
+    return dict(l.split("=", 1) for l in (text or "").splitlines() if "=" in l)
+
+def active_session():
+    """0.28-10: seat0's active session if it is a local graphical user session: ((id, uid, gid, name, home), None),
+    else (None, why)"""
+    rc, out = pk_cmd(["loginctl", "show-seat", "seat0", "-p", "ActiveSession"])
+    sid = kv_lines(out).get("ActiveSession", "").strip()
+    if rc != 0 or not sid or not all(ch.isalnum() or ch in "_-" for ch in sid):
+        return None, "no active session on seat0"
+    rc, out = pk_cmd(["loginctl", "show-session", sid, "-p", "User", "-p", "Type", "-p", "Class", "-p", "Remote"])
+    kv = kv_lines(out)
+    if rc != 0:
+        return None, "session %s can't be read" % sid
+    if kv.get("Class") != "user" or kv.get("Type") not in ("wayland", "x11") or kv.get("Remote") == "yes":
+        return None, "session %s is %s / %s, not a local graphical user session" % (sid, kv.get("Class", "?"),
+                                                                                   kv.get("Type", "?"))
+    try:
+        pw = pwd.getpwuid(int(kv.get("User", "")))
+    except (KeyError, ValueError):
+        return None, "session %s: user %s unknown" % (sid, kv.get("User", "?"))
+    return (sid, pw.pw_uid, pw.pw_gid, pw.pw_name, pw.pw_dir), None
+
+class PowerKey:
+    """0.28-10: the power key while the guard's sleep block is in force -> lock + blank (header "The power key with a
+    charger in"). One thread: select() on the power key's nodes (no polling); a node that goes away is closed; while
+    there is none, the nodes are looked for again every PWRKEY_RESCAN_S"""
+    def __init__(self, guard):
+        self.g = guard
+        self.fds = {}              # fd -> (path, name)
+        self.buf = {}              # fd -> the bytes of a partial event
+        self.down = False          # a press of the key is in progress
+        self.armed = False         # ... and it began while the block was in force (with POWER_KEY_BLANK on)
+        self.last = None           # when the last action was due (monotonic)
+        self.said = None           # the node list last logged
+
+    def enabled(self):
+        return conf().get("POWER_KEY_BLANK", "1") != "0"
+
+    def blocking(self):
+        """the guard's block is in force now (the systemd-inhibit child runs; True in a dry run)"""
+        a = self.g.awake
+        if a is True:
+            return True
+        return a is not None and a.poll() is None
+
+    def event(self, etype, code, value):
+        """one input event; True when the action is due: the release of a press that began with the block in force.
+        Auto-repeat (2) is ignored, a press counts once, SYN_DROPPED forgets the press in progress, and actions are
+        at least PWRKEY_GAP_S apart"""
+        if etype == EV_SYN and code == SYN_DROPPED:
+            self.down = self.armed = False
+            return False
+        if etype != EV_KEY or code != KEY_POWER or value == 2:
+            return False
+        if value == 1:
+            if not self.down:
+                self.down = True
+                self.armed = self.enabled() and self.blocking()
+            return False
+        if value != 0 or not self.down:
+            return False
+        due, self.down, self.armed = self.armed, False, False
+        now = time.monotonic()
+        if not due or (self.last is not None and now - self.last < PWRKEY_GAP_S):
+            return False
+        self.last = now
+        return True
+
+    def act(self):
+        """lock + blank seat0's active graphical session; one log line. Returns what was done (tests)"""
+        time.sleep(PWRKEY_SETTLE_S)
+        pre = "iceland-battery-guard: power key with a charger in (sleep blocked): "
+        s, why = active_session()
+        if s is None:
+            log(pre + "nothing locked (%s)" % why, syslog.LOG_NOTICE)
+            return "none"
+        sid, uid, gid, name, home = s
+        user = (uid, gid, name, home)
+        bus = "%s/%d/bus" % (USER_RUN, uid)
+        gcall = ["gdbus", "call", "--session", "--timeout", str(max(1, PWRKEY_CMD_S - 1))] + SS_DEST + ["--method"]
+        gerr = "no session bus %s" % bus
+        if os.path.exists(bus):
+            rc, out = pk_cmd(gcall + ["org.gnome.ScreenSaver.GetActive"], user)
+            out = (out or "").strip()
+            if rc == 0 and out.startswith("(true"):
+                log(pre + "the screen saver of session %s is on already: left to GNOME" % sid, syslog.LOG_INFO)
+                return "active"
+            if rc == 0 and out.startswith("(false"):
+                rc, out = pk_cmd(gcall + ["org.gnome.ScreenSaver.SetActive", "true"], user)
+                if rc == 0:
+                    log(pre + "session %s locked and blanked (org.gnome.ScreenSaver.SetActive)" % sid, syslog.LOG_NOTICE)
+                    return "blanked"
+                gerr = "SetActive: %s" % ("no answer" if rc is None else "exit %d" % rc)
+            else:
+                gerr = "GetActive: %s" % ("no answer" if rc is None else "exit %d %s" % (rc, out[:40]))
+        rc, out = pk_cmd(["loginctl", "lock-session", sid])
+        if rc == 0:
+            log(pre + "GNOME's screen saver not reachable (%s): loginctl lock-session %s" % (gerr, sid), syslog.LOG_NOTICE)
+            return "locked"
+        log(pre + "GNOME's screen saver not reachable (%s) and loginctl lock-session %s failed" % (gerr, sid))
+        return "failed"
+
+    def open_nodes(self):
+        have = set(p for p, n in self.fds.values())
+        for path, name in pwrkey_nodes():
+            if path in have:
+                continue
+            try:
+                fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)   # read only, no EVIOCGRAB
+            except OSError:
+                continue
+            self.fds[fd] = (path, name)
+            self.buf[fd] = b""
+        names = sorted("%s (%s)" % (n, os.path.basename(p)) for p, n in self.fds.values())
+        if names != self.said:
+            self.said = names
+            log("iceland-battery-guard: power key: " + ("watching " + ", ".join(names) if names else
+                "no input device with KEY_POWER (looked for again every %d s)" % PWRKEY_RESCAN_S), syslog.LOG_NOTICE)
+
+    def close(self, fd):
+        self.fds.pop(fd, None)
+        self.buf.pop(fd, None)
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+
+    def drain(self, fd):
+        """read what the node has; True when an action is due"""
+        due = False
+        while fd in self.fds:
+            try:
+                data = os.read(fd, EV_SIZE * 64)
+            except BlockingIOError:
+                break
+            except OSError:            # ENODEV: the device went away
+                self.close(fd)
+                break
+            if not data:               # end of file (a pipe whose writer closed: tests)
+                self.close(fd)
+                break
+            b = self.buf[fd] + data
+            n = len(b) // EV_SIZE * EV_SIZE
+            self.buf[fd] = b[n:]
+            for i in range(0, n, EV_SIZE):
+                _, _, t, c, v = struct.unpack_from(EV_FMT, b, i)
+                if self.event(t, c, v):
+                    due = True
+        return due
+
+    def run(self):
+        while True:
+            try:
+                if not self.fds:
+                    self.open_nodes()
+                if not self.fds:
+                    time.sleep(PWRKEY_RESCAN_S)
+                    continue
+                r = select.select(list(self.fds), [], [])[0]
+                due = False
+                for fd in r:
+                    if self.drain(fd):
+                        due = True
+                if due:
+                    self.act()
+            except Exception as e:     # OURS: the watcher never takes the guard down; it tries again later
+                log("iceland-battery-guard: power key watcher: %s: %s (again in %d s)" % (type(e).__name__, e,
+                                                                                         PWRKEY_RESCAN_S))
+                for fd in list(self.fds):
+                    self.close(fd)
+                time.sleep(PWRKEY_RESCAN_S)
+
 def main():
     syslog.openlog("iceland-battery-guard")
     if not os.path.isdir(BAT):
@@ -1037,6 +1293,8 @@ def main():
     g = Guard()
     signal.signal(signal.SIGTERM, lambda *a: sys.exit(0))   # so that the sleep block is given back
     g.report_inputs()
+    if not ONESHOT and (not DRYRUN or PWRKEY_DEV):   # 0.28-10: the power key while the block is in force
+        threading.Thread(target=PowerKey(g).run, name="power-key", daemon=True).start()
     try:
         while True:
             plugged = g.step()
