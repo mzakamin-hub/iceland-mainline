@@ -8,7 +8,7 @@
 # Keep the entries in sync when a matrix-*.py script adds, renames or re-words a working row.
 
 PUBLIC_STATUS = ("Fedora 44 with GNOME is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> "
-                 "kernel). Current versions: kernel 7.3.0-rc7-iceland-00436 (q89k, iceland-linux branch "
+                 "kernel). Current versions: kernel 7.3.0-rc7-iceland-00438 (q89l, iceland-linux branch "
                  "iceland-7.3-rc7-next), iceland-device 0.28-16, iio-sensor-proxy 3.9-11.iceland1, "
                  "iceland-firmware 11.A.38-3, U-Boot install build v4.")
 
@@ -23,9 +23,9 @@ PUBLIC = {
 "U-Boot boot setting for single or dual boot":
     "Boots a “fedora” partition if there is one, else the Fedora image in userdata.",
 "Linux 7.3-rc7 through EFI":
-    "Linux 7.3-rc7 with the Pad 4 patch queue (kernel 7.3.0-rc7-iceland-00436, iceland-linux branch "
+    "Linux 7.3-rc7 with the Pad 4 patch queue (kernel 7.3.0-rc7-iceland-00438, iceland-linux branch "
     "iceland-7.3-rc7-next) boots through U-Boot's EFI, Fedora's shim and GRUB. It is the default kernel on the "
-    "installed tablet since 15 Oct 2026.",
+    "installed tablet since 16 Oct 2026.",
 "Internal storage (UFS 4)":
     "UFS 4 with 4 KiB blocks in MCQ mode (9 hardware queues per LUN), about 2.3 GB/s direct read. The installed root "
     "is btrfs (zstd compression) on a loop device in userdata, and Fedora's own I/O scheduler rule applies to all six "
@@ -155,13 +155,14 @@ PUBLIC = {
     "unplugged.",
 # Power & charging
 "Battery level, voltage, current, temperature, health":
-    "Shown by UPower and GNOME's battery panel.",
+    "Shown by UPower and GNOME's battery panel. The battery energy is reported at the cell's nominal voltage (full "
+    "about 53.8 Wh, design 52.05 Wh); a 30-minute check matches the integrated current within 2 %.",
 "Battery power reading (power_now)":
     "Right: the kernel reports voltage × current, because the battery firmware's own value is unusable on this SoC "
     "(SuperTurtleDev's fix).",
 "Battery time estimate":
-    "A steady estimate in GNOME. Measured with the screen at 50 %: light use 14-15 h, 1080p video 15-16 h, all cores "
-    "busy about 7 h, screen off but awake about 3.5 days.",
+    "A steady estimate in GNOME, based on the battery's real energy. Measured with the screen at 50 %: light use "
+    "14-15 h, 1080p video 15-16 h, all cores busy about 7 h, screen off but awake about 3.5 days.",
 "Battery safety guard (stock limits)":
     "One guard in iceland-device applies stock's JEITA temperature regions, voltages and currents, watches the three "
     "USB-C connector sensors and powers off at stock's limits.",
@@ -230,9 +231,9 @@ PUBLIC = {
     "GNOME Camera (Snapshot) works with both cameras (40 of 40 open / close cycles clean).",
 # Software & packaging
 "Kernel package (kernel-iceland)":
-    "kernel-iceland RPMs (current 7.3.0~rc7.iceland.00436) install and update with dnf on the installed system: a "
+    "kernel-iceland RPMs (current 7.3.0~rc7.iceland.00438) install and update with dnf on the installed system: a "
     "new kernel boots once as a trial and becomes the default after a confirmed boot. The camera and backlight "
-    "modules are included; no firmware is inside.",
+    "modules are included; no firmware is inside. The kernel and the package record a neutral build host name.",
 "Device package (iceland-device 0.28-7)": (
     "Device package (iceland-device)",
     "iceland-device 0.28-16 carries the tablet's settings: the battery guard, the thermal policy, the sound chain, "
