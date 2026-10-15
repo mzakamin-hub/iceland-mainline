@@ -1,0 +1,7 @@
+# iceland-device 0.28-18: the login screen does not follow the light sensor (the user's own session still can).
+# /etc/dconf/db/gdm.d/ is the system database of GDM's dconf profile (system-db:gdm); 'dconf update' compiles it,
+# the package runs it. GNOME's default ambient-enabled=true makes the greeter's gsd-power claim the ambient light
+# sensor from the boot to the login; after the login its ReleaseLight is refused ("Release of light sensors failed:
+# AccessDenied", the greeter's session is no longer active) until GDM stops the greeter. Users keep their own setting.
+[org/gnome/settings-daemon/plugins/power]
+ambient-enabled=false

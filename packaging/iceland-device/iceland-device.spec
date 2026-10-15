@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        17%{?dist}
+Release:        18%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -196,6 +196,8 @@ Source177:      provision-sources.tsv
 # 0.28-17: the small generic image grows into userdata (checks systemd-repart / growfs, repairs what is missing; once)
 Source178:      iceland-grow
 Source179:      iceland-grow.service
+# 0.28-18 (wf/scanfix C2): the login screen's own default - no automatic brightness, no light sensor claim
+Source180:      50-iceland-greeter-ambient
 
 Requires:       kernel-iceland
 Requires:       bluez
@@ -240,6 +242,9 @@ Recommends:     snapshot
 Requires:       pipewire-gstreamer >= 1.6.8
 Requires:       pipewire-libs >= 1.6.8
 Requires(posttrans): grubby
+# 0.28-18: dconf update compiles GDM's system database (/etc/dconf/db/gdm.d -> /etc/dconf/db/gdm)
+Requires(posttrans): dconf
+Requires(postun): dconf
 
 %description
 Settings that make Fedora 44 work safely on the OnePlus Pad 4 with the kernel-iceland package:
@@ -404,6 +409,7 @@ install -Dm0644 %{SOURCE176} %{buildroot}/usr/lib/systemd/system/iceland-provisi
 install -Dm0644 %{SOURCE177} %{buildroot}/usr/share/iceland/provision-sources.tsv
 install -Dm0755 %{SOURCE178} %{buildroot}/usr/libexec/iceland/iceland-grow
 install -Dm0644 %{SOURCE179} %{buildroot}/usr/lib/systemd/system/iceland-grow.service
+install -Dm0644 %{SOURCE180} %{buildroot}/etc/dconf/db/gdm.d/50-iceland-greeter-ambient
 # static links (not a preset, not "enable"): part of every graphical boot / every boot
 install -d %{buildroot}/usr/lib/systemd/system/graphical.target.wants %{buildroot}/usr/lib/systemd/system/timers.target.wants
 ln -s ../iceland-charging-detect.service %{buildroot}/usr/lib/systemd/system/graphical.target.wants/iceland-charging-detect.service
@@ -558,6 +564,9 @@ if [ ! -e /var/lib/iceland/.preset-unused-0.28-9 ]; then
 	mkdir -p /var/lib/iceland && touch /var/lib/iceland/.preset-unused-0.28-9
 fi
 # 0.28-9 (4): sysctl.d / tmpfiles.d take effect through systemd's file triggers at once and at every boot
+# 0.28-18: GDM's dconf database with the greeter default (ambient-enabled=false); the greeter reads it at its next
+# start (the next login screen), user sessions are not touched
+dconf update >/dev/null 2>&1 || :
 
 %triggerin -- fwupd
 /usr/libexec/iceland/iceland-fwupd-guard || :
@@ -589,6 +598,11 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 [ "$1" -eq 0 ] && /usr/bin/iceland-power-profiles reset >/dev/null 2>&1 || :
 # bypass charging ends with the package (the running guard gives charging back at its next step)
 [ "$1" -eq 0 ] && { systemctl stop iceland-bypass.service >/dev/null 2>&1; rm -f /run/iceland/bypass-request; } || :
+
+%postun
+# 0.28-18: on removal GDM's dconf database is compiled again without the greeter default (an upgrade does it in
+# %posttrans)
+[ "$1" -eq 0 ] && { dconf update >/dev/null 2>&1 || :; } || :
 
 %files
 /usr/share/dnf5/libdnf.conf.d/80-iceland-kernel.conf
@@ -693,6 +707,8 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/libexec/iceland/iceland-grow
 /usr/lib/systemd/system/iceland-grow.service
 /usr/lib/systemd/system/multi-user.target.wants/iceland-grow.service
+%dir /etc/dconf/db/gdm.d
+%config(noreplace) /etc/dconf/db/gdm.d/50-iceland-greeter-ambient
 /usr/lib/systemd/system-preset/50-iceland.preset
 %dir /usr/share/selinux/packages/iceland
 /usr/share/selinux/packages/iceland/iceland_sensors.pp
@@ -745,6 +761,15 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
 
 %changelog
+* Fri Oct 16 2026 mzak <mzak.amin@gmail.com> - 0.28-18
+- the login screen no longer claims the ambient light sensor (wf/scanfix C2): /etc/dconf/db/gdm.d/
+  50-iceland-greeter-ambient sets org.gnome.settings-daemon.plugins.power ambient-enabled=false in GDM's system
+  database (system-db:gdm of GDM's dconf profile; dconf update in %posttrans, and in %postun on removal). With
+  GNOME's default the greeter's gsd-power claimed the light sensor from the boot to the login and could not
+  release it after the login ('Release of light sensors failed: AccessDenied', its session no longer active) until
+  GDM stopped the greeter; the proxy streamed the sensor for the login screen. User sessions keep their own
+  Automatic Screen Brightness setting. New tests/test_gdm_ambient.py
+- carries 0.28-17 unchanged (an installed 0.28-16 gets the 0.28-17 fixes through this package)
 * Thu Oct 15 2026 mzak <mzak.amin@gmail.com> - 0.28-17
 - generic image "Fedora Remix for OnePlus Pad 4" (wf/generic, the owner's decisions of 15 Oct 2026):
   iceland-provision.service runs once on the first boot (ConditionPathExists=!/var/lib/iceland/provisioned; a static
