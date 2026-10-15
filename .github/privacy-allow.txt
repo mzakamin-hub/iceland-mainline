@@ -24,3 +24,6 @@ value 25:00:00:00:5A:AD
 value AD:5A:00:00:00:25
 value 00:00:00:00:5A:AD
 value AD:5A:00:00:00:00
+#
+# The documentation example address (format examples in comments and help texts).
+value aa:bb:cc:dd:ee:ff
