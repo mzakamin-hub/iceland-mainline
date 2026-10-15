@@ -56,6 +56,18 @@ is made by hand after its own checks; nothing in this repository writes to a dev
 - [docs/INSTALL-PLAN.md](docs/INSTALL-PLAN.md): the design and the reasons behind each rule.
 - [docs/guide/07-INSTALL-REVIEW.md](docs/guide/07-INSTALL-REVIEW.md): the risks and how the design handles them.
 
+### Download
+
+- [iceland-device-0.28-16](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-16): the source RPMs of
+  `iceland-device` 0.28-16, `iio-sensor-proxy` 3.9-11.iceland1 and `libssc` (build dependency), and the Windows
+  installer ([tools/installer/](tools/installer/README-INSTALLER.md); it refuses both writes until a generic
+  install image exists).
+- Kernel q89k: [iceland-linux release `q89k`](https://github.com/mzakamin-hub/iceland-linux/releases/tag/q89k).
+- U-Boot install build v4: [iceland-u-boot release `v4-2026-10-15`](https://github.com/mzakamin-hub/iceland-u-boot/releases/tag/v4-2026-10-15).
+- Firmware: [iceland-firmware release `11.A.38-3`](https://github.com/mzakamin-hub/iceland-firmware/releases/tag/11.A.38-3).
+
+There is no published install image: every install image carries the tablet's own unit-specific files.
+
 ## Repositories
 
 All repositories are public under the GitHub user `mzakamin-hub`.
