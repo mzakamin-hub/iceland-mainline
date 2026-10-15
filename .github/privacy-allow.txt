@@ -17,3 +17,10 @@ value 172.16.42.2
 #
 # GNOME Shell extension UUID (not an address).
 value background-logo@fedorahosted.org
+#
+# Bluetooth address placeholders that iceland-provision refuses (generic, the same in every unit's firmware / DT):
+# the device tree's local-bd-address placeholder and the WCN NVM default, both byte orders.
+value 25:00:00:00:5A:AD
+value AD:5A:00:00:00:25
+value 00:00:00:00:5A:AD
+value AD:5A:00:00:00:00
