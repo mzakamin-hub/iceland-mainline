@@ -1,24 +1,22 @@
 # OnePlus Pad 4 (`iceland`, OPD2514) — hardware, boot chain and partition reference
 
-For mainline Linux, U-Boot and any low-level work. Written 2026-09-28 from everything measured so far; updated 14 Oct 2026
-for the installed state (section 3 and the status block below).
+For mainline Linux, U-Boot and any low-level work. Written 2026-09-28 from everything measured so far; updated for the
+installed state (section 3 and the status block below).
 
-Status (14 Oct 2026): Fedora 44 GNOME is installed on the tablet since 13 Oct 2026. The install wrote the Fedora disk image
-into `userdata` (write 1) and the footered U-Boot v3 install build into `boot_b` (write 2). The tablet boots Fedora from
-`boot_b`, through U-Boot's EFI boot manager and the Fedora GRUB and shim in `userdata`. The kernel is 7.3.0-rc7 (queue
-q89g), the firmware package is 11.A.38-3 and the device package is 0.28-7 (0.28-8 was installed by hand for one file on
-14 Oct). The slot-b boot counter did not mark the installed slot on its own; it was marked by hand on 14 Oct, and the fix is
-in iceland-device 0.28-8. Sections 0, 3, 4 (the userdata and boot rows), 5 (the closing
-note), 6 (the camera, USB, Wi-Fi and battery notes), 7 and 9 to 10 are brought up to date. The rest describes the hardware
-as measured on 28 Sep and is still right unless a note says otherwise. The raw partition backups, the stock package and
-the captures are kept off the repository; their paths are not written here.
+Status: Fedora 44 GNOME installs on the tablet with two writes: the Fedora disk image into `userdata` and the footered
+U-Boot install build into `boot_b`. The tablet then boots Fedora from `boot_b`, through U-Boot's EFI boot manager and
+the Fedora GRUB and shim in `userdata`; Fedora marks the slot successful after a good boot (iceland-device 0.28-8 and
+newer). Sections 0, 3, 4 (the userdata and boot rows), 5 (the closing note), 6 (the camera, USB, Wi-Fi and battery
+notes), 7 and 9 to 10 describe the installed state. The rest describes the hardware as measured on 28 Sep and is still
+right unless a note says otherwise. The raw partition backups, the stock package and the captures are kept off the
+repository; their paths are not written here.
 
 **Sources and markers:** [measured] on this tablet (stock OxygenOS capture, DSU root capture, LineageOS 24.0 runtime, mainline RAM
 boots) · [source] read from the stock 11.A.38 images / decoded stock DTs / OnePlusOSS `oneplus/sm8850_b_16.0_pad_4` source · [inferred],
 verify first.
 
 **Companion documents:**
-- mainline project: `mzakamin-hub/iceland-mainline` → `docs/KNOWLEDGE.md` (bring-up history, fixes, traps), `docs/device-facts/`
+- mainline project: `mzakamin-hub/iceland-mainline` → `docs/guide/` (hardware, boot, build), `docs/device-facts/`
   (decoded stock facts: memory map, reserved memory, I2C/SPI, regulators; the raw captures are not published), `firmware/manifest.tsv`.
 - LineageOS side: the PC's own handover and action logs (not published).
 
@@ -46,7 +44,7 @@ verify first.
 | Boot | Qualcomm ABL (OnePlus build), A/B, boot header **v4**, Gunyah hypervisor, AVB 1.3, bootloader **unlocked** ("orange") [measured] |
 | Stock kernel | Google **prebuilt GKI 6.12.58** (`ab15213644`) + 594 OnePlus/Qualcomm vendor modules [source] |
 | Firmware | OxygenOS **11.A.38** (`OPD2514_16.0.10.501(EX01)`), anti-rollback — never older [measured] |
-| Installed system (14 Oct) | Fedora 44 GNOME from `userdata`, booted through `boot_b` (U-Boot install build v3). Kernel 7.3.0-rc7 queue q89g; firmware package 11.A.38-3; device package 0.28-7 (0.28-8 by hand, one file) |
+| Installed system | Fedora 44 GNOME from `userdata`, booted through `boot_b` (U-Boot install build). Kernel 7.3.0-rc7 (`kernel-iceland`); firmware package 11.A.38-3; device package `iceland-device` |
 
 ---
 
@@ -101,15 +99,12 @@ PBL (ROM) → XBL (xbl_a/b on LUN sdb/sdc, + xbl_config) → TZ / Gunyah (hyp) /
 
 Slot marking: ABL keeps a successful flag, an unbootable flag and a retry count per slot. Every normal power-on of a slot that is
 not successful counts one try. Only Android or Fedora's `qbootctl -m` marks a slot successful; U-Boot does not. On the installed
-system `iceland-slot-mark` skipped every boot (its guard refused the loop root), so the count of slot b fell from 7 to 3 by the
-evening of 13 Oct. On 14 Oct the owner marked slot b by hand with `qbootctl` (after taking GPT copies). The fix is in iceland-device
-0.28-8 (it accepts a loop root backed by `userdata`, makes the boot LUN writable only for the one `qbootctl -m` call, and logs
-both).
+system `iceland-slot-mark` runs `qbootctl -m` once after a good boot. iceland-device 0.28-7 skipped it (its guard refused the
+loop root); 0.28-8 and newer accept a loop root backed by `userdata`, make the boot LUN writable only for the one
+`qbootctl -m` call, and log both.
 
-Install record: the full backup of the 151 partitions and the stock images were checked, a return-to-stock dry run was done (13 Oct,
-no tablet connected), and a second copy was verified. The two writes were the owner's, each confirmed in chat: `userdata` (267 s,
-OKAY) and then `boot_b` (2.3 s, OKAY). Two tethered boots came first; the first boot from `boot_b` on its own was at 20:48 on 13 Oct.
-Decision 1 is Fedora only (no dual boot).
+Install checks: a full backup of the 151 partitions and the stock images, checked; a return-to-stock dry run; a second
+copy on another disk. The install is Fedora only (no dual boot).
 
 **ABL fastboot** (`getvar`) [measured]: `product=canoe`, `hw-revision=20000`, `variant=SM8 UFS`, `secure=yes`, `unlocked=yes`,
 `is-userspace=no` (ABL fastboot; fastbootd is in recovery), `max-download-size=805306368`, slots a/b with `slot-retry-count` 5 and
@@ -248,7 +243,7 @@ file level before Android was erased for the Linux install (13 Oct).
 | `CAMERA_ICP.mdt`/`CAMERA_ICP_1.mdt` + `.bNN`, EVA | `/vendor/firmware/` |
 Destination convention: `qcom/kaanapali/OnePlus/iceland/`.
 
-Publication (owner's decision, 11 Oct 2026): the generic Pad 4 firmware blobs (ADSP, CDSP, SOCCP, GPU, Wi-Fi / BT, touch, camera
+Publication: the generic Pad 4 firmware blobs (ADSP, CDSP, SOCCP, GPU, Wi-Fi / BT, touch, camera
 and VPU) are published in the dedicated firmware repository `iceland-firmware`, with the source and sha256 of each file in its
 manifest (release 11.A.38-2 holds 278 generic files; 11.A.38-3 adds the decoded generic thermal model). Unit-specific data (the
 calibration, the key material, the partition carves, the serial and the addresses) is never published. For any other file, extract
@@ -279,7 +274,7 @@ it from the user's own device or OTA.
   30 to 144 Hz live switching; the idle refresh is still off.)
 - **Supplies** [measured]/[source]: vddio `pmh0101_l12` **1.9 V** (the shared canoe regulator dtsi caps L12B at 1.8 V → must be raised), DSI
   `vdda-1p2` `pmh0110_d_l1`, DSI PHY `vdda-0p9` `pmh0110_d_l3`. Rails for scanout: MMCX + MX (+ MXC) at TURBO while ABL's 650 MHz MDP runs;
-  hold **both** MDSS GDSCs (`MDSS_CORE`, `MDSS_CORE_INT2`) — see mainline KNOWLEDGE §4/§12.
+  hold **both** MDSS GDSCs (`MDSS_CORE`, `MDSS_CORE_INT2`).
 - **Backlight**: 2× Kinetic **KTZ8869** — master **i2c14 @0x11** (`ktz8869-i2c-master`, QUP3 `1984000`), slave **i2c15 @0x11**
   (`ktz8869-i2c-salve`, QUP3 `1988000`); HWEN **TLMM 1** (shared by both → `CONFIG_GPIO_SHARED_PROXY=y` on 7.3+); LCD bias ENP **TLMM 14**,
   ENN **TLMM 15** (used before EVT; later boards set the bias over I2C registers); `oplus,bl-use-ktz8869-ic-ctrl`; brightness 2–4095,
@@ -335,7 +330,6 @@ it from the user's own device or OTA.
 - ISP firmware `CAMERA_ICP*`; camera heaps `camera_region@99600000`, `camera_2_region@99e00000` [measured].
 - 14 Oct: both sensors stream through Fedora 44's libcamera 0.7.1-2 (software ISP; open and close 40 of 40). Focus is fixed at the
   stock start position (450, kernel K7); there is no autofocus. Camera into the hardware encoder does not negotiate (open).
-  Details: `docs/research/camera-bringup.md`.
 
 ### 6.6 Sensors, hall, cover
 - All physical sensors sit on the **ADSP Sensor Core (SSC)** — Linux needs hexagonrpcd/libssc, not I²C drivers [measured]:
@@ -354,8 +348,7 @@ it from the user's own device or OTA.
   `qcom-battmgr` battery/USB supplies, UCSI `ucsi-glink` (PD, PD_PPS source) [measured]. (The battmgr units were checked on the tablet: the
   battery temperature is in tenths of a degree Celsius and the voltage in microvolts.)
 - 14 Oct: battery reporting, the time estimate and the charge limit (80 / 85 %) work on the installed system; a battery safety guard
-  (stock regions, connector cut) is in iceland-device. Charging with the wall chargers is still to be checked; see
-  `docs/research/battery-guard-verification.md`.
+  (stock regions, connector cut) is in iceland-device. Charging with the wall chargers is still to be checked.
 - **Fast charge** [source]: 80 W SUPERVOOC (`oplus,vooc_project = 7`, `vooc_power_max_w 80`, charge-pump max IBUS 5.3 A, IBAT OC 16 A),
   plus OnePlus PPS/UFCS; 2× **SC8547D** charge pumps — **i2c12 @0x6a** (QUP2 `890000`) and **i2c24 @0x6a** (QUP I2C `980000`) [measured], driven on
   stock by the APPS-side `oplus_chg_v2`/voocphy (no mainline driver; basic charging via SoCCP works without them).
@@ -373,7 +366,7 @@ it from the user's own device or OTA.
   device-mode register **0x57 = 0x03**); QMP combo PHY (USB3 + DP); role switch / orientation via SoCCP UCSI (`typec` `port0`) [measured]/[source].
 - Mainline: NCM gadget works; UCSI registration resets the bus once (harmless) [measured].
 - 14 Oct: USB device mode works (USB 2 speed). DisplayPort over USB-C: hot plug and EDID work with a bus-powered 4K
-  monitor (`docs/research/usb-c-bringup.md`).
+  monitor; there is no picture yet.
 
 ### 6.9 Wi-Fi and Bluetooth (WCN7860 "peach")
 - 14 Oct: Wi-Fi 2.4 GHz works on the installed system (about 390 Mbit/s down in a speed test to a nearby server); the 5 GHz networks are
@@ -397,8 +390,7 @@ it from the user's own device or OTA.
   135 critical; board thermistors on PMH0101 ADC5 Gen4 (`pmh0101_board_therm` AMUX THM5, `pmh0101_flash_therm` AMUX1 GPIO1, 100k
   pull-up) with passive trips at 125 °C in the Pad 4 DT [source]; BCL level 1/2 → GPU cooling states 3/5 [source]; OnePlus skin "gears" in
   `odm/etc/temperature_profile/sys_thermal_control_config.xml`.
-- 14 Oct: the installed system runs the stock 20-gear thermal policy (iceland-thermal). The skin loop and the caps are measured in
-  `docs/research/dcvs-tuning.md`.
+- 14 Oct: the installed system runs the stock 20-gear thermal policy (iceland-thermal). The skin loop and the caps were measured on the tablet.
 - **Vibrator**: none fitted (stock has none; `qcom_hv_haptics` loads unbound) [measured]. **IR / FM / NFC / GNSS / cellular**: not fitted
   (`oplus_sensor_kookong_ir_spi`, `radio_i2c_rtc6226_qca` load but bind nothing) [measured].
 
@@ -469,10 +461,9 @@ rail) are in the 14 Oct build (the display and input rows of the feature matrix)
 1. Never write the 40 firmware partitions, `persist`, `oplusreserve*`, `nonmodemst*`, `cdt`/`ddr`/`dinfo`, `devinfo`, security partitions.
 2. Never boot or activate a slot whose firmware is older than 11.A.38; keep both slots identical (`copy-partitions`).
 3. Never relock the bootloader with non-stock images. No public EDL firehose → fastboot is the only way back.
-4. Prefer RAM boot (`fastboot boot`); a Linux install goes into `userdata`, with Android's `/data/vendor` and `persist` saved first
-   (done on 13 Oct for the installed system).
+4. Prefer RAM boot (`fastboot boot`); a Linux install goes into `userdata`, with Android's `/data/vendor` and `persist` saved first.
 5. Keep the verified stock package and the 151-partition backup off the repository (their locations are not published). The
-   return-to-stock path (not run) uses both; it is the only way back to stock 11.A.38 (owner's decision).
+   return-to-stock path (not run) uses both; it is the only documented way back (stock 11.A.38).
 
 ## 10. Where the raw data is
 All the private locations below are on the PC and are not published; their paths are not written here.

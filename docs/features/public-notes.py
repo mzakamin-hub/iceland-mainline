@@ -65,9 +65,9 @@ PUBLIC = {
     "each file sha256-pinned to our own extraction, in the public repo mzakamin-hub/iceland-firmware. Unit-specific "
     "data is never included.",
 "Fedora installed on the tablet":
-    "Fedora 44 is installed (13 Oct 2026): the system image in userdata and U-Boot in boot_b; only these two "
-    "partitions were written. The tablet boots Fedora on its own, the root is btrfs on a loop device in userdata, and "
-    "the boot slot is marked successful.",
+    "Fedora 44 installs with two partition writes: the system image into userdata and U-Boot into boot_b; nothing "
+    "else is written. The tablet then boots Fedora on its own, the root is btrfs on a loop device in userdata, and "
+    "Fedora marks the boot slot successful.",
 # Display & input
 "Native display 3392×2400, dual DSI + DSC":
     "The panel runs at its native 3392×2400 over dual DSI with DSC; the boot splash hands over to the MSM DRM driver. "
@@ -87,7 +87,7 @@ PUBLIC = {
 "Touchscreen":
     "Works, also after display off / on and suspend.",
 "Pen":
-    "Works (confirmed by the owner).",
+    "Works (checked on the tablet).",
 "Lid switch":
     "The cover turns the screen off and on. On battery a closed cover suspends, on a charger it locks.",
 "Power and volume keys":

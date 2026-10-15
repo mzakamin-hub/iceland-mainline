@@ -1,8 +1,8 @@
 # 04 - Build your own kernel, U-Boot and packages for the OnePlus Pad 4
 
 State: 14 Oct 2026. The kernel is Linux 7.3-rc7 with the queue head `q89g` (branch `iceland-7.3-rc7-q89g`, tag `q89g`).
-U-Boot is `v2026.10-rc5` with the install build v3. The packages are `iceland-device` 0.28-8 and `iceland-firmware`
-11.A.38-3. Fedora 44 GNOME has been installed on the owner's tablet since 13 Oct 2026 (`INSTALL-GUIDE.md`).
+U-Boot is `v2026.10-rc5` with the install build. The packages are `iceland-device` and `iceland-firmware` 11.A.38-3
+(current versions in `docs/RELEASE-NOTES.md`). Installing Fedora on the tablet is described in `INSTALL-GUIDE.md`.
 
 The project develops on Windows 11 with WSL (Ubuntu 24.04). **Steps marked "untested here" were not run that way by
 the project.** The scripts named in this guide are the ones in the public repositories. The project's test tooling
@@ -26,11 +26,11 @@ the project.** The scripts named in this guide are the ones in the public reposi
 | Stage | Proven by the project | Section |
 |---|---|---|
 | Your own kernel from our queue, built reproducibly (tree hashes checked by `prepare.sh`) | yes (q89g is the head since 13 Oct; every test kernel since 28 Sep) | 3 |
-| The kernel package `kernel-iceland` (Fedora rpm) | yes (installed on the owner's tablet) | 3.4 |
-| U-Boot install build v3 (RAM boots on 10 Oct; written to `boot_b` on 13 Oct) | yes | 4 |
-| The device, firmware and sensor packages (rpm) | yes (installed on the owner's tablet; the sensor packages were built on the tablet in a RAM session) | 7 |
+| The kernel package `kernel-iceland` (Fedora rpm) | yes (installed and updated with dnf on the tablet) | 3.4 |
+| U-Boot install build (RAM boots, and as the boot path in `boot_b`) | yes | 4 |
+| The device, firmware and sensor packages (rpm) | yes (installed on the tablet; the sensor packages were built on the tablet in a RAM session) | 7 |
 | A Linux and Fedora RAM test kit | the kit builder and its runner are not published | 6 |
-| Installing Fedora to the tablet | yes, by the owner, 13 Oct 2026 (`INSTALL-GUIDE.md`); this guide does not repeat it | - |
+| Installing Fedora to the tablet | yes (`INSTALL-GUIDE.md`); this guide does not repeat it | - |
 
 ## 1. Prerequisites
 
@@ -157,25 +157,26 @@ packaging/fedora/build-rpm.sh ./out ./rpms [RELEASE]     # RELEASE defaults to 1
   boot entry. The plug-in `90-iceland-dtb.install` copies the device tree to the ESP, where U-Boot loads it.
 - It needs rpmbuild on Fedora (untested here on other distributions).
 
-## 4. Build U-Boot (the install build v3)
+## 4. Build U-Boot (the install build)
 
 ```sh
 cd ~/pad4/iceland-u-boot
-scripts/prepare.sh ./src        # v2026.10-rc5 + 14 infiniti patches + 10 Pad 4 patches; tree hashes checked
+scripts/prepare.sh ./src        # v2026.10-rc5 + 14 infiniti patches + 12 Pad 4 patches; tree hashes checked
 scripts/build.sh ./src ./out    # CROSS_COMPILE=aarch64-linux-gnu- by default; JOBS=N
 ls out/dist/                    # u-boot-iceland-v4.img  u-boot-iceland-v2.img  u-boot.bin.gz  u-boot.dtb  BUILD_INFO  SHA256SUMS
 ```
 
 - The Pad 4 series is `patches/0002-iceland`: 0001-0003 are the board (`iceland_defconfig`, `iceland.env`), and
-  0004-0010 are the install build: blkmap mapping of `userdata`, EFI disk rules (every block device except the blkmap
+  0004-0012 are the install build: blkmap mapping of `userdata`, EFI disk rules (every block device except the blkmap
   disk is read-only for EFI programs), the install environment, a fastboot idle timeout, no reset or power-off by itself,
-  USB brought up without ABL, and `fastboot reboot-bootloader`.
+  USB brought up without ABL, `fastboot reboot-bootloader`, ABL's boot mode passed on, and the power-on boot menu.
 - `u-boot-iceland-v4.img` is the header-v4 image (U-Boot with its device tree in the kernel slot), the form ABL starts.
   `u-boot-iceland-v2.img` is an alternative.
 - The record of the tested build is `tools/install/BUILD_INFO-v3.txt` in `iceland-u-boot`: U-Boot commit
   `aac9e744ec6f`, mkbootimg `808ecd09`, boot header `os_version 17.0.0`, patch level `2026-09`. Its raw image
-  `u-boot-iceland-usb.img` (540,672 bytes) has sha256 prefix `979b4076`. The image written to `boot_b` on 13 Oct is
-  that build with an AVB hash footer made for that day's `boot_b`; the footer step is part of the install record.
+  `u-boot-iceland-usb.img` (540,672 bytes) has sha256 prefix `979b4076`; the v4 hashes are in iceland-u-boot's README.
+  The image written to `boot_b` is that build with an AVB hash footer made for the tablet's current `boot_b`
+  (`INSTALL-GUIDE.md` section 2).
   Whether a fresh build reproduces the record's hash is **unverified**: U-Boot embeds its build time, so the hash
   changes with each build.
 - The boot header values in `uboot.pin` must match the boot image of the slot you write (anti-rollback).
@@ -190,7 +191,7 @@ fastboot boot ~/pad4/iceland-u-boot/out/dist/u-boot-iceland-v4.img
 fastboot getvar product                    # now: oneplus-iceland (U-Boot)
 ```
 
-The project's RAM boots of this build ran on 10 Oct 2026: fastboot came up after 2-7 s, the boot manager failed cleanly
+In the project's RAM boots of the install build fastboot came up after 2-7 s, the boot manager failed cleanly
 and the slot flags were unchanged. A RAM boot of an image built here is untested here. If U-Boot's text does not
 appear, leave the tablet alone: a reboot returns it to its installed boot.
 
@@ -285,14 +286,14 @@ firmware package supplies the public part; the unit-specific registry comes from
 
 ## 8. Testing and getting logs
 
-- The project's test suite, its RAM-kit runners and the run logs are not published (removed 13-14 Oct 2026). The
-  rehearsal logs stay private: they carry network names and unit data. This guide therefore has no test script to run.
+- The project's test suite, its RAM-kit runners and the run logs are not published; they carry network names and
+  unit data. This guide therefore has no test script to run.
 - The feature matrix in `iceland-mainline/docs/features/` (`features-data.py`, `build.py`) records how each feature was
   proven; its working rows are published as `docs/FEATURES.md`.
 - **Live kernel log.** Read `dmesg` (or the journal on an installed system) for the run.
 - **After a reset.** pstore does not survive a hard reset (PS_HOLD). Read the reset reason from Android's
   `/proc/bootloader_log` (root), or keep a kit's kernel log in a pmsg zone (the kit builder is not published).
-- **Rules that come from accidents** (`06-PROCESS-HISTORY.md` section 4):
+- **Rules that come from accidents:**
   - never read every `/sys/kernel/debug/regmap/*/registers`;
   - never read TLMM pad registers through `/dev/mem`;
   - never poke driver-owned registers from user space.
@@ -300,9 +301,8 @@ firmware package supplies the public part; the unit-specific registry comes from
 
 ## 9. What is not covered, and the risks
 
-- **The install** is not part of this guide. The owner installed Fedora 44 on 13 Oct 2026; the steps and the record are
-  in `INSTALL-GUIDE.md`. The install image itself is not published. `07-INSTALL-REVIEW.md` is the review of 2 Oct, from
-  before the install.
+- **The install** is not part of this guide: see `INSTALL-GUIDE.md` (the steps), `INSTALL-PLAN.md` (the design) and
+  `07-INSTALL-REVIEW.md` (the risks). The project does not publish an install image.
 - **Cameras.** The camera sensor drivers (SC1320CS, SC820CS) are in the kernel queue. Their tuning files (`sc1320cs.yaml`,
   `sc820cs.yaml`) are in the `iceland-device` package. Without the tuning there are no cameras, on any distribution. The
   feature matrix gives the state of each camera row, including the camera into the hardware encoder (not negotiating yet).
@@ -311,4 +311,4 @@ firmware package supplies the public part; the unit-specific registry comes from
 - **Risk summary.**
   - A RAM boot cannot damage the tablet's storage: `fastboot boot` writes nothing.
   - The remaining risks are a hang or reset (hold Power about 15 s), and battery drain during long sessions on a PC port.
-  - Unlocking (1.3) and any write to a partition are destructive, and both are the owner's decision.
+  - Unlocking (1.3) and any write to a partition are destructive, and both are your own decision.

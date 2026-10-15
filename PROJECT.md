@@ -8,7 +8,7 @@ unlocked boot loader. The stock firmware the project is based on is 11.A.38.
 
 Start with [README.md](README.md) for the status and the install guide ([docs/INSTALL-GUIDE.md](docs/INSTALL-GUIDE.md)).
 The dated history is in [CHANGELOG.md](CHANGELOG.md), the release notes in [docs/RELEASE-NOTES.md](docs/RELEASE-NOTES.md),
-and what the project knows is in [docs/KNOWLEDGE.md](docs/KNOWLEDGE.md). The port plan is [docs/PLAN.md](docs/PLAN.md).
+and the guide set in [docs/guide/](docs/guide/).
 
 ## Current state (15 Oct 2026)
 
@@ -29,14 +29,14 @@ working features):
 | Sleep (s2idle) and resume; deep sleep overnight | works on the installed system |
 | Sensors and gyroscope (through the ADSP sensor hub; iio-sensor-proxy 3.9-11.iceland1) | works |
 | Cameras: both sensors stream through libcamera; GNOME Camera | works |
-| Install on the tablet: Fedora 44 GNOME in `userdata`, U-Boot in `boot_b` | done 13 Oct 2026 |
+| Install on the tablet: Fedora 44 GNOME in `userdata`, U-Boot in `boot_b` | works ([docs/INSTALL-GUIDE.md](docs/INSTALL-GUIDE.md)) |
 | Packages: `iceland-device` 0.28-16, `iceland-firmware` 11.A.38-3, `kernel-iceland` 00436 | installed |
 
 ## Our repositories (public, GitHub user `mzakamin-hub`)
 
 | Repo | Contents | Licence |
 |---|---|---|
-| [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) (this repo) | status, plan, install guide, device facts, the list of working features, `iceland-device` package, firmware manifest and packaging text, sensor and audio notes | GPL-2.0-or-later (scripts) |
+| [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) (this repo) | status, install guide and design, device facts, the list of working features, `iceland-device` package, firmware manifest and packaging text, sensor and audio notes | GPL-2.0-or-later (scripts) |
 | [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) | kernel patch queue: Linux v7.3-rc7 + `0001-infiniti` + `0002-iceland`; configs; prepare and build scripts. Current branch `iceland-7.3-rc7-next` (kernel q89k, `7.3.0-rc7-iceland-00436`) | GPL-2.0 |
 | [iceland-u-boot](https://github.com/mzakamin-hub/iceland-u-boot) | U-Boot patch queue: v2026.10-rc5 + infiniti-mainline (14 patches) + Pad 4 board (0002-iceland, 0001-0012); build scripts; install build record (v4 in `boot_b`) | GPL-2.0+ |
 | [iceland-firmware](https://github.com/mzakamin-hub/iceland-firmware) | generic stock 11.A.38 firmware as an RPM (tags 11.A.38-2, 11.A.38-3), manifest, notices | vendor notices kept in the repo |
@@ -52,11 +52,10 @@ and the test material. Every binary records its source commits in its build info
 | What | Where |
 |---|---|
 | Status and install | [README.md](README.md), [docs/INSTALL-GUIDE.md](docs/INSTALL-GUIDE.md), [docs/INSTALL-PLAN.md](docs/INSTALL-PLAN.md) |
-| Release notes (RC1 of 3 Oct, final build of 14 Oct) | [docs/RELEASE-NOTES.md](docs/RELEASE-NOTES.md) |
+| Release notes (current versions, changes, known limits) | [docs/RELEASE-NOTES.md](docs/RELEASE-NOTES.md) |
 | History by date | [CHANGELOG.md](CHANGELOG.md) |
 | What works (feature list) | [docs/FEATURES.md](docs/FEATURES.md) |
 | Kernel and U-Boot state | [docs/MAINLINE-STATE.md](docs/MAINLINE-STATE.md) |
-| Project snapshot and working rules | [docs/PROJECT-STATE.md](docs/PROJECT-STATE.md) |
 | Device facts: memory map, reserved memory, I2C / SPI map, stock and live DTs | [docs/device-facts/](docs/device-facts/) |
 | Firmware manifest (names, stock source, sha256) | [firmware/manifest.tsv](firmware/manifest.tsv) |
 | Generic firmware package (sha256 per file, notices) | [packaging/iceland-firmware/](packaging/iceland-firmware/) |
@@ -64,12 +63,12 @@ and the test material. Every binary records its source commits in its build info
 | Sensor programs (hexagonrpc, libssc, iio-sensor-proxy) | [packaging/sensors/](packaging/sensors/), [docs/sensors/](docs/sensors/) |
 | Audio topology and UCM | [audio/](audio/) |
 | Fedora image build (RAM-boot scripts) | [phase4/](phase4/) |
-| Dual-boot tool | [tools/dualboot/](tools/dualboot/) |
+| Dual-boot helper (untested) | [tools/dualboot/](tools/dualboot/) |
 | Kernel pin, patches, configs, port log | iceland-linux: `kernel.pin`, `patches/`, `configs/`, `docs/` |
 | U-Boot pin, patches, install build record | iceland-u-boot: `uboot.pin`, `patches/`, `tools/install/` |
 
-Test logs, test kits, the test tools and the rehearsal logs are not published. They were removed from the public
-repositories on 13 and 14 Oct 2026, with their history. Where a document refers to them, it says so in plain text.
+Test logs, test kits, the test tools, the rehearsal logs and the project's working records (work log, plans, session
+notes) are not published. Where a document refers to them, it says so in plain text.
 
 ### Pinned sources
 
@@ -107,10 +106,10 @@ repositories on 13 and 14 Oct 2026, with their history. Where a document refers 
 
 ## Standing rules
 
-- Installing, flashing, unlocking and slot changes on the tablet are done by the owner, by hand, after the PC checks. The
-  two partition writes of the install were made that way (13 Oct 2026). Test kits only RAM-boot (`fastboot boot`).
-- Proprietary firmware is not committed. The one exception is the generic firmware package (`iceland-firmware`): the
-  owner's decision of 11 Oct 2026 allows the generic ADSP, CDSP, SOCCP, GPU, Wi-Fi / Bluetooth, touch, camera / sensor
+- Installing, flashing, unlocking and slot changes are made by hand, after the PC checks; the project's tools never
+  write to a device. Test kits only RAM-boot (`fastboot boot`).
+- Proprietary firmware is not committed. The one exception is the generic firmware package (`iceland-firmware`), which
+  holds the generic ADSP, CDSP, SOCCP, GPU, Wi-Fi / Bluetooth, touch, camera / sensor
   and VPU files there, each with its source and sha256 and the vendor notices. Unit-specific data is never published.
 - Repositories are public. Nothing is sent upstream and no maintainer is contacted without the owner's agreement.
 - Commits carry the author's name and a `Signed-off-by` line. Commits made by other people keep their authorship.

@@ -25,7 +25,7 @@ This list shows the 84 features that work today, sorted by functionality. Featur
 | Stable USB sessions | Long sessions over the USB link to a PC run stable: the freezes during fast USB transfers are fixed (queue 0063). |
 | Firmware extractor (tablet's own partitions, read-only) | iceland-fw-extract copies the GPU, video, Wi-Fi, Bluetooth, sound, touch and sensor-hub firmware read-only from the tablet's own partitions; the files match the checksum record. |
 | Firmware package (iceland-firmware) | iceland-firmware 11.A.38-3: the generic stock 11.A.38 firmware (and stock's decoded thermal model) as an RPM, each file sha256-pinned to our own extraction, in the public repo mzakamin-hub/iceland-firmware. Unit-specific data is never included. |
-| Fedora installed on the tablet | Fedora 44 is installed (13 Oct 2026): the system image in userdata and U-Boot in boot_b; only these two partitions were written. The tablet boots Fedora on its own, the root is btrfs on a loop device in userdata, and the boot slot is marked successful. |
+| Fedora installed on the tablet | Fedora 44 installs with two partition writes: the system image into userdata and U-Boot into boot_b; nothing else is written. The tablet then boots Fedora on its own, the root is btrfs on a loop device in userdata, and Fedora marks the boot slot successful. |
 
 ## Display & input
 
@@ -37,7 +37,7 @@ This list shows the 84 features that work today, sorted by functionality. Featur
 | Display wake from sleep | The picture comes back after every wake from sleep (16 of 16 wakes tested), with no display timeouts at suspend entry. |
 | No pink / blocky glitches in GNOME | Fixed in queue 0060 (the compressed-buffer decoder is set up again after the splash hand-over); not seen since 30 Sep. |
 | Touchscreen | Works, also after display off / on and suspend. |
-| Pen | Works (confirmed by the owner). |
+| Pen | Works (checked on the tablet). |
 | Lid switch | The cover turns the screen off and on. On battery a closed cover suspends, on a charger it locks. |
 | Power and volume keys | The power key wakes the tablet from sleep. Without a charger a press suspends; with a charger in it locks and turns the screen off, as stock does. |
 | Auto-rotate | Works in tablet mode, with the panel's landscape mount matrix. While a keyboard is connected GNOME leaves tablet mode and stops rotating, as designed. |

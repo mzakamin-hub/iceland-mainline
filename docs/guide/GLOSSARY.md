@@ -25,15 +25,15 @@ Terms as this project uses them (state 14 Oct 2026). "Pad 4" = OnePlus Pad 4 (OP
 | **EDL** | Qualcomm's emergency download mode (9008). Not usable for this tablet (no public loader), so fastboot is the floor |
 | **efisp** | a 3 MiB firmware-side partition named after the EFI System Partition. Not used by this project (`02-HARDWARE.md` section 6) |
 | **ESP** | the EFI System Partition. Ours is FAT32 with 4096-byte sectors inside the Fedora disk image |
-| **fastboot boot / flash** | `boot` loads an image into RAM (no write; the RAM tests use it). `flash` writes a partition (the install only, with the owner's decision and per-write confirmation) |
+| **fastboot boot / flash** | `boot` loads an image into RAM (no write; the RAM tests use it). `flash` writes a partition (the install only: two writes, each made by hand after its checks) |
 | **FastRPC, hexagonrpcd** | the remote-procedure-call path to the DSPs; `hexagonrpcd` serves the DSP's file requests (the sensor hub's config tree) |
-| **G1-G14** | the install gates in `INSTALL-PLAN.md` section 1 (backups, checks, rehearsal, sleep drain) |
+| **install checks** | the checks before the first write, in `INSTALL-PLAN.md` section 1 (backups, slot flags, rescue keys, RAM test of the image) |
 | **genwf** | the generator of a test run's tablet script (project tooling, not published) |
 | **GKI** | Google's generic kernel image used by stock Android 16 (6.12.58) |
 | **GMU** | the GPU management unit. Its DT node never gets its own driver, hence `FW_DEVLINK_SYNC_STATE_TIMEOUT` |
-| **golden** | the tested rehearsal image of one state, named by its build number: for example golden B149 (13 Oct 2026, committed 15:45) = kernel q89g + `iceland-device` 0.28-7 + firmware 11.A.38-3 + libcamera 0.7.1-2. The install image was made from it (`INSTALL-GUIDE.md`) |
+| **golden** | the tested image of one state (kernel, device package, firmware, Fedora refresh), named by its build number; an install image is made from a golden that passed its RAM tests |
 | **header v2 / v4** | Android boot image formats. `iceland-u-boot` builds U-Boot as v4 (kernel = gzip of U-Boot with its device tree inside); v2 carries the device tree in the header |
-| **hold the tablet** | the owner's stop word: every tablet action stops at once |
+| **hold the tablet** | the project's stop word: every tablet action stops at once |
 | **iceland-device** | the device package (configuration and scripts: udev, UCM, systemd units, the battery guard, the thermal policy, update rules, the slot marker). Version 0.28-8 |
 | **iceland-firmware** | the package of the generic firmware (11.A.38-3); unit-specific files are never in it |
 | **infiniti** | the OnePlus 15 mainline port (same SoC); its 132 kernel commits and 14 U-Boot commits are our base series (`patches/0001-infiniti`) |
@@ -50,7 +50,7 @@ Terms as this project uses them (state 14 Oct 2026). "Pad 4" = OnePlus Pad 4 (OP
 | **queue, queue patch NNNN** | the Pad 4 kernel patch series `iceland-linux/patches/0002-iceland/NNNN-*.patch` (294 patches; numbers have gaps, the newest is 0306 in q89g) on top of `patches/0001-infiniti` (132) |
 | **q89g, qNN** | the kernel queue state named by its tag: `q89g` is the current head (Linux 7.3-rc7, kernel `7.3.0-rc7-iceland-00426-g520e85da9244`). Earlier tags (q89b, q89d8, q89e, q89f, ...) are the same series at earlier points |
 | **RAM boot** | starting an image from RAM with `fastboot boot`; nothing is written; a reboot returns to the normal boot |
-| **rehearsal** | the install's proof without writing: the real boot chain from RAM, with the root disk on the PC. The final rehearsal before the install was r158 (0 FAIL) |
+| **rehearsal** | the install's proof without writing: the real boot chain from RAM, with the root disk on the PC. The image is written only after its rehearsal passed |
 | **RPMh, RSC, BCM** | the resource-power manager (hardware): rails, clocks and bandwidth votes collected from all processors |
 | **SBS / DBS** | the Wi-Fi chip's single-band / dual-band simultaneous modes; SBS is off on this board as on stock (queue patches 0066-0068) |
 | **shim, GRUB** | Fedora's first-stage EFI loader and its boot loader, both on the ESP |
@@ -60,7 +60,7 @@ Terms as this project uses them (state 14 Oct 2026). "Pad 4" = OnePlus Pad 4 (OP
 | **sync_state** | the moment a provider driver drops the boot-time votes once all its consumers have probed |
 | **TDM** | the speaker audio interface (time-division multiplexed, 8 x 32 bit) |
 | **TSENS** | the SoC's temperature sensor controllers (7) |
-| **U-Boot install build v3** | the U-Boot build that the install writes to `boot_b` (`u-boot-iceland-usb.img`, SHA-256 prefix `979b4076` unfootered, commit `aac9e744ec6f`). Its rehearsal counterpart `u-boot-iceland-rehearsal-usb.img` has no UFS driver and is for rehearsals only |
+| **U-Boot install build** | the U-Boot build that the install writes to `boot_b` (`u-boot-iceland-usb.img`, with an AVB footer made for the tablet's `boot_b`; v4 = patches 0001-0012, v3 = 0001-0010). Its rehearsal counterpart `u-boot-iceland-rehearsal-usb.img` has no UFS driver and is for rehearsals only |
 | **UCM** | ALSA's use-case manager profile: how PipeWire finds the speakers and microphones |
 | **userdata** | the tablet's large data partition. Since the install it holds the whole Fedora disk image; Android no longer starts |
 | **XBL / PBL** | the primary boot loader (eXtensible Boot Loader) and the boot ROM. Never written |

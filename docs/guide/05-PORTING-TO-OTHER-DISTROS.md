@@ -1,15 +1,14 @@
 # 05 - Porting the work to other distributions (Debian in detail; Arch and postmarketOS-style in brief)
 
-State: 14 Oct 2026 (kernel queue q89g, `iceland-device` 0.28-8, `iceland-firmware` 11.A.38-3, Fedora 44 installed on the
-owner's tablet on 13 Oct). **Nothing in this document has been tested on the tablet with a distribution other than
-Fedora 44.** The project's target is Fedora (the owner's decision of 28 Sep). This is a map of what you would have to
+State: 15 Oct 2026 (kernel queue q89k, `iceland-firmware` 11.A.38-3, Fedora 44 installed on the tablet). **Nothing in
+this document has been tested on the tablet with a distribution other than Fedora 44.** The project's target is Fedora. This is a map of what you would have to
 redo, built from what the Fedora work needed and why.
 
 Sources (public repositories):
 - `iceland-linux`: `configs/distro-neutral.config`, `packaging/fedora/`, `scripts/`;
 - `iceland-mainline`: `packaging/iceland-device/` (README, spec, `files/`), `packaging/sensors/` (README, specs),
-  `docs/PLAN.md` (Phase 7), `docs/guide/04-BUILD-YOUR-OWN.md`;
-- `iceland-u-boot`: `patches/0002-iceland/` (the install build, patches 0004-0010).
+  `docs/guide/04-BUILD-YOUR-OWN.md`;
+- `iceland-u-boot`: `patches/0002-iceland/` (the install build, patches 0004-0012).
 
 ## 1. What is distribution-neutral and what is not
 
@@ -27,7 +26,7 @@ Sources (public repositories):
 **Mesa is the hard requirement.**
 - The Adreno 840 (gen8) needs **Mesa 26.0 or newer**: freedreno OpenGL and turnip Vulkan. Fedora 44 was chosen
   partly because it ships Mesa 26.x (`phase4/README.md`); the project's Fedora 44 image runs Mesa 26.2.4.
-- `docs/PLAN.md` Phase 7 therefore rules out Debian stable and Ubuntu LTS: their Mesa is too old.
+- Debian stable and Ubuntu LTS are therefore ruled out: their Mesa is too old.
 - Use **Debian testing / unstable**, or a backport of Mesa >= 26.0. Check with `apt policy mesa-vulkan-drivers
   libgl1-mesa-dri`.
 
@@ -143,8 +142,8 @@ builder does the equivalent, and its tools are not in the public repositories):
 - `mkfs.vfat -F 32 -S 4096` for the ESP; ext4 and btrfs with 4096-byte blocks / sector size.
 - Size it to `userdata` exactly if you want the root to grow into the whole partition (systemd-repart works on GPT
   only).
-- The written form is an Android sparse image (`img2simg`). Writing it is the install (owner's / your decision);
-  read `07-INSTALL-REVIEW.md` first.
+- The written form is an Android sparse image (`img2simg`). Writing it is the install (your decision; see
+  `docs/INSTALL-GUIDE.md`); read `07-INSTALL-REVIEW.md` first.
 - U-Boot's install environment knows only the partition names `fedora` (a separate dual-boot partition) and
   `userdata`. A Debian disk in its own partition must be named `fedora`, or change `fedora_blkmap` in the U-Boot
   environment.
@@ -261,7 +260,7 @@ Results of the GPU soft-ISP measurement (area-combo-77, -84, -88, -91; the logs 
 
 ## 11. postmarketOS-style setups (brief)
 
-The owner ruled out postmarketOS for their tablet (28 Sep). For someone else:
+The project does not target postmarketOS. For someone who does:
 - A `device-oneplus-iceland` package would carry the device files (section 5), a `linux-oneplus-iceland` package the
   queue, and a firmware package built **locally** from the user's own tablet for the unit-specific files. The generic
   files are in `iceland-firmware` and may be used in that package with their sha256 checked.

@@ -6,8 +6,8 @@ State: 14 Oct 2026, the installed system. Kernel `7.3.0-rc7-iceland-00426-g520e8
 Status (14 Oct 2026): the rows below were first written on 2 Oct 2026 (kernel queue 0001-0174, rc4 base). Where a row
 or a paragraph is out of date, a short "Status (14 Oct)" note follows it. The 2 Oct evidence names are kept as the
 record of the run that proved each row; the run logs themselves are not published. Main sources for the current state:
-`reference/pad4-hardware-boot-partitions.md` (28 Sep), `docs/FEATURES.md` (page v62, 14 Oct), `docs/KNOWLEDGE.md`
-section 4, and the stock-values audit and hardware inventory summarised in sections 3 and 9.
+`reference/pad4-hardware-boot-partitions.md` (28 Sep), `docs/FEATURES.md` (page v62, 14 Oct), `docs/device-facts/`,
+and the stock-values audit and hardware inventory summarised in sections 3 and 9.
 
 **How to read the status column.**
 
@@ -160,10 +160,10 @@ Every limit is stock's or lower: the audit found nothing above stock in the char
 
 | Item | Value | Source / evidence |
 |---|---|---|
-| RAM | **12 GB**. ABL passes 20 memory segments (11.50 GiB usable; one segment has size 0: never boot a DT without ABL's real `/memory`); GNOME shows 11.1 GiB | `ddr_info=6\|8\|1\|5\|12` on the stock command line; KNOWLEDGE section 4. DDR type code 8 in stock's tree, LPDDR5 in mainline's SMEM naming (offline analysis, not verified on the tablet) |
-| Reserved memory | 68 stock reserved-memory nodes; key ones in KNOWLEDGE section 4 (splash 0xfc800000, the hypervisor's regions) | device-facts |
+| RAM | **12 GB**. ABL passes 20 memory segments (11.50 GiB usable; one segment has size 0: never boot a DT without ABL's real `/memory`); GNOME shows 11.1 GiB | `ddr_info=6\|8\|1\|5\|12` on the stock command line; `docs/device-facts/`. DDR type code 8 in stock's tree, LPDDR5 in mainline's SMEM naming (offline analysis, not verified on the tablet) |
+| Reserved memory | 68 stock reserved-memory nodes; key ones in `docs/device-facts/` (splash 0xfc800000, the hypervisor's regions) | device-facts |
 | Storage | UFS 4.0, Samsung KLUEG4RHKF (256 GB class), HS-G5 x 2 lanes, **6 LUNs** (sda-sdf), **4096-byte logical blocks** on every LUN | U-Boot run 4; area-combo-45 kernel log (`61853696 4096-byte logical blocks`) |
-| LUN order | can change between boots: always address partitions by GPT name (partlabel) | KNOWLEDGE section 12 |
+| LUN order | can change between boots: always address partitions by GPT name (partlabel) | kernel logs of the RAM tests |
 
 The 4 KiB block size matters for any disk image you write: a stock distribution image laid out for 512-byte
 sectors does not boot as it is (`03-BOOT-AND-PARTITIONS.md` section 4).
@@ -171,8 +171,8 @@ sectors does not boot as it is (`03-BOOT-AND-PARTITIONS.md` section 4).
 ## 6. Partitions (generic layout)
 
 151 partitions on 6 LUNs. Sizes are the model's layout (identical on every Pad 4 with this firmware); they come from
-the partition listing of the owner's backup and the LineageOS capture. No GUIDs or device-unique values here.
-**Written by our plan** marks the only two partitions the install writes. Both were written by the owner on 13 Oct 2026. Everything else is never written.
+the partition listing of a full backup and the LineageOS capture. No GUIDs or device-unique values here.
+**Written by our plan** marks the only two partitions the install writes. Everything else is never written.
 
 | LUN (size) | Partitions | Role | Linux / our plan |
 |---|---|---|---|
@@ -191,7 +191,7 @@ same 11.A.38 firmware since LineageOS's `copy-partitions` step on 28 Sep. **Anti
 - By its name it is an *EFI System Partition*, and it sits among the firmware partitions. On Qualcomm platforms it
   belongs to the boot firmware's own UEFI stage (`uefi_a/_b`, which runs before ABL), not to Android. Android does
   not mount it.
-- The project has never inspected its contents (an open read-only check, `07-INSTALL-REVIEW.md` R-7).
+- The project has never inspected its contents (an open read-only check; the install never uses it, `07-INSTALL-REVIEW.md` R-7).
 - **Our plan does not use it:** it is on the never-write list with the rest of the firmware.
   - Its 3 MiB is too small for shim, GRUB and a device tree (several MB together).
   - It has no A/B pair.
@@ -231,7 +231,7 @@ calibration and the partition copies) are never packaged.
 
 **Tools.**
 - `iceland-fw-extract`: the on-device extractor of the install tooling. It sets each source partition read-only before
-  opening it, and it takes the list of items from its own list file (not published). Checked on the owner's backup:
+  opening it, and it takes the list of items from its own list file (not published). Checked on a full backup:
   23 of 23 items, 627 files identical to what the kits load.
 - An older busybox extractor served the RAM kits; it is not published.
 
@@ -269,7 +269,7 @@ in `iceland-linux`:
   - dracut `omit_drivers` keeps out what needs firmware from the root and is not needed early: ath10k / 11k / 12k,
     Iris / Venus, the Bluetooth UART (the first design of round 6 also omitted the remote processors; withdrawn);
   - `add_drivers` for `pwrseq_qcom_wcn` and `pci_pwrctrl_pwrseq` (shortens the PCIe probe deferrals);
-  - the GPU microcode trio (`gen80200_sqe` / `gmu` / `aqe`, linux-firmware's set by the owner's decision, taken from
+  - the GPU microcode trio (`gen80200_sqe` / `gmu` / `aqe`, linux-firmware's set by decision, taken from
     Fedora's `qcom-firmware`) in the initramfs. MSM is built in and loads it when it binds; the first golden image
     lacked it (finding B4).
   - Acceptance lines `adsp` (SoCCP attached, ADSP and CDSP running), `cdsp`, `fwload`, `gpu`, `pcieprobe` check all of

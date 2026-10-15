@@ -1,7 +1,8 @@
 # Changelog
 
 Work on mainline Linux for the OnePlus Pad 4 (`iceland`). Newest first. The repositories and references are listed in
-[PROJECT.md](PROJECT.md). The entries from 29 Sep to 14 Oct 2026 are summaries; the detailed test logs are not published.
+[PROJECT.md](PROJECT.md). The entries from 29 Sep to 14 Oct 2026 are summaries; the detailed test logs and the working
+records are not published.
 Commit hashes cited in entries before 14 Oct may not exist any more: the history of the public repositories was
 rewritten on 13 and 14 Oct to remove test material. Use the dates and the tags.
 
@@ -9,19 +10,16 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) ·
 [iceland-u-boot](https://github.com/mzakamin-hub/iceland-u-boot) (all public).
 
-## 2026-10-14 - Fedora installed on the tablet; slot marking fixed in 0.28-8; matrix page v62
+## 2026-10-14 - slot marking fixed in 0.28-8; U-Boot v4; matrix page v62
 
-- The install of 13 Oct is in place: Fedora 44 GNOME boots from `boot_b` on its own. Its status note is at the top of
-  [docs/INSTALL-GUIDE.md](docs/INSTALL-GUIDE.md).
-- The Fedora-side slot marking did not run on the installed system: its guard refused the loop-mounted root, so the
-  boot counter for slot b fell from 7 to 3. The owner marked slot b by hand with `qbootctl` (Active 1, Successful 1,
-  Bootable 1).
-- `iceland-device` 0.28-8 (commit 946ff95): the slot-mark guard accepts the installed layout and sets the boot LUN
-  writable for one `qbootctl -m` call only; stock's screen-off thermal table; stock's input boost ceiling. The PC tests
-  pass. Its thermal file was added to the tablet by hand.
+- Fedora 44 GNOME boots from `boot_b` on its own ([docs/INSTALL-GUIDE.md](docs/INSTALL-GUIDE.md)).
+- The Fedora-side slot marking of `iceland-device` 0.28-7 did not run on the installed layout: its guard refused the
+  loop-mounted root, so ABL's retry count for the slot went down at every power-on.
+- `iceland-device` 0.28-8: the slot-mark guard accepts the installed layout and sets the boot LUN writable for one
+  `qbootctl -m` call only; stock's screen-off thermal table; stock's input boost ceiling.
+- U-Boot install build v4: a power-on boot menu on the keys (Fedora, or the boot loader's fastboot).
 - Power diagnostic on the installed system: average 2.08 W with the screen on at 120 Hz, Wi-Fi power save on and one
-  Electron app open. The 10.7 W reading of the first evening came from load (first-day work and an Electron GPU crash
-  loop).
+  Electron app open.
 - DisplayPort over USB-C: HPD and EDID work and GNOME enables a 4K output, but no picture. The power contract is 5 V x 2 A;
   a possible over-current cut-off of the monitor is unverified.
 - Feature matrix page v62: 104 rows, 83 working, 13 partly, 5 to do, 3 out of scope.
@@ -29,7 +27,7 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
   the kit scripts are no longer in them. All six repositories of the project are public, the LineageOS device and vendor trees
   included (a full scan of the vendor tree found no unit-specific data).
 
-## 2026-10-13 - install day; final golden B149; install image held and written
+## 2026-10-13 - final golden B149; the first install
 
 - Kernel q89e (Linux v7.3-rc7 rebase, 11-12 Oct) plus the 13 Oct fixes = q89f and q89g: the panel's brightness limit
   through the kernel (the backlight driver's cooling device, one state per stock gear); the UFS scheduler change
@@ -40,25 +38,23 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
   stock's 84), 0.28-6 (brightness through the kernel; helpers removed), 0.28-7 (the speaker default waits for WirePlumber's
   default metadata and reads its write back).
 - Golden B147 (06:02, q89e + 0.28-5 + firmware 11.A.38-3) passed rehearsal r156 with one known failure: the libcamera
-  stop race (F54, 1 of 40 cycles), accepted by the owner. B148 (0.28-6, r157) showed two failures (the lens at 434, the
+  stop race (F54, 1 of 40 cycles). B148 (0.28-6, r157) showed two failures (the lens at 434, the
   configured default output cleared) and was not used as the image.
 - Golden B149 (committed 15:45): kernel q89g, `iceland-device` 0.28-7, `iceland-firmware` 11.A.38-3, Fedora's libcamera
   0.7.1-2. Final rehearsal r158 with 0 failures in the regression set (no regression against r141).
-- The install image was rebuilt from B149 at 17:02 and checked offline (128 PASS, 0 FAIL). The owner ran the two writes:
-  `userdata` at 18:31 (267 s, OKAY), two tethered boots, then `boot_b` at 20:47 (the footered U-Boot v3, 2.3 s, OKAY).
-  Fedora started from `boot_b` on its own at 20:48.
-- Decisions recorded: the permanent boot path is `boot_b`; Fedora only (no dual boot for now); the way back is the stock
-  11.A.38 image.
-- The public repositories: the owner asked for the testing documents and the rehearsals to be deleted from GitHub,
-  history included; the rewrites of 13 and 14 Oct changed several commit hashes. Older hash references in this file may
-  no longer resolve.
+- The install image was rebuilt from B149 and checked offline (128 PASS, 0 FAIL). Fedora 44 GNOME was installed with
+  the two writes of the install guide (`userdata`, then the footered U-Boot v3 in `boot_b`) and started from `boot_b`
+  on its own.
+- The install is Fedora only (no dual boot); the way back is the stock 11.A.38 image.
+- The public repositories: the testing documents and the rehearsals were removed from GitHub, history included; the
+  rewrites of 13 and 14 Oct changed several commit hashes. Older hash references in this file may no longer resolve.
 
 ## 2026-10-12 - golden B145 accepted; speakers at +9 dB; firmware repository public
 
 - The firmware repository `iceland-firmware` was created and made public: release 11.A.38-2 (278 generic files, sha256 per
   file, notices kept). Release 11.A.38-3 (12-13 Oct) adds the decoded stock thermal model that the thermal service reads.
 - `iceland-device` 0.28-2 (the Bluetooth address helper v2: the address is set after a real power cycle of the controller;
-  the Bluetooth fault of bluez 5.87 is gone), 0.28-3 (speaker make-up +9 dB, the owner's choice; the speakers listed as
+  the Bluetooth fault of bluez 5.87 is gone), 0.28-3 (speaker make-up +9 dB; the speakers listed as
   protected; the sensors restart after a resume), 0.28-4 (minimal Fedora holds; `iceland-firmware-fetch` with sha256
   pins; the brightness cap taken out of the service until it could come back through the kernel).
 - Kernel q89d9 (rc6): the Bluetooth firmware baud change no longer drops received bytes (no more "Frame reassembly
@@ -80,15 +76,14 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
   held; `kernel-iceland*` and `iceland-*` are never offered by Fedora.
 - The SuperTurtleDev items entered the kernel series (q89d).
 
-## 2026-10-10 - install day starts; rc6 rebase; tb323fu patches
+## 2026-10-10 - rc6 rebase; tb323fu patches; U-Boot install build v3
 
 - Kernel rc6 rebase (q89 -> q89b); the F55 microphone replay passes on it; golden B130 confirmed.
 - The tb323fu patches were added as q89c-tb.
-- Install day: the write-2 probe C0 ran four times, each undone the same day. Probe 4 passed (17:41): U-Boot's
-  `fastboot reboot-bootloader` reaches the boot loader without a key press. Patches 0008-0010 of the U-Boot install build
-  added: no self power-off or reset; USB up without the boot loader; the reboot command.
-- Part A of the install guide was read on the tablet: the slot flags, the AVB proof of the footered U-Boot, and
-  `PARTA: READY FOR C0`.
+- The U-Boot install build was tested from `boot_b` (each test write undone the same day). Patches 0008-0010 were
+  added: no self power-off or reset (an earlier build reset itself and used up the slot's tries); USB up without the
+  boot loader; `fastboot reboot-bootloader` reaches the boot loader without a key press.
+- The AVB footer of the install U-Boot was proven on the tablet's own pulled images.
 - The device package went from 0.23 to 0.26 on this day.
 - The upstream scan by hardware block was done.
 
@@ -101,7 +96,7 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 ## 2026-10-03 - the team round; release candidate 1
 
 - The team round started at 03:00. The first consolidated kernel (q84, rc4 base) and then q85 with the golden B112 and the
-  rehearsal r2i (46 PASS, 0 FAIL): release candidate 1, described in [docs/RELEASE-NOTES.md](docs/RELEASE-NOTES.md).
+  rehearsal r2i (46 PASS, 0 FAIL): release candidate 1.
 - q86 switched the Wi-Fi firmware's 802.11d scan off by default, the fix for the connection drops after a reconnect.
 - The install guide was revised for release candidate 1 (the first-boot setup step).
 
@@ -127,8 +122,7 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 
 ## 2026-09-28 (afternoon/evening) — Phase 3 hardware, PC relay kits pc-001..011
 
-All built and run unattended by the PC session (results kept in the PC session's records, not published). Details are in
-[docs/KNOWLEDGE.md](docs/KNOWLEDGE.md) §4, §7, §10 and §13.
+All built and run unattended by the PC session (results kept in the PC session's records, not published).
 
 | Kit | Result | iceland-linux |
 |---|---|---|
@@ -142,7 +136,7 @@ All built and run unattended by the PC session (results kept in the PC session's
 | pc-010 | Bluetooth, Wi-Fi scan, SoCCP attach, ADSP boot | – |
 | pc-011 | battery data (pmic-glink channel race fixed), GPU powers up, audio groundwork | e0b025a (0028) |
 
-Mainline: Tab S6 evaluation (keep U-Boot), the Nura OnePlus 15 page mapped to the Pad 4, KNOWLEDGE.md updated with
+Mainline: Tab S6 evaluation (keep U-Boot), the Nura OnePlus 15 page mapped to the Pad 4, the knowledge base (not published) updated with
 all PC results, and relays 002/003 (sync; one shared knowledge file).
 
 ## 2026-09-28 — Linux on the tablet (Phase 2)
@@ -213,7 +207,7 @@ The framebuffer console shows kernel text, then the panel goes black or white. E
 - 672bd15, 53139ed: test logs.
 
 ## 2026-09-28 — Plan v3
-- 68d8b5b: plan v3 ([docs/PLAN.md](docs/PLAN.md)):
+- 68d8b5b: plan v3 (not published):
   - built on the results verified on the tablet;
   - faster order of work: RAM-boot Linux through U-Boot, pmOS only until the hardware works, upstream as we go;
   - realistic distro scope: one kernel source and config packaged per distro; Tier 1 pmOS / Fedora / Arch ARM; Tier 2 Debian testing / Kali / latest Ubuntu; Debian stable and Ubuntu LTS not supported (Mesa too old for Adreno 840);
@@ -229,7 +223,7 @@ The framebuffer console shows kernel text, then the panel goes black or white. E
 - 106d125: firmware manifest. 21 files, with the stock 11.A.38 source and sha256 for each. No blobs are committed.
 
 ## 2026-09-27 — Discovery and repositories
-- Studied the reference projects listed in [PROJECT.md](PROJECT.md): map220v, infiniti-mainline, pmOS/Nura OnePlus 15, troikoss, aaronsb, Mu-Silicium, PrestarLin, Y700, SM8750. Notes are in [docs/RESEARCH.md](docs/RESEARCH.md).
+- Studied the reference projects listed in [PROJECT.md](PROJECT.md): map220v, infiniti-mainline, pmOS/Nura OnePlus 15, troikoss, aaronsb, Mu-Silicium, PrestarLin, Y700, SM8750. The notes are not published.
 - Created the three private repos.
 - b94d38b (iceland-linux): first patch queue, v7.2 + map220v `iceland-7.2` (40 commits). It was superseded by the 7.3-rc4 rebase.
 
@@ -238,4 +232,4 @@ The framebuffer console shows kernel text, then the panel goes black or white. E
 2. Load modules in the debug initramfs (touch SPI, ADC, TFA9865…).
 3. Add CPU passive thermal trips and cooling maps before any load.
 4. Firmware extractor, run once by the user.
-5. Phase 3 hardware bring-up, in the order of [docs/PLAN.md](docs/PLAN.md).
+5. Phase 3 hardware bring-up, in the order of the plan.

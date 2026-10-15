@@ -1,8 +1,8 @@
 # iceland-device
 
-Fedora settings package for the OnePlus Pad 4. Configuration and scripts only: no firmware, no binaries. It has been
-installed on the tablet since 13 Oct 2026: the installed image carries version 0.28-7, and 0.28-8 (14 Oct) was added to
-the tablet by hand; 0.28-9 (the field report's brightness, USB runtime PM, unused services and memory settings) follows. `build-rpm.sh OUT` builds `iceland-device-*.noarch.rpm` (rpmbuild; tested with rpm 4.18).
+Fedora settings package for the OnePlus Pad 4. Configuration and scripts only: no firmware, no binaries. It is part of
+the install image and is updated with dnf on the installed tablet. 0.28-8 makes the slot marking work on the installed
+layout; 0.28-9 adds the brightness, USB runtime PM, unused-services and memory settings. `build-rpm.sh OUT` builds `iceland-device-*.noarch.rpm` (rpmbuild; tested with rpm 4.18).
 
 | File | Installed as | Why |
 |---|---|---|
@@ -58,7 +58,7 @@ the tablet by hand; 0.28-9 (the field report's brightness, USB runtime PM, unuse
 | `iceland-regdomain` | `/etc/sysconfig/regdomain` | the Wi-Fi regulatory domain (US, the firmware's) |
 | (%triggerin fwupd) | `/etc/fwupd/fwupd.conf` | `DisabledPlugins=` the plug-ins that could write boot code, EFI variables, the storage's own firmware or GPIOs (uefi_capsule, uefi_dbx, uefi_db, uefi_kek, uefi_pk, uefi_mok, uefi_sbat, uefi_recovery, uefi_esrt, android_boot, scsi, emmc, mtd, nvme, gpio, vbe, bootupd) |
 
-## Settings (one line each; these are decisions the owner can change)
+## Settings (one line each; these are decisions you can change)
 
 `/etc/iceland/battery-guard.conf` (read every few seconds, no restart):
 

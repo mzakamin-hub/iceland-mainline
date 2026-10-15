@@ -7,8 +7,7 @@ firmware package live in their own repositories (see [Repositories](#repositorie
 
 ## Status (15 Oct 2026)
 
-- **Fedora 44 with GNOME is installed on the tablet** (13 Oct 2026: Fedora in `userdata`, U-Boot in `boot_b`). The
-  tablet boots Fedora on its own, and the owner runs that system.
+- **Fedora 44 with GNOME installs on the tablet** (Fedora in `userdata`, U-Boot in `boot_b`) and boots on its own.
 - **Current versions on the tablet:**
   - Kernel `7.3.0-rc7-iceland-00436` (q89k): Linux v7.3-rc7 plus the Pad 4 patch queue, from the iceland-linux branch
     `iceland-7.3-rc7-next`, packaged as `kernel-iceland`.
@@ -43,14 +42,19 @@ Each item, with what was measured, is in [docs/FEATURES.md](docs/FEATURES.md).
 5. The root is btrfs on a loop device backed by `userdata`. Every other internal partition is read-only to the running
    system. Slot b is marked successful with Fedora's `qbootctl -m`.
 
-The install replaced Android's data (LineageOS, from the earlier test phase), and Android no longer starts. The way
-back to stock is described in the install guide.
+The install replaces Android's data, and Android no longer starts. The way back to stock is described in the install
+guide.
 
 ## Install
 
-The procedure, its checks and the way back are in [docs/INSTALL-GUIDE.md](docs/INSTALL-GUIDE.md). Its status note at
-the top records what was done on 13 Oct 2026. Installing needs an unlocked boot loader and two partition writes, and
-each write is made by hand after its own checks. Nothing in this repository writes to a device.
+The install consists of two partition writes: the Fedora disk image into `userdata` and the U-Boot install build, with
+an AVB footer, into `boot_b`. It needs an unlocked boot loader, a backup of the tablet, and an install image that
+carries the tablet's own unit-specific firmware files (the project does not publish a ready-made image). Each write
+is made by hand after its own checks; nothing in this repository writes to a device.
+
+- [docs/INSTALL-GUIDE.md](docs/INSTALL-GUIDE.md): the requirements, the steps, what works afterwards and the way back.
+- [docs/INSTALL-PLAN.md](docs/INSTALL-PLAN.md): the design and the reasons behind each rule.
+- [docs/guide/07-INSTALL-REVIEW.md](docs/guide/07-INSTALL-REVIEW.md): the risks and how the design handles them.
 
 ## Repositories
 
@@ -69,17 +73,14 @@ All repositories are public under the GitHub user `mzakamin-hub`.
 
 - [PROJECT.md](PROJECT.md): the project index, the pinned sources, the reference projects and the standing rules.
 - [CHANGELOG.md](CHANGELOG.md): the dated history, newest first.
-- [docs/RELEASE-NOTES.md](docs/RELEASE-NOTES.md): the release notes: the RC1 record of 3 Oct and the final build of 14 Oct.
+- [docs/RELEASE-NOTES.md](docs/RELEASE-NOTES.md): the current versions, the changes and the known limits.
 - [docs/INSTALL-GUIDE.md](docs/INSTALL-GUIDE.md) and [docs/INSTALL-PLAN.md](docs/INSTALL-PLAN.md): the install.
-- [docs/DUALBOOT-PLAN.md](docs/DUALBOOT-PLAN.md): the dual-boot plan.
-- [docs/PLAN.md](docs/PLAN.md) and [docs/KNOWLEDGE.md](docs/KNOWLEDGE.md): the port plan and the knowledge base.
 - [docs/FEATURES.md](docs/FEATURES.md): what works, feature by feature.
-- [docs/MAINLINE-STATE.md](docs/MAINLINE-STATE.md) and [docs/PROJECT-STATE.md](docs/PROJECT-STATE.md): the state of the
-  kernel and U-Boot work, and the project snapshot.
+- [docs/MAINLINE-STATE.md](docs/MAINLINE-STATE.md): the state of the kernel and U-Boot work.
 - [docs/device-facts/](docs/device-facts/) and [docs/guide/](docs/guide/): the device facts and the guide set.
 - [firmware/README.md](firmware/README.md), [packaging/](packaging/), [phase4/README.md](phase4/README.md) and
   [tools/dualboot/README.md](tools/dualboot/README.md): the firmware manifest, the packages, the Fedora image build and
-  the dual-boot tool.
+  an untested dual-boot helper.
 
 ## Credits
 

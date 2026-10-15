@@ -1,6 +1,6 @@
 # Phase 4: Fedora 44 GNOME on the OnePlus Pad 4
 
-Target OS (the owner's decision, 28 Sep 2026): **Fedora 44 with GNOME**, aarch64. Fedora 44's Mesa (26.x) carries the
+Target OS: **Fedora 44 with GNOME**, aarch64. Fedora 44's Mesa (26.x) carries the
 freedreno (OpenGL) support for the Adreno 840 of Kaanapali; Fedora 43's Mesa (25.2.4) did not.
 
 Phase 4 is done: Fedora 44 GNOME was installed on the tablet on 13 Oct 2026 (see [../docs/INSTALL-GUIDE.md](../docs/INSTALL-GUIDE.md)).
@@ -32,5 +32,5 @@ This directory keeps the scripts that built the Fedora image and its rootfs for 
 
 The install image is the Fedora Workstation disk image, re-laid for the tablet's 4 KiB storage blocks, with the Pad 4
 packages added (`kernel-iceland`, `iceland-device`, `iceland-firmware`, the sensor programs and Fedora's libcamera).
-It was written into `userdata` on 13 Oct 2026 by the owner, after the rehearsals. The image itself is not published: it
-carries the tablet's own firmware extraction and its Bluetooth address.
+It is written into `userdata` after its RAM tests (see [../docs/INSTALL-GUIDE.md](../docs/INSTALL-GUIDE.md)). No image is
+published: each one carries its tablet's own firmware extraction and Bluetooth address.

@@ -4,8 +4,8 @@ Generic firmware of the OnePlus Pad 4 (OPD2514, "iceland"; Snapdragon 8 Elite Ge
 taken from the stock software release 11.A.38 and packaged for Fedora (`iceland-firmware.spec`).
 
 The package lives in the public repository [mzakamin-hub/iceland-firmware](https://github.com/mzakamin-hub/iceland-firmware)
-(created 12 Oct 2026). Releases: 11.A.38-2 (commit c40c33e, the package pinned in golden B145) and 11.A.38-3 (commit
-70ea8f1, which adds the thermal model file; the package pinned in golden B149). The installed tablet uses 11.A.38-3.
+(created 12 Oct 2026). Releases: 11.A.38-2 (commit c40c33e) and 11.A.38-3 (commit 70ea8f1, which adds the thermal model
+file). The install image and the installed tablet use 11.A.38-3.
 This directory holds the package's text parts; the firmware files themselves are not kept in iceland-mainline.
 
 Layout of the repository:
