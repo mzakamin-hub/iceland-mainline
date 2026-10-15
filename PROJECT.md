@@ -10,36 +10,35 @@ Start with [README.md](README.md) for the status and the install guide ([docs/IN
 The dated history is in [CHANGELOG.md](CHANGELOG.md), the release notes in [docs/RELEASE-NOTES.md](docs/RELEASE-NOTES.md),
 and what the project knows is in [docs/KNOWLEDGE.md](docs/KNOWLEDGE.md). The port plan is [docs/PLAN.md](docs/PLAN.md).
 
-## Current state (14 Oct 2026)
+## Current state (15 Oct 2026)
+
+What works on the installed tablet (the full list, feature by feature: [docs/FEATURES.md](docs/FEATURES.md), 84
+working features):
 
 | Stage | State |
 |---|---|
 | Boot loader: RAM boot of test images (`fastboot boot`) | works; used for every test kit and rehearsal |
-| U-Boot on the tablet: display, USB fastboot, UFS, log over USB | works; the install build v3 is the boot path in `boot_b` |
-| Linux 7.3-rc7 through U-Boot EFI (kernel q89g) | works |
-| Display: native 3392 x 2400, dual DSI with DSC, 30 to 144 Hz, backlight limit through the kernel | works |
-| Touch, pen, auto-rotate, lid and power keys | works |
-| Wi-Fi (WCN7860, ath12k), Bluetooth | works; the 5 GHz connection is not confirmed |
+| U-Boot on the tablet: display, USB fastboot, UFS, EFI, power-on boot menu | works; the install build v4 is the boot path in `boot_b` |
+| Linux 7.3-rc7 through U-Boot EFI (kernel q89k, `7.3.0-rc7-iceland-00436`) | works; the default kernel, updated with dnf |
+| Display: native 3392 x 2400, dual DSI with DSC, 30 to 144 Hz, backlight with automatic brightness | works |
+| Touch, pen, auto-rotate (tablet mode), lid and power keys | works |
+| Wi-Fi 2.4 GHz (WCN7860, ath12k), Bluetooth with pairing | works |
 | Battery and USB-C over pmic-glink; charge limits; bypass charging; battery safety guard | works |
-| GPU (Adreno 840, Mesa 26.2.4); hardware video decode and encode | works; Chromium / Electron GPU path open |
-| Audio: speakers with protection chain, microphones | works; the loudness check is the owner's |
-| Sleep (s2idle) and resume | works in the RAM kits; overnight drain not measured on the installed system |
-| Sensors and gyroscope (through the ADSP sensor hub) | works |
-| Cameras: both sensors stream through libcamera | works; no autofocus; camera into the hardware encoder open |
-| DisplayPort over USB-C | open: no picture on the monitor tested |
+| GPU (Adreno 840, Mesa 26.2.4); hardware video decode and encode | works |
+| Audio: six speakers with the protection chain, microphones with echo cancellation | works |
+| Sleep (s2idle) and resume; deep sleep overnight | works on the installed system |
+| Sensors and gyroscope (through the ADSP sensor hub; iio-sensor-proxy 3.9-11.iceland1) | works |
+| Cameras: both sensors stream through libcamera; GNOME Camera | works |
 | Install on the tablet: Fedora 44 GNOME in `userdata`, U-Boot in `boot_b` | done 13 Oct 2026 |
-| Dual boot with Android | not started (decision: Fedora only) |
-
-The feature matrix ([docs/FEATURES.md](docs/FEATURES.md), page v64, 15 Oct) has 104 rows: 84 working, 14 partly working,
-4 to do, 2 out of scope.
+| Packages: `iceland-device` 0.28-16, `iceland-firmware` 11.A.38-3, `kernel-iceland` 00436 | installed |
 
 ## Our repositories (public, GitHub user `mzakamin-hub`)
 
 | Repo | Contents | Licence |
 |---|---|---|
-| [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) (this repo) | status, plan, install guide, device facts, feature matrix, `iceland-device` package, firmware manifest and packaging text, sensor and audio notes | GPL-2.0-or-later (scripts) |
-| [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) | kernel patch queue: Linux v7.3-rc7 + `0001-infiniti` (132 patches) + `0002-iceland` (294 patches); configs; prepare and build scripts. Branch `iceland-7.3-rc7-q89g`, tag `q89g` | GPL-2.0 |
-| [iceland-u-boot](https://github.com/mzakamin-hub/iceland-u-boot) | U-Boot patch queue: v2026.10-rc5 + infiniti-mainline (14 patches) + Pad 4 board (0002-iceland, 0001-0010); build scripts; install build v3 record | GPL-2.0+ |
+| [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) (this repo) | status, plan, install guide, device facts, the list of working features, `iceland-device` package, firmware manifest and packaging text, sensor and audio notes | GPL-2.0-or-later (scripts) |
+| [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) | kernel patch queue: Linux v7.3-rc7 + `0001-infiniti` + `0002-iceland`; configs; prepare and build scripts. Current branch `iceland-7.3-rc7-next` (kernel q89k, `7.3.0-rc7-iceland-00436`) | GPL-2.0 |
+| [iceland-u-boot](https://github.com/mzakamin-hub/iceland-u-boot) | U-Boot patch queue: v2026.10-rc5 + infiniti-mainline (14 patches) + Pad 4 board (0002-iceland, 0001-0012); build scripts; install build record (v4 in `boot_b`) | GPL-2.0+ |
 | [iceland-firmware](https://github.com/mzakamin-hub/iceland-firmware) | generic stock 11.A.38 firmware as an RPM (tags 11.A.38-2, 11.A.38-3), manifest, notices | vendor notices kept in the repo |
 | `android_device_oneplus_iceland` | Android device tree for the Pad 4 | see the repo |
 | [proprietary_vendor_oneplus_iceland](https://github.com/mzakamin-hub/proprietary_vendor_oneplus_iceland) | LineageOS 24.0 vendor tree for the Pad 4 (stock proprietary files and `radio/` images); public since 14 Oct, no unit-specific data | `lineage-24.0` |
@@ -55,7 +54,7 @@ and the test material. Every binary records its source commits in its build info
 | Status and install | [README.md](README.md), [docs/INSTALL-GUIDE.md](docs/INSTALL-GUIDE.md), [docs/INSTALL-PLAN.md](docs/INSTALL-PLAN.md) |
 | Release notes (RC1 of 3 Oct, final build of 14 Oct) | [docs/RELEASE-NOTES.md](docs/RELEASE-NOTES.md) |
 | History by date | [CHANGELOG.md](CHANGELOG.md) |
-| Feature matrix | [docs/FEATURES.md](docs/FEATURES.md) |
+| What works (feature list) | [docs/FEATURES.md](docs/FEATURES.md) |
 | Kernel and U-Boot state | [docs/MAINLINE-STATE.md](docs/MAINLINE-STATE.md) |
 | Project snapshot and working rules | [docs/PROJECT-STATE.md](docs/PROJECT-STATE.md) |
 | Device facts: memory map, reserved memory, I2C / SPI map, stock and live DTs | [docs/device-facts/](docs/device-facts/) |
@@ -65,7 +64,7 @@ and the test material. Every binary records its source commits in its build info
 | Sensor programs (hexagonrpc, libssc, iio-sensor-proxy) | [packaging/sensors/](packaging/sensors/), [docs/sensors/](docs/sensors/) |
 | Audio topology and UCM | [audio/](audio/) |
 | Fedora image build (RAM-boot scripts) | [phase4/](phase4/) |
-| Dual-boot tool (not used) | [tools/dualboot/](tools/dualboot/) |
+| Dual-boot tool | [tools/dualboot/](tools/dualboot/) |
 | Kernel pin, patches, configs, port log | iceland-linux: `kernel.pin`, `patches/`, `configs/`, `docs/` |
 | U-Boot pin, patches, install build record | iceland-u-boot: `uboot.pin`, `patches/`, `tools/install/` |
 
