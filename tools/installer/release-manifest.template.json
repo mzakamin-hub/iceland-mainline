@@ -1,0 +1,75 @@
+{
+  "schema": 1,
+  "release": "PLACEHOLDER: iceland-fedora44-<tag> (no generic release exists yet)",
+  "release_page": "PLACEHOLDER: https://github.com/mzakamin-hub/iceland-mainline/releases/tag/<tag>",
+  "flash_allowed": false,
+  "test_only": false,
+  "notes": [
+    "TEMPLATE. Every PLACEHOLDER makes Install-Pad4Linux.ps1 refuse to download that file, and flash_allowed=false / generic=false / contains_unit_data=true make it refuse write 1 and write 2. Backups (read only) work with this file.",
+    "The owner's install image (B149, fedora-iceland.sparse.img, SHA-256 2246e9a7e790253be72ad8948cc3fa9f39bdcadfaa422ad53ed77daa6167482c) is NOT publishable and must never be written to another tablet: it carries the owner's sensor calibration registry (from persist), Bluetooth address (/etc/iceland/bdaddr) and firmware extraction record. See README-INSTALLER.md section 2.",
+    "GitHub release assets are limited to 2 GiB each: the image goes up in parts (parts[]), joined and checked against image.sha256 on the PC."
+  ],
+  "device": {
+    "fastboot_product": "canoe",
+    "android_model": ["OPD2514"],
+    "android_device": ["OP657AL1", "iceland"],
+    "slot": "b",
+    "userdata_bytes": 237159641088,
+    "boot_b_bytes": 100663296
+  },
+  "image": {
+    "file": "fedora-iceland.sparse.img",
+    "size": "PLACEHOLDER",
+    "sha256": "PLACEHOLDER",
+    "unpacked_size": 237159641088,
+    "generic": false,
+    "contains_unit_data": true,
+    "slot_mark_automatic": false,
+    "content": "PLACEHOLDER: kernel-iceland / iceland-device / iceland-firmware versions of the generic image",
+    "parts": [
+      { "url": "PLACEHOLDER: https://github.com/mzakamin-hub/iceland-mainline/releases/download/<tag>/fedora-iceland.sparse.img.part01", "size": "PLACEHOLDER", "sha256": "PLACEHOLDER" },
+      { "url": "PLACEHOLDER: .../fedora-iceland.sparse.img.part02", "size": "PLACEHOLDER", "sha256": "PLACEHOLDER" },
+      { "url": "PLACEHOLDER: .../fedora-iceland.sparse.img.part03", "size": "PLACEHOLDER", "sha256": "PLACEHOLDER" },
+      { "url": "PLACEHOLDER: .../fedora-iceland.sparse.img.part04", "size": "PLACEHOLDER", "sha256": "PLACEHOLDER" }
+    ]
+  },
+  "uboot_plain": {
+    "file": "u-boot-iceland-v4.img",
+    "url": "https://github.com/mzakamin-hub/iceland-u-boot/releases/download/v4-2026-10-15/u-boot-iceland-v4.img",
+    "size": 544768,
+    "sha256": "23ff0be6b688560de8a63c5c49cf99b10a0a023fd36f4d9542edcf2660ef2c84",
+    "source": "iceland-u-boot, U-Boot commit e0300255 + queue 0004-0012 (v4: charging-mode reader + key menu), install build, header v4 os_version 17.0.0 patch 2026-09; built 2026-10-14"
+  },
+  "uboot_footered": {
+    "file": "u-boot-iceland-v4-footered.img",
+    "url": "https://github.com/mzakamin-hub/iceland-u-boot/releases/download/v4-2026-10-15/u-boot-iceland-v4-footered.img",
+    "size": 100663296,
+    "sha256": "b714356adf54d4e4db77447716f6d07d834f56af90e75f537e0080be860c9af6",
+    "footer": {
+      "rollback_index": "1788220800",
+      "os_version": "17",
+      "security_patch": "2026-09-01",
+      "key_sha1": "2597c218aae470a130f61162feaae70afd97f011"
+    },
+    "source": "uboot_plain + AVB hash footer (avbtool add_hash_footer, partition boot, 100663296 bytes, SHA256_RSA4096, AOSP testkey_rsa4096, salt = sha256 of uboot_plain); values copied from the owner's LineageOS (Android 17, test-keys) boot_b of 29 Sep 2026. Used as-is only when the user's boot_b has the same rollback index / os_version / security_patch; otherwise the script makes the footer locally."
+  },
+  "avbtool": {
+    "file": "avbtool.py",
+    "url": "https://android.googlesource.com/platform/external/avb/+/c5066a96caa7bf4150c0a8cc8cc14ab81733fdc7/avbtool.py?format=TEXT",
+    "encoding": "base64",
+    "size": 241989,
+    "sha256": "5698656733ef5077d62ee30395b5ad34295a0f170fb1ba570026c760ead83782"
+  },
+  "avb_testkey": {
+    "file": "testkey_rsa4096.pem",
+    "url": "https://android.googlesource.com/platform/external/avb/+/c5066a96caa7bf4150c0a8cc8cc14ab81733fdc7/test/data/testkey_rsa4096.pem?format=TEXT",
+    "encoding": "base64",
+    "sha256": "6a224754880a57ab9cbd308267cd157d94cf05a1c8cb851aec4090e045d24121"
+  },
+  "platform_tools": {
+    "file": "platform-tools-windows.zip",
+    "url": "PLACEHOLDER: https://dl.google.com/android/repository/platform-tools_r<version>-win.zip (a versioned URL; never 'latest')",
+    "size": "PLACEHOLDER",
+    "sha256": "PLACEHOLDER"
+  }
+}
