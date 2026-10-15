@@ -36,7 +36,8 @@ RX = {
     "mac": re.compile(r"(?<![0-9A-Fa-f:.-])[0-9A-Fa-f]{2}([:-])(?:[0-9A-Fa-f]{2}\1){4}[0-9A-Fa-f]{2}(?![0-9A-Fa-f:-])"),
     "ipv4": re.compile(r"(?<![\d.])(?:10\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])|192\.168)\.\d{1,3}\.\d{1,3}(?![\d.]*\d)"),
     "email": re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}"),
-    "key": re.compile(r"-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----|PuTTY-User-Key-File"),
+    # (the PuTTY marker is split so that this file does not match itself)
+    "key": re.compile(r"-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----|PuTTY-User" r"-Key-File-\d"),
     "nm": re.compile(r"^\s*(?:\[wifi-security\]|psk\s*=|wep-key\d?\s*=|ssid\s*=|password\s*=|\[802-11-wireless(?:-security)?\])",
                      re.I),
 }
