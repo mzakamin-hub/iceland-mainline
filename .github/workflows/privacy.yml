@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Generic privacy scan on every push and pull request: MAC / Bluetooth-address-like strings, private IPv4 ranges,
+# e-mail addresses, private keys, NetworkManager connection data, work-record files, binary or large files.
+# The patterns are generic: this repository holds no device-specific value (see .github/privacy-allow.txt).
+name: privacy
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: privacy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+
+      - name: Scan every tracked file
+        run: python3 .github/scripts/privacy-scan.py --max-blob-kb 1024
+
+      - name: Scan the commit messages and authors of this push / pull request
+        env:
+          BEFORE: ${{ github.event.before }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          base=${BASE:-$BEFORE}
+          if [ -n "$base" ] && [ "$base" != 0000000000000000000000000000000000000000 ] \
+              && git cat-file -e "$base^{commit}" 2>/dev/null; then
+            range="$base..$HEAD_SHA"
+          else
+            range="-1 $HEAD_SHA" # new branch or manual run: the head commit
+          fi
+          echo "commits: $range"
+          git log --format='%an <%ae>%n%cn <%ce>%n%B' $range > "$RUNNER_TEMP/commits.txt"
+          python3 .github/scripts/privacy-scan.py --text "$RUNNER_TEMP/commits.txt"

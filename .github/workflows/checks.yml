@@ -1,0 +1,95 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Static checks on every push and pull request:
+#   features     docs/features/build.py: docs/FEATURES.md and feature-matrix.html are up to date, every working row
+#                has its public text (public-notes.py)
+#   package      shell / Python / JSON syntax of every file, iceland-device.spec sources <-> files/, package tests
+#   shellcheck   advisory (never fails the run)
+#   powershell   tools/**/*.ps1 parse with pwsh, the installer's manifest template is valid JSON
+name: checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  features:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rebuild the feature list and compare
+        run: |
+          python3 docs/features/build.py | tee "$RUNNER_TEMP/build.txt"
+          if grep -q '^WARNING' "$RUNNER_TEMP/build.txt"; then
+            grep '^WARNING' "$RUNNER_TEMP/build.txt" | sed 's/^/::error file=docs\/features\/public-notes.py,title=features::/'
+            exit 1
+          fi
+          if ! git diff --quiet; then
+            git diff --stat
+            echo "::error title=features::docs/features/build.py changes the committed output: run it and commit the result"
+            exit 1
+          fi
+
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Syntax, spec sources and package tests
+        run: python3 .github/scripts/package-checks.py
+
+  shellcheck:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: shellcheck (advisory)
+        run: |
+          git ls-files -z | xargs -0 grep -l -I -E '^#!.*\b(ba)?sh\b' -- 2>/dev/null > "$RUNNER_TEMP/sh.txt" || true
+          git ls-files '*.sh' >> "$RUNNER_TEMP/sh.txt"
+          sort -u "$RUNNER_TEMP/sh.txt" -o "$RUNNER_TEMP/sh.txt"
+          echo "$(wc -l < "$RUNNER_TEMP/sh.txt") shell scripts"
+          shellcheck --version | head -n 2
+          xargs -a "$RUNNER_TEMP/sh.txt" -d '\n' shellcheck -S warning -f gcc |
+            sed -E 's/^([^:]+):([0-9]+):([0-9]+): (warning|error): (.*)$/::warning file=\1,line=\2,col=\3,title=shellcheck::\5/' || true
+
+  powershell:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Parse every PowerShell script
+        shell: pwsh
+        run: |
+          $bad = 0
+          $files = git ls-files '*.ps1' '*.psm1' '*.psd1'
+          foreach ($f in $files) {
+            $tokens = $null; $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $f), [ref]$tokens, [ref]$errors) | Out-Null
+            foreach ($e in $errors) {
+              $bad++
+              Write-Output "::error file=$f,line=$($e.Extent.StartLineNumber),title=pwsh parse::$($e.Message)"
+            }
+          }
+          foreach ($j in (git ls-files 'tools/*.json')) {
+            try { Get-Content -Raw $j | ConvertFrom-Json | Out-Null } catch { $bad++; Write-Output "::error file=$j,title=json::$($_.Exception.Message)" }
+          }
+          Write-Output "powershell: $(@($files).Count) script(s), $bad error(s)"
+          if ($bad) { exit 1 }

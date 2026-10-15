@@ -1,0 +1,100 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Package builds in Fedora 44 containers on every push / pull request that touches the packaging:
+#   noarch    iceland-device (rpmbuild -ba with its BuildRequires: the noarch rpm + the src.rpm), src.rpms of the
+#             sensor packages, a parse of iceland-firmware.spec (that package is built in the iceland-firmware repository)
+#   aarch64   hexagonrpc, libssc, iio-sensor-proxy (rpmbuild -ba, native on the arm64 runner)
+name: rpm
+
+on:
+  push:
+    paths:
+      - 'packaging/**'
+      - 'audio/**'
+      - 'docs/sensors/**'
+      - '.github/workflows/rpm.yml'
+      - '.github/scripts/sensor-tree.sh'
+  pull_request:
+    paths:
+      - 'packaging/**'
+      - 'audio/**'
+      - 'docs/sensors/**'
+      - '.github/workflows/rpm.yml'
+      - '.github/scripts/sensor-tree.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rpm-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  noarch:
+    runs-on: ubuntu-24.04
+    container: fedora:44
+    timeout-minutes: 45
+    steps:
+      - name: Install rpm tools
+        run: dnf -y -q install git-core rpm-build rpmdevtools python3 'dnf-command(builddep)'
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: iceland-device (rpmbuild -ba)
+        run: |
+          dnf -y -q builddep packaging/iceland-device/iceland-device.spec
+          bash packaging/iceland-device/build-rpm.sh "$GITHUB_WORKSPACE/_out/rpms"
+          rpm -qip "$GITHUB_WORKSPACE"/_out/rpms/iceland-device-*.noarch.rpm
+          echo "files: $(rpm -qpl "$GITHUB_WORKSPACE"/_out/rpms/iceland-device-*.noarch.rpm | wc -l)"
+
+      - name: Sensor packages (rpmbuild -bs)
+        run: |
+          bash .github/scripts/sensor-tree.sh "$RUNNER_TEMP/sensors"
+          for p in hexagonrpc libssc iio-sensor-proxy; do
+            rpmbuild --define "_topdir $RUNNER_TEMP/sensors" -bs "$RUNNER_TEMP/sensors/SPECS/$p.spec"
+          done
+          cp "$RUNNER_TEMP"/sensors/SRPMS/*.src.rpm "$GITHUB_WORKSPACE/_out/rpms/"
+
+      - name: iceland-firmware.spec parses
+        run: rpmspec -P packaging/iceland-firmware/iceland-firmware.spec > /dev/null
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rpms-noarch-${{ github.sha }}
+          path: _out/rpms/
+          retention-days: 14
+
+  aarch64:
+    runs-on: ubuntu-24.04-arm
+    container: fedora:44
+    timeout-minutes: 60
+    steps:
+      - name: Install rpm tools
+        run: dnf -y -q install git-core rpm-build rpmdevtools python3 'dnf-command(builddep)'
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build dependencies
+        run: |
+          dnf -y -q builddep packaging/sensors/hexagonrpc.spec packaging/sensors/libssc.spec
+          # iio-sensor-proxy builds against the libssc built below (not in Fedora)
+          dnf -y -q builddep --skip-unavailable packaging/sensors/iio-sensor-proxy.spec
+
+      - name: hexagonrpc, libssc, iio-sensor-proxy (rpmbuild -ba)
+        run: |
+          bash .github/scripts/sensor-tree.sh "$RUNNER_TEMP/sensors"
+          bash packaging/sensors/build-rpm.sh "$RUNNER_TEMP/sensors" "$GITHUB_WORKSPACE/_out/rpms"
+          if ls "$GITHUB_WORKSPACE"/_out/rpms/build-*-check-failed.log 2>/dev/null; then
+            echo "::warning title=rpm::a %check failed (build logs in the artifact)"
+          fi
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: rpms-aarch64-${{ github.sha }}
+          path: _out/rpms/
+          retention-days: 14
