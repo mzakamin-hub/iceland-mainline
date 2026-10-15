@@ -1,0 +1,60 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# kernel-install plugin (kernel-iceland): the Pad 4 device tree on the EFI system partition, where U-Boot's EFI
+# boot manager loads `fdtfile` (<ESP>/dtb/qcom/kaanapali-oneplus-iceland.dtb, U-Boot lib/efi_loader/efi_fdt.c
+# tries /dtb/ first) and applies its fixups before it starts shim / GRUB.
+# With GRUB_DEVICETREE set (iceland-device), every boot entry also loads its OWN kernel's tree (/boot/dtb-<ver>/,
+# copied there by Fedora's 20-grub.install) and GRUB hands it to Linux through U-Boot's EFI_DT_FIXUP_PROTOCOL;
+# the file on the ESP is then the fallback. Either way the ESP copy must fit the kernel that boots when nothing
+# else works, so it follows the CONFIRMED kernel:
+#   add      first kernel-iceland (no trial state yet)                        -> copied
+#            a newer kernel while a confirmed one exists (= a trial)           -> left alone
+#            ICELAND_DTB_CONFIRM=1 (iceland-trial confirm after the desktop)   -> copied
+#   remove   the removed kernel's tree is on the ESP -> the confirmed (or newest remaining) kernel's tree
+# The previous file is kept as <ESP>/dtb.prev/... for a manual rollback.
+COMMAND="$1"; KERNEL_VERSION="$2"
+R=${ICELAND_ROOT:-}
+DTB_REL=qcom/kaanapali-oneplus-iceland.dtb
+SRC=$R/usr/lib/modules/$KERNEL_VERSION/dtb/$DTB_REL
+S=$R/var/lib/iceland/trial
+
+esp=""
+if [ -z "$R" ] && command -v bootctl >/dev/null 2>&1; then esp=$(bootctl --print-esp-path 2>/dev/null); fi
+[ -n "$esp" ] || for d in "$R/boot/efi" "$R/efi" "$R/boot"; do
+	if [ -d "$d/EFI" ]; then esp=$d; break; fi
+done
+[ -n "$esp" ] || { echo "90-iceland-dtb: no EFI system partition found, DT not installed" >&2; exit 0; }
+
+put() { # put SRC: copy to the ESP, keep the old one
+	mkdir -p "$esp/dtb/qcom" "$esp/dtb.prev/qcom"
+	if [ -f "$esp/dtb/$DTB_REL" ] && ! cmp -s "$1" "$esp/dtb/$DTB_REL"; then
+		cp -f "$esp/dtb/$DTB_REL" "$esp/dtb.prev/$DTB_REL"
+	fi
+	cp -f "$1" "$esp/dtb/$DTB_REL.new" && sync && mv -f "$esp/dtb/$DTB_REL.new" "$esp/dtb/$DTB_REL"
+	echo "90-iceland-dtb: $1 -> $esp/dtb/$DTB_REL"
+}
+confirmed_ver() { c=$(cat "$S/confirmed" 2>/dev/null); [ -n "$c" ] && echo "${c#*-}"; }
+
+case "$COMMAND" in
+add)
+	[ -f "$SRC" ] || exit 0
+	if [ "${ICELAND_DTB_CONFIRM:-0}" = 1 ]; then put "$SRC"; exit 0; fi
+	cv=$(confirmed_ver)
+	if [ -n "$cv" ] && [ "$cv" != "$KERNEL_VERSION" ] && [ -f "$esp/dtb/$DTB_REL" ]; then
+		echo "90-iceland-dtb: $KERNEL_VERSION is a trial; the EFI partition keeps the tree of $cv"
+		exit 0
+	fi
+	put "$SRC"
+	;;
+remove)
+	[ -f "$SRC" ] && [ -f "$esp/dtb/$DTB_REL" ] && cmp -s "$SRC" "$esp/dtb/$DTB_REL" || exit 0
+	cv=$(confirmed_ver)
+	if [ -n "$cv" ] && [ "$cv" != "$KERNEL_VERSION" ] && [ -f "$R/usr/lib/modules/$cv/dtb/$DTB_REL" ]; then
+		put "$R/usr/lib/modules/$cv/dtb/$DTB_REL"; exit 0
+	fi
+	newest=$(ls -1d "$R"/usr/lib/modules/*/dtb/$DTB_REL 2>/dev/null | grep -v "/$KERNEL_VERSION/" | sed "s|^$R/usr/lib/modules/||; s|/dtb/.*||" | sort -V | tail -n1)
+	[ -n "$newest" ] && put "$R/usr/lib/modules/$newest/dtb/$DTB_REL"
+	;;
+esac
+exit 0

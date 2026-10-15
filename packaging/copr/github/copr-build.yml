@@ -1,0 +1,35 @@
+# TEMPLATE (not active here): a GitHub Actions workflow that starts COPR builds of the project's packages.
+# To use it, the owner copies it to .github/workflows/copr-build.yml and stores the contents of their
+# ~/.config/copr (the COPR API token) as the repository secret COPR_CONFIG (Settings > Secrets and variables >
+# Actions). The token expires (COPR shows the date); renew the secret then. Builds go to <owner>/iceland-testing
+# only; promotion to stable stays a manual step after the RAM rehearsal (copr-setup.sh OWNER --promote --run).
+name: copr-build
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: "kernel-iceland, iceland-device, hexagonrpc, libssc or iio-sensor-proxy"
+        required: true
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: registry.fedoraproject.org/fedora:44
+    steps:
+      - name: copr-cli
+        run: dnf -y install copr-cli
+      - name: token
+        env:
+          COPR_CONFIG: ${{ secrets.COPR_CONFIG }}
+        run: |
+          mkdir -p ~/.config
+          printf '%s\n' "$COPR_CONFIG" > ~/.config/copr
+          chmod 600 ~/.config/copr
+      - name: build in iceland-testing (the package's custom script clones main and makes the sources)
+        env:
+          PKG: ${{ inputs.package }}
+        run: |
+          case "$PKG" in kernel-iceland|iceland-device|hexagonrpc|libssc|iio-sensor-proxy) ;; *) echo "unknown package"; exit 1 ;; esac
+          t=""; [ "$PKG" = kernel-iceland ] && t="--timeout 108000"
+          copr-cli build-package iceland-testing --name "$PKG" $t --nowait
