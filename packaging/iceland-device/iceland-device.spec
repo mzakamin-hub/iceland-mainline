@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        14%{?dist}
+Release:        15%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -178,6 +178,10 @@ Source164:      iceland-charging-generator
 Source165:      iceland-charging.target
 Source166:      iceland-charging.service
 Source167:      iceland-charging
+# 0.28-15 (wf/chgmode2): the PMIC's PON log (read only) as the sign of a cable power-on
+Source168:      iceland-pon-log
+# 0.28-15: the managed kernel options for a new kernel's entry (iceland-cmdline after kernel-install)
+Source169:      97-iceland-cmdline.install
 
 Requires:       kernel-iceland
 Requires:       bluez
@@ -375,6 +379,7 @@ install -Dm0755 %{SOURCE164} %{buildroot}/usr/lib/systemd/system-generators/icel
 install -Dm0644 %{SOURCE165} %{buildroot}/usr/lib/systemd/system/iceland-charging.target
 install -Dm0644 %{SOURCE166} %{buildroot}/usr/lib/systemd/system/iceland-charging.service
 install -Dm0755 %{SOURCE167} %{buildroot}/usr/libexec/iceland/iceland-charging
+install -Dm0755 %{SOURCE168} %{buildroot}/usr/libexec/iceland/iceland-pon-log
 install -Dm0644 %{SOURCE53} %{buildroot}/usr/lib/systemd/logind.conf.d/60-iceland.conf
 
 install -Dm0644 %{SOURCE62} %{buildroot}/usr/lib/udev/rules.d/59-iceland-storage-ro.rules
@@ -390,6 +395,7 @@ install -Dm0755 %{SOURCE71} %{buildroot}/usr/libexec/iceland/iceland-snapshot
 install -Dm0644 %{SOURCE72} %{buildroot}/etc/dnf/libdnf5-plugins/actions.d/iceland-snapshot.actions
 install -Dm0644 %{SOURCE73} %{buildroot}/etc/iceland/snapshot.conf
 install -Dm0755 %{SOURCE74} %{buildroot}/usr/lib/kernel/install.d/96-iceland-trial.install
+install -Dm0755 %{SOURCE169} %{buildroot}/usr/lib/kernel/install.d/97-iceland-cmdline.install
 install -Dm0755 %{SOURCE75} %{buildroot}/usr/libexec/iceland/iceland-trial
 install -Dm0644 %{SOURCE76} %{buildroot}/usr/lib/systemd/system/iceland-trial-early.service
 install -Dm0644 %{SOURCE77} %{buildroot}/usr/lib/systemd/system/iceland-boot-confirm.service
@@ -639,6 +645,7 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/lib/systemd/system/iceland-charging.target
 /usr/lib/systemd/system/iceland-charging.service
 /usr/libexec/iceland/iceland-charging
+/usr/libexec/iceland/iceland-pon-log
 /usr/lib/systemd/system-preset/50-iceland.preset
 %dir /usr/share/selinux/packages/iceland
 /usr/share/selinux/packages/iceland/iceland_sensors.pp
@@ -668,6 +675,7 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 %config(noreplace) /etc/dnf/libdnf5-plugins/actions.d/iceland-snapshot.actions
 %config(noreplace) /etc/iceland/snapshot.conf
 /usr/lib/kernel/install.d/96-iceland-trial.install
+/usr/lib/kernel/install.d/97-iceland-cmdline.install
 /usr/libexec/iceland/iceland-trial
 /usr/lib/systemd/system/iceland-trial-early.service
 /usr/lib/systemd/system/iceland-boot-confirm.service
@@ -690,6 +698,36 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
 
 %changelog
+* Thu Oct 15 2026 mzak <mzak.amin@gmail.com> - 0.28-15
+- charging mode (wf/chgmode2): on the installed tablet a power-off with the cable in started the desktop (and U-Boot
+  v4's menu). Two causes: this ABL did not hand over "charger" (U-Boot showed its menu), and even if it had, the
+  /chosen/u-boot,abl-boot-mode property cannot reach Linux while GRUB loads its own device tree (GRUB_DEVICETREE,
+  PER_KERNEL_DT=1): Fedora's GRUB 2.12 (grub2-efi-aa64 2.12-66.fc44) does not call U-Boot's EFI_DT_FIXUP_PROTOCOL
+  (no such GUID in grubaa64.efi), so none of U-Boot's fixups are in the device tree Linux gets
+- iceland-pon-log (new, /usr/libexec/iceland/): reads the PMK8850's PON log (the PBS event ring in SDAM 0x7400 /
+  0x7500, format of stock's pmic-pon-log.ko) read only - from nvmem if a device tree names the SDAMs, else only the
+  needed lines of the pmk8850's SPMI regmap in debugfs (in a private mount namespace when debugfs is not mounted
+  yet); verdict charger only when the last power-on was triggered by the USB charger alone (no power key, no reset
+  trigger, no warm reset after it); unreadable = unknown
+- iceland-charging-generator: the PON log verdict "charger" is a second sign of a cable power-on (ABL's mode stays the
+  first); one kernel log line with the verdict at every boot; CHARGING_PON=0 in /etc/iceland/boot.conf turns it
+  off, iceland.charging=0 still turns everything off
+- boot.conf / iceland-grub-setup: the comments no longer claim that GRUB uses the DT fixup protocol; PER_KERNEL_DT
+  stays 1 (the trial kernel boots with its own device tree); CHARGING_PON=1 added
+- idle power on by default (owner, 15 Oct): iceland-cmdline puts cpuidle.governor=teo (the TEO idle governor;
+  menu has the higher rating and would stay without it) and rcu_nocbs=all rcutree.enable_rcu_lazy=1 (RCU callbacks
+  of every CPU offloaded and batched lazily) on every boot entry and /etc/kernel/cmdline, before $iceland_args;
+  the new 97-iceland-cmdline.install does the same for each new kernel-iceland's entry. Kernel q89i builds both
+  (iceland-linux queue 0312); Android's GKI kernel ships TEO and lazy RCU. Off switches in /etc/iceland/boot.conf:
+  IDLE_GOV=menu, RCU_LAZY=0 (then run /usr/libexec/iceland/iceland-cmdline; next boot). Context: the owner's
+  powerperf runs of 15 Oct (idle, app closed: CPU busy 0.7 %, IPI1 114/s, timer 361/s, system domain 78 %); the
+  A/B measurements on the tablet (powerperf.sh --ab-gov / --rcu-lazy) follow
+- GPU preemption (no package change): off by default in kernel q89i (iceland-linux queue 0311,
+  adreno_device.c enable_preemption default 0); on the installed tablet msm.enable_preemption=0 took the
+  'delay in fenced register write' warnings from 3 in 16 min to 0, with no GPU faults, and the owner reports it
+  smoother (the measured govtune A/B is still pending). msm.enable_preemption=1 on the kernel command line turns
+  it back on (grub2-editenv - set iceland_args=msm.enable_preemption=1, every kernel-iceland entry, until
+  grub2-editenv - unset iceland_args); -1 = the per-GPU choice of the driver
 * Wed Oct 14 2026 mzak <mzak.amin@gmail.com> - 0.28-14
 - the power key has one handler, iceland-battery-guard (owner, 14 Oct: with a charger in and the screen on, a press
   opened GNOME's power-off menu). Cause: 0.28-11's polkit rule refuses login1.*-ignore-inhibit, so

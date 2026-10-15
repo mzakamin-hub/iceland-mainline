@@ -1,0 +1,14 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# kernel-install plugin (iceland-device 0.28-15): after a new kernel-iceland's boot entry has been written (Fedora's
+# 20-grub.install / 90-loaderentry.install take its options from /etc/kernel/cmdline, or /proc/cmdline when that
+# file does not exist), iceland-cmdline brings every entry's options in line with /etc/iceland/boot.conf (IDLE_GOV,
+# RCU_LAZY) - so a new kernel gets the same managed options as the installed ones, whichever source was used.
+# ICELAND_CMDLINE_PROG (tests only): the program to run.
+COMMAND="$1"; KERNEL_VERSION="$2"
+[ "$COMMAND" = add ] || exit 0
+case "$KERNEL_VERSION" in *-iceland*) ;; *) exit 0 ;; esac
+P=${ICELAND_CMDLINE_PROG:-/usr/libexec/iceland/iceland-cmdline}
+[ -x "$P" ] || exit 0
+"$P" || echo "97-iceland-cmdline: iceland-cmdline failed for $KERNEL_VERSION (the entry keeps kernel-install's options)"
+exit 0

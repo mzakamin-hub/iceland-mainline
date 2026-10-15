@@ -1,9 +1,10 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-2.0-or-later
 # iceland-device: GRUB settings for the installed OnePlus Pad 4 (run by %posttrans; idempotent).
-#  - GRUB_DEVICETREE: every boot entry loads its own kernel's device tree (/boot/dtb-<ver>/qcom/...); GRUB hands
-#    it to Linux through U-Boot's EFI_DT_FIXUP_PROTOCOL. PER_KERNEL_DT=0 in /etc/iceland/boot.conf turns it off:
-#    then U-Boot's copy on the EFI partition (90-iceland-dtb.install) is used for every entry.
+#  - GRUB_DEVICETREE: every boot entry loads its own kernel's device tree (/boot/dtb-<ver>/qcom/...) and GRUB
+#    installs it as is: Fedora's GRUB 2.12 does not call U-Boot's EFI_DT_FIXUP_PROTOCOL (wf/chgmode2), so U-Boot's
+#    fixups (/chosen/u-boot,abl-boot-mode) are not in it. PER_KERNEL_DT=0 in /etc/iceland/boot.conf turns it off:
+#    then U-Boot's copy on the EFI partition (90-iceland-dtb.install, with U-Boot's fixups) is used for every entry.
 #  - the menu is shown for 3 s at every start (no auto-hide): the volume keys move, power selects, so an older
 #    kernel or a "Roll back to ..." entry can be chosen on the tablet without a PC.
 #  - $iceland_args at the end of every kernel-iceland entry's options: extra kernel arguments from grubenv

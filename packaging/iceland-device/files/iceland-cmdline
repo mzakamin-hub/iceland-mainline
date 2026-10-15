@@ -1,28 +1,55 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Kernel options of kernel-iceland's boot entries. Up to 0.18 this added clk_ignore_unused pd_ignore_unused
-# regulator_ignore_unused (keep the boot loader's clocks, power domains and regulators on until every driver takes
-# over). Every install rehearsal (R1d, R2, R2-final, r2g; 2-3 Oct 2026) booted without them - the call ran before
-# kernel-iceland's entry existed - with display, touch, Wi-Fi, Bluetooth, sound and both cameras working, and the
-# unused clocks, power domains and regulators then switch off: the better power state. So the installed system
-# boots as rehearsed: this removes the three from every boot entry and from /etc/kernel/cmdline (future kernels),
-# should an older package or a hand edit have put them there. Idempotent.
+# Kernel options of kernel-iceland's boot entries (every /boot/loader/entries/*.conf and /etc/kernel/cmdline, which
+# kernel-install uses for future kernels; 97-iceland-cmdline.install runs this again after each new kernel's entry).
+# Idempotent; a file is only rewritten when its options change.
+#  1. Up to 0.18 the package added clk_ignore_unused pd_ignore_unused regulator_ignore_unused (keep the boot loader's
+#     clocks, power domains and regulators on until every driver takes over). Every install rehearsal (R1d, R2,
+#     R2-final, r2g; 2-3 Oct 2026) booted without them with everything working, and the unused clocks, power domains
+#     and regulators then switch off: the better power state. They are removed wherever they are.
+#  2. 0.28-15, idle power (the settings Android's GKI kernel ships; kernel q89i builds both, queue 0312), each with a
+#     switch in /etc/iceland/boot.conf (run this program after a change; it acts at the next boot):
+#       IDLE_GOV=teo (default): cpuidle.governor=teo - the TEO idle governor instead of menu (menu has the higher
+#                 rating, so without the option menu stays). IDLE_GOV=menu: the option is removed.
+#       RCU_LAZY=1 (default): rcu_nocbs=all rcutree.enable_rcu_lazy=1 - RCU callbacks of every CPU offloaded to
+#                 kthreads and batched lazily (fewer wake-ups at idle). RCU_LAZY=0: both options are removed.
+#     A managed option that is on replaces another value of the same name (e.g. cpuidle.governor=menu); a switch
+#     that is off removes only the exact managed option. The options go before $iceland_args, so a value in GRUB's
+#     iceland_args (a rehearsal or a one-off test) still wins.
 # ICELAND_ROOT (tests only): the root to work on.
 R=${ICELAND_ROOT:-}
 ARGS="clk_ignore_unused pd_ignore_unused regulator_ignore_unused"
-strip() { # stdin: one options line -> without ARGS, single spaces
-	l=" $(cat) "
-	for a in $ARGS; do l=$(printf '%s' "$l" | sed "s/ $a / /g; s/ $a / /g"); done
-	printf '%s\n' "$l" | sed 's/  */ /g; s/^ //; s/ $//'
+IDLE_GOV=teo; RCU_LAZY=1
+if [ -r "$R/etc/iceland/boot.conf" ]; then
+	v=$(sed -n 's/^IDLE_GOV=\([a-z]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); [ "$v" = menu ] && IDLE_GOV=menu
+	v=$(sed -n 's/^RCU_LAZY=\([0-9]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); [ "$v" = 0 ] && RCU_LAZY=0
+fi
+ON=""; OFF=""
+if [ "$IDLE_GOV" = teo ]; then ON="$ON cpuidle.governor=teo"; else OFF="$OFF cpuidle.governor=teo"; fi
+if [ "$RCU_LAZY" = 1 ]; then ON="$ON rcu_nocbs=all rcutree.enable_rcu_lazy=1"; else OFF="$OFF rcu_nocbs=all rcutree.enable_rcu_lazy=1"; fi
+fix() { # stdin: one options line -> the managed line (single spaces)
+	out=""; tail=""; set -f
+	for w in $(cat); do
+		case " $ARGS $OFF " in *" $w "*) continue ;; esac
+		keep=1
+		for o in $ON; do [ "${w%%=*}" = "${o%%=*}" ] && keep=0; done
+		[ $keep = 1 ] || continue
+		case "$w" in '$iceland_args') tail=" $w" ;; *) out="$out $w" ;; esac
+	done
+	set +f
+	printf '%s\n' "${out# }$ON$tail" | sed 's/^ //'
 }
 for e in "$R"/boot/loader/entries/*.conf; do
 	[ -f "$e" ] || continue
-	grep -q -E '^options .*(clk|pd|regulator)_ignore_unused' "$e" || continue
-	o=$(sed -n 's/^options //p' "$e" | head -n 1 | strip)
-	t=$(mktemp) && sed "s|^options .*|options $o|" "$e" > "$t" && cat "$t" > "$e"; rm -f "$t"
+	grep -q '^options ' "$e" || continue
+	old=$(sed -n 's/^options //p' "$e" | head -n 1)
+	new=$(printf '%s\n' "$old" | fix)
+	[ "$new" = "$old" ] && [ "$(grep -c '^options ' "$e")" = 1 ] && continue
+	t=$(mktemp) && awk -v o="options $new" '/^options / { print o; next } { print }' "$e" > "$t" && cat "$t" > "$e"; rm -f "$t"
 done
 f=$R/etc/kernel/cmdline
 [ -f "$f" ] || exit 0
-grep -q -E '(clk|pd|regulator)_ignore_unused' "$f" || exit 0
-l=$(head -n 1 "$f" | strip)
-printf '%s\n' "$l" > "$f"
+old=$(head -n 1 "$f")
+new=$(printf '%s\n' "$old" | fix)
+[ "$new" = "$old" ] && exit 0
+printf '%s\n' "$new" > "$f"

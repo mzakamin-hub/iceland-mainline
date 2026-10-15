@@ -1,27 +1,34 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-2.0-or-later
-# iceland-charging-generator (iceland-device 0.28-12, wf/chgmode): a cable power-on boots into the charging mode.
+# iceland-charging-generator (iceland-device 0.28-15, wf/chgmode2): a cable power-on boots into the charging mode.
 #
-# With a USB cable in, a Pad 4 that was switched off is powered on again by VBUS, and ABL starts the boot partition
-# in its off-mode charging mode (stock: Android's charging screen). U-Boot (patch 0011) reads that mode from ABL and
-# hands it to Linux as /chosen/u-boot,abl-boot-mode = "charger". This generator then makes iceland-charging.target
-# the default target of this boot (a symlink default.target in the generator's early directory, which wins over
-# /etc/systemd/system/default.target): every non-graphical service of a normal boot runs (the battery guard, the
-# thermal policy, the firmware and charger services), the desktop does not start, iceland-charging.service keeps
-# the panel dark, powers off when the cable is pulled and starts the desktop at a press of the power key.
+# With a USB cable in, a Pad 4 that was switched off is powered on again by VBUS. Two signs of such a start:
+#   1. the PMIC's own PON log (0.28-15): the PMK8850 records what powered it on; /usr/libexec/iceland/iceland-pon-log
+#      reads it (read only) and says "charger" when the last power-on was triggered by the USB charger only (no power
+#      key, no reset, no warm reset after it). This works with any U-Boot and any device tree path;
+#   2. ABL's off-mode charging mode, passed on by U-Boot patch 0011 as /chosen/u-boot,abl-boot-mode = "charger".
+#      This only reaches Linux when GRUB does not load its own device tree (PER_KERNEL_DT=0 in
+#      /etc/iceland/boot.conf): Fedora's GRUB 2.12 does not call U-Boot's EFI_DT_FIXUP_PROTOCOL (wf/chgmode2).
+# On either sign this generator makes iceland-charging.target the default target of this boot (a symlink
+# default.target in the generator's early directory, which wins over /etc/systemd/system/default.target): every
+# non-graphical service of a normal boot runs (the battery guard, the thermal policy, the firmware and charger
+# services), the desktop does not start, iceland-charging.service keeps the panel dark, powers off when the cable is
+# pulled and starts the desktop at a press of the power key (or after 120 s without a cable).
 #
 # Nothing is done (a normal boot, as before 0.28-12):
 #   - in the initramfs (/etc/initrd-release), or without the early directory argument;
-#   - when the mode is anything but "charger" or cannot be read (an older U-Boot without patch 0011: no property);
-#   - with iceland.charging=0 on the kernel command line (the owner's off switch);
+#   - when neither sign says charger (the PON log is not read when the ABL mode already says charger;
+#     CHARGING_PON=0 in /etc/iceland/boot.conf turns the PON log off; an unreadable log counts as no sign);
+#   - with iceland.charging=0 on the kernel command line (the owner's off switch; nothing is read then);
 #   - when the command line names a target or a run level itself (systemd.unit=, rescue, emergency, single, s, S,
 #     1-5, -s, -b): that choice wins anyway, and the log says so;
 #   - when iceland-charging.target or the battery guard's unit is missing, or the guard is masked: the charging mode
 #     exists to keep the charging safety running without the desktop, not without the guard.
 # iceland.charging=1 on the command line forces the charging mode (tests; a cable must still be in, else
 # iceland-charging.service starts the desktop after its wait).
-# One line in the kernel log whenever the mode is charger or forced.
-# Test hooks: ICELAND_DT_CHOSEN ICELAND_CMDLINE ICELAND_UNITDIR ICELAND_ETCDIR ICELAND_INITRD_RELEASE ICELAND_KMSG.
+# One line in the kernel log whenever the PON log was read (its verdict), and whenever the mode is charger or forced.
+# Test hooks: ICELAND_DT_CHOSEN ICELAND_CMDLINE ICELAND_UNITDIR ICELAND_ETCDIR ICELAND_INITRD_RELEASE ICELAND_KMSG
+# ICELAND_PON_LOG ICELAND_BOOT_CONF ICELAND_PON_TIMEOUT.
 EARLY=${2:-}
 DT=${ICELAND_DT_CHOSEN:-/proc/device-tree/chosen}
 CMDLINE=${ICELAND_CMDLINE:-/proc/cmdline}
@@ -29,6 +36,9 @@ UNITDIR=${ICELAND_UNITDIR:-/usr/lib/systemd/system}
 ETCDIR=${ICELAND_ETCDIR:-/etc/systemd/system}
 INITRD=${ICELAND_INITRD_RELEASE:-/etc/initrd-release}
 KMSG=${ICELAND_KMSG:-/dev/kmsg}
+PONLOG=${ICELAND_PON_LOG:-/usr/libexec/iceland/iceland-pon-log}
+BOOTCONF=${ICELAND_BOOT_CONF:-/etc/iceland/boot.conf}
+PONTIMEOUT=${ICELAND_PON_TIMEOUT:-15}
 TARGET=iceland-charging.target
 GUARD=iceland-battery-guard.service
 log() { printf '<6>iceland-charging-generator: %s\n' "$*" >> "$KMSG" 2>/dev/null || :; }
@@ -48,7 +58,17 @@ case "$cl" in
 *" iceland.charging=1 "*)
 	why="iceland.charging=1 on the command line (ABL boot mode: ${mode:-none})" ;;
 *)
-	[ "$mode" = charger ] || exit 0 ;;
+	if [ "$mode" != charger ]; then
+		# the PMIC's PON log (read only); off with CHARGING_PON=0 in boot.conf
+		grep -q '^CHARGING_PON=0[[:space:]]*$' "$BOOTCONF" 2>/dev/null && exit 0
+		[ -x "$PONLOG" ] || exit 0
+		pon=$(timeout "$PONTIMEOUT" "$PONLOG" --verdict 2>/dev/null | head -n 1 | head -c 300)
+		log "PMIC PON log: ${pon:-no answer} (ABL boot mode: ${mode:-none})"
+		case "$pon" in
+		"charger "*) why="PMIC PON log: ${pon#charger }" ;;
+		*) exit 0 ;;
+		esac
+	fi ;;
 esac
 for a in $cl; do
 	case "$a" in
