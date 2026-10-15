@@ -1,0 +1,63 @@
+Subject: [PATCH candidate] sensor: LIBSSC_SAMPLE_RATE=min|max|<Hz> test knob
+
+Diagnosis only: lets ssccli / iio-sensor-proxy request the lowest or highest
+advertised rate instead of the first one. Base: libssc 54dd13e.
+---
+--- a/src/libssc-sensor.c	2026-10-15 18:34:01.464820685 +0300
++++ b/src/libssc-sensor.c	2026-10-15 18:34:01.487974445 +0300
+@@ -55,6 +55,8 @@
+ 	guint stream_type;
+ 	gboolean available;
+ 	gfloat sample_rate;
++	gfloat sample_rate_min;
++	gfloat sample_rate_max;
+ 	gfloat mount_matrix[3][3];
+ 
+ 	SSCClient *client;
+@@ -222,6 +224,21 @@
+ 		}
+ 
+ 		msg.sample_rate = priv->sample_rate;
++		/*
++		 * Test knob: LIBSSC_SAMPLE_RATE=min|max|<Hz> overrides the
++		 * first advertised rate (diagnosis only, not for production).
++		 */
++		{
++			const gchar *env = g_getenv ("LIBSSC_SAMPLE_RATE");
++			if (env && g_strcmp0 (env, "min") == 0 && priv->sample_rate_min > 0.0)
++				msg.sample_rate = priv->sample_rate_min;
++			else if (env && g_strcmp0 (env, "max") == 0 && priv->sample_rate_max > 0.0)
++				msg.sample_rate = priv->sample_rate_max;
++			else if (env && g_ascii_strtod (env, NULL) > 0.0)
++				msg.sample_rate = g_ascii_strtod (env, NULL);
++			g_info ("Requesting %f Hz (advertised %f .. %f Hz)", msg.sample_rate,
++				priv->sample_rate_min, priv->sample_rate_max);
++		}
+ 		buf = g_array_new (FALSE, FALSE, 1);
+ 		g_array_set_size (buf, ssc_enable_config_request__get_packed_size (&msg));
+ 		ssc_enable_config_request__pack (&msg, (unsigned char*) buf->data);
+@@ -395,8 +412,13 @@
+ 					for (gsize j = 0; j < attr_msg->attr[i]->value_array->n_v; j++) {
+ 						if (attr_msg->attr[i]->value_array->v[j]->has_f
+ 						 && attr_msg->attr[i]->value_array->v[j]->f > 0) {
+-							priv->sample_rate = attr_msg->attr[i]->value_array->v[j]->f;
+-							break;
++							gfloat f = attr_msg->attr[i]->value_array->v[j]->f;
++							if (priv->sample_rate <= 0.0)
++								priv->sample_rate = f;
++							if (priv->sample_rate_min <= 0.0 || f < priv->sample_rate_min)
++								priv->sample_rate_min = f;
++							if (f > priv->sample_rate_max)
++								priv->sample_rate_max = f;
+ 						}
+ 					}
+ 					break;
+@@ -435,7 +457,7 @@
+ 		g_debug ("  vendor: %s", priv->vendor);
+ 		g_debug ("  data-type: %s", priv->data_type);
+ 		g_debug ("  stream-type: %s", priv->stream_type == SSC_STREAM_TYPE_CONTINUOUS ? "continuous" : "on-change");
+-		g_debug ("  sample-rate: %f Hz", priv->sample_rate);
++		g_debug ("  sample-rate: %f Hz (advertised %f .. %f Hz)", priv->sample_rate, priv->sample_rate_min, priv->sample_rate_max);
+ 		g_debug ("  available: %s", priv->available ? "yes" : "no");
+ 		if (mount_matrix_attribute_populated) {
+ 			g_debug ("  mount-matrix: [[%f,%f,%f],[%f,%f,%f],[%f,%f,%f]]",

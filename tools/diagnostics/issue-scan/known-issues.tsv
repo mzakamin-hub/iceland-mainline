@@ -1,0 +1,172 @@
+# known-issues.tsv - the issue table of issue-scan.sh (OnePlus Pad 4 "iceland", installed Fedora 44, 16 Oct 2026).
+# Sources: the project's feature matrix, its boot-log review, its hardware inventory and the scans of the
+# installed tablet (the 16 Oct 2026 groups are in the block before the display rows).
+# Columns (TAB separated): id  class  scope  pattern  row  status  note
+#   class   KNOWN (a recorded issue) or INFO (looks like an error, is not one)
+#   scope   k = kernel line, j = user-space journal line (matched as "ident: message"), s = scan check line
+#           ("unbound: ...", "deferred: ...", "failed-unit: ...", ...), a = any of them
+#   pattern POSIX extended regex (awk), case-sensitive; first matching row wins (keep specific rows first)
+#   row     the feature-matrix row (or the ledger id) it belongs to
+#   status  short state; "regression-if-seen" = fixed earlier, a hit means it came back
+#id	class	scope	pattern	row	status	note
+# ---------------------------------------------------------------- first tablet scan, 16 Oct 2026: real issues with their fix
+S-SLOTMARK	KNOWN	a	iceland-slot-mark.*FAIL not a good boot: system state .starting.|failed-unit: iceland-slot-mark\.service|iceland-slot-mark\.service: (Failed with result|Main process exited)|Failed to start iceland-slot-mark\.service|unit=iceland-slot-mark .*res=fail	Boot slot marking (qbootctl -m)	fixed in 0.28-17	0.28-16's oneshot unit waited for its own boot job ('starting' for 300 s): the slot was never marked; iceland-device 0.28-17 runs it as Type=exec. Still seen after 0.28-17: read the FAIL line's 'jobs still queued'
+J-SNAP-ACTIONS	KNOWN	a	Actions plugin: File ".*iceland-snapshot\.actions" on line [0-9]+: Syntax error: Missing equal sign	Snapshots before dnf (rollback entries)	fixed in 0.28-17	iceland-snapshot printed its log on the actions plugin's stdout, which takes key=value requests only; the snapshots WERE made. 0.28-17 logs to stderr / the journal
+S-SENSORSPD-RESTART	KNOWN	s	^restart: hexagonrpcd-adsp-sensorspd\.service restarted 1 time	Accelerometer, compass, light / proximity	candidate (hexagonrpc patch 0002)	the first hexagonrpcd stops at the sensors PD's unsupported apps_std method 36 ('Unsupported method: 36', exit 0); Restart=always starts the second 3 s later, sensors work. Candidate: hexagonrpc patch 0002 (docs/sensors/patches/hexagonrpc/) (answer the call with an error, keep serving)
+S-DEVCD-DPU	KNOWN	s	^devcoredump: a pending crash dump of 9801000\.display-controller	Native display 3392x2400, dual DSI + DSC	known (F57 family)	msm display snapshot (first underrun of an enable, frame-done timeout or CTL reset failure), made within the 5 min before the scan; --save-devcoredump keeps a masked copy for an upstream report
+J-CURSOR-EINVAL	KNOWN	j	^gnome-shell: Cursor update failed: drmModeAtomicCommit: Invalid argument	Native display 3392x2400, dual DSI + DSC	open (rare)	a cursor-plane-only atomic commit refused by msm's atomic check (2 in 6 h; one 40 ms after a Bluetooth mouse connected); mutter retries at the next move. Needs drm.debug=0x10 at a repeat to name the check
+J-WPLUA-ALSA	KNOWN	j	^\?: +stack traceback:|wplua: \[string "alsa\.lua"\]:[0-9]+: attempt to index a nil value	DSP audio + sound card	check	WirePlumber's alsa.lua monitor hits a nil field twice at startup (the continuation line has no identifier); the sound card works
+# ---------------------------------------------------------------- first tablet scan, 16 Oct 2026: harmless (INFO)
+S-JOURNALD-SWROOT	INFO	s	^restart: systemd-journald\.service restarted 1 time\(s\)	Boot	normal	the initrd's journald gets SIGTERM at the switch to the real root and systemd starts it again (restart counter 1): every Fedora boot
+J-GSD-LIGHT-GREETER	INFO	j	^gsd-power: Release of light sensors failed: .*Sensor claim not allowed	Accelerometer, compass, light / proximity	benign	the login screen's gsd-power (user gdm) releases the light sensor after the login, when its session is no longer active: iio-sensor-proxy's polkit check refuses; the claim ends when the greeter exits a moment later
+J-CLAUDE-APP	INFO	j	^(com\.anthropic\.Claude\.desktop|claude): 	Apps	not the system	the Claude desktop app's own Chromium / Electron lines (Wayland feedback, VA-API probe, portal / D-Bus requests, its exit at a logout)
+J-XKBCOMP	INFO	j	^gnome-shell: (Errors from xkbcomp are not fatal to the X server|> +Warning: |> +X11 cannot support keycodes above 255)	Pogo keyboard	upstream noise	Xwayland compiles the keymap of a keyboard with keycodes above 255 (Bluetooth / pogo keyboard): warnings only
+J-PCSCD	INFO	j	^pcscd: .*Rejected unauthorized PC/SC client	desktop	normal	polkit refuses a PC/SC client of the desktop session; no smart-card reader on this tablet
+J-DBUS-ACTIVATE	INFO	j	^dbus-broker-launch: Activation request for 'org\.(freedesktop\.(ModemManager1|nm_dispatcher|Accounts|Avahi|ColorManager)|bluez)' failed	desktop	normal	ModemManager is preset off (no modem, 0.28-9); the others only while the system shuts down (units already stopping)
+J-BPF-LSM	INFO	j	^systemd: bpf-restrict-fs: BPF LSM hook not enabled in the kernel	Kernel package	by config	the kernel has no BPF LSM in its lsm= list: systemd's RestrictFileSystems= is not enforced; no unit of the project needs it
+K-ALT-GPT	INFO	k	Alternate GPT is invalid, using primary GPT	Internal storage (UFS 4)	expected	loop0 (the Fedora disk inside userdata): the inner GPT's backup header is not at the end of the larger carrier; the primary is good. iceland-grow (0.28-17) relocates it once
+K-CORRUPT-BEACON	INFO	k	associating to AP .* with corrupt beacon	Wi-Fi	access point side	mac80211 saw a damaged beacon of the access point at a (re)association; the association went on
+J-LIBCAM-PROPDB	INFO	j	Please consider updating the camera sensor properties database	Cameras (13 MP rear, 8 MP front)	deferred (F5)	libcamera's hint beside J-LIBCAM-SENSOR: no sensor properties for SC1320CS / SC820CS
+J-DNF-DEBUG	INFO	a	DEBUG (Failed to find rpm package of a running kernel in sack|Metadata removal from repository cache|Solv files removal from repository cache)	Kernel package (kernel-iceland)	normal	dnf DEBUG lines: dnf looks for a package named kernel / kernel-core for the running kernel (ours is kernel-iceland), and cache cleanups
+J-RPM-LOCK	INFO	a	can't create transaction lock on .*\.rpm\.lock	Device package	normal	a second dnf started while another one (GNOME Software / dnf5daemon) held the rpm lock
+J-PAM-SUDO-BUS	INFO	j	^sudo: pam_systemd\(sudo:session\): Failed to check if /run/user/0/bus exists	desktop	upstream noise	sudo opens a root session; pam_systemd may not look into root's runtime directory under SELinux; harmless
+J-NM-DHCP-INFO	INFO	j	^NetworkManager: <info> .*activation: beginning transaction \(timeout in [0-9]+ seconds\)	Wi-Fi	normal	an info line of every DHCP start; 'timeout' is the configured limit, not a timeout
+J-WRONG-PASSWORD	INFO	j	^unix_chkpwd: password check failed for user|pam_unix\((sudo|gdm-password):auth\): authentication failure|gkr-pam: the password for the login keyring was invalid|^audit: AUDIT11(00|12) .*exe="/usr/(bin/sudo|libexec/gdm-session-worker)".*res=failed	desktop	normal	a mistyped password at the lock screen or for sudo (counted, never shown)
+J-SHUTDOWN-TXN	INFO	j	^systemd: .*Failed to enqueue (SYSTEMD_WANTS|OnFailure=[a-z.-]+) job, ignoring: Transaction for .* is destructive	Boot	normal	a start requested while the system shuts down (the stop jobs win)
+S-UNB-GLINK-CDSP	INFO	s	^unbound: rpmsg:26300000\.remoteproc:glink-edge\.(cdsprmglink|cvp-glink|mpam-glink)-apps-dsp\.	hwinv O01b	normal	CDSP glink channels (resource manager, CVP, MPAM) without a mainline client
+# ---------------------------------------------------------------- display / GPU
+K-DPU-FD	KNOWN	k	frame done wait timed out|enc[0-9]+ timeout pending|vblank timeout|wait for commit done returned -110	Native display 3392x2400, dual DSI + DSC	known (F57)	at each CRTC disable of the DSI panel: GDM hand-off 11 s / 51 s after boot, mutter re-modeset after a DP plug; a hit after a resume is listed in the suspend section
+K-GMU-FENCE	KNOWN	k	delay in fenced register write	GPU correctness, WebGL, stress	regression-if-seen (F40)	17 per boot on q89g with GPU preemption; 0 expected since queue 0311 (preemption off by default)
+K-GPU-SUPPLY	INFO	k	(adreno|a8xx|gpu).*supply (vdd|vddcx) not found	Kernel / DT (F21)	cosmetic	GPU rails are handled by the GMU / power domains
+K-SFB	INFO	k	simple-framebuffer .*memory-region	B13	upstream nit	simple-framebuffer prefers memory-region
+K-NVT-517	INFO	k	nvt_ts_probe: panel wait failed, ret=-517	Touchscreen	cosmetic	normal probe deferral logged as an error
+K-EDID	INFO	a	EDID length is too small	B03	benign	colord / DSI panel without a real EDID
+# ---------------------------------------------------------------- audio
+K-SWR-CLASH	KNOWN	k	SWR bus clsh detected|Parity error detected	DSP audio + sound card	known (F42)	at capture starts (r158: 15 / 8 over 45 opens); sound not affected
+K-SWR-PORTS	KNOWN	k	(din|dout)-ports .*mismatch	F17	log only	SoundWire 7630000 port counts differ from the controller
+K-WCD-16	KNOWN	k	wcd939x.*(ASoC error \(-16\)|-16)|mbhc.*-16	Headset over USB-C	known (F18)	two '-16' lines remain at boot
+K-WCD-ADC	KNOWN	k	wcd_measure_adc_once: adc complete	F56	open	wcd939x ADC measure timeout lines
+K-APM	KNOWN	k	qcom-apm .*CMD timeout for \[[0-9a-f]+\] opcode|q6apm_dai_prepare: CMD Format block failed|q6apm-dai .*ASoC error \(-110\)	DSP audio + sound card	open (F55)	q6apm capture start failures; first command answered late at boot
+K-MM2	KNOWN	k	no backend DAIs enabled	F23	log only	second PCM opened without UCM routing
+K-VA-DMIC	KNOWN	k	qcom,dmic-sample-rate dt entry missing	Microphones (P2-c)	log only	VA macro DMIC rate not in the DT
+K-AUDIO-DEFER	KNOWN	k	(macro|codec|soundwire|sound|lpass|wcd|wsa|tfa98|audio).*deferred probe pending|deferred probe pending: .*(macro|codec|soundwire|sound|lpass)	DSP audio + sound card	benign	audio stack waits for the ADSP at boot; binds later (check: sound card present)
+K-ALSA-TRUNC	INFO	a	[Cc]ontrol name.*truncat	B08	upstream nit	ALSA control name truncated
+K-REGDEF	INFO	a	reg_defaults? .*unsorted|unsorted.*reg_defaults	B09	upstream nit	rx_macro unsorted reg_defaults
+# ---------------------------------------------------------------- Wi-Fi / Bluetooth / PCIe
+K-ATH-REG	KNOWN	k	Failed to set the requested Country regulatory setting	Wi-Fi 2.4 GHz (F11)	regression-if-seen	fixed by the ath12k regulatory-order fix (q89d8, N3 PASS)
+K-ATH-PROBE	INFO	k	ath12k.*(firmware-2\.bin|invalid acpi handler|failed to get ACPI DSM data|unable to get wsi info|acpi failed: -95)|firmware-2\.bin failed with error -2	Wi-Fi (P3)	normal	ath12k probing on a device-tree system
+K-PCIE-L2	KNOWN	k	Timeout waiting for L2 entry	Wi-Fi across sleep	expected	PCIe L2 handshake at suspend; upstream behaviour, Wi-Fi back ~2 s after wake
+K-PCIE-SUPPLY	KNOWN	k	qcom-pcie .*supply (vdda|vddpe-3v3) not found	F20	log only	PCIe supplies not described, probe retries before Wi-Fi binds
+K-PWRSEQ-SUPPLY	INFO	k	pwrseq.*supply (vddant|vddcx) not found|ktz8869.*supply vddio not found	F21 / P2-b	cosmetic	optional supplies
+K-QRTR	KNOWN	k	failed to announce new service|failed while handling packet from	Wi-Fi across sleep (P3)	cosmetic	QRTR lines after a resume
+K-HWMON-PHY	KNOWN	k	parent phy[0-9]+ should not be sleeping	Suspend (s2idle)	cosmetic	ath12k hwmon under the wiphy, logged at resume
+K-BT84	KNOWN	k	Frame reassembly failed	Bluetooth pairing in GNOME (F19)	regression-if-seen	gone since q89d9 (BT84 PASS)
+J-BTD-CFG	KNOWN	j	bluetoothd.*Failed to set default system config for hci0	F30	log only	bluetoothd default system config
+J-BTD-SAP	INFO	j	bluetoothd.*(sap-server|sap_server_register|Sap driver initialization failed)	Bluetooth	upstream noise	SIM access profile without a modem
+J-REGDOM	KNOWN	j	setregdomain|Could not determine country	F11	log only	setregdomain without a country; the firmware's US setting stays (project decision)
+J-P2P	KNOWN	j	p2p-dev-[a-z0-9]+\): error setting IPv4 forwarding	F34	log only	NetworkManager p2p device
+J-MM	KNOWN	j	ModemManager.*couldn.t check support for device	F35	log only	no modem on this tablet (ModemManager preset off since 0.28-9)
+J-USB0	KNOWN	j	usb0: Could not set (Alias|MACAddress)	F32	log only	udev .link settings on the USB gadget
+# ---------------------------------------------------------------- USB-C / power supply
+K-USB-DOCK	KNOWN	k	device descriptor read/64, error -71|device not accepting address|not responding to setup address|unable to enumerate USB device|hub failed to enable device|invalid context state for evaluate context|HS-PHY not in L2	USB host / OTG, PD hub	open (field 14 Oct)	USB-C dock never enumerates (eUSB2 repeater host tuning, VBUS budget)
+K-XHCI-TRACE	KNOWN	k	^TRACE .*xhci	USB host / OTG, PD hub	open (field 14 Oct)	the xHCI 'invalid context state for evaluate context' WARN with a dock
+K-GLINK-LINK	KNOWN	k	Failed to create device link	F22	log only	fw_devlink inferred links (0x180), benign
+K-BATTMGR-UNK	KNOWN	k	battmgr.*(0x1000[9a]|[Uu]nknown|unhandled)	USB host / OTG, PD hub	cosmetic	OPLUS opcodes 0x10009 / 0x1000a on every plug
+K-BATTMGR-110	KNOWN	k	qcom-battmgr-(bat|usb|wls).*-110	F58	open	battmgr property reads time out
+S-PSY-READ	KNOWN	s	^power-supply: qcom-battmgr-[a-z]+ [a-z_]+ read failed	F58	open	battmgr property reads time out (-110) or fail
+K-BIAS	INFO	k	cannot have multiple bias configurations	hwinv	cosmetic	PMIH0108 pin states with two bias properties
+J-KBD-BL	KNOWN	j	kbd backlight|brightness value must be non-negative|max > min	Pogo keyboard	check	pogo keyboard LED backlight range without a cover (0313 in q89j registers it at probe)
+J-ABL-MODE	KNOWN	a	u-boot,abl-boot-mode	Charging	known	GRUB loads its own DTB (GRUB_DEVICETREE), U-Boot's /chosen fixup is lost; 0.28-16 uses the PON log
+# ---------------------------------------------------------------- storage / boot
+K-OVERLAP	KNOWN	k	OVERLAP DETECTED|overlaps with pdp	F15	log only	reserved-memory overlap cpucp / pdp
+K-UFS-SUPPLY	INFO	k	ufshcd.*(supply (vdd-hba|vccq2) not found|Unable to find (vdd-hba|vccq2))	F21	cosmetic	unused on UFS 4
+K-MCQ	KNOWN	k	MCQ resource not found|MCQ mode is disabled	Internal storage (UFS 4)	regression-if-seen	MCQ runs with 9 queues per LUN
+J-BFQ	KNOWN	j	Failed to write .?bfq.? to .*queue/scheduler|queue/scheduler.*Device or resource busy	Internal storage (F14)	regression-if-seen	fixed by K3 (q89g)
+J-BLS	INFO	j	Unknown line .grub_(arg|class|users).	F37	benign	BLS entries written by GRUB tooling
+J-DRACUT-BT	KNOWN	j	dracut.*([Bb]luetooth|btusb|btqca|hci_uart)	Kernel package	cosmetic	dracut's bluetooth module warning while building an initramfs
+J-DRACUT-PCR	KNOWN	j	dracut.*systemd-pcrphase.*tpm2-tss	F10	cosmetic	side effect of the tpm2-tss omit
+J-PROTECTED	KNOWN	a	protected packages: kernel-iceland|[Pp]rotected.*kernel-iceland	Kernel package (kernel-iceland)	open	protected.d lists kernel-iceland; with installonly_limit kernels every dnf transaction fails
+J-PRESET	INFO	j	Failed to preset all unit	F9	log only	read-only file system preset
+J-TSS	KNOWN	j	Failed to resolve (user|group) .tss.|tss.*(unknown user|unknown group)|Failed to parse ACL .default:group:tss	F10	cosmetic	tpm2-tss sysusers not applied
+J-BPF	INFO	j	System call bpf cannot be resolved|libseccomp is not available	F13	log only	initramfs udevd without libseccomp
+J-CHECKREQ	INFO	a	checkreqprot	B12	upstream nit	SELinux checkreqprot
+K-SELINUX-CLS	INFO	k	SELinux: +(the above unknown classes|Permission [a-z_]+ in class [a-z_]+ not defined)	SELinux	normal	Fedora's policy is newer than the kernel's class list
+# ---------------------------------------------------------------- clocks / power domains / platform
+K-SYNC-STATE	KNOWN	k	Timed out\. Forcing sync_state|sync_state\(\) pending due to	F16a	by design	held by the GPU's GMU node (no driver of its own); gcc / gxclkctl / gpucc and others forced at the timeout
+K-TN-DEFER	KNOWN	a	111b8000\.tn	F16b	cosmetic	CoreSight trace NoC stays deferred (CONFIG_CORESIGHT_TNOC unset)
+K-SMEM-DDR	KNOWN	k	Found an unknown type of DRAM info struct	P2-f	log only	newer smem DDR info layout
+K-FASTRPC-MEM	KNOWN	k	no reserved DMA memory for FASTRPC	P2-d	log only	ADSP FastRPC memory region not described
+K-ITS	INFO	k	ITS@0x[0-9a-f]+: .*too large|ITS.*[Tt]able too large	B10	upstream nit	GIC ITS table sizes reduced
+K-SCMI-FC	INFO	k	arm-scmi .*Failed to get FC for protocol	B11	upstream nit	no SCMI fast channels, regular messaging
+K-SCMI-RX	INFO	k	SCMI max-rx-timeout	B16	info	not an error
+K-OOM-FREEZE	INFO	k	^OOM killer (disabled|enabled)\.	Suspend (s2idle)	normal	printed at every suspend / resume
+K-DEBUGFS-DUP	INFO	k	debugfs: '[^']+' already exists	Wi-Fi across sleep	upstream nit	ath12k re-creates its debugfs files after a resume
+K-CPUFEAT	INFO	k	^CPU features: detected: |DMA domain TLB invalidation policy|psci: MIGRATE_INFO_TYPE not supported|Unknown kernel command line parameters "rhgb	Boot	normal	boot information lines that contain an error-like word
+K-SWR-UNKIRQ	KNOWN	k	qcom_swrm_irq_handler: SWR unknown interrupt value	DSP audio + sound card	check	seen once in r158 beside the bus clash lines (F42 family)
+J-WATCHDOG	INFO	j	^systemd: Watchdog running with a hardware timeout	Hardware watchdog	normal	systemd feeds the 30 s watchdog
+J-REALMD	INFO	j	^realmd: quitting realmd service after timeout	desktop	normal	idle exit
+J-MAKECACHE	INFO	a	dnf-makecache\.service|dnf5daemon-serv.*(metalink|LRO_METALINKURL)	B05	benign when offline	metadata refresh without a network
+J-GIS-SESSION	KNOWN	j	gnome-session-manager@gnome-initial-setup\.service|\(gnome-session-s(ervice)?\) (of user [0-9]+ dumped core|crashed)	F08	rehearsal only	the rehearsal's test user replaces the first-boot setup; on the installed system it needs a look
+J-REHEARSAL	INFO	j	^(bash: )?(klog-[a-z0-9]+|q[0-9]+[a-z]*(-[a-z0-9]+)*|r[0-9]+[a-z]*(-[a-z0-9]+)*): 	Tests	test harness	lines of a rehearsal / kit test script (not on the installed system)
+K-SUPPRESSED	INFO	a	callbacks suppressed	B14	info	printk rate limit
+K-RPROC-EARLY	KNOWN	k	(adsp|cdsp)\.mdt failed with error -2|request_firmware failed: -2	DSP audio (P1-a)	benign-if-running	remoteproc probed before the root; harmless when adsp / cdsp run (devices section)
+K-THERM-NETLINK	KNOWN	j	irqbalance.*thermal|thermal: failed to receive messages	F12	log only	CONFIG_THERMAL_NETLINK not set
+J-IRQB-PMU	KNOWN	j	irqbalance: No directory /sys/devices/platform/[0-9a-f]+\.pmu	F33	log only	PMU IRQ owner without a platform device
+J-IRQB-CLASS	INFO	j	irqbalance: IRQ .* guessed as class	B16	info	not an error
+# ---------------------------------------------------------------- cameras / sensors
+K-CSIPHY	KNOWN	k	csiphy [0-9]+ init fail	Cameras (13 MP rear, 8 MP front)	cosmetic	CAMSS loaded before the PHY module; binds on the retry
+K-TPG	INFO	k	Entity type for entity msm_tpg	F06	log only	camss test-pattern entities
+K-CAM-I2C	KNOWN	k	geni_i2c 884000\.i2c: (DMA txn failed|GPI transfer failed)|gpi 800000\.dma-controller: Error in Transaction	F39	log only	camera EEPROM does not answer at power-up in GPI mode
+K-CMA	KNOWN	k	cma: .*alloc failed	F2	regression-if-seen	full-size buffers come from the system heap
+J-LIBCAM-SENSOR	KNOWN	j	No static properties available for|Assuming unverified defaults|Failed to create camera sensor helper|does not support (horizontal|vertical)	F5	deferred	libcamera has no sensor data for SC1320CS / SC820CS
+J-CAM-LINK	KNOWN	j	Failed to setup link .msm_csiphy	F44	open	a stale CAMSS link after another camera program
+J-WP-LIBCAM	KNOWN	j	queuedRequests_\.empty\(\)	F54	resolved	libcamera stop race (0.7.1-1); a hit = regression
+J-MOUNTMATRIX	KNOWN	j	[Mm]ount[ _-]?[Mm]atrix	Accelerometer, compass, light / proximity	known	non-accelerometer sensors report an all-0 mount matrix (libssc); auto-rotate uses the accelerometer's
+J-HEXRPC	KNOWN	j	hexagonrpcd.*(Could not open oemconfig\.so|Unsupported method)	F29	log only	sensor-hub daemon files
+# ---------------------------------------------------------------- desktop / session
+J-GSP	KNOWN	j	GlobalShortcutsProvider.*(Failed with result|Main process exited)	F27	log only	GNOME Settings global-shortcuts provider exits
+J-CANBERRA	KNOWN	j	Failed to play sound: File or data not found	F28	log only	login sound theme not installed
+J-PAM-SETCRED	KNOWN	j	op=PAM:setcred .*res=failed	F26	log only	user@ managers of root / gnome-initial-setup
+J-OSK	KNOWN	j	Argument descendant may not be null|clutter_actor_event: runtime check failed	F38	open	on-screen keyboard error in a modal dialog
+J-SCREENSAVER	KNOWN	j	Could not retrieve current screensaver active state	F41	GNOME behaviour	once at a fresh login
+J-GSOFT	KNOWN	a	gnome-software.*(SIGABRT|dumped core|core-dump)|\(gnome-software\) of user	F45	upstream	GTK 4 accessibility assertion after a network change
+J-SOURCEID	KNOWN	j	Source ID [0-9]+ was not found when attempting to remove it	F59	open	gnome-shell
+J-WP-RESERVE	KNOWN	j	wp_reserve_device_own_name: assertion	F31	benign	WirePlumber reserve-device
+J-WP-EVENT	INFO	j	failed to activate item: Object activation aborted	F50	benign	user WirePlumber startup
+J-WP-IPC	INFO	j	IPCUnixSocket.*(Failed to send|Connection refused)|IPCPipe .*Failed to call	B01	benign	greeter session stopping
+J-PW-RT	INFO	j	mod\.rt: .*(RTKit|realtime|Operation not permitted)|rtkit-daemon	PipeWire	upstream noise	realtime scheduling requests
+J-FIRSTLOGIN	INFO	j	couldn.t access control socket|No entry for geolocation|Geolocation disabled for UID|[Mm]alcontent	F36	benign	GNOME first-login / offline noise
+J-GKR-PAM	INFO	j	gkr-pam: (unable to locate daemon control file|couldn.t unlock the login keyring)	desktop	upstream noise	GNOME keyring PAM
+J-GJS	KNOWN	j	JS (ERROR|WARNING)|Gjs-(CRITICAL|WARNING)	B06	benign group, check message	gnome-shell JavaScript messages
+J-MEDIAKEYS	INFO	j	gsd-media-keys	B07	benign	media-keys grabs
+J-USBPROT	INFO	j	gsd-usb-protect|usb-protection|USBGuard	B04	benign	no USBGuard
+J-ALSACTL	INFO	j	^alsactl: |alsa-restore	B02	benign	no asound.state on first boot
+J-OFFLINE	INFO	j	^packagekitd: |Failed to download (screenshot|metadata)|Curl error|Cannot download	B05	benign	offline package metadata
+J-DEPRECATED	INFO	j	is deprecated|Eavesdropping is deprecated and ignored	B17	benign	desktop deprecation warnings
+J-FPRINT	INFO	j	^fprintd	Haptics, modem, NFC, fingerprint	not on this tablet	no fingerprint reader
+J-SMARTD	INFO	j	^smartd	Device package	info	UFS has no SMART; smartd preset off since 0.28-9
+# ---------------------------------------------------------------- scan checks: devices without a driver (the hardware inventory's expected list)
+S-UNB-GMU	KNOWN	s	^unbound: .*compat=.*,qcom,adreno-gmu,	hwinv O05	by design	GMU used by msm without a bound driver; holds gcc / gpucc / gxclkctl sync_state
+S-UNB-BATT	INFO	s	^unbound: .*compat=.*,simple-battery,	hwinv B12	normal	battery data node read by qcom_battmgr
+S-UNB-TIMER	INFO	s	^unbound: .*compat=.*,arm,armv8-timer,	hwinv A01	normal	arch timer runs from TIMER_OF_DECLARE
+S-UNB-SRAM	INFO	s	^unbound: .*compat=.*,mmio-sram,	hwinv A18	normal	CONFIG_SRAM not set
+S-UNB-CORESIGHT	INFO	s	^unbound: (amba:|.*compat=.*,(qcom|arm),coresight-)	hwinv A21	normal	CoreSight debug trace
+S-UNB-CAMSENSOR	KNOWN	s	^unbound: .*compat=.*,smartsens,sc(1320|820)cs,	hwinv E01 / E02	check	the camera sensor module should bind on the installed system (kernel-iceland ships sc1320cs.ko)
+S-UNB-QCE	KNOWN	s	^unbound: .*compat=.*,qcom,kaanapali-qce,	hwinv A13	check	qce_core should load by udev on the installed system
+S-UNB-STATS	KNOWN	s	^unbound: .*compat=.*,qcom,rpmh-stats,	hwinv A19	check	qcom_stats should load by udev on the installed system
+S-UNB-CAMSS	KNOWN	s	^unbound: .*compat=.*,qcom,kaanapali-(camss|csi2-phy),	hwinv E05	check	CAMSS / CSI PHY should load by udev on the installed system
+S-UNB-DW9	KNOWN	s	^unbound: .*compat=.*,dongwoon,dw9800k,	hwinv E03	check	focus motor driver should load by udev
+S-UNB-PEN	KNOWN	s	^unbound: .*(compat=.*,maxic,mt5806,|auxiliary:pmic_glink\.hboost)	hwinv J05	check	pen charger module should load by udev
+S-UNB-FASTRPC	KNOWN	s	^unbound: .*(compat=.*,qcom,kaanapali-fastrpc,|fastrpc)	hwinv O01	check	fastrpc should load (hexagonrpcd / NPU)
+S-UNB-RPMSGCTRL	INFO	s	^unbound: rpmsg:.*rpmsg_ctrl	hwinv O01	normal	rpmsg_ctrl char interface
+S-UNB-GLINK	INFO	s	^unbound: rpmsg:.*\.(adsp_apps2|bt_cp_ctrl|mhi_sat|pcie_drv|sleepmonglink-apps-adsp|PMIC_LOGS_SOCCP_APPS)\.	hwinv O01b / B07b	normal	glink channels without a mainline client
+S-UNB-EDAC	INFO	s	^unbound: platform:qcom_llcc_edac 	hwinv A07b	normal	CONFIG_EDAC_QCOM not set
+S-UNB-EFIVARS	INFO	s	^unbound: platform:efivars\.0 	hwinv A23	normal	consumed by efivarfs
+S-UNB-SCMI	INFO	s	^unbound: scmi_protocol:scmi_dev\.	hwinv A01	normal	SCMI transport devices
+S-UNB-WLUN	INFO	s	^unbound: scsi:0:0:0:494(56|76) 	hwinv I01	keep unbound	UFS BOOT / RPMB well-known LUNs
+S-UNB-DSI2	INFO	s	^unbound: mipi-dsi:9ac3000\.dsi\.0 	hwinv C01	normal	second link of the dual-DSI panel
+S-UNB-TYPEC-PORT	INFO	s	^unbound: typec:port[0-9]+(\.[0-9]+)? 	USB host / OTG	normal	port alternate modes never bind (partner modes do)
+# ---------------------------------------------------------------- scan checks: other
+S-RPMV-CONF	INFO	s	^rpm-verify: .* c /	Device package	check	a config file differs from the package (expected after a hand edit)
+S-RPROC-SOCCP	INFO	s	^remoteproc: soccp state=attached	Battery level ...	normal	the SoCCP is attached, not booted by Linux
+S-TAINT-OOT	KNOWN	s	^taint: O 	Kernel package	check	an out-of-tree module is loaded
