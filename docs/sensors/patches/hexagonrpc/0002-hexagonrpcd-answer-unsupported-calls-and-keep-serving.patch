@@ -1,0 +1,49 @@
+From: mzak <mzak.amin@gmail.com>
+Subject: [PATCH] hexagonrpcd: answer an unsupported call with an error and keep serving
+
+On the OnePlus Pad 4 (SM8850) the ADSP's sensors PD calls apps_std method 36
+(sc 0x1f050100) right after INIT_ATTACH_SNS. apps_std implements 32 methods,
+so invoke_requested_procedure() logs "Unsupported method: 36 (1f050100)" and
+returns 1; run_fastrpc_listener() leaves its loop and hexagonrpcd exits with
+status 0. With the upstream unit's Restart=always the service manager starts
+it again 3 s later ("restart counter is at 1" on every boot), and the second
+instance keeps running.
+
+The error is already in result (AEE_EUNSUPPORTED / AEE_EBADPARM /
+AEE_ENOMEMORY): send it back to the DSP for that call, with no output
+buffers, and wait for the next call, as for a successful call. The input
+buffers of the failed call are freed and the stale output buffer pointer is
+dropped (it was freed before the call).
+
+diff --git a/hexagonrpcd/listener.c b/hexagonrpcd/listener.c
+index 3414974..4aa211f 100644
+--- a/hexagonrpcd/listener.c
++++ b/hexagonrpcd/listener.c
+@@ -592,8 +592,25 @@ int run_fastrpc_listener(int fd,
+ 		ret = invoke_requested_procedure(n_ifaces, ifaces,
+ 						 handle, sc, &result,
+ 						 decoded, &returned);
+-		if (ret)
+-			break;
++		if (ret) {
++			/*
++			 * The call cannot be served (an unsupported handle or
++			 * method, missing arguments, no memory): result holds
++			 * the error. Answer the call with it and no output
++			 * buffers, and keep serving. Leaving the loop ends
++			 * hexagonrpcd, and the DSP process loses its file server
++			 * until the service manager starts a new one.
++			 */
++			if (decoded != NULL)
++				iobuf_free(REMOTE_SCALARS_INBUFS(sc), decoded);
++
++			decoded = NULL;
++			returned = NULL;
++			n_outbufs = 0;
++			sc = REMOTE_SCALARS_MAKE(0, 0, 0);
++			ret = 0;
++			continue;
++		}
+ 
+ 		if (decoded != NULL)
+ 			iobuf_free(REMOTE_SCALARS_INBUFS(sc), decoded);
