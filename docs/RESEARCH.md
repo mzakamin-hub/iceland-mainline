@@ -3,7 +3,7 @@
 > **Status 14 Oct 2026.** This note is the discovery of 27 Sep and plan v2, kept as history. The phases in its "Plan"
 > section are superseded by `PLAN.md` (status block of 14 Oct). The feature matrix has the row-by-row state. In short:
 > the install is done; the speakers, microphones, display, GPU, video, sensors and camera streaming work; the open items
-> are those listed in `INSTALL-PLAN.md`, `TODO.md` and the matrix. Names of relay folders, scripts and logs are PC names
+> are those listed in `INSTALL-PLAN.md`, `TODO.md` (removed 15 Oct 2026) and the matrix. Names of relay folders, scripts and logs are PC names
 > and are not published.
 
 

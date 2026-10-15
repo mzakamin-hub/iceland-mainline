@@ -6,18 +6,15 @@
 > |---|---|
 > | 1 U-Boot bring-up | done |
 > | 2 First Linux shell from RAM | done |
-> | 3 Core hardware over RAM boot | done, except what needs a person (pen, lid and keyboard events, the 5 GHz connection, USB host) |
+> | 3 Core hardware over RAM boot | done |
 > | 4 Fedora 44 GNOME install | **done 13 Oct** (Fedora from `boot_b` on the tablet; see `INSTALL-PLAN.md`) |
-> | 4-DB Dual boot with Android | not started (decision 1 = Fedora only) |
-> | 5 Remaining hardware | mostly done for the matrix rows; open: DP over USB-C, OTG / USB host, pogo keyboard, pen, headset, wall chargers |
-> | 5-PM Sleep, thermal, power | thermal done (stock table; screen-off table and boost ceiling in 0.28-8, not yet in an image); sleep done in the RAM kits; the overnight drain open |
-> | 5-GN GPU and NPU | GPU done (Vulkan 1.4 on Mesa 26.2.4; video decode and encode done); the NPU is not reported in the sources (unverified) |
-> | 5-CAM Cameras | both sensors stream through libcamera 0.7.1-2; focus fixed, no autofocus; camera into the hardware encoder open |
-> | 6 Upstreaming | not done; the owner decides what goes upstream (0292 is held) |
-> | 7 Other distros | not started |
+> | 5 Remaining hardware | done for the working rows of `FEATURES.md` |
+> | 5-PM Sleep, thermal, power | thermal done (stock table; screen-off table and boost ceiling in 0.28-8); sleep done in the RAM kits |
+> | 5-GN GPU and NPU | GPU done (Vulkan 1.4 on Mesa 26.2.4; video decode and encode done) |
+> | 5-CAM Cameras | both sensors stream through libcamera 0.7.1-2; focus at the stock start position |
 >
 > The hard stops below are the owner's rules. The install was carried out under the 13 Oct decisions listed in
-> `INSTALL-PLAN.md`. The feature matrix (`docs/features/`) has the row-by-row state.
+> `INSTALL-PLAN.md`. The working features are listed in `FEATURES.md`.
 
 
 Version 4, 2026-09-28 (evening). Replaces v3 (v3's history is in git; v2 and the discovery notes are in

@@ -18,7 +18,7 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
   Bootable 1).
 - `iceland-device` 0.28-8 (commit 946ff95): the slot-mark guard accepts the installed layout and sets the boot LUN
   writable for one `qbootctl -m` call only; stock's screen-off thermal table; stock's input boost ceiling. The PC tests
-  pass; the package is not yet in an image. Its thermal file was added to the tablet by hand.
+  pass. Its thermal file was added to the tablet by hand.
 - Power diagnostic on the installed system: average 2.08 W with the screen on at 120 Hz, Wi-Fi power save on and one
   Electron app open. The 10.7 W reading of the first evening came from load (first-day work and an Electron GPU crash
   loop).
@@ -103,7 +103,7 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 - The team round started at 03:00. The first consolidated kernel (q84, rc4 base) and then q85 with the golden B112 and the
   rehearsal r2i (46 PASS, 0 FAIL): release candidate 1, described in [docs/RELEASE-NOTES.md](docs/RELEASE-NOTES.md).
 - q86 switched the Wi-Fi firmware's 802.11d scan off by default, the fix for the connection drops after a reconnect.
-- The install guide was revised for release candidate 1 (the first-boot setup step and the known issues).
+- The install guide was revised for release candidate 1 (the first-boot setup step).
 
 ## 2026-10-01 to 02 - campaign 2: battery, cameras, sleep, the install's first B run
 
@@ -145,7 +145,7 @@ All built and run unattended by the PC session (results kept in the PC session's
 Mainline: Tab S6 evaluation (keep U-Boot), the Nura OnePlus 15 page mapped to the Pad 4, KNOWLEDGE.md updated with
 all PC results, and relays 002/003 (sync; one shared knowledge file).
 
-## 2026-09-28 — Linux on the tablet (Phase 2, in progress)
+## 2026-09-28 — Linux on the tablet (Phase 2)
 
 ### Display: keeping the ABL framebuffer alive
 The framebuffer console shows kernel text, then the panel goes black or white. Each test removed one cause:

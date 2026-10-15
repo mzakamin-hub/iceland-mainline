@@ -12,7 +12,7 @@
 > - **Workflows (section 3):** all of them are closed or superseded on 14 Oct. The bypass charging feature stays deferred by
 >   the owner. The loop 5 team (9-13 Oct) ended with the install; its folders are not in the repository.
 > - **Open items:** the owner's checks and the technical items in the status block of `INSTALL-PLAN.md` and in
->   `TODO.md`. The slot-mark fix (0.28-8) still has to be built into an image and rehearsed before the next image.
+>   `TODO.md` (removed 15 Oct 2026). The slot-mark fix (0.28-8) still has to be built into an image and rehearsed before the next image.
 > - **Lessons added since 3 Oct:** (1) on 10 Oct the first install U-Boot reset itself from `boot_b` and used up the slot's
 >   retries; the fixed build (patch 0008) was tested from RAM before any write. (2) On 13 Oct the boot counter did not mark
 >   slot b: the installed root is a loop device on `userdata`, `iceland-slot-mark` refused it, and the owner marked slot b by

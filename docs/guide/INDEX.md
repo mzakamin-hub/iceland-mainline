@@ -2,15 +2,15 @@
 
 Status (14 Oct 2026): the kernel queue head is `q89g` (Linux 7.3-rc7). Fedora 44 GNOME was installed on the owner's
 tablet on 13 Oct 2026 (install build v3 in `boot_b`, the Fedora disk image in `userdata`). The device package is
-`iceland-device` 0.28-8 and the firmware package is `iceland-firmware` 11.A.38-3. The feature matrix is page v62
-(104 rows: 83 ok, 13 part, 5 todo, 3 out). The chapters 04 and 05, this index and the glossary describe this state.
+`iceland-device` 0.28-8 and the firmware package is `iceland-firmware` 11.A.38-3. The working features are
+listed in `docs/FEATURES.md`. The chapters 04 and 05, this index and the glossary describe this state.
 The other files are dated; their dates are in their titles and first lines.
 
 ## The guide
 
 | File | Content |
 |---|---|
-| `01-OVERVIEW.md` | the project, what works, what does not, the safety principles |
+| `01-OVERVIEW.md` | the project, what works, the safety principles |
 | `02-HARDWARE.md` | SoC and board block by block with driver source and proof; PMICs, rails, thermal design; RAM / UFS; the partition layout; firmware sources; `efisp`; built-in vs modules |
 | `03-BOOT-AND-PARTITIONS.md` | stock boot chain, A/B, AVB; the RAM boot; the install chain as installed; the rehearsal; unbrickable / restorable |
 | `04-BUILD-YOUR-OWN.md` | step-by-step: the four repositories, `prepare.sh` and `build.sh` for the kernel and for U-Boot, firmware (read-only), the sensor and device packages, logs |
@@ -20,7 +20,7 @@ The other files are dated; their dates are in their titles and first lines.
 | `GLOSSARY.md` | terms (A/B slots, boot_b, AVB footer, qbootctl, loop root, golden, rehearsal, queue, q89g, and others) |
 | `PLAN.md` | the plan of the document set (audiences, outlines, sources), dated |
 | `RESUME-2026-10-02.md` | the resume page of 2 Oct 2026 22:30 (historic; the team plan `docs/TEAM-PLAN.md` and the ledger took over on 3 Oct) |
-| `RC1-NOTES.md` | release candidate 1 (3 Oct 2026): what each run proved, the known issues (F43 Wi-Fi, F44 Camera app) and the owner's checks |
+| `RC1-NOTES.md` | release candidate 1 (3 Oct 2026): what each run proved (a dated record) |
 | `LOOP3-NOTES.md`, `LOOP4-NOTES.md`, `LOOP5-NOTES.md` | the notes of the three development loops (3-13 Oct 2026); dated |
 | `FINAL-REPORT.md` | a dated report of the earlier build work (read its first lines for its date and scope) |
 

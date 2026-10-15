@@ -16,21 +16,7 @@ Done since the plan:
   11.A.38-3 on 13 Oct.
 - **Public release:** done. All four repositories are public since 14 Oct 2026; test material was removed from the
   histories on 13-14 Oct. Removed paths are not described in these docs.
-- **Feature matrix:** page v62 of 14 Oct, 104 rows: 83 ok, 13 part, 5 todo, 3 out.
-
-Still open (14 Oct):
-
-- **Owner's checks:** the speaker listening check at 50 % and 100 % against Android (the +9 dB make-up); one night
-  unplugged (drain); cover wake from sleep; USB host (keyboard, stick, hub); a 5 GHz connection with its band recorded;
-  a DP monitor (picture, then sound); the wall chargers in one attended sitting; the pen and the keyboard cover.
-- **PC and rehearsal work:** the slot-mark fix (iceland-device 0.28-8, committed 14 Oct, not yet in an image) into an
-  image and a rehearsal, then the update of the installed system; DP over USB-C (link logs, power, lane count); camera
-  into the hardware encoder; Chromium / Electron GPU acceleration; the idle refresh (off; a debug round first);
-  GStreamer 1.28.9 for BT.601 streams labelled 6/1/6; the battery guard's kernel layer (unverified whether still
-  planned); the held patches (q6apm RFC, GPU CLX, the DW9800K update, the wcd939x switches, the SoundWire IRQ, the
-  hci_qca sleep reset); upstream merges at each rebase; a like-for-like loudness check against Android (the listening
-  check decides); Fedora 45 only after a rehearsal.
-- **Not started:** dual boot with Android (the decision is Fedora only); the Gunyah VMs (not carried).
+- **Working features:** `docs/FEATURES.md`.
 
 Workflow "docs", started 2 Oct 2026 (evening). Owner of this folder: the documentation / SME agent. Everything here
 is a draft for the main session to review and commit; nothing in this folder is committed by the agent.

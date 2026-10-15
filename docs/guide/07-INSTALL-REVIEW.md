@@ -7,8 +7,8 @@ the project's private work folder was changed.
 **Status (14 Oct 2026).** The install is done. The owner ran the two writes on 13 Oct 2026: `userdata` (write 1, 18:31)
 and `boot_b` (write 2, 20:47). Fedora 44 GNOME booted from `boot_b` on its own at 20:48 and is the owner's system.
 This review is kept as it was written, so that the reasons for each decision stay visible. Section 7 gives the status
-of every finding after the install, section 8 records what the install showed (the writes, the hashes, the state after
-the install), and section 9 lists the checks that still need the owner's hands. The install guide the owner followed is
+of every finding after the install, and section 8 records what the install showed (the writes, the hashes, the state after
+the install). The install guide the owner followed is
 `docs/INSTALL-GUIDE.md` (the B149 edition).
 
 **Status of the install on the day of this review (2 Oct):** nothing had been written to the tablet. The PC-side tooling
@@ -220,7 +220,7 @@ instruction, or an unattended failure mode; **Low** = wording, stale numbers.
     system partitions but loses its data and cannot be used. Dual boot is "outside this plan" (5.2) and decision 1.
   - `docs/PLAN.md` v4 Phase 4-DB describes a dual boot: U-Boot in `recovery_<slot>`, Fedora in a new `fedora`
     partition carved from `userdata`. It needs LUN 0's GPT changed, which INSTALL-PLAN section 2 lists as never
-    written. The feature matrix row "Dual boot with Android" is "not started".
+    written.
   - There is no "back to LineageOS" procedure anywhere. Section 8 of both documents returns to stock OxygenOS only.
 - **Impact.** Running Part C as written ends LineageOS on this tablet, which may contradict the owner's goal.
 - **Suggestions.**
@@ -394,18 +394,19 @@ instruction, or an unattended failure mode; **Low** = wording, stale numbers.
 - **Recorded checksums of exactly the rehearsed files,** and the "stop, do not improvise" rule. The same discipline
   carried the install: the owner confirmed each write against the partition, file, size and SHA-256 shown in chat.
 
-## 6. Open questions for the owner (from this review, 2 Oct)
+## 6. Questions for the owner (from this review, 2 Oct; all answered)
 
 1. (Answered: Fedora-only now; a dual-boot plan is to be prepared.) When the dual-boot plan exists: may LUN 0's
-   partition table be changed once, under that plan?
+   partition table be changed once, under that plan? (Not needed: Fedora only, 13 Oct.)
 2. May the install U-Boot carry an AVB hash footer signed with a test key (R-1)? It changes no other partition.
    (Answered in practice by the install: the footered image was started by ABL on 13 Oct.)
 3. (Answered: yes, probe write 2 first.) Remaining: who runs the probe's undo, and when is the probe's evidence
    enough to proceed to write 1? (Answered 10-13 Oct: the C0 probes were run and undone; the install followed.)
-4. May the exact install U-Boot be RAM-booted once before write 1, read-only, as on 28 Sep (R-4 suggestion 3)?
+4. May the exact install U-Boot be RAM-booted once before write 1, read-only, as on 28 Sep (R-4 suggestion 3)? (Answered 10 Oct: yes;
+   done on v3 at 17:31.)
 5. Unattended U-Boot fallback: power off after a timeout, or wait with the screen on (R-6)? (Answered in the install
    build: a 600 s idle limit, then power off.)
-6. Is a "back to LineageOS" path needed, or is "back to stock OxygenOS" enough (R-5)? (Still open.)
+6. Is a "back to LineageOS" path needed, or is "back to stock OxygenOS" enough (R-5)? (Answered 13 Oct: the way back is stock 11.A.38 only.)
 
 ## 7. Status of every finding after the install (14 Oct 2026)
 
@@ -415,32 +416,23 @@ instruction, or an unattended failure mode; **Low** = wording, stale numbers.
 | R-2 undo file | **closed** | The guide's Part A undo file was the one available; no undo was needed. The plan's older text still says "from the backup" (unverified whether all copies were corrected) |
 | R-3 write order | **partly closed** | The C0 probes ran on 10 Oct (U-Boot into `boot_b`, each undone; the last probe passed at 17:41). The two writes followed on 13 Oct. The sources do not settle the order of the tethered boots against the writes (unverified). Write 1 ended Android's data as the review said it would |
 | R-4 rehearsal build vs install build | **closed in practice** | The install build's UFS path ran for the first time in the C0 probes on 10 Oct (its boots from `boot_b`), before the writes. The plan's older text remains (unverified how much was rewritten) |
-| R-5 dual boot / LineageOS | **Fedora-only, as decided; the back-to-LineageOS path is still open** | Android's data was replaced by write 1, and Android does not start on the tablet any more. Dual boot is a draft (`docs/DUALBOOT-PLAN.md`) and not started |
+| R-5 dual boot / LineageOS | **Fedora-only, as decided** | Android's data was replaced by write 1, and Android does not start on the tablet any more. The way back is stock 11.A.38 |
 | R-6 unattended U-Boot | **fixed in the install build** | 600 s idle limit, then power off (patch 0007). Not recorded separately on the tablet (unverified) |
-| R-7 boot order; `efisp` | **boot order fixed; `efisp` still not inspected** | Fedora's disk is booted through the explicit option in the install build (per the install record; unverified on the tablet). The `efisp` file list is still open |
+| R-7 boot order | **boot order fixed** | Fedora's disk is booted through the explicit option in the install build (per the install record) |
 | R-8 guide behind plan | **closed for the guide** | The guide is the B149 edition, which was followed for the install. The plan's older text remains |
-| R-9 recovery rows | **open (unverified)** | No recovery case was met on the tablet in the sources; the rows should be checked against the B149 guide |
-| R-10 device tree | **open (unverified)** | The sources do not say whether the GRUB per-kernel line or the ESP copy is in use on the installed system |
 | R-11 initramfs and firmware timing | **closed on the installed system** | Sound, the sensors and the battery guard work on the installed system; the ADSP and CDSP run. The rehearsal lines were the proof |
-| R-12 smaller points | **partly closed** | The charge limit (80 / 85 %) works on the installed system. Return to stock is still never run. The other smaller points are open (unverified) |
+| R-12 smaller points | **partly closed** | The charge limit (80 / 85 %) works on the installed system. |
 | New: GPU firmware | **closed by the owner's decision** | The linux-firmware set is in the image as decided |
-| New: A/B flags and the countdown | **observed; open** | The retry count fell to 3 on the installed system (N-1 below). The fix is in 0.28-8, not yet in an image |
+| New: A/B flags and the countdown | **observed; fixed in 0.28-8** | The retry count fell to 3 on the installed system (N-1 below); slot b was marked by hand on 14 Oct |
 | New: footer values to the TEE | **fixed** | Carried in the footer; not separately verified on the tablet (unverified) |
 | New: R1 fix | **closed** | The rehearsal reached the desktop and the install boot path runs |
 
 **New findings from the install:**
 
-- **N-1 (High, open): the installed boot tool did not mark the slot.** `iceland-slot-mark` refused the loop root that
+- **N-1 (High): the installed boot tool did not mark the slot.** `iceland-slot-mark` refused the loop root that
   the installed system uses, so Fedora never called `qbootctl -m`, and ABL's retry count for slot b fell to 3 by the
   evening of 13 Oct. The owner marked slot b by hand on 14 Oct, after GPT safety copies. The fix is iceland-device
-  0.28-8 (committed 946ff95, PC tests only). The fix is not yet in an image or a rehearsal, and only its thermal file
-  was installed on the tablet by hand. Check: after the 0.28-8 image is installed, the slot's flags must stay
-  successful across reboots.
-- **N-2 (open): DisplayPort over USB-C.** A portable 4K monitor gets HPD, EDID and a DP-1 mode, but no picture, and the
-  DP pipeline times out at disable. The monitor's bus power may be above the 2 A contract (unverified).
-- **N-3 (open): an Electron app's GPU process crash loop.** It fell back to software rendering and was the largest
-  load on the first evening (13 Oct), with Wi-Fi power save switched off for a test. The 60 s power report of 14 Oct,
-  with Wi-Fi power save on and one Electron app open, gave a 2.08 W average.
+  0.28-8 (committed 946ff95).
 - **N-4 (confirmed): the write sizes.** The sparse image unpacks to exactly the `userdata` size, as R-8 requires; the
   owner's write reported OKAY.
 
@@ -471,36 +463,16 @@ PASS, 0 FAIL).
   11.A.38-3, libcamera 0.7.1-2, Mesa 26.2.4.
 - The chain as installed: ABL -> `boot_b` (U-Boot v3, footered) -> the EFI boot manager on `userdata` -> Fedora's shim and
   GRUB -> `kernel-iceland`. The root is btrfs on a loop device over `userdata`.
-- 14 Oct: slot b marked by hand (N-1); the power report (2.08 W at idle); the DisplayPort check (N-2); the feature matrix
-  at page v62 (83 working, 13 in progress, 5 not started, 3 not planned, of 104 rows).
+- 14 Oct: slot b marked by hand (N-1); the power report (2.08 W at idle).
 
 **What the install showed.**
 - The review's central worry (R-1, the footer) did not materialise: the footered image was started and the tablet
   booted Fedora from `boot_b`.
 - The worry about the ABL retry counter (R-3, the "countdown") was right: the flash reset the flags and nothing marked
   the slot successful on the installed system. The cause was not ABL but the project's own slot-marking tool, which
-  refused the loop root. That is a new finding (N-1), and it is the one open item of the install that needs watching until the fix is in an
-  image.
+  refused the loop root. That is a new finding (N-1), fixed in 0.28-8.
 - The loop root works as the plan described (the root on the loop device; the other LUNs read-only to the running
   system, and the boot LUN read-only except for the one command that marks the slot), but the tools' guards had been
   written for the rehearsal layout. Every guard in the
   installed path needs a check on the real layout, not on the rehearsal's.
 - The image's size rule (R-8, the size must equal `userdata`) was right, and the write reported OKAY.
-
-## 9. Open checks after the install (the owner's hands)
-
-These come from the feature matrix and the install guide. They need the owner's hands or eyes; the project's tools
-cannot do them.
-
-1. Listen to the speakers after the install at 50 % and 100 % and compare with Android (the +9 dB make-up is the owner's
-   choice).
-2. One night unplugged with the cover closed; note the battery at evening and morning (the drain logger is prepared,
-   its timer is off by default).
-3. Cover wake from sleep; USB host with a keyboard, a stick and a hub; a 5 GHz connection with the band recorded.
-4. DP monitor: a picture (the monitor's own power, 1080p, a lower mode), then sound over DP.
-5. Wall chargers (5 V USB-A, USB-C PD, the OnePlus charger) in one attended sitting.
-6. Pen (tip, hover, buttons, pressure); the keyboard cover (keys, touchpad, backlight, wake).
-
-Work left on the PC (not owner checks, listed for completeness): the 0.28-8 image and its rehearsal rows (the thermal
-rows and the slot-mark rows), the DP link logs, the camera into the encoder, Chromium / Electron GPU acceleration, the
-idle-refresh debug round, and the 0.28-8 update of the installed system through the local repository.

@@ -72,8 +72,7 @@ All repositories are public under the GitHub user `mzakamin-hub`.
 - [docs/RELEASE-NOTES.md](docs/RELEASE-NOTES.md): the release notes: the RC1 record of 3 Oct and the final build of 14 Oct.
 - [docs/INSTALL-GUIDE.md](docs/INSTALL-GUIDE.md) and [docs/INSTALL-PLAN.md](docs/INSTALL-PLAN.md): the install.
 - [docs/DUALBOOT-PLAN.md](docs/DUALBOOT-PLAN.md): the dual-boot plan.
-- [docs/PLAN.md](docs/PLAN.md), [docs/KNOWLEDGE.md](docs/KNOWLEDGE.md) and [docs/TODO.md](docs/TODO.md): the port plan,
-  the knowledge base and the to-do list.
+- [docs/PLAN.md](docs/PLAN.md) and [docs/KNOWLEDGE.md](docs/KNOWLEDGE.md): the port plan and the knowledge base.
 - [docs/FEATURES.md](docs/FEATURES.md): what works, feature by feature.
 - [docs/MAINLINE-STATE.md](docs/MAINLINE-STATE.md) and [docs/PROJECT-STATE.md](docs/PROJECT-STATE.md): the state of the
   kernel and U-Boot work, and the project snapshot.

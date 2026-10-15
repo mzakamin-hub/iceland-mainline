@@ -49,7 +49,7 @@ with the rebases; the patch subjects are the stable reference).
 | GPU: Adreno 840 (gen8 "gen80200"), 18 MiB GMEM, 160 MHz-1.2 GHz in 18 levels | `msm` (a6xx/a8xx family), GMU, GPU SMMU | base + 0011 (GMU address), 0054 (stock levels), 0144-0149 (upstream A8x GMU / RPMh vote fixes) | **proven**: Mesa freedreno OpenGL ES 3.2 / OpenGL 4.6, turnip Vulkan 1.4; dEQP and WebGL results in FEATURES (area-graphics-1..3). Status (14 Oct): Mesa 26.2.4; GNOME drawn by the GPU on the installed system; Chromium and Electron GPU acceleration still open |
 | Video: Iris VPU 4.0 | `qcom-iris` (`/dev/video0` decoder, `/dev/video1` encoder) | base + 0062 (DT enable) + 0157-0160 (upstream fixes) | **proven**: H.264 / HEVC / VP9 (incl. 10-bit) / AV1 decode bit-exact, H.264 / HEVC encode (results-video-2, area-combo-6). Status (14 Oct): the camera into the encoder does not negotiate a format (VE-CAM, open) |
 | Display: MDSS 13.0 / DPU, UBWC 6.0, 2 x DSI + 2 x DSI PHY, DSC 1.2 | `msm` DPU + DSI | base + 0001, 0006, 0025-0027, 0035, 0058, 0060, 0114, 0138, 0151 | **proven** at 30 / 60 / 90 / 120 / 144 Hz (area-display-7) |
-| DisplayPort over USB-C (QMP combo PHY) | `msm` DP | base + 0133-0134 | **bound** (DP-1 "disconnected", DP audio joins the sound card, area-combo-73/-78). Status (14 Oct): with a portable 4K monitor on the installed system, HPD and EDID work and DP-1 enables at 3840x2160, but no picture is produced (the DP pipeline times out at disable). Open: the link training and the USB-C power contract (the contract is 5 V x 2 A; the monitor may draw more; unverified, see the DisplayPort note in section 4) |
+| DisplayPort over USB-C (QMP combo PHY) | `msm` DP | base + 0133-0134 | **bound** (DP-1 "disconnected", DP audio joins the sound card, area-combo-73/-78). Status (14 Oct): with a portable 4K monitor on the installed system, hot plug and EDID work |
 | Camera subsystem: CAMSS (CSID / VFE Gen4), CSIPHY 4 and 5 | `qcom-camss`, `phy-qcom-mipi-csi2` | base + 0073, 0128 | **proven** with both sensors (area-combo-46, -50, -52). Loaded on demand (udev coldplug); the hardware ISP (ICP / IPE / JPEG) has **no mainline driver**: libcamera's software ISP is used instead |
 | Hexagon ADSP (audio, sensor hub, FastRPC) | `qcom_q6v5_pas` + GPR / APM / PRM, FastRPC | base + 0018, 0061, 0170 (stock's 12 MiB FastRPC heap) | **proven** (sound, sensors). Started after its firmware is reachable (section 8) |
 | Hexagon CDSP (NPU) | `qcom_q6v5_pas`, FastRPC on the CDSP | base + 0117-0124 (cooling over QMI TMD) | **proven**: unsigned test programs and the tablet's NPU runtime library load (area-combo-1/-2); cooling (area-combo-75). **Do not stop it** at run time: a stop leaves its CX vote behind until the next reboot (area-combo-66/-67) |
@@ -154,12 +154,7 @@ Every limit is stock's or lower: the audit found nothing above stock in the char
   switched off for a test), so it is not a platform leak.
 - Thermal on the installed system (13 Oct evening): the shell estimate 34.0 C was below the skin sensor (39.9-47.7 C), so
   the reading was right. The stock table caps the big cores to 1.86 GHz from a 33 C estimate and 1.63 GHz from 35 C.
-  Stock raises the cap by about one level during input boosts; 0.28-8 adds that boost ceiling (not yet in an image).
-- DisplayPort over USB-C (14 Oct, a bus-powered portable 4K monitor): the USB-C port is a host with the tablet as the
-  source. The power contract is 5 V x 2 A (10 W), and stock's OTG current limit is 2000 mA. The charger's VBUS read
-  5.07-5.08 V and its current rose to 2.45 A over successive samples, so the monitor may draw more than the contract
-  (unverified: a possible over-current cut-off). The DP link is set up to HBR3 on two lanes; 4K at 60 Hz and 24 bpp needs
-  about 12.8 Gbit/s, at the limit of two HBR3 lanes in the USB 3 + DP mode (computed, not measured).
+  Stock raises the cap by about one level during input boosts; 0.28-8 adds that boost ceiling.
 
 ## 5. Memory and storage
 

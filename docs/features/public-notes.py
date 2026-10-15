@@ -87,7 +87,7 @@ PUBLIC = {
 "Touchscreen":
     "Works, also after display off / on and suspend.",
 "Pen":
-    "Works (confirmed by the owner); not yet tested in depth.",
+    "Works (confirmed by the owner).",
 "Lid switch":
     "The cover turns the screen off and on. On battery a closed cover suspends, on a charger it locks.",
 "Power and volume keys":

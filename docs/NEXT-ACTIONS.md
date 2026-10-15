@@ -2,7 +2,7 @@
 
 > **Status 14 Oct 2026.** The tables below are the state of 1-2 Oct and are kept as the record of the work. Since then
 > the tablet runs Fedora 44 GNOME (installed 13 Oct). The rows still open on 14 Oct are listed in the status of
-> `TODO.md` and in the feature matrix; the "Needs the user" column is the owner's list. Relay and workflow names in this
+> `TODO.md` (removed 15 Oct 2026) and in the feature matrix; the "Needs the user" column is the owner's list. Relay and workflow names in this
 > file are the PC session's names; their folders are not published.
 
 

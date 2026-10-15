@@ -82,7 +82,7 @@ Dates are from the fact sheet of the 14 Oct refresh; where a date is approximate
 | 14 Oct | Slot marking by hand | the retry count of slot b had fallen to 3: the installed boot tool skipped every boot on the loop root. The owner marked slot b by hand with `qbootctl` after GPT safety copies |
 | 14 Oct | iceland-device 0.28-8 | committed (946ff95): the slot-mark fix for the installed layout, the screen-off thermal table, the stock boost ceiling. Its thermal file installed by hand; not yet in an image |
 | 14 Oct | Power and display checks | a 60 s power report on the installed system: 2.08 W average at idle. DisplayPort over USB-C: HPD and EDID work, no picture yet |
-| 14 Oct | Feature matrix | page v62 with 104 rows: 83 working, 13 in progress, 5 not started, 3 not planned |
+| 14 Oct | Feature matrix | page v62; the working rows are published as `docs/FEATURES.md` |
 | 13-14 Oct | Public release | the other repositories purged of test material and made public; the owner's six repositories public as of 14 Oct |
 
 **Totals by 14 Oct:**
@@ -147,7 +147,7 @@ Dates are from the fact sheet of the 14 Oct refresh; where a date is approximate
 
 ### 2.3 The rules the work follows
 
-See `01-OVERVIEW.md` section 4. In short:
+See `01-OVERVIEW.md` section 3. In short:
 - RAM boot only; nothing written to the tablet;
 - every hardware value from Pad 4 stock sources ("rule 13");
 - charging safety first;

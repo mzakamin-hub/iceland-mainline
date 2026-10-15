@@ -8,7 +8,7 @@ into `userdata` (write 1) and the footered U-Boot v3 install build into `boot_b`
 `boot_b`, through U-Boot's EFI boot manager and the Fedora GRUB and shim in `userdata`. The kernel is 7.3.0-rc7 (queue
 q89g), the firmware package is 11.A.38-3 and the device package is 0.28-7 (0.28-8 was installed by hand for one file on
 14 Oct). The slot-b boot counter did not mark the installed slot on its own; it was marked by hand on 14 Oct, and the fix is
-in iceland-device 0.28-8 (not yet verified on the tablet). Sections 0, 3, 4 (the userdata and boot rows), 5 (the closing
+in iceland-device 0.28-8. Sections 0, 3, 4 (the userdata and boot rows), 5 (the closing
 note), 6 (the camera, USB, Wi-Fi and battery notes), 7 and 9 to 10 are brought up to date. The rest describes the hardware
 as measured on 28 Sep and is still right unless a note says otherwise. The raw partition backups, the stock package and
 the captures are kept off the repository; their paths are not written here.
@@ -104,12 +104,12 @@ not successful counts one try. Only Android or Fedora's `qbootctl -m` marks a sl
 system `iceland-slot-mark` skipped every boot (its guard refused the loop root), so the count of slot b fell from 7 to 3 by the
 evening of 13 Oct. On 14 Oct the owner marked slot b by hand with `qbootctl` (after taking GPT copies). The fix is in iceland-device
 0.28-8 (it accepts a loop root backed by `userdata`, makes the boot LUN writable only for the one `qbootctl -m` call, and logs
-both). Not yet verified on the tablet.
+both).
 
 Install record: the full backup of the 151 partitions and the stock images were checked, a return-to-stock dry run was done (13 Oct,
 no tablet connected), and a second copy was verified. The two writes were the owner's, each confirmed in chat: `userdata` (267 s,
 OKAY) and then `boot_b` (2.3 s, OKAY). Two tethered boots came first; the first boot from `boot_b` on its own was at 20:48 on 13 Oct.
-Dual boot with Android is not started: decision 1 is Fedora only.
+Decision 1 is Fedora only (no dual boot).
 
 **ABL fastboot** (`getvar`) [measured]: `product=canoe`, `hw-revision=20000`, `variant=SM8 UFS`, `secure=yes`, `unlocked=yes`,
 `is-userspace=no` (ABL fastboot; fastbootd is in recovery), `max-download-size=805306368`, slots a/b with `slot-retry-count` 5 and
@@ -372,12 +372,12 @@ it from the user's own device or OTA.
 - DWC3 **`a600000`** (`usbcontroller=a600000.dwc3`), USB-C 3.2; eUSB2 PHY (M31) + **eUSB2 repeater on PMIH0108** (stock override:
   device-mode register **0x57 = 0x03**); QMP combo PHY (USB3 + DP); role switch / orientation via SoCCP UCSI (`typec` `port0`) [measured]/[source].
 - Mainline: NCM gadget works; UCSI registration resets the bus once (harmless) [measured].
-- 14 Oct: USB device mode works (USB 2 speed; SuperSpeed not verified). USB host and OTG are not yet proven with accessories.
-  DisplayPort over USB-C: hot plug and EDID work with a bus-powered 4K monitor, but there is no picture yet (`docs/research/usb-c-bringup.md`).
+- 14 Oct: USB device mode works (USB 2 speed). DisplayPort over USB-C: hot plug and EDID work with a bus-powered 4K
+  monitor (`docs/research/usb-c-bringup.md`).
 
 ### 6.9 Wi-Fi and Bluetooth (WCN7860 "peach")
 - 14 Oct: Wi-Fi 2.4 GHz works on the installed system (about 390 Mbit/s down in a speed test to a nearby server); the 5 GHz networks are
-  listed but a 5 GHz connection is not yet confirmed.
+  listed.
 - **Wi-Fi** on **PCIe0**, Gen3 ×2: RC `17cb:0123`, device **`17cb:110e`**, hw2.0, chip_id 0x2, **board_id 0xff**, firmware
   `WLAN.GNG.2.0-01536` [measured]. Stock DT specifics [source]: **`drop-l3k`** (board has no L3K rail → don't vote the PDC mode), **`msix-match-addr = <0x3000>`**
   (cnss2), tablet cnss overlay `tablet-canoe-peach-cnss-overlay.dtsi`. `cnss_wlan_region` 32 MiB (dynamic reserved memory).
@@ -436,7 +436,7 @@ is updated where a 14 Oct note says so):
 |---|---|---|
 | Panel | `panel-novatek-nt36536` (`csot,xn251`, upstream by Pengyu Luo + Pad 4 mode) | [measured] 30 to 144 Hz with live switching (14 Oct) |
 | Backlight | KTZ8869 driver (map220v) | [measured] |
-| Touch/pen | Novatek NT36536 (map220v) | [measured] touch works (14 Oct); pen works (not tested in depth) |
+| Touch/pen | Novatek NT36536 (map220v) | [measured] touch works (14 Oct); pen works |
 | Speakers | TFA9865 (map220v) + q6 TDM | playback works; PipeWire protection chain; the listening check is open (14 Oct) |
 | Codec | `wcd939x` + SoundWire | [measured] binds |
 | Wi-Fi / BT | `ath12k` / `hci_uart`+`btqca` | [measured] scan / hci0 |

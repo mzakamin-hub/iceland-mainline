@@ -288,7 +288,7 @@ firmware package supplies the public part; the unit-specific registry comes from
 - The project's test suite, its RAM-kit runners and the run logs are not published (removed 13-14 Oct 2026). The
   rehearsal logs stay private: they carry network names and unit data. This guide therefore has no test script to run.
 - The feature matrix in `iceland-mainline/docs/features/` (`features-data.py`, `build.py`) records how each feature was
-  proven: page v62, 104 rows, 83 ok, 13 part, 5 todo, 3 out.
+  proven; its working rows are published as `docs/FEATURES.md`.
 - **Live kernel log.** Read `dmesg` (or the journal on an installed system) for the run.
 - **After a reset.** pstore does not survive a hard reset (PS_HOLD). Read the reset reason from Android's
   `/proc/bootloader_log` (root), or keep a kit's kernel log in a pmsg zone (the kit builder is not published).

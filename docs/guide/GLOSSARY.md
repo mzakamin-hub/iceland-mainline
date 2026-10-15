@@ -43,7 +43,7 @@ Terms as this project uses them (state 14 Oct 2026). "Pad 4" = OnePlus Pad 4 (OP
 | **kit** | a RAM-boot test bundle of the bring-up tests (U-Boot, a Linux image, the firmware, optional Fedora root). Not published |
 | **LUN** | one of the UFS device's 6 logical units (sda-sdf). Each has 4096-byte blocks |
 | **loop root** | the installed system's root filesystem: a btrfs filesystem on a loop device (`/dev/loop0`) backed by the `userdata` partition, set up by the initramfs carrier (`dracut-iceland-carrier`). Only the boot LUN is writable, and only for one `qbootctl -m` call (0.28-8) |
-| **matrix** | the feature matrix (`features-data.py` -> `FEATURES.md`, the published page; 104 rows on v62 of 14 Oct: 83 ok, 13 part, 5 todo, 3 out) |
+| **matrix** | the feature matrix (`features-data.py`, the source; `FEATURES.md` lists the working features) |
 | **NBD** | network block device: the rehearsal's root disk served by the PC over the USB link |
 | **pmic_glink** | the message channel to the charger firmware on the **SoCCP** (battery, USB-C / UCSI, altmode) |
 | **qbootctl** | Fedora's package (0.2.2-2) that reads and sets the A/B slot flags. The `iceland-slot-mark` service calls `qbootctl -m` to mark the running slot successful; it was skipped on the installed loop root until 0.28-8 |

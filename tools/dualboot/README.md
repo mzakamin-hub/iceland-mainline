@@ -1,6 +1,6 @@
 # Dual boot tools (not used)
 
-Dual boot with Android is not started. The owner's decision (13 Oct 2026) is Fedora only; the plan is
+The owner's decision (13 Oct 2026) is Fedora only, so these tools are not used; the plan is
 [../../docs/DUALBOOT-PLAN.md](../../docs/DUALBOOT-PLAN.md). The tool below is kept for that plan.
 
 - `reflash-recovery.ps1`: writes U-Boot into the current slot's `recovery_<slot>` partition. It would be used only for

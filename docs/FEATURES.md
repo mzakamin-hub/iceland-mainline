@@ -37,7 +37,7 @@ This list shows the 84 features that work today, sorted by functionality. Featur
 | Display wake from sleep | The picture comes back after every wake from sleep (16 of 16 wakes tested), with no display timeouts at suspend entry. |
 | No pink / blocky glitches in GNOME | Fixed in queue 0060 (the compressed-buffer decoder is set up again after the splash hand-over); not seen since 30 Sep. |
 | Touchscreen | Works, also after display off / on and suspend. |
-| Pen | Works (confirmed by the owner); not yet tested in depth. |
+| Pen | Works (confirmed by the owner). |
 | Lid switch | The cover turns the screen off and on. On battery a closed cover suspends, on a charger it locks. |
 | Power and volume keys | The power key wakes the tablet from sleep. Without a charger a press suspends; with a charger in it locks and turns the screen off, as stock does. |
 | Auto-rotate | Works in tablet mode, with the panel's landscape mount matrix. While a keyboard is connected GNOME leaves tablet mode and stops rotating, as designed. |

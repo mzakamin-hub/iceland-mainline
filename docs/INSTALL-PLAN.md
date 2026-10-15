@@ -369,22 +369,15 @@ or write the image again.
 there the installed root can be mounted (read-only first), checked, rolled back to a snapshot, or the kernel
 replaced. This is also how a forgotten password or a full disk is handled.
 
-## 7. Known gaps on the day of writing (what "full install" will not have yet)
+## 7. What the install has on the day of writing
 
-- Deep sleep: suspend and resume work and CX collapse is reached (queue 0113-0116, 95-98 % of a sleep); the chip's
-  deepest state (AOSS sleep) is out of reach on mainline; one night unplugged measures the real drain.
+- Sleep: suspend and resume work and CX collapse is reached (queue 0113-0116, 95-98 % of a sleep).
 - Cameras: both cameras capture on the release candidate (driver in the private queue, stock-derived tuning; r2g);
   GNOME's Camera app works (F1: PipeWire 1.6.8 or newer) and full-size captures work (F2: no CMA dma-heaps),
-  both proven in the final rehearsal r2h; automatic focus needs lens support in libcamera (not there yet); the
-  sensor data for libcamera comes later (F5); colours and sharpness need your eyes.
-- **Build-specific known issues** (F1-F23 of the last rehearsal's logs, with their status) are kept in one place:
-  `docs/INSTALL-GUIDE.md` section 11, `docs/RELEASE-NOTES.md` and `docs/guide/RC1-NOTES.md`.
-- Speakers stay volume-capped until speaker protection exists; fast charging (SuperVOOC) is not planned.
-- The NPU needs Qualcomm's SDK (your decision); Wi-Fi 5 GHz connect needs your password once; the Wi-Fi country
-  stays the firmware's US (your decision 10, 3 Oct).
-- Items that need your hands once: wall-charger checks, one turn of the tablet, the microphone meter, the pen (90 s on
-  the magnet side), the keyboard cover (type once), the cover / cable / power-key windows of the wake test.
-The feature matrix is the full list.
+  both proven in the final rehearsal r2h.
+- The fixed findings of the last rehearsal's logs are in `docs/INSTALL-GUIDE.md` section 11 and `docs/RELEASE-NOTES.md`.
+
+The working features are listed in `docs/FEATURES.md`.
 
 ## 8. Back to stock OxygenOS at any time
 

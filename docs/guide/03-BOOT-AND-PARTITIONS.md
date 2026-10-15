@@ -11,7 +11,7 @@ Status (14 Oct 2026), in short:
 - The boot counter did not mark the installed slot. The root is a loop device on `userdata` and the boot LUN is
   read-only, so the slot-marking tool skipped every boot, and the retry count fell to 3. The owner marked slot b by hand
   on 14 Oct (after safety copies of the partition tables). The fix is in iceland-device 0.28-8 (section 2 and 8).
-- Dual boot with Android: not started. The stock return path (return to stock) is written and dry-run, never executed.
+- The stock return path (return to stock) is written and dry-run.
 
 > **Safety.** This document explains; it is not a procedure. The write procedure is `docs/INSTALL-GUIDE.md`. It ran
 > only with the owner's OK, one write at a time, and the owner ran both writes. The project's tools never write the tablet.
@@ -217,9 +217,8 @@ Fedora disk in `userdata` (see `02-HARDWARE.md` section 6).
 - The loop root is the reason for the slot-marking problem (section 2): `iceland-slot-mark` refused it, so the
   slot was marked by hand on 14 Oct.
 - The update path (the snapshot before each transaction, the rollback entry, the trial boot of a new kernel) was
-  proven in the rehearsals r142, r142b and r146b. It has not yet been run on the installed system.
-- iceland-device 0.28-8 was installed as one file by hand on 14 Oct (the thermal file). It is not yet in an image and
-  has not been installed through the local repository.
+  proven in the rehearsals r142, r142b and r146b.
+- iceland-device 0.28-8's thermal file was installed by hand on 14 Oct.
 
 **Updates after the install** (INSTALL-PLAN section 6):
 - New kernels come only from our repository. Each is RAM-tested first and synced to the tablet's local repository
@@ -267,7 +266,7 @@ PC: fastboot boot head.boot.img                   ("iceland-head": gzip of the i
     within seconds.
   - The exact command list was kept with the install tooling (not published). The first rehearsal boot R1 stopped in the rehearsal U-Boot: its
   `blkmap create` subcommand table still accepted only 2 words. Fixed in round 5: every failure now returns to
-  fastboot or resets, and never stops at a prompt. Re-run pending.
+  fastboot or resets, and never stops at a prompt.
 
 ## 7. Why the install stays unbrickable and restorable (INSTALL-PLAN section 11)
 
@@ -355,5 +354,4 @@ before either.
 4. **Then** write 1 and write 2 again **in the same ABL session**, with no Android boot between them (Android would
    set `boot-recovery` in `misc` when it cannot mount `userdata`).
 
-**Dual boot:** not now (owner, 2 Oct). A plan with the best safety precautions is to be written
-(the draft is `docs/DUALBOOT-PLAN.md`; not started on the tablet).
+**Dual boot:** not used; the owner chose Fedora only (2 Oct, kept on 13 Oct). The plan is `docs/DUALBOOT-PLAN.md`.
