@@ -2,7 +2,7 @@
 
 Status 15 Oct 2026. Fedora 44 with GNOME is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel). Current versions: kernel 7.3.0-rc7-iceland-00436 (q89k, iceland-linux branch iceland-7.3-rc7-next), iceland-device 0.28-16, iio-sensor-proxy 3.9-11.iceland1, iceland-firmware 11.A.38-3, U-Boot install build v4.
 
-This list shows the 84 features that work today, sorted by functionality. Features that are still being worked on are not listed.
+This list shows the 85 features that work today, sorted by functionality. Features that are still being worked on are not listed.
 
 ## Boot & platform
 
@@ -71,6 +71,7 @@ This list shows the 84 features that work today, sorted by functionality. Featur
 | Feature | What works |
 |---|---|
 | Wi-Fi 2.4 GHz | Connects and reconnects after a drop; the regulatory domain is set before registration, and the Wi-Fi address is stable across boots. |
+| Wi-Fi 5 / 6 GHz | Connects on 5 GHz networks (Wi-Fi 6 GHz not tested yet). |
 | Bluetooth, own address | The controller comes up powered with the tablet's own address, also after rfkill cycles. |
 | Bluetooth pairing in GNOME | Pairing works from GNOME's settings, and scans find devices. |
 | USB device mode / USB network | USB device mode (USB 2 speed) and a USB network link to a PC work; the controller runtime-suspends when nothing is attached. |

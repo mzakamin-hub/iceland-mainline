@@ -139,6 +139,8 @@ PUBLIC = {
 "Wi-Fi 2.4 GHz":
     "Connects and reconnects after a drop; the regulatory domain is set before registration, and the Wi-Fi address "
     "is stable across boots.",
+"Wi-Fi 5 / 6 GHz":
+    "Connects on 5 GHz networks (Wi-Fi 6 GHz not tested yet).",
 "Bluetooth, own address":
     "The controller comes up powered with the tablet's own address, also after rfkill cycles.",
 "Bluetooth pairing in GNOME":
