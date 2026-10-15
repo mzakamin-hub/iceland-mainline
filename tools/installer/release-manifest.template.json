@@ -1,37 +1,70 @@
 {
   "schema": 1,
-  "release": "PLACEHOLDER: iceland-fedora44-<tag> (no generic release exists yet)",
+  "release": "PLACEHOLDER: Fedora Remix for OnePlus Pad 4, B150g (<tag>; no generic release exists yet)",
   "release_page": "PLACEHOLDER: https://github.com/mzakamin-hub/iceland-mainline/releases/tag/<tag>",
   "flash_allowed": false,
   "test_only": false,
   "notes": [
     "TEMPLATE. Every PLACEHOLDER makes Install-Pad4Linux.ps1 refuse to download that file, and flash_allowed=false / generic=false / contains_unit_data=true make it refuse write 1 and write 2. Backups (read only) work with this file.",
     "The owner's install image (B149, fedora-iceland.sparse.img, SHA-256 2246e9a7e790253be72ad8948cc3fa9f39bdcadfaa422ad53ed77daa6167482c) is NOT publishable and must never be written to another tablet: it carries the owner's sensor calibration registry (from persist), Bluetooth address (/etc/iceland/bdaddr) and firmware extraction record. See README-INSTALLER.md section 2.",
+    "GENERIC IMAGE PATH (prepared, NOT built yet): 'Fedora Remix for OnePlus Pad 4' B150g = the B149 recipe without unit data (no /etc/iceland/bdaddr, no extraction record; machine-id / host keys / journal / caches reset; first-boot wizard kept, no test user, no autologin) + kernel q89k (kernel-iceland 7.3.0~rc7.iceland.00436), iceland-device 0.28-17 (iceland-provision: the Bluetooth address; iceland-grow: the root fills userdata), iio-sensor-proxy 3.9-11.iceland1, iceland-firmware 11.A.38-3. The sensor registry stays in the image. The image is SMALL (about 12.8 GiB unpacked) and grows into userdata on its first boot (systemd-repart + growfs, checked / repaired once by iceland-grow), so one image fits every storage size: the installer requires partition-size:userdata >= image.min_userdata_bytes.",
+    "Fill this file from the image build's image-manifest.json (file, size, sha256, parts[] with name / size / sha256; urls stay PLACEHOLDER until the release exists). flash_allowed stays false until (1) the privacy scan reports PRIVSCAN: PASS on that exact image, (2) a rehearsal of that image passed (first-boot wizard, iceland-provision line, Bluetooth, sensors), (3) the maintainer clears the release.",
+    "Bluetooth: the Backup phase reads the tablet's own address read-only from Android (adb shell getprop persist.vendor.service.bdroid.bdaddr, the only property added to the whitelist), saves it as bdaddr.txt next to backup-manifest.json (private, masked in logs) and prints 'sudo iceland-provision --bdaddr <address>' for Fedora's first login. Writing it into the image before write 1 was rejected: the image is an Android sparse file, the EFI partition inside it would have to be rewritten from Windows and the image's SHA-256 would no longer be the published one.",
     "GitHub release assets are limited to 2 GiB each: the image goes up in parts (parts[]), joined and checked against image.sha256 on the PC."
   ],
   "device": {
     "fastboot_product": "canoe",
-    "android_model": ["OPD2514"],
-    "android_device": ["OP657AL1", "iceland"],
+    "android_model": [
+      "OPD2514"
+    ],
+    "android_device": [
+      "OP657AL1",
+      "iceland"
+    ],
     "slot": "b",
     "userdata_bytes": 237159641088,
-    "boot_b_bytes": 100663296
+    "boot_b_bytes": 100663296,
+    "userdata_bytes_note": "userdata_bytes is the storage size of the unit the B149 image was made on, used only for an image without image.min_userdata_bytes (B149); a generic image needs userdata >= image.min_userdata_bytes"
   },
   "image": {
-    "file": "fedora-iceland.sparse.img",
+    "file": "fedora-remix-pad4-b150.sparse.img",
     "size": "PLACEHOLDER",
     "sha256": "PLACEHOLDER",
-    "unpacked_size": 237159641088,
+    "unpacked_size": "PLACEHOLDER: = min_userdata_bytes (the small disk; about 13717471232 for a B149-sized root)",
+    "min_userdata_bytes": "PLACEHOLDER: the small disk size from the image build",
     "generic": false,
     "contains_unit_data": true,
     "slot_mark_automatic": false,
-    "content": "PLACEHOLDER: kernel-iceland / iceland-device / iceland-firmware versions of the generic image",
+    "content": "PLACEHOLDER: B150g generic: kernel-iceland 7.3.0~rc7.iceland.00436.gf1673c99e731 (q89k), iceland-device 0.28-17, iio-sensor-proxy 3.9-11.iceland1, iceland-firmware 11.A.38-3",
     "parts": [
-      { "url": "PLACEHOLDER: https://github.com/mzakamin-hub/iceland-mainline/releases/download/<tag>/fedora-iceland.sparse.img.part01", "size": "PLACEHOLDER", "sha256": "PLACEHOLDER" },
-      { "url": "PLACEHOLDER: .../fedora-iceland.sparse.img.part02", "size": "PLACEHOLDER", "sha256": "PLACEHOLDER" },
-      { "url": "PLACEHOLDER: .../fedora-iceland.sparse.img.part03", "size": "PLACEHOLDER", "sha256": "PLACEHOLDER" },
-      { "url": "PLACEHOLDER: .../fedora-iceland.sparse.img.part04", "size": "PLACEHOLDER", "sha256": "PLACEHOLDER" }
-    ]
+      {
+        "name": "fedora-remix-pad4-b150.sparse.img.part01",
+        "url": "PLACEHOLDER: https://github.com/mzakamin-hub/iceland-mainline/releases/download/<tag>/fedora-remix-pad4-b150.sparse.img.part01",
+        "size": "PLACEHOLDER",
+        "sha256": "PLACEHOLDER"
+      },
+      {
+        "name": "fedora-remix-pad4-b150.sparse.img.part02",
+        "url": "PLACEHOLDER: .../fedora-remix-pad4-b150.sparse.img.part02",
+        "size": "PLACEHOLDER",
+        "sha256": "PLACEHOLDER"
+      },
+      {
+        "name": "fedora-remix-pad4-b150.sparse.img.part03",
+        "url": "PLACEHOLDER: .../fedora-remix-pad4-b150.sparse.img.part03",
+        "size": "PLACEHOLDER",
+        "sha256": "PLACEHOLDER"
+      },
+      {
+        "name": "fedora-remix-pad4-b150.sparse.img.part04",
+        "url": "PLACEHOLDER: .../fedora-remix-pad4-b150.sparse.img.part04",
+        "size": "PLACEHOLDER",
+        "sha256": "PLACEHOLDER"
+      }
+    ],
+    "privacy_scan": "PLACEHOLDER: the privacy scan's result line for this image (must be PRIVSCAN: PASS) and the report's SHA-256",
+    "rehearsal": "PLACEHOLDER: the rehearsal of this image (date, summary line)",
+    "first_boot": "iceland-grow.service: the root partition and btrfs fill userdata (once; one journal line 'iceland-grow: ...'). iceland-provision.service: the Bluetooth address from the tablet if it can (U-Boot device tree / a persist file, read only), else one warning; then run the installer's line once: sudo iceland-provision --bdaddr XX:XX:XX:XX:XX:XX"
   },
   "uboot_plain": {
     "file": "u-boot-iceland-v4.img",

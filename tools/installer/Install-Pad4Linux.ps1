@@ -59,7 +59,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2
 
 # ---------------------------------------------------------------------------------------------------------------------
-# Fixed facts of the owner's procedure (INSTALL-GUIDE B149 edition; WORKLOG 13-14 Oct 2026). Every device value is
+# Fixed facts of the install procedure (INSTALL-GUIDE B149 edition, 13-14 Oct 2026). Every device value is
 # re-read from the tablet before it is relied on.
 $ScriptVersion   = '1.0 (2026-10-15)'
 $ExpectedProduct = 'canoe'              # the tablet's own boot loader (ABL) fastboot
@@ -76,6 +76,11 @@ $ReadParts = @('boot_b', 'vbmeta_b', 'init_boot_b', 'vendor_boot_b', 'dtbo_b', '
 $AllowedProps = @('ro.product.model', 'ro.product.device', 'ro.product.name', 'ro.build.fingerprint', 'ro.build.type',
                   'ro.boot.slot_suffix', 'ro.boot.verifiedbootstate', 'ro.boot.flash.locked',
                   'ro.boot.vbmeta.device_state', 'ro.gsid.image_running', 'service.adb.root', 'ro.build.version.release')
+# the unit's own Bluetooth address: read ONCE, read only, in the backup phase - the property LineageOS's
+# Bluetooth HAL keeps it in; saved as bdaddr.txt next to the backup
+# manifest and handed to Fedora's first login as "sudo iceland-provision --bdaddr ..."; masked in every log line
+$BdAddrProp = 'persist.vendor.service.bdroid.bdaddr'
+$BdPlaceholders = @('00:00:00:00:00:00', 'FF:FF:FF:FF:FF:FF', 'AD:5A:00:00:00:25', '25:00:00:00:5A:AD', '00:00:00:00:5A:AD', 'AD:5A:00:00:00:00')
 $AllowedVars = @('product', 'current-slot', 'unlocked', 'secure', 'slot-count', 'is-userspace', 'battery-voltage',
                  'max-download-size', 'partition-size:userdata', 'partition-size:boot_b',
                  'slot-successful:a', 'slot-successful:b', 'slot-unbootable:a', 'slot-unbootable:b',
@@ -103,6 +108,8 @@ function Hide-Serial([string]$s) {
     if ($null -eq $s) { return '' }
     $s = [regex]::Replace($s, '(?m)^(\s*)\S+(\s+)(fastboot|device|recovery|unauthorized|sideload|bootloader|offline|no permissions.*)\s*$', '${1}<serial>${2}${3}')
     $s = [regex]::Replace($s, '(?im)^(\(bootloader\)\s*)?(serialno|serial)\s*:\s*\S+', '${1}${2}: <masked>')
+    # MAC / Bluetooth addresses never reach the screen log or the log file (the hint line is written with Write-Host only)
+    $s = [regex]::Replace($s, '(?i)(?<![0-9a-f:])([0-9a-f]{2}:){5}[0-9a-f]{2}(?![0-9a-f:])', 'XX:XX:XX:XX:XX:XX')
     return $s
 }
 function Write-Log([string]$m, [string]$color = '') {
@@ -265,6 +272,7 @@ function Get-ReleaseBlockers($m) {
     foreach ($x in (Get-ArtifactBlockers $img 'image')) { $r.Add($x) }
     foreach ($x in (Get-ArtifactBlockers (Get-Field $m 'uboot_plain') 'uboot_plain')) { $r.Add($x) }
     if (-not ((Get-Long (Get-Field $img 'unpacked_size')) -gt 0)) { $r.Add('image.unpacked_size missing') }
+    if ((Get-Field $img 'generic') -eq $true -and -not ((Get-Long (Get-Field $img 'min_userdata_bytes')) -gt 0)) { $r.Add('image.min_userdata_bytes missing (a generic image is small and grows into userdata)') }
     return , $r
 }
 
@@ -417,6 +425,7 @@ function Invoke-AdbCmd {
     $ok = ($A.Count -eq 1 -and @('devices', 'get-state', 'root', 'unroot', 'wait-for-device') -contains $A[0]) -or
           ($A.Count -eq 2 -and $A[0] -eq 'reboot' -and $A[1] -eq 'bootloader') -or
           ($A.Count -eq 3 -and $A[0] -eq 'shell' -and $A[1] -eq 'getprop' -and $AllowedProps -contains $A[2]) -or
+          ($A.Count -eq 3 -and $A[0] -eq 'shell' -and $A[1] -eq 'getprop' -and $A[2] -ceq $BdAddrProp) -or
           ($A.Count -eq 3 -and $A[0] -eq 'shell' -and $A[1] -eq 'id' -and $A[2] -eq '-u') -or
           ($A.Count -eq 3 -and $A[0] -eq 'shell' -and $A[1] -eq 'dumpsys' -and $A[2] -eq 'battery') -or
           ($A.Count -eq 3 -and $A[0] -eq 'shell' -and $A[1] -eq 'ls' -and $A[2] -eq '/dev/block/by-name') -or
@@ -638,6 +647,36 @@ function Assert-PartSize([string]$name, [long]$want) {
     try { $got = [Convert]::ToInt64(($txt -replace '^\s*0x', ''), 16) } catch { $got = -1L }
     if ($got -ne $want) { Stop-Run ("partition-size:{0} reads '{1}', expected 0x{2:X} ({2} bytes). Not the tablet / storage size this release is made for." -f $name, $txt, $want) }
     Write-Ok ("partition-size:{0} = 0x{1:X} ({1} bytes)" -f $name, $got)
+}
+function Assert-UserdataSize($m) {
+    # a generic image (image.min_userdata_bytes > 0) is small and grows into userdata at its first boot: userdata must be at
+    # least that size; an image without the field (B149) must match device.userdata_bytes exactly
+    $min = Get-Long (Get-Field (Get-Field $m 'image') 'min_userdata_bytes')
+    if ($min -le 0) { Assert-PartSize 'userdata' (Get-Long (Get-Field (Get-Field $m 'device') 'userdata_bytes')); return }
+    if (-not $Live) { Write-Dry ("fastboot getvar partition-size:userdata must be at least 0x{0:X} ({0} bytes: the image grows into the rest)" -f $min); return }
+    $txt = Get-Var 'partition-size:userdata'
+    $got = -1L
+    try { $got = [Convert]::ToInt64(($txt -replace '^\s*0x', ''), 16) } catch { $got = -1L }
+    if ($got -lt $min) { Stop-Run ("partition-size:userdata reads '{0}', smaller than this image's minimum 0x{1:X} ({1} bytes)" -f $txt, $min) }
+    Write-Ok ("partition-size:userdata = 0x{0:X} ({0} bytes) >= the image's minimum {1} bytes; the root grows into the rest at the first boot" -f $got, $min)
+}
+function Test-BdAddr([string]$a) {
+    return ($a -cmatch '^([0-9A-F]{2}:){5}[0-9A-F]{2}$') -and ($BdPlaceholders -notcontains $a)
+}
+function Show-BdAddrHint {
+    # the one command for Fedora's first login; the address is shown on screen only (Write-Host), never in the log
+    $bdir = Get-NewestBackup
+    $f = if ($bdir) { Join-Path $bdir.FullName 'bdaddr.txt' } else { $null }
+    if ($f -and (Test-Path -LiteralPath $f)) {
+        $a = ((Get-Content -LiteralPath $f -TotalCount 1) -join '').Trim().ToUpper()
+        if (Test-BdAddr $a) {
+            Write-Log '  Bluetooth: after your FIRST login in Fedora, open a terminal and run this once (your tablet''s own address, read from Android in the backup):' 'Yellow'
+            Write-Host "      sudo iceland-provision --bdaddr $a" -ForegroundColor Yellow
+            if ($script:logFile) { try { Add-Content -LiteralPath $script:logFile -Value '      sudo iceland-provision --bdaddr <the address in the backup folder''s bdaddr.txt>' } catch {} }
+            return
+        }
+    }
+    Write-Log '  Bluetooth: no own address was saved from Android; Fedora uses the controller''s shared default address (iceland-provision warns once). With your address: sudo iceland-provision --bdaddr XX:XX:XX:XX:XX:XX' 'Yellow'
 }
 function Read-SlotFlags([string]$s) {
     if (-not $Live) { Write-Dry "fastboot getvar current-slot, slot-successful:$s, slot-unbootable:$s, slot-retry-count:$s"; return [pscustomobject]@{ current = 'b'; successful = 'yes'; unbootable = 'no'; retry = 6 } }
@@ -904,6 +943,17 @@ function Invoke-Backup($m, [switch]$StayInFastboot) {
         $rows += [pscustomobject]@{ partition = 'boot_b'; file = 'boot_b-before-install.img'; bytes = $b.bytes; sha256_device = $b.sha256_device; sha256_pc = $u }
         Write-Ok "undo file of write 2: $undo (SHA-256 $u)"
     }
+    # the tablet's own Bluetooth address: one read-only getprop, saved next to the backup manifest
+    # (private, like the backup), never logged; Fedora gets it at the first login (Show-BdAddrHint). Missing: a warning only
+    $bdSaved = $false
+    if ($Live) {
+        $bd = ((Get-Prop $BdAddrProp) -replace '\s', '').ToUpper()
+        if (Test-BdAddr $bd) {
+            $bf = Join-Path $dir 'bdaddr.txt'
+            Set-Content -LiteralPath $bf -Value $bd -Encoding ASCII; Set-ItemProperty -LiteralPath $bf -Name IsReadOnly -Value $true
+            $bdSaved = $true; Write-Ok 'Bluetooth address: read from Android and saved as bdaddr.txt in the backup folder (private; masked in the log)'
+        } else { Write-Warn "Android's $BdAddrProp holds no usable Bluetooth address: Fedora will use the controller's shared default address until you set yours (README section 7)" }
+    } else { Invoke-AdbCmd shell getprop $BdAddrProp | Out-Null; Write-Dry 'would save the Bluetooth address as <backup>\bdaddr.txt (private, never logged)' }
     Invoke-AdbCmd unroot | Out-Null
     # the PC checks of parta-check.sh on today's images
     $an = [ordered]@{}
@@ -929,7 +979,7 @@ function Invoke-Backup($m, [switch]$StayInFastboot) {
     if (-not (Wait-Fastboot 120)) { Stop-Run 'the boot loader''s fastboot did not appear within 2 minutes (if the tablet shows it: check the cable / driver)' }
     [void](Assert-Abl)
     Assert-PartSize 'boot_b' $BootBBytes
-    Assert-PartSize 'userdata' ((Get-Long (Get-Field $dev 'userdata_bytes')))
+    Assert-UserdataSize $m
     $fa = Read-SlotFlags 'a'; $fb = Read-SlotFlags 'b'
     if ($Live) {
         if ($fb.successful -ne 'yes') { Write-Warn "slot-successful:b is '$($fb.successful)': boot LineageOS once fully, then run the backup again"; $checks++ }
@@ -939,7 +989,7 @@ function Invoke-Backup($m, [switch]$StayInFastboot) {
         $bm = [ordered]@{
             WARNING = 'PRIVATE. Partition copies of one tablet. Never upload or share this folder.'
             created = (Get-Date -Format s); script = "Install-Pad4Linux $ScriptVersion"; folder = $dir
-            full_backup = [bool]$FullBackup; identity_ok = $true; checks_failed = $checks
+            full_backup = [bool]$FullBackup; identity_ok = $true; checks_failed = $checks; bdaddr_saved = $bdSaved
             facts = $facts; abl = [ordered]@{ slot_a = $fa; slot_b = $fb }; analysis = $an; files = $rows
         }
         $bm | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $dir 'backup-manifest.json') -Encoding UTF8
@@ -993,8 +1043,14 @@ function Invoke-Flash($m) {
     if ($script:imagePath) {
         $unp = Get-SparseUnpacked $script:imagePath
         if ($unp -lt 0) { Stop-Run 'the image is not an Android sparse image' }
-        if ($unp -ne (Get-Long (Get-Field $img 'unpacked_size')) -or $unp -ne $userdataBytes) { Stop-Run ("the image unpacks to {0} bytes; manifest unpacked_size {1}, userdata {2}" -f $unp, (Get-Field $img 'unpacked_size'), $userdataBytes) }
-        Write-Ok "sparse image unpacks to exactly the size of userdata ($unp bytes)"
+        $minU = Get-Long (Get-Field $img 'min_userdata_bytes')
+        if ($minU -gt 0) {
+            if ($unp -ne (Get-Long (Get-Field $img 'unpacked_size')) -or $unp -gt $minU) { Stop-Run ("the image unpacks to {0} bytes; manifest unpacked_size {1}, min_userdata_bytes {2}" -f $unp, (Get-Field $img 'unpacked_size'), $minU) }
+            Write-Ok "sparse image unpacks to $unp bytes (a small generic image: it grows into userdata at the first boot)"
+        } else {
+            if ($unp -ne (Get-Long (Get-Field $img 'unpacked_size')) -or $unp -ne $userdataBytes) { Stop-Run ("the image unpacks to {0} bytes; manifest unpacked_size {1}, userdata {2}" -f $unp, (Get-Field $img 'unpacked_size'), $userdataBytes) }
+            Write-Ok "sparse image unpacks to exactly the size of userdata ($unp bytes)"
+        }
     } elseif ($Live) { Stop-Run 'the install image is not on disk with the manifest''s SHA-256: run -Phase Download -Execute' }
     $script:ubootPlainPath = Test-ArtifactLocal (Get-Field $m 'uboot_plain') 'uboot_plain'
     $plainSha = ''
@@ -1026,7 +1082,7 @@ function Invoke-Flash($m) {
         if (-not (Wait-Fastboot 300)) { Stop-Run 'no fastboot device within 5 minutes' }
     }
     [void](Assert-Abl)
-    Assert-PartSize 'userdata' $userdataBytes
+    Assert-UserdataSize $m
     Assert-PartSize 'boot_b' $BootBBytes
     $f0 = Read-SlotFlags 'b'
     if ($Live -and ($f0.successful -ne 'yes' -or $f0.unbootable -ne 'no')) { Stop-Run "slot b must read successful=yes and unbootable=no before write 1 (found $($f0.successful) / $($f0.unbootable))" }
@@ -1037,7 +1093,7 @@ function Invoke-Flash($m) {
     Write-Log  '  +-----------------------------------------------------------------------------------------+' 'Yellow'
     Write-Log  '  | partition : userdata  (the ONLY partition of this write)' 'Yellow'
     Write-Log ("  | file      : {0}" -f $(if ($script:imagePath) { $script:imagePath } else { Join-Path $DlDir (Get-Field $img 'file') })) 'Yellow'
-    Write-Log ("  | size      : {0} (sparse); unpacks to {1}" -f (Format-Size $isz), (Format-Size $userdataBytes)) 'Yellow'
+    Write-Log ("  | size      : {0} (sparse); unpacks to {1}" -f (Format-Size $isz), (Format-Size (Get-Long (Get-Field $img 'unpacked_size')))) 'Yellow'
     Write-Log ("  | SHA-256   : {0}" -f $ish) 'Yellow'
     Write-Log  '  | effect    : ERASES ALL ANDROID DATA (apps, photos, accounts). Android data cannot be backed up' 'Yellow'
     Write-Log  '  |             by this script: it is encrypted on the tablet. Copy your own files off first.' 'Yellow'
@@ -1117,6 +1173,7 @@ function Invoke-Flash($m) {
     }
     Write-Log '  Then: power off, Volume Down + Power, connect USB and run:  -Phase VerifySlot -Execute   (slot-successful:b must read yes).' 'Yellow'
     Write-Log '  Undo of write 2 (two minutes, Fedora stays in userdata): -Phase UndoBootB -Execute' 'Yellow'
+    Show-BdAddrHint
 }
 function Invoke-VerifySlot($m) {
     Write-Step 'Verify the slot flags after Fedora''s first boots (read only; INSTALL-GUIDE Part D step 3)'
@@ -1125,7 +1182,7 @@ function Invoke-VerifySlot($m) {
     $f = Read-SlotFlags 'b'
     [void](Read-SlotFlags 'a')
     if (-not $Live) { Write-Dry "would apply the stop rule: current-slot a, unbootable yes or retry count <= $RetryStop with successful no -> UNDO NOW (-Phase UndoBootB)"; return }
-    if ($f.successful -eq 'yes' -and $f.current -eq 'b' -and $f.unbootable -eq 'no') { Write-Ok 'slot b is marked successful: the boot loader no longer counts its boots. Install complete.'; Invoke-Fb reboot | Out-Null; return }
+    if ($f.successful -eq 'yes' -and $f.current -eq 'b' -and $f.unbootable -eq 'no') { Write-Ok 'slot b is marked successful: the boot loader no longer counts its boots. Install complete.'; Show-BdAddrHint; Invoke-Fb reboot | Out-Null; return }
     if ($slot -ne 'b' -or $f.unbootable -eq 'yes' -or $f.retry -le $RetryStop) {
         Write-Log ("UNDO NOW: current-slot {0}, unbootable {1}, retry-count {2}, successful {3} (stop rule: <= {4}). Run -Phase UndoBootB -Execute; no further boot, no set_active." -f $f.current, $f.unbootable, $f.retry, $f.successful, $RetryStop) 'Red'
         exit 3

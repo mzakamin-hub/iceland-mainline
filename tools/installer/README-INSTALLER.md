@@ -3,7 +3,7 @@
 Written 15 Oct 2026. PowerShell 7 and Windows PowerShell 5.1. One script, `Install-Pad4Linux.ps1`, driven by a
 release manifest (`release-manifest.json`, template: `release-manifest.template.json`).
 
-**Status: BLOCKED for flashing.** No generic install image exists yet. The owner's image (B149) carries the owner's
+**Status: BLOCKED for flashing.** No generic install image exists yet (its recipe B150g is prepared, section 2). The owner's image (B149) carries the owner's
 own tablet data and must never be written to another tablet (section 2). With the template manifest the script
 refuses write 1 and write 2. Downloads of placeholder files are refused too. The read-only backup works today.
 
@@ -15,7 +15,7 @@ refuses write 1 and write 2. Downloads of placeholder files are refused too. The
 |---|---|---|
 | `Preflight` | PowerShell version, `adb.exe` / `fastboot.exe` (Google platform-tools), manifest check and its blockers, free disk space | `00-Preflight.ps1` (owner's kit), INSTALL-GUIDE 0.2 rule 8 |
 | `Download` | every manifest file: URL + size + SHA-256, resumable (HTTP Range), verified after download. Multi-part files (GitHub limits each asset to 2 GiB) are joined, then checked against the whole file's SHA-256 | new; the hash-before-use rule is INSTALL-GUIDE 0.2 rule 4 |
-| `Backup` (read only) | in Android (LineageOS, slot b, "Rooted debugging" on): identity `OPD2514` / `OP657AL1`, unlocked state, slot `_b`, battery >= 60 %, `adb root`; then `boot_b`, `vbmeta_b`, `init_boot_b`, `vendor_boot_b`, `dtbo_b`, `recovery_b`, `vbmeta_system_b`, `vbmeta_vendor_b`, `boot_a`, `vbmeta_a`, `init_boot_a`, `vendor_boot_a`, `dtbo_a`, `misc` by `adb pull /dev/block/by-name/<p>` (fallback `adb exec-out dd`), each checked by `sha256sum` on the tablet and SHA-256 on the PC (3 tries). `boot_b` is copied to `boot_b-before-install.img` = the undo file of write 2. PC checks: `misc` boot command, `vbmeta_b` chains `boot` with the AOSP test key, `boot_b`'s AVB footer and boot header. Then `adb reboot bootloader` and `fastboot getvar` of the slot flags, the lock state, `partition-size:boot_b` / `userdata`. `-FullBackup` adds every partition except `userdata` (~17 GB) | `parta-read.ps1` + `parta-check.sh` (INSTALL-GUIDE Part A step 6), `02-Backup-AllPartitions.ps1` (G1) |
+| `Backup` (read only) | in Android (LineageOS, slot b, "Rooted debugging" on): identity `OPD2514` / `OP657AL1`, unlocked state, slot `_b`, battery >= 60 %, `adb root`; then `boot_b`, `vbmeta_b`, `init_boot_b`, `vendor_boot_b`, `dtbo_b`, `recovery_b`, `vbmeta_system_b`, `vbmeta_vendor_b`, `boot_a`, `vbmeta_a`, `init_boot_a`, `vendor_boot_a`, `dtbo_a`, `misc` by `adb pull /dev/block/by-name/<p>` (fallback `adb exec-out dd`), each checked by `sha256sum` on the tablet and SHA-256 on the PC (3 tries). `boot_b` is copied to `boot_b-before-install.img` = the undo file of write 2. The tablet's own Bluetooth address is read once (`getprop persist.vendor.service.bdroid.bdaddr`) and saved as `bdaddr.txt` (private, masked in logs) for Fedora's first login. PC checks: `misc` boot command, `vbmeta_b` chains `boot` with the AOSP test key, `boot_b`'s AVB footer and boot header. Then `adb reboot bootloader` and `fastboot getvar` of the slot flags, the lock state, `partition-size:boot_b` / `userdata`. `-FullBackup` adds every partition except `userdata` (~17 GB) | `parta-read.ps1` + `parta-check.sh` (INSTALL-GUIDE Part A step 6), `02-Backup-AllPartitions.ps1` (G1) |
 | `Flash` | gates (release cleared, today's backup, file hashes, sparse size = `userdata`, U-Boot install build, header and footer match this tablet), ABL checks, **write 1** `fastboot flash userdata <image>`, three tethered cold boots `fastboot boot <plain U-Boot>` (RAM only), **write 2** `fastboot flash boot_b <footered U-Boot>`, flags right after the flash, `fastboot reboot` | INSTALL-GUIDE Parts C and D; the owner's run of 13 Oct 2026 (WORKLOG 18:24-20:48) and the v4 write of 14 Oct |
 | `VerifySlot` | reads the slot flags in ABL after Fedora's first boots; stop rule (retry count <= 3, slot a, or unbootable: undo now) | INSTALL-GUIDE Part D step 3, C0.6 |
 | `UndoBootB` | `fastboot flash boot_b <backup>\boot_b-before-install.img` | INSTALL-GUIDE section 8 ("Only undo write 2") |
@@ -56,14 +56,14 @@ refused commands (INSTALL-GUIDE 0.2 rule 3); `set_active` and `-w` exist only in
 
 ### Why B149 cannot be published
 
-How it was built (`wf/b149/recipe/tablet-b149.sh` build1a, run on the owner's tablet): `iceland-fw-extract` copies
+How it was built (the B149 build recipe, run on the tablet the image was made for): `iceland-fw-extract` copies
 the tablet's own firmware into `/usr/lib/firmware/updates`, the sensor hub tree into
 `/usr/share/qcom/kaanapali/OnePlus/iceland` - including `sensors/registry` **from the owner's `persist` partition**
 (`fw-list.tsv`: `dsp:sensors/registry persist ext4 /sensors/registry/registry`), i.e. the sensor calibration - and
 an extraction record `.iceland-extracted`; then `install -m 600 $IN/bdaddr /etc/iceland/bdaddr` writes **the
 owner's Bluetooth address** (from the private `build/.bdaddr`). INSTALL-GUIDE 0.1 records it: "Private by design (as
 every install image): the tablet's own firmware extraction and its Bluetooth address". Both are on the never-publish
-list of CLAUDE.md (calibration, BD address). The rest of the offline check is clean (no user, no Wi-Fi networks, no
+list of the project (calibration, BD address). The rest of the offline check is clean (no user, no Wi-Fi networks, no
 SSH keys, empty machine-id, no journal, no random seed, owner-SSID guard 0), but that does not make it generic. It
 also ships iceland-device 0.28-7, whose slot marking does not work on the installed system (section 7).
 
@@ -108,11 +108,41 @@ U-Boot's (the owner's `check-header.py` rule: such a tablet needs a U-Boot built
 7. Naming: a modified Fedora image should be called a "Fedora Remix" (Fedora trademark guidelines); kernel, U-Boot
    and device-package sources are public; the firmware is the public `iceland-firmware` package.
 
+### The generic image path: "Fedora Remix for OnePlus Pad 4" B150g (prepared, not built or tested yet)
+
+A generic image for other Pad 4 units is prepared but not built yet:
+
+- no unit data in the image: no Bluetooth address, no extraction record; machine-id, host keys, journal and caches
+  reset; the first-boot wizard kept, no test user, no autologin. The sensor registry stays in the image as it is;
+- iceland-device 0.28-17 adds two first-boot services: `iceland-provision` (the Bluetooth address: from the device
+  tree or a kept `/etc/iceland/bdaddr` if there is one, else one warning; `sudo iceland-provision --bdaddr XX:..`
+  stores and applies it at once) and `iceland-grow` (once: the root partition and btrfs fill `userdata`; it never
+  shrinks or moves a partition start and is skipped in a dual-boot setup);
+- the image is small (about 12.8 GiB unpacked) and grows into `userdata` at its first boot, so one image fits every
+  storage size; it is split into parts below 2 GiB with an `image-manifest.json` (file, size, sha256 per part);
+- before a release, a privacy scan of the finished image must pass and the image must pass a RAM-boot rehearsal.
+
+**The Bluetooth address.** On these units it is on no partition Linux can read (stock reads it from the modem NV
+through its HAL). The Backup phase therefore reads it read-only from Android: `adb shell getprop
+persist.vendor.service.bdroid.bdaddr` (the only read added to the whitelist), saves it as `bdaddr.txt` next to
+`backup-manifest.json` (private; every log line masks MAC-like values) and, after the install and again after
+`VerifySlot`, prints the one command for the first Fedora login: `sudo iceland-provision --bdaddr <address>`.
+Writing the address into the image before write 1 was considered and rejected: the image is an Android sparse file,
+its EFI partition would have to be rewritten from Windows, and the written image would no longer be the published,
+scanned one. Without a saved address, Bluetooth uses the controller's shared default address and iceland-provision
+warns once.
+
+**The size.** The installer accepts any `userdata` of at least `image.min_userdata_bytes` (B149-style images without
+the field still need the exact `device.userdata_bytes`). `flash_allowed`, `generic` and `contains_unit_data` stay as
+they are until a real B150g image passes the privacy scan and its rehearsal (including the growth on the 64 GiB test
+device) and the release is cleared.
+
 ---
 
 ## 3. Who can use it (the owner's starting point; anything else is unproven)
 
-- OnePlus Pad 4, model **OPD2514** (`OP657AL1`), with `userdata` = `0x3737D0F000` (the owner's storage size).
+- OnePlus Pad 4, model **OPD2514** (`OP657AL1`). The owner's B149 image needs `userdata` = `0x3737D0F000`; a generic
+  image (manifest `image.min_userdata_bytes`) needs `userdata` of at least that size and grows into the rest.
 - Boot loader **already unlocked** by you. The script never unlocks (that erases the tablet and is your decision).
 - **LineageOS (test-keys, userdebug) running on slot b**, marked successful. Developer options: USB debugging and
   **Rooted debugging** on. This is the owner's state before the install; `vbmeta_b` must chain `boot` with the AOSP
@@ -217,7 +247,7 @@ Stop. Write nothing more. Leave U-Boot only with Volume Down + Power (about 15 s
 - Whitelist: 28 commands sent through the real `Invoke-Fb` / `Invoke-AdbCmd` (extracted from the script):
   `erase`, `format`, `-w`, `set_active`, `flashing lock/unlock`, `flashall`, `update`, `getvar all/serialno`,
   `oem`, `reboot fastboot`, `flash boot_a`/`vbmeta_b` (even armed), unarmed `flash userdata`, `boot <other file>`,
-  adb writes, `pull userdata`, the BD-address property: all refused; armed `flash userdata` / `boot_b`, `boot` of
+  adb writes, `pull userdata`, every other property: all refused (since 15 Oct the Bluetooth address property `persist.vendor.service.bdroid.bdaddr` is allowed, read once in Backup; not re-tested live); armed `flash userdata` / `boot_b`, `boot` of
   the plain U-Boot, read commands: passed.
 - `-Phase Inspect` on the owner's real files reproduces avbtool's values (rollback index, key sha1, chain
   descriptors, props) and validates the hash descriptors; the U-Boot build kind (install / rehearsal) matches
