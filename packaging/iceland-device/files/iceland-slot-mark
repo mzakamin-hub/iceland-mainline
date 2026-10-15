@@ -18,6 +18,10 @@
 # is made writable for the one qbootctl -m only and read-only again right after (also on any exit), both logged.
 #   - /etc/iceland/slot-mark-off exists (the owner's off switch)
 # A good boot = systemd reports running (or degraded) within 5 min and graphical.target is active, then 30 s more.
+# 0.28-17 (scanfix): the unit is Type=exec (iceland-slot-mark.service): as a oneshot it was itself a job of the boot
+# transaction, systemd stayed 'starting' and every boot ended in 'FAIL ... starting after 300 s'. A FAIL line now
+# names the jobs still queued; a degraded boot names its failed units in the log (it still marks: the desktop is up).
+# systemctl is only asked (is-system-running, is-active, list-jobs, list-units --failed).
 # Test hooks (tests/test_slot_mark.py): ICELAND_CMDLINE ICELAND_ROOTSRC ICELAND_QBOOTCTL ICELAND_SYSTEMCTL
 # ICELAND_SLOTMARK_OFF ICELAND_WAIT ICELAND_SETTLE ICELAND_SYS ICELAND_BYPARTLABEL ICELAND_BLOCKDEV.
 set -u
@@ -52,6 +56,14 @@ why_skip() {
 dump() { "$QB" 2>&1; }
 cur_ok() {   # the current slot's "Successful" from the read-only dump: 1 / 0 / ?
 	dump | awk '/^Current slot:/ {c=$3} /^SLOT / {s=$2; sub(":", "", s)} /Successful/ && s == c {print $3; f=1} END{if (!f) print "?"}'; }
+jobs_left() {   # 0.28-17: the queued jobs as unit/type, for the FAIL line
+	local j; j=$($SC list-jobs --no-legend --no-pager 2>/dev/null | awk '{print $2 "/" $3}' | head -8 | tr '\n' ' ')
+	echo "${j:-none}"
+}
+failed_units() {   # 0.28-17: the failed units of a degraded boot, for the log
+	local f; f=$($SC list-units --failed --no-legend --plain --no-pager 2>/dev/null | awk '{print $1}' | head -8 | tr '\n' ' ')
+	echo "${f:-none listed}"
+}
 need_qb() { command -v "$QB" > /dev/null 2>&1 || { log "FAIL qbootctl is missing ($QB): the slot cannot be marked"; exit 1; }; }
 case "$MODE" in
 status)
@@ -71,11 +83,12 @@ n=0; st=""
 while :; do
 	st=$($SC is-system-running 2>/dev/null)
 	case "$st" in running|degraded) break ;; esac
-	[ $n -ge "$WAIT" ] && { log "FAIL not a good boot: system state '$st' after $WAIT s - the slot is NOT marked"; exit 1; }
+	[ $n -ge "$WAIT" ] && { log "FAIL not a good boot: system state '$st' after $WAIT s - the slot is NOT marked; jobs still queued: $(jobs_left)"; exit 1; }
 	sleep 5; n=$((n + 5))
 done
 $SC is-active --quiet graphical.target || { log "FAIL not a good boot: graphical.target is not active (system $st) - the slot is NOT marked"; exit 1; }
 sleep "$SETTLE"
+[ "$st" = degraded ] && log "the system is degraded (failed units: $(failed_units)) - the desktop is up, the boot counts as good"
 log "good boot (system $st, graphical.target active); slots before: $(dump | tr '\n\t' '  ' | tr -s ' ')"
 case "$(cur_ok)" in
 1) log "the current slot is already marked successful - nothing written"; exit 0 ;;

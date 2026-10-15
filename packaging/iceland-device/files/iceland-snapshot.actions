@@ -1,5 +1,8 @@
 # iceland-device: a btrfs snapshot of the root before every package transaction (dnf5, GNOME Software through
 # dnf5daemon, offline updates), and the "Roll back to ..." boot entries refreshed afterwards.
 # libdnf5 actions plugin (package libdnf5-plugin-actions), /etc/dnf/libdnf5-plugins/actions.d/
-pre_transaction::::/usr/libexec/iceland/iceland-snapshot pre dnf
-post_transaction::::/usr/libexec/iceland/iceland-snapshot post
+# Format: callback:package filter:direction:options:command. The plugin reads the command's standard output as
+# requests (key=value lines only): iceland-snapshot pre / post print their log to stderr and the journal.
+# 0.28-17: enabled=host-only: not in a "dnf --installroot" transaction (another root than this system's).
+pre_transaction:::enabled=host-only:/usr/libexec/iceland/iceland-snapshot pre dnf
+post_transaction:::enabled=host-only:/usr/libexec/iceland/iceland-snapshot post

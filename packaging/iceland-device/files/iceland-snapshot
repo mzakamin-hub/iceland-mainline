@@ -119,6 +119,13 @@ rollback_now() {
 	top_umount
 }
 
+# 0.28-17 (scanfix): "pre" / "post" run from the libdnf5 actions plugin, which parses the command's STANDARD
+# OUTPUT as requests (tmp.X=, conf.X=, var.X=, log.LEVEL=, ...): any other line is an action error in dnf5.log
+# (11 on the tablet, 16 Oct: "Missing equal sign (=) in action output line: iceland-snapshot: snapshot ..."; the
+# snapshots themselves were made). Their log lines go to stderr and to the journal (logger) instead.
+case "${1:-}" in
+	pre|post) exec 1>&2 ;;
+esac
 rc=0
 case "${1:-}" in
 	# a failed snapshot must not stop the transaction: "pre" always ends with 0 (logged above)

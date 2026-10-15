@@ -1,13 +1,18 @@
 # iceland-device 0.27r5: mark the Android boot slot successful once the desktop is up (qbootctl -m; skipped in RAM kits and rehearsals)
+# 0.28-17 (scanfix): Type=exec, not oneshot. A oneshot unit pulled in by graphical.target is a job of the boot
+# transaction until its program ends, so systemd stays "starting" while the program waits for "running": on the
+# installed tablet it waited for itself and failed after 300 s on every boot (issue scan of 16 Oct 2026). With
+# Type=exec the start job ends as soon as the program runs; the boot can finish, and the program sees running /
+# degraded. RuntimeMaxSec bounds the whole run (wait 300 s + 30 s settle + qbootctl).
 [Unit]
 Description=OnePlus Pad 4: mark the Android boot slot successful after a good boot
 Documentation=file:///usr/libexec/iceland/iceland-slot-mark
 After=graphical.target display-manager.service
 
 [Service]
-Type=oneshot
+Type=exec
 ExecStart=/usr/libexec/iceland/iceland-slot-mark mark
-TimeoutStartSec=8min
+RuntimeMaxSec=8min
 
 [Install]
 WantedBy=graphical.target

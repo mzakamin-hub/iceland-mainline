@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        16%{?dist}
+Release:        17%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -189,6 +189,13 @@ Source171:      iceland-charging-detect.service
 Source172:      iceland-ssc-watch
 Source173:      iceland-ssc-watch.service
 Source174:      iceland-ssc-watch.timer
+# 0.28-17 (wf/generic): the unit's own values on the first boot of a generic image (Bluetooth address, read only)
+Source175:      iceland-provision
+Source176:      iceland-provision.service
+Source177:      provision-sources.tsv
+# 0.28-17: the small generic image grows into userdata (checks systemd-repart / growfs, repairs what is missing; once)
+Source178:      iceland-grow
+Source179:      iceland-grow.service
 
 Requires:       kernel-iceland
 Requires:       bluez
@@ -392,10 +399,18 @@ install -Dm0644 %{SOURCE171} %{buildroot}/usr/lib/systemd/system/iceland-chargin
 install -Dm0755 %{SOURCE172} %{buildroot}/usr/libexec/iceland/iceland-ssc-watch
 install -Dm0644 %{SOURCE173} %{buildroot}/usr/lib/systemd/system/iceland-ssc-watch.service
 install -Dm0644 %{SOURCE174} %{buildroot}/usr/lib/systemd/system/iceland-ssc-watch.timer
+install -Dm0755 %{SOURCE175} %{buildroot}/usr/libexec/iceland/iceland-provision
+install -Dm0644 %{SOURCE176} %{buildroot}/usr/lib/systemd/system/iceland-provision.service
+install -Dm0644 %{SOURCE177} %{buildroot}/usr/share/iceland/provision-sources.tsv
+install -Dm0755 %{SOURCE178} %{buildroot}/usr/libexec/iceland/iceland-grow
+install -Dm0644 %{SOURCE179} %{buildroot}/usr/lib/systemd/system/iceland-grow.service
 # static links (not a preset, not "enable"): part of every graphical boot / every boot
 install -d %{buildroot}/usr/lib/systemd/system/graphical.target.wants %{buildroot}/usr/lib/systemd/system/timers.target.wants
 ln -s ../iceland-charging-detect.service %{buildroot}/usr/lib/systemd/system/graphical.target.wants/iceland-charging-detect.service
 ln -s ../iceland-ssc-watch.timer %{buildroot}/usr/lib/systemd/system/timers.target.wants/iceland-ssc-watch.timer
+mkdir -p %{buildroot}/usr/lib/systemd/system/multi-user.target.wants
+ln -s ../iceland-provision.service %{buildroot}/usr/lib/systemd/system/multi-user.target.wants/iceland-provision.service
+ln -s ../iceland-grow.service %{buildroot}/usr/lib/systemd/system/multi-user.target.wants/iceland-grow.service
 install -Dm0644 %{SOURCE53} %{buildroot}/usr/lib/systemd/logind.conf.d/60-iceland.conf
 
 install -Dm0644 %{SOURCE62} %{buildroot}/usr/lib/udev/rules.d/59-iceland-storage-ro.rules
@@ -671,6 +686,13 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/lib/systemd/system/iceland-ssc-watch.service
 /usr/lib/systemd/system/iceland-ssc-watch.timer
 /usr/lib/systemd/system/timers.target.wants/iceland-ssc-watch.timer
+/usr/libexec/iceland/iceland-provision
+/usr/lib/systemd/system/iceland-provision.service
+/usr/lib/systemd/system/multi-user.target.wants/iceland-provision.service
+/usr/share/iceland/provision-sources.tsv
+/usr/libexec/iceland/iceland-grow
+/usr/lib/systemd/system/iceland-grow.service
+/usr/lib/systemd/system/multi-user.target.wants/iceland-grow.service
 /usr/lib/systemd/system-preset/50-iceland.preset
 %dir /usr/share/selinux/packages/iceland
 /usr/share/selinux/packages/iceland/iceland_sensors.pp
@@ -723,6 +745,42 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
 
 %changelog
+* Thu Oct 15 2026 mzak <mzak.amin@gmail.com> - 0.28-17
+- generic image "Fedora Remix for OnePlus Pad 4" (wf/generic, the owner's decisions of 15 Oct 2026):
+  iceland-provision.service runs once on the first boot (ConditionPathExists=!/var/lib/iceland/provisioned; a static
+  multi-user.target.wants link, before bluetooth and iceland-bdaddr) and finds the unit's own Bluetooth address: the
+  device tree's local-bd-address when U-Boot filled it (K1, later; then nothing is written), else a kept
+  /etc/iceland/bdaddr, else the first usable address of /usr/share/iceland/provision-sources.tsv, read from the
+  tablet's own partitions with debugfs -c (never mounted, the partition read-only in the kernel first) into
+  /etc/iceland/bdaddr (0600), else one WARNING line (the controller's shared default address). Install-Pad4Linux.ps1
+  reads the address read-only from Android (persist.vendor.service.bdroid.bdaddr) in its backup phase, saves it as
+  bdaddr.txt next to the backup manifest and prints "sudo iceland-provision --bdaddr XX:XX:XX:XX:XX:XX" for the first
+  login; --bdaddr applies it at once (restarts iceland-bdaddr.service). Placeholders are never taken; the address is
+  never logged; the machine id and the SSH host keys are only reported (systemd / sshd make them). The sensor registry
+  is kept as it is (owner). New tests/test_provision.py
+- iceland-grow.service (once, after systemd-repart and systemd-growfs-root; static multi-user.target.wants link): the
+  generic image is small and must fill userdata on any storage size. It checks the loop container (losetup -c), the
+  backup GPT at the disk end, the root partition (the last one) up to the last usable block and btrfs up to its
+  partition; what systemd-repart / growfs left undone it repairs (sfdisk --relocate gpt-bak-std, sfdisk -N ", +",
+  partx -u, btrfs filesystem resize max /), never shrinking or moving a start; no stamp on a failure (the next boot
+  tries again). Skipped in a rehearsal, with systemd-repart masked (dual boot) or a carrier other than userdata /
+  fedora. One line; /var/lib/iceland/grown. New tests/test_grow.py (decisions with stubs, the repair on a real
+  4 KiB-sector GPT disk file with util-linux sfdisk)
+- iceland-slot-mark.service is Type=exec (was oneshot; RuntimeMaxSec=8min): the first issue scan (16 Oct) showed
+  'FAIL not a good boot: system state starting after 300 s' on every boot - the oneshot, pulled in by
+  graphical.target, was itself a job of the boot transaction, so systemd stayed 'starting' while the script waited
+  for 'running', and the slot was never marked. The rules are unchanged (good boot only, the boot LUN writable for
+  the one qbootctl -m only). A FAIL line now names the jobs still queued, a degraded boot its failed units
+- iceland-snapshot pre / post print to stderr and the journal only: the libdnf5 actions plugin parses the
+  command's standard output as key=value requests, and every 'iceland-snapshot: ...' line was an action error in
+  dnf5.log ('Missing equal sign (=) in action output line'; the snapshots were made). iceland-snapshot.actions:
+  enabled=host-only (no snapshot of this root for a dnf --installroot transaction). The installed 0.28-16 copy is
+  unmodified (rpm -V clean), so rpm replaces this %config(noreplace) file; a hand-edited copy keeps its edits and
+  gets the new one as .rpmnew. New tests/test_snapshot_actions.py (the actions syntax, the plugin's stdout grammar)
+- iceland-grow acts only on the first boot of a generic image: the marker /etc/iceland/generic-image (written by the
+  B150g recipe, removed after a successful grow) and the root under half of the disk. Without the marker (an
+  installed system such as the owner's, root already 218 GiB, loop0's inner backup GPT left as it is) one line
+  'not a generic first boot: nothing to do' and no command at all
 * Thu Oct 15 2026 mzak <mzak.amin@gmail.com> - 0.28-16
 - charging mode (wf/r16): the 0.28-15 generator never wrote its "PMIC PON log" line at boot on the installed tablet,
   although the same command worked by hand as root. Generators run in systemd 258's sandbox (own mount namespace,

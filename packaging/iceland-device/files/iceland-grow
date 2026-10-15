@@ -1,0 +1,92 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-grow (iceland-device 0.28-17): the Fedora disk fills its carrier, once, logged. The generic image (B150g) is SMALL
+# (its inner GPT ends after the root partition) so that it fits every storage size; written into a bigger userdata, the
+# inner disk must grow into it on the first boot:
+#   1. the outer container: the loop device over the carrier (userdata / fedora) has the carrier's full size (losetup -c)
+#   2. the partition table: the backup GPT at the end of the disk and the root partition (the last one, the mounted "/")
+#      up to the last usable block. Fedora's own systemd-repart (/etc/repart.d/50-root.conf) normally does both at the
+#      first boot; this program runs after it and only repairs what is still missing (sfdisk --relocate gpt-bak-std;
+#      sfdisk -N <root> ", +"; partx -u: the kernel takes the new size of the mounted partition)
+#   3. the file system: btrfs filesystem resize max / when btrfs is smaller than its partition (x-systemd.growfs does it
+#      normally)
+# It never shrinks, never moves a partition start, never touches any other partition or disk. Skipped (no stamp) in a
+# rehearsal (network disk), when systemd-repart.service is masked (the dual-boot procedure keeps the size on purpose) or
+# when the root is not partition N of a loop over a partition labelled userdata / fedora. One line per run
+# ("iceland-grow: ..."); /var/lib/iceland/grown records the result (sizes only) and ends the first-boot runs.
+#   iceland-grow [--first-boot]   the unit's run;  iceland-grow --check   the decision only (reads, writes nothing)
+# 0.28-17 (wf/scanfix, coordinator 16 Oct): it acts ONLY on the first boot of a generic image: the B150g recipe writes
+# the marker /etc/iceland/generic-image, and the root (its partition or btrfs, the smaller) must be less than half of
+# the disk. An installed system without the marker (the owner's: root already 218 GiB, loop0's inner backup GPT
+# 'invalid' and left alone on purpose) gets one line 'not a generic first boot: nothing to do' and nothing else - no
+# losetup / sfdisk / partx / btrfs call. The marker is removed after a successful grow (or when repart did it all).
+# Test hook: ICELAND_GROW_MARKER (the marker path).
+# Test hooks (env): ICELAND_GROW_CMDLINE, ICELAND_GROW_STATE (/var/lib/iceland), ICELAND_GROW_SYS (/sys), ICELAND_GROW_ROOTSRC
+# (findmnt's source of /), ICELAND_GROW_LABEL (the carrier's PARTNAME), ICELAND_GROW_REPART (systemctl is-enabled
+# systemd-repart.service), ICELAND_GROW_FSSIZE (btrfs size in bytes), ICELAND_GROW_SFDISK / _PARTX / _BTRFS / _LOSETUP /
+# _BLOCKDEV (commands), ICELAND_GROW_DISK (the disk node, e.g. a file in a test).
+set -u
+ST=${ICELAND_GROW_STATE:-/var/lib/iceland}; SYS=${ICELAND_GROW_SYS:-/sys}
+SFDISK=${ICELAND_GROW_SFDISK:-sfdisk}; PARTX=${ICELAND_GROW_PARTX:-partx}; BTRFS=${ICELAND_GROW_BTRFS:-btrfs}
+LOSETUP=${ICELAND_GROW_LOSETUP:-losetup}; BLOCKDEV=${ICELAND_GROW_BLOCKDEV:-blockdev}
+MODE=run; case "${1:-}" in ""|--first-boot) ;; --check) MODE=check ;; *) echo "iceland-grow: unknown option $1" >&2; exit 1 ;; esac
+say() { echo "iceland-grow: $*"; }
+gib() { awk -v b="$1" 'BEGIN { printf "%.1f GiB", b / 1073741824 }'; }
+skip() { say "skipped: $*"; exit 0; }
+MARK=${ICELAND_GROW_MARKER:-/etc/iceland/generic-image}
+[ -e "$MARK" ] || { say "not a generic first boot: nothing to do"; exit 0; }
+[ "$MODE" = run ] && [ -e "$ST/grown" ] && skip "already done ($(cut -c1-100 "$ST/grown"))"
+cmd=${ICELAND_GROW_CMDLINE:-$(cat /proc/cmdline 2>/dev/null)}
+case " $cmd " in *" iceland.rehearsal="*) skip "a rehearsal (the disk is the PC's network disk)" ;; esac
+rs=${ICELAND_GROW_REPART:-$(systemctl is-enabled systemd-repart.service 2>/dev/null)}
+[ "$rs" = masked ] && skip "systemd-repart.service is masked (the size is kept on purpose, e.g. the dual-boot procedure)"
+src=${ICELAND_GROW_ROOTSRC:-$(findmnt -n -o SOURCE / 2>/dev/null)}; src=${src%%\[*}
+case "$src" in /dev/loop[0-9]*p[0-9]*) ;; *) skip "the root ${src:-?} is not a partition of a loop device" ;; esac
+part=${src##*p}; lo=${src%p*}; ln=${lo##*/}
+bf=$(cat "$SYS/block/$ln/loop/backing_file" 2>/dev/null)
+label=${ICELAND_GROW_LABEL:-$(sed -n 's/^PARTNAME=//p' "$SYS/class/block/${bf##*/}/uevent" 2>/dev/null)}
+case "$label" in userdata|fedora) ;; *) skip "the carrier ${bf:-?} is not the partition userdata / fedora (${label:-no name})" ;; esac
+DISK=${ICELAND_GROW_DISK:-$lo}
+# 1. the outer container
+[ "$MODE" = run ] && "$LOSETUP" -c "$DISK" > /dev/null 2>&1
+# the table as sfdisk sees it: sector size, total sectors, last usable, the root partition's start and size, the partitions
+d=$("$SFDISK" --dump "$DISK" 2>/dev/null) || skip "sfdisk cannot read the table of $DISK"
+ss=$("$BLOCKDEV" --getss "$DISK" 2>/dev/null); tot=$(( $("$BLOCKDEV" --getsize64 "$DISK" 2>/dev/null) / ${ss:-4096} ))
+lu=$(echo "$d" | sed -n 's/^last-lba: *//p'); np=$(echo "$d" | grep -c '^/.* : start=')
+pl=$(echo "$d" | grep -E "^${DISK}p?${part} : " | head -n 1)
+pst=$(echo "$pl" | sed -n 's/.*start= *\([0-9]*\).*/\1/p'); psz=$(echo "$pl" | sed -n 's/.*size= *\([0-9]*\).*/\1/p')
+[ -n "$pst" ] && [ -n "$psz" ] && [ -n "$lu" ] && [ "${tot:-0}" -gt 0 ] || skip "no partition $part in the table of $DISK"
+[ "$part" = "$np" ] || skip "the root is partition $part of $np: not the last one"
+# grown = the backup GPT at the end (last-lba = total - 1 - 4 entry blocks (4 KiB) / 32 (512 B)) and the root up to it
+ent=$(( 16384 / ${ss:-4096} )); want_lu=$(( tot - 2 - ent ))
+pend=$(( pst + psz - 1 )); slack=$(( 1048576 / ${ss:-4096} ))
+tab=ok; [ "$lu" -lt "$want_lu" ] && tab=short
+prt=ok; [ $(( want_lu - pend )) -gt "$slack" ] && prt=short
+fs=${ICELAND_GROW_FSSIZE:-$("$BTRFS" filesystem usage -b / 2>/dev/null | sed -n 's/^ *Device size: *\([0-9]*\).*/\1/p' | head -n 1)}
+pbytes=$(( psz * ${ss:-4096} )); fsst=ok; [ -n "$fs" ] && [ $(( pbytes - fs )) -gt 67108864 ] && fsst=short
+before="disk $(gib $(( tot * ss ))), root partition $(gib "$pbytes"), btrfs $(gib "${fs:-0}")"
+if [ "$tab$prt$fsst" = okokok ]; then
+	line="grown already (systemd-repart / growfs): $before"
+	[ "$MODE" = run ] && { mkdir -p "$ST"; echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) grown-by-repart $before" > "$ST/grown"; rm -f "$MARK"; }
+	say "$line"; exit 0
+fi
+# 0.28-17: a clear margin, else nothing is written: the root (partition or btrfs, the smaller) under half of the disk
+small=$pbytes; [ -n "$fs" ] && [ "$fs" -lt "$small" ] && small=$fs
+[ $(( small * 2 )) -lt $(( tot * ss )) ] || { say "not a generic first boot: the root ($(gib "$small")) already fills most of the disk ($(gib $(( tot * ss )))): nothing to do"; exit 0; }
+if [ "$MODE" = check ]; then say "check: would grow (table $tab, partition $prt, btrfs $fsst): $before"; exit 0; fi
+# 2. the table (the backup GPT to the end) and the root partition (start kept, end = the last usable block)
+r=ok
+if [ "$tab" = short ]; then "$SFDISK" --relocate gpt-bak-std "$DISK" > /dev/null 2>&1 || r="relocate failed"; fi
+if [ "$r" = ok ] && [ "$prt" = short ]; then
+	echo ", +" | "$SFDISK" --no-reread --no-tell-kernel -N "$part" "$DISK" > /dev/null 2>&1 || r="partition grow failed"
+	[ "$r" = ok ] && { "$PARTX" -u --nr "$part" "$DISK" > /dev/null 2>&1 || r="partx -u failed (the new size is used from the next boot)"; }
+fi
+d2=$("$SFDISK" --dump "$DISK" 2>/dev/null); pl2=$(echo "$d2" | grep -E "^${DISK}p?${part} : " | head -n 1)
+pst2=$(echo "$pl2" | sed -n 's/.*start= *\([0-9]*\).*/\1/p'); psz2=$(echo "$pl2" | sed -n 's/.*size= *\([0-9]*\).*/\1/p')
+[ "$pst2" = "$pst" ] && [ "${psz2:-0}" -ge "$psz" ] || r="$r; the root partition changed its start or shrank (stopped)"
+# 3. the file system
+if [ "$r" = ok ]; then "$BTRFS" filesystem resize max / > /dev/null 2>&1 || r="btrfs resize failed"; fi
+after="root partition $(gib $(( ${psz2:-0} * ss )))"
+if [ "$r" = ok ]; then mkdir -p "$ST"; echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) grown-by-iceland-grow ok: $before -> $after" > "$ST/grown"; rm -f "$MARK"; say "grew: $before -> $after"
+else say "NOT grown ($r): $before -> $after; no stamp, the next boot tries again"; fi
+exit 0
