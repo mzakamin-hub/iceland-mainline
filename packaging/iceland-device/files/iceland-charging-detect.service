@@ -1,0 +1,23 @@
+# iceland-device 0.28-16 (wf/r16): the charging mode of a power-on by the USB charger alone, from the PMIC's power-on
+# log (iceland-charging-detect). Up to 0.28-15 the generator read the log; at boot it never did (systemd's generator
+# sandbox / Fedora's generator SELinux domain), so the reading moved here: a plain service, once per boot, before the
+# display manager. A "charger" verdict isolates iceland-charging.target (the queued desktop start is dropped);
+# anything else leaves the boot unchanged. It can never hold the boot for more than TimeoutStartSec; a failure only
+# fails this unit (the display manager has no Requires= on it).
+# Pulled in by the package's own graphical.target.wants link (not a preset, not "enable"): it belongs to every
+# graphical boot; the off switches are iceland.charging=0 and CHARGING_PON=0 (/etc/iceland/boot.conf).
+# IgnoreOnIsolate + RemainAfterExit: its own isolate, and the charging mode's later isolate of graphical.target,
+# neither stop it nor start it again (the script also marks the boot in /run/iceland/charging-detect).
+[Unit]
+Description=OnePlus Pad 4: charging mode from the PMIC power-on log
+Documentation=file:///usr/libexec/iceland/iceland-charging-detect
+After=sys-kernel-debug.mount systemd-udev-trigger.service
+Before=display-manager.service gdm.service
+ConditionPathExists=!/etc/initrd-release
+IgnoreOnIsolate=yes
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/iceland/iceland-charging-detect
+TimeoutStartSec=30

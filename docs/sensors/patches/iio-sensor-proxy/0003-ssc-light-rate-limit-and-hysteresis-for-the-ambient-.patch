@@ -1,0 +1,262 @@
+From 5878741cbd259ae9fd477cadfaec2688142ee323 Mon Sep 17 00:00:00 2001
+From: mzak <mzak.amin@gmail.com>
+Date: Thu, 15 Oct 2026 17:22:32 +0300
+Subject: [PATCH] ssc-light: rate limit and hysteresis for the ambient light
+ level
+
+The SSC light sensor streams continuously at the rate the sensor hub
+advertises, and every sample was passed on. On the OnePlus Pad 4 that
+is 10 Hz, and indoor noise of about +-2 % makes every sample a new
+value: 100 LightLevel changes on D-Bus in 10 s with the tablet lying
+still (6.87 - 7.10 lux), each one waking gnome-settings-daemon's
+automatic brightness.
+
+Pass a level on only when it differs from the last one passed on by
+at least 5 % or 1 lux, whichever is larger, and at most every 500 ms;
+a significant change that comes too soon is held and passed on when
+the 500 ms are over (the latest level), unless the level went back by
+then. The first sample after an open always passes at once, so the
+startup notification and a client's first reading are unchanged. The
+accelerometer, compass and proximity drivers are not touched.
+
+SSC_LIGHT_FILTER=0 in the daemon's environment passes every sample on
+as before.
+
+The filter is plain C in ssc-light-filter.h so that it can be replayed
+on recorded samples without the daemon.
+---
+ src/drv-ssc-light.c    |  53 ++++++++++++++++--
+ src/ssc-light-filter.h | 119 +++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 169 insertions(+), 3 deletions(-)
+ create mode 100644 src/ssc-light-filter.h
+
+diff --git a/src/drv-ssc-light.c b/src/drv-ssc-light.c
+index 27c819f..1cd5506 100644
+--- a/src/drv-ssc-light.c
++++ b/src/drv-ssc-light.c
+@@ -18,9 +18,13 @@
+ #include <libssc-sensor.h>
+ #include <libssc-sensor-light.h>
+ 
++#include "ssc-light-filter.h"
++
+ typedef struct DrvData {
+ 	SSCSensorLight *sensor;
+ 	gulong measurement_id;
++	SscLightFilter filter;
++	guint flush_id;
+ } DrvData;
+ 
+ static gboolean
+@@ -45,16 +49,52 @@ ssc_light_discover (GUdevDevice *device)
+ }
+ 
+ static void
+-measurement_cb (SSCSensorLight *sensor, gfloat intensity, gpointer user_data)
++send_level (SensorDevice *sensor_device, gdouble level)
+ {
+-	SensorDevice *sensor_device = user_data;
+ 	LightReadings readings;
+ 
+-	readings.level = intensity;
++	readings.level = level;
+ 	readings.uses_lux = TRUE;
+ 	sensor_device->callback_func (sensor_device, (gpointer) &readings, sensor_device->user_data);
+ }
+ 
++static gboolean
++flush_cb (gpointer user_data)
++{
++	SensorDevice *sensor_device = user_data;
++	DrvData *drv_data = (DrvData *) sensor_device->priv;
++	gdouble level;
++
++	drv_data->flush_id = 0;
++	if (ssc_light_filter_flush (&drv_data->filter, g_get_monotonic_time (), &level))
++		send_level (sensor_device, level);
++
++	return G_SOURCE_REMOVE;
++}
++
++static void
++measurement_cb (SSCSensorLight *sensor, gfloat intensity, gpointer user_data)
++{
++	SensorDevice *sensor_device = user_data;
++	DrvData *drv_data = (DrvData *) sensor_device->priv;
++	gint64 now = g_get_monotonic_time ();
++	gint64 due = 0;
++
++	switch (ssc_light_filter_feed (&drv_data->filter, intensity, now, &due)) {
++	case SSC_LIGHT_FILTER_PASS:
++		g_clear_handle_id (&drv_data->flush_id, g_source_remove);
++		send_level (sensor_device, intensity);
++		break;
++	case SSC_LIGHT_FILTER_HOLD:
++		if (!drv_data->flush_id)
++			drv_data->flush_id = g_timeout_add (MAX ((due - now + 999) / 1000, 1), flush_cb, sensor_device);
++		break;
++	case SSC_LIGHT_FILTER_DROP:
++		g_clear_handle_id (&drv_data->flush_id, g_source_remove);
++		break;
++	}
++}
++
+ static SensorDevice *
+ ssc_light_open (GUdevDevice *device)
+ {
+@@ -66,6 +106,10 @@ ssc_light_open (GUdevDevice *device)
+ 	sensor_device->priv = g_new0 (DrvData, 1);
+ 
+ 	drv_data = (DrvData *) sensor_device->priv;
++	/* SSC_LIGHT_FILTER=0 in the environment: every sample is passed on, as before */
++	ssc_light_filter_init (&drv_data->filter, g_strcmp0 (g_getenv ("SSC_LIGHT_FILTER"), "0") != 0);
++	if (!drv_data->filter.enabled)
++		g_debug ("SSC light: rate limit and hysteresis off (SSC_LIGHT_FILTER=0)");
+ 	drv_data->sensor = ssc_sensor_light_new_sync (NULL, &error);
+ 	if (!drv_data->sensor)
+ 		g_warning ("Creating SSC light sensor failed: %s", error->message);
+@@ -99,6 +143,8 @@ ssc_light_set_polling (SensorDevice *sensor_device, gboolean state)
+ 
+ 		/* Stop listening for measurements */
+ 		g_clear_signal_handler (&drv_data->measurement_id, drv_data->sensor);
++		g_clear_handle_id (&drv_data->flush_id, g_source_remove);
++		ssc_light_filter_reset (&drv_data->filter);
+ 
+ 		/* Disable sensor */
+ 		if (!ssc_sensor_light_close_sync (drv_data->sensor, NULL, &error))
+@@ -112,6 +158,7 @@ ssc_light_close (SensorDevice *sensor_device)
+ 	g_autoptr(GError) error = NULL;
+ 	DrvData *drv_data = (DrvData *) sensor_device->priv;
+ 
++	g_clear_handle_id (&drv_data->flush_id, g_source_remove);
+ 	g_clear_object (&drv_data->sensor);
+ 	g_clear_pointer (&sensor_device->priv, g_free);
+ 	g_free (sensor_device);
+diff --git a/src/ssc-light-filter.h b/src/ssc-light-filter.h
+new file mode 100644
+index 0000000..a64c819
+--- /dev/null
++++ b/src/ssc-light-filter.h
+@@ -0,0 +1,119 @@
++/*
++ * Copyright (c) 2026 mzak
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 3 as published by
++ * the Free Software Foundation.
++ *
++ * Rate limit and hysteresis for the SSC ambient light sensor.
++ *
++ * The sensor hub streams the light sensor continuously at the rate it
++ * advertises (10 Hz on the OnePlus Pad 4), and every sample differs from the
++ * previous one by a little noise (about +-2 % indoors), so every sample became
++ * a LightLevel change on D-Bus. A level is passed on only when it differs from
++ * the last one passed on by at least a relative step (default 5 %) or an
++ * absolute floor (default 1 lux), whichever is larger, and at most once per
++ * interval (default 500 ms). A significant change that comes too soon is held
++ * and passed on when the interval is over (unless the level went back by then).
++ * The first sample after an open is always passed on at once.
++ *
++ * Plain C, no GLib: the replay test builds this header on its own.
++ */
++
++#pragma once
++
++#include <math.h>
++#include <stdint.h>
++
++#define SSC_LIGHT_FILTER_INTERVAL_US	500000
++#define SSC_LIGHT_FILTER_REL		0.05
++#define SSC_LIGHT_FILTER_ABS		1.0
++
++typedef enum {
++	SSC_LIGHT_FILTER_DROP,		/* not significant: nothing to do */
++	SSC_LIGHT_FILTER_PASS,		/* pass this level on now */
++	SSC_LIGHT_FILTER_HOLD,		/* significant but too soon: flush at *due_us */
++} SscLightFilterResult;
++
++typedef struct {
++	int enabled;
++	int64_t interval_us;
++	double rel;
++	double abs;
++	int have_sent;
++	double sent;
++	int64_t sent_us;
++	int have_pending;
++	double pending;
++} SscLightFilter;
++
++static inline void
++ssc_light_filter_init (SscLightFilter *f, int enabled)
++{
++	f->enabled = enabled;
++	f->interval_us = SSC_LIGHT_FILTER_INTERVAL_US;
++	f->rel = SSC_LIGHT_FILTER_REL;
++	f->abs = SSC_LIGHT_FILTER_ABS;
++	f->have_sent = 0;
++	f->sent = 0.0;
++	f->sent_us = 0;
++	f->have_pending = 0;
++	f->pending = 0.0;
++}
++
++/* forget the last level (the sensor was closed): the next sample passes */
++static inline void
++ssc_light_filter_reset (SscLightFilter *f)
++{
++	f->have_sent = 0;
++	f->have_pending = 0;
++}
++
++static inline int
++ssc_light_filter_significant (const SscLightFilter *f, double level)
++{
++	double step = f->rel * fabs (f->sent);
++
++	if (step < f->abs)
++		step = f->abs;
++	return fabs (level - f->sent) >= step;
++}
++
++static inline SscLightFilterResult
++ssc_light_filter_feed (SscLightFilter *f, double level, int64_t now_us, int64_t *due_us)
++{
++	if (!f->enabled || !f->have_sent) {
++		f->have_sent = 1;
++		f->sent = level;
++		f->sent_us = now_us;
++		f->have_pending = 0;
++		return SSC_LIGHT_FILTER_PASS;
++	}
++	if (!ssc_light_filter_significant (f, level)) {
++		f->have_pending = 0;
++		return SSC_LIGHT_FILTER_DROP;
++	}
++	if (now_us - f->sent_us >= f->interval_us) {
++		f->sent = level;
++		f->sent_us = now_us;
++		f->have_pending = 0;
++		return SSC_LIGHT_FILTER_PASS;
++	}
++	f->have_pending = 1;
++	f->pending = level;
++	*due_us = f->sent_us + f->interval_us;
++	return SSC_LIGHT_FILTER_HOLD;
++}
++
++/* the interval of a held level is over: 1 and *level when it is to be passed on */
++static inline int
++ssc_light_filter_flush (SscLightFilter *f, int64_t now_us, double *level)
++{
++	if (!f->have_pending)
++		return 0;
++	f->have_pending = 0;
++	f->sent = f->pending;
++	f->sent_us = now_us;
++	*level = f->pending;
++	return 1;
++}
+-- 
+2.43.0
+

@@ -1,0 +1,11 @@
+# iceland-device 0.28-16 (wf/r16): one check of the sensor programs (iceland-ssc-watch), run by iceland-ssc-watch.timer.
+[Unit]
+Description=OnePlus Pad 4: start the sensor programs again if they stopped
+Documentation=file:///usr/libexec/iceland/iceland-ssc-watch
+ConditionPathIsDirectory=/usr/share/qcom/kaanapali/OnePlus/iceland/sensors/registry
+ConditionPathExists=/dev/fastrpc-adsp
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/iceland/iceland-ssc-watch
+TimeoutStartSec=20

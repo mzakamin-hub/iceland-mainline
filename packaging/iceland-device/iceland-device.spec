@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        15%{?dist}
+Release:        16%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -182,6 +182,13 @@ Source167:      iceland-charging
 Source168:      iceland-pon-log
 # 0.28-15: the managed kernel options for a new kernel's entry (iceland-cmdline after kernel-install)
 Source169:      97-iceland-cmdline.install
+# 0.28-16 (wf/r16): the PON log is read by a service before the display manager, no longer by the generator
+Source170:      iceland-charging-detect
+Source171:      iceland-charging-detect.service
+# 0.28-16: the sensor programs are started again when they stopped and nothing else starts them
+Source172:      iceland-ssc-watch
+Source173:      iceland-ssc-watch.service
+Source174:      iceland-ssc-watch.timer
 
 Requires:       kernel-iceland
 Requires:       bluez
@@ -380,6 +387,15 @@ install -Dm0644 %{SOURCE165} %{buildroot}/usr/lib/systemd/system/iceland-chargin
 install -Dm0644 %{SOURCE166} %{buildroot}/usr/lib/systemd/system/iceland-charging.service
 install -Dm0755 %{SOURCE167} %{buildroot}/usr/libexec/iceland/iceland-charging
 install -Dm0755 %{SOURCE168} %{buildroot}/usr/libexec/iceland/iceland-pon-log
+install -Dm0755 %{SOURCE170} %{buildroot}/usr/libexec/iceland/iceland-charging-detect
+install -Dm0644 %{SOURCE171} %{buildroot}/usr/lib/systemd/system/iceland-charging-detect.service
+install -Dm0755 %{SOURCE172} %{buildroot}/usr/libexec/iceland/iceland-ssc-watch
+install -Dm0644 %{SOURCE173} %{buildroot}/usr/lib/systemd/system/iceland-ssc-watch.service
+install -Dm0644 %{SOURCE174} %{buildroot}/usr/lib/systemd/system/iceland-ssc-watch.timer
+# static links (not a preset, not "enable"): part of every graphical boot / every boot
+install -d %{buildroot}/usr/lib/systemd/system/graphical.target.wants %{buildroot}/usr/lib/systemd/system/timers.target.wants
+ln -s ../iceland-charging-detect.service %{buildroot}/usr/lib/systemd/system/graphical.target.wants/iceland-charging-detect.service
+ln -s ../iceland-ssc-watch.timer %{buildroot}/usr/lib/systemd/system/timers.target.wants/iceland-ssc-watch.timer
 install -Dm0644 %{SOURCE53} %{buildroot}/usr/lib/systemd/logind.conf.d/60-iceland.conf
 
 install -Dm0644 %{SOURCE62} %{buildroot}/usr/lib/udev/rules.d/59-iceland-storage-ro.rules
@@ -491,6 +507,8 @@ if [ -d /run/systemd/system ]; then udevadm control --reload >/dev/null 2>&1 || 
 # a running guard or thermal policy takes the new version at once (both start at boot; an installation alone
 # does not start them)
 if [ -d /run/systemd/system ]; then systemctl daemon-reload >/dev/null 2>&1 || :; systemctl try-restart iceland-battery-guard.service iceland-thermal.service >/dev/null 2>&1 || :; systemctl start iceland-launchboost.service >/dev/null 2>&1 || :; fi
+# 0.28-16: the sensor watch runs from now on (its timer is linked into timers.target.wants)
+[ -d /run/systemd/system ] && systemctl start iceland-ssc-watch.timer >/dev/null 2>&1 || :
 systemctl --global enable iceland-refresh.service iceland-charge-alert.service iceland-speaker-default.service >/dev/null 2>&1 || :
 # bypass charging: the bus reads the D-Bus policy of iceland-bypassd again (the service starts on demand); a running
 # one takes the new version. polkit sees the new action by itself; the GSettings override is compiled by glib2's
@@ -646,6 +664,13 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/lib/systemd/system/iceland-charging.service
 /usr/libexec/iceland/iceland-charging
 /usr/libexec/iceland/iceland-pon-log
+/usr/libexec/iceland/iceland-charging-detect
+/usr/lib/systemd/system/iceland-charging-detect.service
+/usr/lib/systemd/system/graphical.target.wants/iceland-charging-detect.service
+/usr/libexec/iceland/iceland-ssc-watch
+/usr/lib/systemd/system/iceland-ssc-watch.service
+/usr/lib/systemd/system/iceland-ssc-watch.timer
+/usr/lib/systemd/system/timers.target.wants/iceland-ssc-watch.timer
 /usr/lib/systemd/system-preset/50-iceland.preset
 %dir /usr/share/selinux/packages/iceland
 /usr/share/selinux/packages/iceland/iceland_sensors.pp
@@ -698,6 +723,29 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
 
 %changelog
+* Thu Oct 15 2026 mzak <mzak.amin@gmail.com> - 0.28-16
+- charging mode (wf/r16): the 0.28-15 generator never wrote its "PMIC PON log" line at boot on the installed tablet,
+  although the same command worked by hand as root. Generators run in systemd 258's sandbox (own mount namespace,
+  / read only, private /tmp) and, on Fedora, in the confined SELinux domain systemd_generator_t, while the reader
+  needs python3, debugfs (or unshare + a debugfs mount) and the PMIC's regmap. The PON log is now read by the new
+  iceland-charging-detect.service: a plain oneshot service of every graphical boot (a static link in
+  graphical.target.wants), ordered before display-manager.service / gdm.service, after sys-kernel-debug.mount;
+  verdict charger -> systemctl --no-block isolate iceland-charging.target (the queued desktop start is dropped),
+  anything else -> the boot goes on unchanged; at most about 10 s (reader timeout 6 s, retries for 4 s while it
+  says unknown), TimeoutStartSec=30, a failure fails only this unit. Exactly one "iceland-charging-detect: ..."
+  line per boot in the kernel log; never twice in a boot (/run/iceland/charging-detect, RemainAfterExit,
+  IgnoreOnIsolate), never once the display manager runs, never with a target / run level on the command line, a
+  missing target or guard unit, a masked guard. Off switches unchanged: iceland.charging=0, CHARGING_PON=0
+  (boot.conf's comment still names the generator; the setting is read by the service now)
+- iceland-charging-generator: ABL's /chosen/u-boot,abl-boot-mode = charger and iceland.charging=1 only (no PON
+  read, no python, no debugfs); as before 0.28-15 for those
+- sensors: iio-sensor-proxy and hexagonrpcd (adsp sensorspd) get IgnoreOnIsolate=yes: an isolate (the charging
+  mode's way in and out) stopped these udev-started units and nothing started them again; the new
+  iceland-ssc-watch.timer (every minute from
+  90 s after the boot, AccuracySec 30 s) starts hexagonrpcd + iio-sensor-proxy again when the proxy is down with
+  the sensor hub there and no systemd job pending (at most 5 times per boot, one log line each;
+  /run/iceland/sensors-off keeps them down). Field finding of 15 Oct: the proxy was stopped cleanly about 5 min
+  after the boot and stayed down (no Automatic Brightness switch, no light events)
 * Thu Oct 15 2026 mzak <mzak.amin@gmail.com> - 0.28-15
 - charging mode (wf/chgmode2): on the installed tablet a power-off with the cable in started the desktop (and U-Boot
   v4's menu). Two causes: this ABL did not hand over "charger" (U-Boot showed its menu), and even if it had, the

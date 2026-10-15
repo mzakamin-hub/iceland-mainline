@@ -1,0 +1,89 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-charging-detect (iceland-device 0.28-16, wf/r16): a power-on by the USB charger alone boots into the
+# charging mode - read from the PMIC's own power-on log, once per boot, before the display manager.
+#
+# Run by iceland-charging-detect.service (graphical.target, before display-manager.service; a plain service, so not
+# under the generator sandbox and the SELinux generator domain that kept the 0.28-15 generator from reading the log).
+# /usr/libexec/iceland/iceland-pon-log reads the PMK8850's PON log read only (SPMI and the PMIC driver are built in;
+# debugfs is mounted by sys-kernel-debug.mount, else the reader mounts it in a private namespace).
+# Verdict "charger" -> systemctl --no-block isolate iceland-charging.target: the queued display manager start is
+# dropped, multi-user.target (the battery guard, the thermal policy, the charger services) stays, and
+# iceland-charging.service keeps the panel dark, powers off when the cable is pulled, starts the desktop at the power
+# key. Anything else (normal, unknown, no answer, a timeout) -> nothing: the boot goes on unchanged.
+#
+# Exactly one line per boot in the kernel log (journalctl -b -k), "iceland-charging-detect: ...":
+#   PMIC PON log: <verdict> ... (ABL boot mode: x) -> <decision>     when the log was read
+#   or why it was not read (iceland.charging=0, CHARGING_PON=0, the generator's choice, no reader).
+# Never acts twice in a boot (RUN/charging-detect marks the boot; a later start, e.g. when the charging mode's power
+# key isolates graphical.target, only exits), never acts once the display manager is up, never with a target or
+# run level on the command line, a missing target / guard unit or a masked guard.
+# Off switches: iceland.charging=0 on the kernel command line (nothing is read), CHARGING_PON=0 in
+# /etc/iceland/boot.conf (the log is not read; ABL's mode and iceland.charging=1 stay the generator's).
+# Exit 0 always. Test hooks: ICELAND_CMDLINE ICELAND_DT_CHOSEN ICELAND_UNITDIR ICELAND_ETCDIR ICELAND_KMSG
+# ICELAND_PON_LOG ICELAND_BOOT_CONF ICELAND_PON_TIMEOUT ICELAND_PON_WAIT ICELAND_EARLY ICELAND_RUN ICELAND_SYSTEMCTL.
+CMDLINE=${ICELAND_CMDLINE:-/proc/cmdline}
+DT=${ICELAND_DT_CHOSEN:-/proc/device-tree/chosen}
+UNITDIR=${ICELAND_UNITDIR:-/usr/lib/systemd/system}
+ETCDIR=${ICELAND_ETCDIR:-/etc/systemd/system}
+KMSG=${ICELAND_KMSG:-/dev/kmsg}
+PONLOG=${ICELAND_PON_LOG:-/usr/libexec/iceland/iceland-pon-log}
+BOOTCONF=${ICELAND_BOOT_CONF:-/etc/iceland/boot.conf}
+PONTIMEOUT=${ICELAND_PON_TIMEOUT:-6}
+PONWAIT=${ICELAND_PON_WAIT:-4}
+EARLY=${ICELAND_EARLY:-/run/systemd/generator.early}
+RUN=${ICELAND_RUN:-/run/iceland}
+SYSTEMCTL=${ICELAND_SYSTEMCTL:-systemctl}
+TARGET=iceland-charging.target
+GUARD=iceland-battery-guard.service
+MARK=$RUN/charging-detect
+log() {
+	printf '<6>iceland-charging-detect: %s\n' "$*" >> "$KMSG" 2>/dev/null || printf 'iceland-charging-detect: %s\n' "$*"
+}
+done_() { printf '%s\n' "$*" > "$MARK" 2>/dev/null; log "$*"; exit 0; }
+
+[ -e "$MARK" ] && exit 0
+mkdir -p "$RUN" 2>/dev/null
+mode=
+[ -r "$DT/u-boot,abl-boot-mode" ] && mode=$(tr '\000' '\n' < "$DT/u-boot,abl-boot-mode" 2>/dev/null | head -n 1 | head -c 32)
+cl=" $(cat "$CMDLINE" 2>/dev/null) "
+case "$cl" in *" iceland.charging=0 "*) done_ "iceland.charging=0 on the command line: the PMIC PON log is not read, the normal boot" ;; esac
+case "$(readlink "$EARLY/default.target" 2>/dev/null)" in
+*/$TARGET) done_ "iceland-charging-generator chose $TARGET at boot (ABL boot mode: ${mode:-none}; iceland.charging=1: $(case "$cl" in *" iceland.charging=1 "*) echo yes ;; *) echo no ;; esac)): the PMIC PON log is not read" ;;
+esac
+grep -q '^CHARGING_PON=0[[:space:]]*$' "$BOOTCONF" 2>/dev/null && done_ "CHARGING_PON=0 in $BOOTCONF: the PMIC PON log is not read, the normal boot"
+[ -x "$PONLOG" ] || done_ "no $PONLOG: the normal boot"
+
+# read the log; an "unknown" (the PMIC's regmap not there yet, debugfs not mounted yet) is tried again for PONWAIT s
+t0=$(cut -d. -f1 /proc/uptime 2>/dev/null || echo 0)
+tries=0
+while :; do
+	tries=$((tries + 1))
+	pon=$(timeout -k 2 "$PONTIMEOUT" "$PONLOG" --verdict 2>/dev/null | head -n 1 | head -c 300)
+	case "$pon" in charger\ *|normal\ *) break ;; esac
+	now=$(cut -d. -f1 /proc/uptime 2>/dev/null || echo 0)
+	[ $((now - t0)) -lt "$PONWAIT" ] || break
+	sleep 1
+done
+[ "$tries" -gt 1 ] && pon="$pon (try $tries)"
+say="PMIC PON log: ${pon:-no answer} (ABL boot mode: ${mode:-none})"
+case "$pon" in charger\ *) ;; *) done_ "$say -> the normal boot" ;; esac
+
+for a in $cl; do
+	case "$a" in
+	systemd.unit=*|rescue|emergency|single|s|S|1|2|3|4|5|-s|-b)
+		done_ "$say -> the normal boot: the command line names its own target ($a)" ;;
+	esac
+done
+{ [ -f "$UNITDIR/$TARGET" ] && [ -f "$UNITDIR/$GUARD" ]; } || done_ "$say -> the normal boot: $TARGET or $GUARD is missing"
+[ "$(readlink "$ETCDIR/$GUARD" 2>/dev/null)" = /dev/null ] && done_ "$say -> the normal boot: $GUARD is masked"
+case "$($SYSTEMCTL is-active display-manager.service 2>/dev/null)" in
+active|reloading|deactivating) done_ "$say -> the normal boot: the display manager runs already" ;;
+esac
+printf 'charging mode\n' > "$MARK" 2>/dev/null
+if err=$($SYSTEMCTL --no-block isolate "$TARGET" 2>&1); then
+	log "$say -> the charging mode: $TARGET (no desktop; the power key starts it, pulling the cable powers off)"
+else
+	log "$say -> the normal boot: systemctl isolate $TARGET failed: $err"
+fi
+exit 0

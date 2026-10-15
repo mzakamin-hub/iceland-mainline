@@ -6,7 +6,7 @@
 
 Name:           iio-sensor-proxy
 Version:        3.9
-Release:        10.iceland1%{?dist}
+Release:        11.iceland1%{?dist}
 Summary:        IIO accelerometer sensor to input device proxy
 License:        GPL-3.0-or-later
 URL:            https://gitlab.freedesktop.org/hadess/iio-sensor-proxy
@@ -16,6 +16,9 @@ Patch1:         0001-main-poll-sensors-claimed-during-the-initial-discove.patch
 # mutter 50 never claims an accelerometer it sees at once after a boot in touch mode: HasAccelerometer is held
 # back until the client has claimed, or for 2 s after it looked (a mutter that waits for it: daemon restart)
 Patch2:         0002-main-hold-back-HasAccelerometer-until-a-client-has-c.patch
+# the SSC light sensor streams at 10 Hz with +-2 % noise: a level is passed on only at a 5 % / 1 lux step, at most
+# every 500 ms (SSC_LIGHT_FILTER=0 in the environment: every sample, as before)
+Patch3:         0003-ssc-light-rate-limit-and-hysteresis-for-the-ambient-.patch
 
 BuildRequires:  gcc
 BuildRequires:  meson
@@ -67,6 +70,12 @@ This build reads the sensors of Qualcomm's sensor hub (SSC) through libssc.
 %{_datadir}/polkit-1/actions/net.hadess.SensorProxy.policy
 
 %changelog
+* Thu Oct 15 2026 mzak <mzak.amin@gmail.com> - 3.9-11.iceland1
+- the SSC ambient light level is passed on only when it changed by 5 % or 1 lux (the larger), at most every
+  500 ms; a change that comes too soon is passed on when the 500 ms are over (local patch 0003). On the Pad 4 the
+  sensor hub streams the light sensor at 10 Hz and indoor noise made every sample a LightLevel change: 100 in 10 s
+  with the tablet still, each waking gnome-settings-daemon's automatic brightness. SSC_LIGHT_FILTER=0 in the
+  daemon's environment turns it off
 * Fri Oct 02 2026 mzak <mzak.amin@gmail.com> - 3.9-10.iceland1
 - 3.9 with SSC support (libssc) for the OnePlus Pad 4
 - sensors claimed during the initial discovery are polled (local patch 0001)

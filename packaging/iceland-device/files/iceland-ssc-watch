@@ -1,0 +1,46 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-ssc-watch (iceland-device 0.28-16, wf/r16): start the sensor programs again when they stopped and nothing
+# is going to start them.
+#
+# Field finding (15 Oct 2026, q89i / 0.28-15): about 5 minutes after the boot iio-sensor-proxy was stopped cleanly
+# ("Stopping iio-sensor-proxy.service ... Deactivated successfully") and stayed down: GNOME lost the light sensor
+# (no Automatic Brightness switch) and the accelerometer. The proxy is a static unit started by udev
+# (81-iceland-ssc.rules, SYSTEMD_WANTS on /dev/fastrpc-adsp) - nothing starts it again after a stop that is not a
+# failure (Restart=always only covers a crash): a suspend whose resume unit did not run, a "systemctl isolate"
+# (0.28-16: both sensor units now have IgnoreOnIsolate=yes), a stop by hand or by a package script.
+# Run by iceland-ssc-watch.timer (every minute, from 90 s after the boot; timers do not fire during a suspend).
+# Does nothing when: the DSP tree or /dev/fastrpc-adsp is missing; the proxy is active / activating / deactivating;
+# systemd has any job queued (a boot, a suspend, a restart in progress: that path decides); the unit is masked or not
+# loaded; /run/iceland/sensors-off exists (test / owner switch: keep the sensors down until it is removed); or it
+# already started them MAX times in this boot (then one "giving up" line). Else it removes the sleep hook's stale
+# mark, resets a failed state and starts hexagonrpcd + iio-sensor-proxy (no-block), with one log line.
+# Exit 0 always. Test hooks: ICELAND_RUN ICELAND_DEV ICELAND_TREE ICELAND_SYSTEMCTL ICELAND_SSC_WATCH_MAX.
+RUN=${ICELAND_RUN:-/run/iceland}
+DEV=${ICELAND_DEV:-/dev/fastrpc-adsp}
+TREE=${ICELAND_TREE:-/usr/share/qcom/kaanapali/OnePlus/iceland/sensors/registry}
+SYSTEMCTL=${ICELAND_SYSTEMCTL:-systemctl}
+MAX=${ICELAND_SSC_WATCH_MAX:-5}
+P=iio-sensor-proxy.service
+H=hexagonrpcd-adsp-sensorspd.service
+COUNT=$RUN/ssc-watch-starts
+log() { logger -t iceland-ssc-watch -- "$*" 2>/dev/null || echo "iceland-ssc-watch: $*"; }
+
+[ -e "$RUN/sensors-off" ] && exit 0
+[ -d "$TREE" ] && [ -e "$DEV" ] || exit 0
+st=$($SYSTEMCTL is-active "$P" 2>/dev/null)
+case "$st" in active|activating|deactivating|reloading|refreshing) exit 0 ;; esac
+[ -n "$($SYSTEMCTL list-jobs --no-legend 2>/dev/null | head -n 1)" ] && exit 0
+[ "$($SYSTEMCTL show -P LoadState "$P" 2>/dev/null)" = loaded ] || exit 0
+n=$(cat "$COUNT" 2>/dev/null); case "$n" in ''|*[!0-9]*) n=0 ;; esac
+if [ "$n" -ge "$MAX" ]; then
+	[ "$n" = "$MAX" ] && { log "$P is $st again after $MAX starts in this boot: giving up until the next boot"; mkdir -p "$RUN"; echo $((n + 1)) > "$COUNT"; }
+	exit 0
+fi
+mkdir -p "$RUN" && echo $((n + 1)) > "$COUNT"
+res=$($SYSTEMCTL show -P Result "$P" 2>/dev/null)
+rm -f "$RUN/sensors-stopped"
+[ "$st" = failed ] && $SYSTEMCTL reset-failed "$P" 2>/dev/null
+log "$P was $st (result ${res:-?}) with the sensor hub there: starting $H and $P again (start $((n + 1)) of $MAX in this boot)"
+$SYSTEMCTL --no-block start "$H" "$P" 2>/dev/null || log "systemctl start $H $P failed"
+exit 0
