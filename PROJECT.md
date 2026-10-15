@@ -30,8 +30,8 @@ and what the project knows is in [docs/KNOWLEDGE.md](docs/KNOWLEDGE.md). The por
 | Install on the tablet: Fedora 44 GNOME in `userdata`, U-Boot in `boot_b` | done 13 Oct 2026 |
 | Dual boot with Android | not started (decision: Fedora only) |
 
-The feature matrix ([docs/FEATURES.md](docs/FEATURES.md), page v62, 14 Oct) has 104 rows: 83 working, 13 partly working,
-5 to do, 3 out of scope.
+The feature matrix ([docs/FEATURES.md](docs/FEATURES.md), page v64, 15 Oct) has 104 rows: 84 working, 14 partly working,
+4 to do, 2 out of scope.
 
 ## Our repositories (public, GitHub user `mzakamin-hub`)
 
