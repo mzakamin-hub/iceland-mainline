@@ -32,7 +32,7 @@ $devs = @(& $fb devices 2>&1 | Where-Object { "$_" -match '\sfastboot$' })
 if ($devs.Count -ne 1) { Write-Host 'need exactly one fastboot device'; exit 1 }
 if ((Var 'product') -ne 'canoe') { Write-Host 'not the OnePlus Pad 4 bootloader (product canoe)'; exit 1 }
 if ((Var 'unlocked') -ne 'yes') { Write-Host 'bootloader locked'; exit 1 }
-$slot = Var 'current-slot'
+$slot = (Var 'current-slot')
 if ($slot -notin @('a', 'b')) { Write-Host "unknown current slot '$slot'"; exit 1 }
 $part = "recovery_$slot"
 
