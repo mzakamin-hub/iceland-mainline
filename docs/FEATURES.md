@@ -31,7 +31,7 @@ This list shows the 85 features that work today, sorted by functionality. Featur
 
 | Feature | What works |
 |---|---|
-| Native display 3392×2400, dual DSI + DSC | The panel runs at its native 3392×2400 over dual DSI with DSC; the boot splash hands over to the MSM DRM driver. Since kernel 00436 the flicker in the lower quarter of the screen with automatic brightness is gone. |
+| Native display 3392×2400, dual DSI + DSC | The panel runs at its native 3392×2400 over dual DSI with DSC; the boot splash hands over to the MSM DRM driver. Since kernel 00436 the flicker in the lower quarter of the screen with automatic brightness is gone; kernel 00453 adds fixes for the display state after a screen blank. |
 | Refresh 30 / 60 / 90 / 120 / 144 Hz | Live rate changes keep the picture; GPU-drawn frames are paced exactly at 60, 120 and 144 Hz. |
 | Backlight | Both backlight chips are programmed as on stock. GNOME's brightness slider and automatic brightness work; the thermal limit lowers only what the chips get, so the slider keeps the user's value. |
 | Display wake from sleep | The picture comes back after every wake from sleep (16 of 16 wakes tested), with no display timeouts at suspend entry. |
@@ -71,7 +71,7 @@ This list shows the 85 features that work today, sorted by functionality. Featur
 | Feature | What works |
 |---|---|
 | Wi-Fi 2.4 GHz | Connects and reconnects after a drop; the regulatory domain is set before registration, and the Wi-Fi address is stable across boots. |
-| Wi-Fi 5 / 6 GHz | Connects on 5 GHz networks (Wi-Fi 6 GHz not tested yet). |
+| Wi-Fi 5 / 6 GHz | Connects on 5 GHz networks: an 80 MHz link at about 650-780 Mbit/s link rate, downloads above 100 Mbit/s (Wi-Fi 6 GHz not tested yet). |
 | Bluetooth, own address | The controller comes up powered with the tablet's own address, also after rfkill cycles. |
 | Bluetooth pairing in GNOME | Pairing works from GNOME's settings, and scans find devices. |
 | USB device mode / USB network | USB device mode (USB 2 speed) and a USB network link to a PC work; the controller runtime-suspends when nothing is attached. |
@@ -121,7 +121,7 @@ This list shows the 85 features that work today, sorted by functionality. Featur
 | Feature | What works |
 |---|---|
 | Rear flash LEDs | Both LEDs work as a torch. |
-| Accelerometer, compass, light / proximity | All four sensor types appear at boot through the ADSP sensor hub (hexagonrpc, libssc, iio-sensor-proxy 3.9-11.iceland1). The stream stops across sleep, and the light sensor is filtered to steady values. |
+| Accelerometer, compass, light / proximity | All four sensor types appear at boot through the ADSP sensor hub (hexagonrpc 1.iceland2, libssc, iio-sensor-proxy 3.9-11.iceland1). The stream stops across sleep, the light sensor is filtered to steady values, and the login screen no longer holds the light sensor. |
 | Gyroscope (sensor hub) | Read through the sensor hub at about 24 Hz, with a mean near 0 rad/s at rest. |
 | Cameras (13 MP rear, 8 MP front) | The 13 MP rear (SC1320CS) and 8 MP front (SC820CS) cameras stream through Fedora's libcamera 0.7.1-2, with the orientation matching the display; the rear lens actuator is powered only while streaming. |
 | Camera app on the installed image | GNOME Camera (Snapshot) works with both cameras (40 of 40 open / close cycles clean). |
@@ -131,7 +131,7 @@ This list shows the 85 features that work today, sorted by functionality. Featur
 | Feature | What works |
 |---|---|
 | Kernel package (kernel-iceland) | kernel-iceland RPMs (current 7.3.0~rc7.iceland.00453) install and update with dnf on the installed system: a new kernel boots once as a trial and becomes the default after a confirmed boot. The camera and backlight modules are included; no firmware is inside. The kernel and the package record a neutral build host name. |
-| Device package (iceland-device) | iceland-device 0.28-16 carries the tablet's settings: the battery guard, the thermal policy, the sound chain, the sensor and Bluetooth address services, the power-key handling and the power-saving boot options. |
+| Device package (iceland-device) | iceland-device 0.28-20 carries the tablet's settings: the battery guard, the thermal policy, the sound chain, the sensor and Bluetooth address services, the power-key handling, the GPU firmware choice and the power-saving boot options. |
 | Update policy and minimal package holds | Fedora 44 updates normally, with a read-only snapshot before each transaction and a GRUB rollback entry. Kernels and the project's packages come only from the local repository, and the release is pinned to 44. |
 | Stock-values audit | 1,249 values compared with stock: nothing above stock in the battery, charger, thermal, CPU or GPU tables, and all six amplifiers at stock. |
 | GNOME About page (model, processor) | Shows “OnePlus Pad 4” and “Qualcomm Oryon × 8”. |
