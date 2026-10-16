@@ -49,7 +49,7 @@ IGNORE = ["kernel", "kernel-core", "kernel-modules", "kernel-modules-core", "ker
           "dracut-config-rescue", "dracut-config-generic", "uboot-images-*", "bcm283x-firmware", "bcm283x-overlays",
           "bcm2711-firmware", "bcm2712-firmware", "bcm2835-firmware", "fwupd-efi", "fwupd-plugin-uefi-capsule-data",
           "gnome-boxes", "hyperv-daemons", "open-vm-tools*", "qemu-guest-agent", "spice-vdagent", "spice-webdavd"]
-BOOTSTRAP = ["filesystem", "basesystem", "setup", "glibc-langpack-en", "dnf5", "rpm", "coreutils", "bash",
+BOOTSTRAP = ["filesystem", "basesystem", "setup", "glibc-all-langpacks", "dnf5", "rpm", "coreutils", "bash",
              "ca-certificates", "fedora-gpg-keys", "fedora-repos",
              # B149 has systemd-sysusers: without it the bootstrap pulls systemd-standalone-sysusers, which then
              # conflicts with the image phase's systemd-sysusers
@@ -79,7 +79,7 @@ TEMPLATE = """<?xml version="1.0" encoding="utf-8"?>
               bootpartition="true" bootpartsize="2000" bootfilesystem="ext4"
               btrfs_root_is_subvolume="true" btrfs_set_default_volume="false" fsmountoptions="compress=zstd:1"
               rootfs_label="fedora" devicepersistency="by-uuid" initrd_system="none"
-              kernelcmdline="ro rootflags=subvol=root rhgb quiet" editbootinstall="edit_boot_install.sh">
+              kernelcmdline="ro rhgb quiet" editbootinstall="edit_boot_install.sh">
             <bootloader name="grub2" timeout="3" bls="true"/>
             <oemconfig>
                 <oem-resize>false</oem-resize>

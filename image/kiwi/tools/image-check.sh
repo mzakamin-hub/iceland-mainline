@@ -38,7 +38,7 @@ t=$(blkid -o value -s TYPE "$P1")/$(blkid -o value -s TYPE "$P2")/$(blkid -o val
 pt=$(python3 -I -c 'import json,sys; m=json.load(open(sys.argv[1])); print(" ".join(p["type"][:8]+"/"+p["name"].replace(" ","_") for p in m["partitions"]))' "$J")
 [ "$pt" = "c12a7328/EFI_System_Partition bc13c2ff/boot b921b045/root" ] && row PASS "layout: GPT types + names as B149" || row FAIL "layout: GPT $pt"
 mount -o ro,subvolid=5,rescue=nologreplay "$P3" "$MNT" || { echo "image-check: mount top level failed"; exit 2; }
-sv=$(btrfs subvolume list -t "$MNT" 2>/dev/null | awk 'NR > 2 {print $4 ":" $NF}' | sort | tr '\n' ' ')
+sv=$(btrfs subvolume list -t "$MNT" 2>/dev/null | awk 'NR > 2 {print $3 ":" $NF}' | sort | tr '\n' ' ')
 case "$sv" in "5:home 5:root 5:var ") row PASS "layout: btrfs top-level subvolumes root home var" ;; *) row FAIL "layout: btrfs subvolumes '$sv' (want root home var under 5)" ;; esac
 umount "$MNT"
 mount -o ro,subvol=root,rescue=nologreplay "$P3" "$MNT" && mount -o ro,subvol=var,rescue=nologreplay "$P3" "$MNT/var" \
@@ -62,7 +62,11 @@ KV=$(find "$MNT/usr/lib/modules" -mindepth 1 -maxdepth 1 -name '*-iceland*' -pri
 e=$(ls "$MNT"/boot/loader/entries/*-"$KV".conf 2>/dev/null | head -n 1)
 ru=$(blkid -o value -s UUID "$P3")
 if [ -n "$e" ]; then
-	grep -q "^options root=UUID=$ru .*rootflags=subvol=root.*\$iceland_args" "$e" && row PASS "boot: entry options root=UUID(p3) subvol=root \$iceland_args" || row FAIL "boot: entry options: $(grep '^options' "$e" | sed "s/$ru/<p3>/")"
+	# kiwi writes its own order (the description's command line, then root= and rootflags=): every part once, $iceland_args last
+	o=$(grep '^options ' "$e")
+	if grep -q " root=UUID=$ru\( \|$\)" <<< "$o" && [ "$(grep -o 'rootflags=subvol=root\b' <<< "$o" | wc -l)" = 1 ] && grep -q '\$iceland_args$' <<< "$o"; then
+		row PASS "boot: entry options root=UUID(p3), rootflags=subvol=root once, \$iceland_args last"
+	else row FAIL "boot: entry options: $(sed "s/$ru/<p3>/" <<< "$o")"; fi
 	grep -q "^devicetree /dtb-$KV/qcom/kaanapali-oneplus-iceland.dtb" "$e" && [ -e "$MNT/boot/dtb-$KV/qcom/kaanapali-oneplus-iceland.dtb" ] && row PASS "boot: per-kernel devicetree" || row FAIL "boot: devicetree line / file"
 else row FAIL "boot: no entry for $KV"; fi
 grep -q '^GRUB_DEVICETREE="qcom/kaanapali-oneplus-iceland.dtb"' "$MNT/etc/default/grub" && row PASS "boot: GRUB_DEVICETREE" || row FAIL "boot: GRUB_DEVICETREE"
