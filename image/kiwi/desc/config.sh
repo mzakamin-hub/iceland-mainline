@@ -45,7 +45,8 @@ dracut -f --kver "$KVER" "/boot/initramfs-$KVER.img" > /dev/null 2>&1 || { rm -f
 rm -f /etc/dracut.conf.d/00-iceland-image-build.conf
 lsi=$(lsinitrd "/boot/initramfs-$KVER.img" 2>/dev/null)
 for want in iceland-carrier /nbd.ko 59-iceland-storage-ro gen80200_zap qcom_q6v5_pas; do
-	printf '%s\n' "$lsi" | grep -q -- "$want" || die "initramfs lacks $want"
+	# a here-string, not a pipe: under pipefail grep -q's early exit fails the pipe with SIGPIPE on a long listing
+	grep -q -- "$want" <<< "$lsi" || die "initramfs lacks $want"
 done
 [ -e "/boot/dtb-$KVER/qcom/kaanapali-oneplus-iceland.dtb" ] || die "no /boot/dtb-$KVER/qcom/kaanapali-oneplus-iceland.dtb"
 say "kernel $KVER: entry ${e##*/}, generic initramfs $(du -m "/boot/initramfs-$KVER.img" | cut -f1) MiB, device tree present"
