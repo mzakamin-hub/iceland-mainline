@@ -12,6 +12,13 @@
 # main.c: clock_apply_epoch(!skip_setup) with skip_setup false for --switched-root). Fedora uses chrony, so nothing
 # keeps that file: with no network the tablet boots on 2026-03-13 and rpm refuses Fedora's signatures ("not alive").
 #
+# Since kernel queue 0281 / 0282 (10 Oct 2026; the text above predates it) the kernel keeps an offset for the counter in SDAM2 (nvmem), so the RTC normally gives
+# the right time and this program has nothing to restore. 0.28-21: when the RTC has no usable time - kernel 0337 reads
+# none while the offset is unset; older kernels gave the bare counter (1970-03-16 on 16 Oct 2026) - "restore" logs the
+# RTC's state and that the restored stamp is a lower bound: the clock stays behind by the time the tablet was off until
+# chrony's first source steps it (makestep 1.0 3, Fedora's default; on 16 Oct its "wrong by 1068 s" and "stepped by
+# 1068 s" lines were one event 13 s after its start - the second line is stamped after the step).
+#
 # This program keeps the timesync stamp current: "save" sets its mtime to now (never backwards); it runs from
 # iceland-clock.timer every 15 min and from iceland-clock.service's ExecStop at shutdown. "restore" is the fallback
 # for a systemd without the epoch logic: if the stamp is newer than the clock, the clock is set to it (PID 1 has done
@@ -27,6 +34,17 @@ now() { if [ -n "${ICELAND_CLOCK_NOW:-}" ]; then echo "$ICELAND_CLOCK_NOW"; else
 mtime() { stat -c %Y "$F" 2>/dev/null || echo 0; }
 # the clock is trusted for a save once it is past systemd's epoch: before that it is the kernel's RTC reading
 MIN=1773360000   # 2026-03-13T00:00:00Z, Fedora 44's systemd epoch (R1d / R2: "System time advanced to built-in epoch")
+RTC=${ICELAND_CLOCK_RTC:-/sys/class/rtc/rtc0}
+# the RTC's state in one line: no time / before the epoch (the bare counter) / its time
+rtc_state() {
+	if [ ! -d "$RTC" ]; then echo "no rtc0"; return; fi
+	r=$(cat "$RTC/since_epoch" 2>/dev/null) || r=""
+	case $r in
+	''|*[!0-9]*) echo "rtc0 gives no time (no stored offset)" ;;
+	*) if [ "$r" -lt "$MIN" ]; then echo "rtc0 reads $r, before the epoch (the bare counter: offset missing)"
+	   else echo "rtc0 reads $r"; fi ;;
+	esac
+}
 case ${1:-status} in
 save)
 	n=$(now); m=$(mtime)
@@ -38,13 +56,14 @@ save)
 restore)
 	n=$(now); m=$(mtime)
 	if [ "$m" -le "$n" ]; then echo "iceland-clock: clock $n is at or past the stamp $m, nothing to do"; exit 0; fi
-	if [ "${ICELAND_CLOCK_DRY:-0}" = 1 ]; then echo "iceland-clock: would set the clock from $n to $m"; exit 0; fi
+	if [ "${ICELAND_CLOCK_DRY:-0}" = 1 ]; then echo "iceland-clock: would set the clock from $n to $m ($(rtc_state))"; exit 0; fi
 	date -u -s "@$m" > /dev/null
-	echo "iceland-clock: clock set from $n to $m (stamp $F)" ;;
+	echo "iceland-clock: clock set from $n to $m (stamp $F)"
+	echo "iceland-clock: $(rtc_state); the stamp is a lower bound - the clock is behind by the time the tablet was off until chrony steps it" ;;
 status)
 	n=$(now); m=$(mtime)
 	echo "clock: $n ($(date -u -d "@$n" +%FT%TZ 2>/dev/null))"
 	if [ "$m" = 0 ]; then echo "stamp: none ($F)"; else echo "stamp: $m ($(date -u -d "@$m" +%FT%TZ 2>/dev/null), $F, $((n - m)) s old)"; fi
-	for r in /sys/class/rtc/rtc0; do [ -r $r/since_epoch ] && echo "rtc: $(cat $r/date 2>/dev/null) $(cat $r/time 2>/dev/null) (raw, not settable on this board)"; done ;;
+	echo "rtc: $(rtc_state)" ;;
 *) echo "usage: iceland-clock save|restore|status" >&2; exit 2 ;;
 esac

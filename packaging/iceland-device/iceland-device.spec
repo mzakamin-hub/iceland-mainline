@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        20%{?dist}
+Release:        21%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -139,6 +139,8 @@ Source121:      iceland-update-check
 # feeds the hardware watchdog (0.28-6: the wakeup defaults are in the device tree, the GPU floor rule is gone)
 Source124:      iceland-sensors-sleep
 Source125:      iio-sensor-proxy-iceland-sleep.conf
+# 0.28-21: the proxy's ExecStopPost: the resume mark for a stop in the suspend transaction
+Source190:      iceland-sensors-mark
 Source126:      watchdog-iceland.conf
 # speaker protection (0.27, from the tb323fu-linux review; 0.28-3: make-up up to stock's measured loudness, the raw
 # speaker sink named as unprotected, the raw mic named, the protected sink as the configured default output)
@@ -468,6 +470,7 @@ install -Dm0644 %{SOURCE142} %{buildroot}/usr/share/pipewire/pipewire.conf.d/61-
 install -Dm0755 %{SOURCE121} %{buildroot}/usr/bin/iceland-update-check
 install -Dm0755 %{SOURCE124} %{buildroot}/usr/lib/systemd/system-sleep/iceland-sensors
 install -Dm0644 %{SOURCE125} %{buildroot}/usr/lib/systemd/system/iio-sensor-proxy.service.d/iceland-sleep.conf
+install -Dm0755 %{SOURCE190} %{buildroot}/usr/libexec/iceland/iceland-sensors-mark
 install -Dm0644 %{SOURCE126} %{buildroot}/usr/lib/systemd/system.conf.d/60-iceland-watchdog.conf
 install -Dm0644 %{SOURCE127} %{buildroot}/usr/share/pipewire/pipewire.conf.d/62-iceland-speakers.conf
 install -Dm0644 %{SOURCE128} %{buildroot}/usr/share/wireplumber/wireplumber.conf.d/62-iceland-speaker-raw.conf
@@ -647,6 +650,7 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/bin/iceland-update-check
 /usr/lib/systemd/system-sleep/iceland-sensors
 /usr/lib/systemd/system/iio-sensor-proxy.service.d/iceland-sleep.conf
+/usr/libexec/iceland/iceland-sensors-mark
 /usr/lib/systemd/system.conf.d/60-iceland-watchdog.conf
 /usr/share/pipewire/pipewire.conf.d/62-iceland-speakers.conf
 /usr/share/wireplumber/wireplumber.conf.d/62-iceland-speaker-raw.conf
@@ -779,6 +783,28 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
 
 %changelog
+* Fri Oct 16 2026 mzak <mzak.amin@gmail.com> - 0.28-21
+- (numbering: this fix package is 0.28-21, the dual-boot package becomes 0.28-22)
+- carries 0.28-20 otherwise unchanged (and 0.28-18's login screen default 50-iceland-greeter-ambient)
+- sensors at suspend (owner's finding, 2 of 14 suspends since 13 Oct: iio-sensor-proxy killed after its 3 s stop
+  timeout with a core dump): the proxy now stops in the suspend transaction itself, before the sensor hub's file
+  server - iio-sensor-proxy.service.d/iceland-sleep.conf: Conflicts=suspend.target (as hexagonrpcd's own unit) and
+  Before=sleep.target; iceland.conf's After=hexagonrpcd-adsp-sensorspd.service orders the proxy's stop first. Its
+  ExecStopPost iceland-sensors-mark leaves /run/iceland/sensors-stopped when a suspend.target / sleep.target start
+  job is queued, so iceland-ssc-resume.service starts both again after the resume (unchanged, outside the suspend
+  transaction). The system-sleep hook stays as the fallback, still starts nothing (0.26 / A52); the test switch
+  /run/iceland/sensors-keep no longer keeps the stream (the file server stops in any case)
+- clock: iceland-clock restore logs the RTC's state (no time / the bare counter / its time) and that the restored
+  stamp is a lower bound until chrony steps the clock; status shows the same. chrony unchanged: on 16 Oct its
+  "wrong by 1068 s" and "stepped by 1068 s" lines were one step 13 s after its start (the second line is stamped
+  after the step), so makestep 1.0 3 worked. Kernel side: queue 0337 (rtc-pm8xxx gives no time while the SDAM2
+  offset reads 0)
+- kernel retention (from the parked COPR candidate wf/copr, without the COPR repository): kernel-iceland out of
+  /etc/dnf/protected.d (a protected installonly package cannot lose its oldest version: every transaction failed once
+  installonly_limit was reached); installonly_limit=3 and protect_running_kernel=True written in
+  80-iceland-kernel.conf; when dnf removes the confirmed kernel the trial plugin makes the running kernel the
+  confirmed one if it remains, else the newest remaining kernel whose trial did not fail, else the newest remaining
+
 * Fri Oct 16 2026 mzak <mzak.amin@gmail.com> - 0.28-20
 - the GPU runs the vendor firmware pair GMU v5.3.33 / SQE 0x094 (iceland-firmware 11.A.38-6, as SuperTurtleDev and
   the TB323FU port) with GPU preemption ON, keeping kernel-iceland's GPU power-vote patches (the owner's decision

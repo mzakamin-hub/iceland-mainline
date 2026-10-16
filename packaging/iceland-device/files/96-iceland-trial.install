@@ -48,8 +48,15 @@ remove)
 		log "$KERNEL_VERSION removed before its trial"
 	fi
 	if [ "$(cat "$S/confirmed" 2>/dev/null)" = "$id" ]; then
-		# the confirmed kernel goes (dnf keeps three): the newest remaining entry becomes the confirmed one
-		new=$(ls -1 "$entries"/"$MACHINE_ID"-*iceland*.conf 2>/dev/null | grep -v "/$id.conf$" | sed 's|.*/||; s|\.conf$||' | sort -V | tail -n1)
+		# the confirmed kernel goes (dnf keeps installonly_limit=3 versions, never the running one; 0.28-18): the
+		# running kernel's entry becomes the confirmed one when it remains (it booted), else the newest remaining entry
+		# whose trial did not fail (/var/lib/iceland/trial/failed), else the newest remaining entry
+		kv=${ICELAND_UNAME:-$(uname -r)}
+		rest=$(ls -1 "$entries"/"$MACHINE_ID"-*iceland*.conf 2>/dev/null | grep -v "/$id.conf$" | sed 's|.*/||; s|\.conf$||' | sort -V)
+		new=""
+		[ "$kv" != "$KERNEL_VERSION" ] && printf '%s\n' "$rest" | grep -qxF "$MACHINE_ID-$kv" && new=$MACHINE_ID-$kv
+		[ -n "$new" ] || new=$(printf '%s\n' "$rest" | grep -vxF -f <(cat "$S/failed" 2>/dev/null; echo "$id") | grep . | tail -n1)
+		[ -n "$new" ] || new=$(printf '%s\n' "$rest" | grep . | tail -n1)
 		if [ -n "$new" ]; then echo "$new" > "$S/confirmed"; $EDITENV - set "saved_entry=$new"; log "confirmed is now $new"; fi
 	fi
 	;;
