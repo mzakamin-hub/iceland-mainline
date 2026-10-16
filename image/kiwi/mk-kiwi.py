@@ -34,12 +34,12 @@ MANIFEST = B + "/wf/install/priv/run/golden-build-b149.json"
 MIRROR = "https://dl.fedoraproject.org/pub/fedora/linux"
 LOCALREPO = "/work/localrepo"           # the build container's path (build.sh / the CI workflow bind it there)
 
-# ours (local repository). kernel-iceland: q89l = 7.3.0~rc7.iceland.00438 (the coordinator's target; the repo holds exactly
+# ours (local repository). kernel-iceland: q89m = 7.3.0~rc7.iceland.00453 (the coordinator's target; the repo holds exactly
 # one build of it, the spec below names the version prefix so a rebuild with another git hash is refused by image-check)
 OURS = {
-    "kernel-iceland": "7.3.0~rc7.iceland.00438",
-    "iceland-device": "0.28-18",
-    "iceland-firmware": "11.A.38-4",
+    "kernel-iceland": "7.3.0~rc7.iceland.00453",
+    "iceland-device": "0.28-19",
+    "iceland-firmware": "11.A.38-5",
     "iio-sensor-proxy": "3.9-11.iceland1",
     "libssc": "0.4.4^8.git54dd13e-1.iceland1",
     "hexagonrpc": "0.5.0^19.git598b591-1.iceland2",

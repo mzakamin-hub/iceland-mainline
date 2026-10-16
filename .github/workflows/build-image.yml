@@ -14,15 +14,15 @@ on:
       linux_tag:
         description: iceland-linux release tag (kernel-iceland binary rpm)
         required: true
-        default: q89l
+        default: q89m
       firmware_tag:
         description: iceland-firmware release tag (iceland-firmware noarch rpm)
         required: true
-        default: 11.A.38-4
+        default: 11.A.38-5
       mainline_tag:
         description: iceland-mainline release tag (libssc / iio-sensor-proxy / iceland-device / hexagonrpc srpms)
         required: true
-        default: iceland-device-0.28-18
+        default: iceland-device-0.28-19
 
 permissions:
   contents: read

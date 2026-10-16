@@ -8,6 +8,9 @@
 # options (not the rollback entries), and "devicetree /dtb-<version>/qcom/kaanapali-oneplus-iceland.dtb" when that file
 # exists (PER_KERNEL_DT=1, the package default). Then the grubenv: no menu_auto_hide (the menu is shown 3 s for the
 # volume keys). Writes only the /boot partition of the image being built. One "iceland-editboot:" line; exit 1 on a miss.
+# Also the managed kernel options (iceland-cmdline: idle power, since iceland-device 0.28-19 the GPU firmware path) that
+# config.sh wrote to /boot/iceland-managed-options: each one missing from an entry goes before $iceland_args; the file
+# is removed afterwards (it is not part of the image).
 set -euo pipefail
 read -r -a A <<< "$*"
 BOOTDEV=${A[1]:-}
@@ -17,12 +20,17 @@ M=$(mktemp -d)
 trap 'umount "$M" 2>/dev/null || :; rmdir "$M"' EXIT
 mount "$BOOTDEV" "$M"
 [ -d "$M/loader/entries" ] || { say "FAIL $BOOTDEV holds no loader/entries (not /boot?)"; exit 1; }
-DT=qcom/kaanapali-oneplus-iceland.dtb; n=0; d=0
+DT=qcom/kaanapali-oneplus-iceland.dtb; n=0; d=0; mo=""
+[ -f "$M/iceland-managed-options" ] && mo=$(head -n 1 "$M/iceland-managed-options")
 for e in "$M"/loader/entries/*iceland*.conf; do
 	[ -f "$e" ] || continue
 	case "$e" in */iceland-rollback-*) continue ;; esac
 	grep -q '^options .*\$iceland_args' "$e" || sed -i 's/^\(options .*\)$/\1 $iceland_args/' "$e"
 	grep -q '^options .*rootflags=subvol=root' "$e" || sed -i 's/^\(options \)/\1rootflags=subvol=root /' "$e"
+	for w in $mo; do
+		grep -q "^options .* $w\( \|\$\)" "$e" && continue
+		sed -i "s#^\(options .*\) \\\$iceland_args\$#\1 $w \$iceland_args#" "$e"
+	done
 	v=$(sed -n 's/^version //p' "$e")
 	if ! grep -q '^devicetree ' "$e" && [ -e "$M/dtb-$v/$DT" ]; then echo "devicetree /dtb-$v/$DT" >> "$e"; fi
 	grep -q '^devicetree ' "$e" && d=$((d + 1))
@@ -33,5 +41,6 @@ if [ -f "$M/grub2/grubenv" ] && grep -q '^menu_auto_hide=' "$M/grub2/grubenv"; t
 	if command -v grub2-editenv > /dev/null; then grub2-editenv "$M/grub2/grubenv" unset menu_auto_hide
 	else say "FAIL grubenv has menu_auto_hide and no grub2-editenv on the build host"; exit 1; fi
 fi
+rm -f "$M/iceland-managed-options"
 sync
-say "entries $n: \$iceland_args + devicetree; grubenv menu_auto_hide $(grep -c '^menu_auto_hide=' "$M/grub2/grubenv" 2>/dev/null || echo 0)"
+say "entries $n: \$iceland_args + devicetree + managed options '${mo}'; grubenv menu_auto_hide $(grep -c '^menu_auto_hide=' "$M/grub2/grubenv" 2>/dev/null || echo 0)"
