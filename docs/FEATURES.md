@@ -10,7 +10,7 @@ This list shows the 85 features that work today, sorted by functionality. Featur
 |---|---|
 | U-Boot (install build and RAM boot) | The stock boot loader (ABL) starts U-Boot from boot_b, and U-Boot starts Fedora through EFI. The install build (v4 since 14 Oct 2026) shows a power-on boot menu on the keys (Fedora, or the boot loader's fastboot), boots Fedora by default and never resets or powers off by itself. A RAM-boot build gives display, USB fastboot, UFS read and EFI, with fastboot flashing compiled out. |
 | U-Boot boot setting for single or dual boot | Boots a “fedora” partition if there is one, else the Fedora image in userdata. |
-| Linux 7.3-rc7 through EFI | Linux 7.3-rc7 with the Pad 4 patch queue (kernel 7.3.0-rc7-iceland-00438, iceland-linux branch iceland-7.3-rc7-next) boots through U-Boot's EFI, Fedora's shim and GRUB. It is the default kernel on the installed tablet since 16 Oct 2026. |
+| Linux 7.3-rc7 through EFI | Linux 7.3-rc7 with the Pad 4 patch queue (current kernel 7.3.0-rc7-iceland-00453, iceland-linux branch iceland-7.3-rc7-next) boots through U-Boot's EFI, Fedora's shim and GRUB. |
 | Internal storage (UFS 4) | UFS 4 with 4 KiB blocks in MCQ mode (9 hardware queues per LUN), about 2.3 GB/s direct read. The installed root is btrfs (zstd compression) on a loop device in userdata, and Fedora's own I/O scheduler rule applies to all six LUNs. |
 | Hardware watchdog | qcom_wdt with a 30 s timeout, fed by systemd: a hung system reboots by itself. |
 | System cache (LLCC) and memory error counters | The system cache driver (qcom-llcc) binds, and EDAC reports the memory error counters (no errors recorded). |
@@ -24,7 +24,7 @@ This list shows the 85 features that work today, sorted by functionality. Featur
 | GNOME Shell 50 | GNOME 50.5 on Fedora 44; a new install starts with GNOME's first-boot setup. |
 | Stable USB sessions | Long sessions over the USB link to a PC run stable: the freezes during fast USB transfers are fixed (queue 0063). |
 | Firmware extractor (tablet's own partitions, read-only) | iceland-fw-extract copies the GPU, video, Wi-Fi, Bluetooth, sound, touch and sensor-hub firmware read-only from the tablet's own partitions; the files match the checksum record. |
-| Firmware package (iceland-firmware) | iceland-firmware 11.A.38-3: the generic stock 11.A.38 firmware (and stock's decoded thermal model) as an RPM, each file sha256-pinned to our own extraction, in the public repo mzakamin-hub/iceland-firmware. Unit-specific data is never included. |
+| Firmware package (iceland-firmware) | iceland-firmware 11.A.38-6: the generic stock 11.A.38 firmware (with stock's decoded thermal model and the sensor hub registry) as an RPM, each file sha256-pinned to our own extraction, plus two GPU firmware pairs in their own directories: stock's v5.3.39 and the vendor v5.3.33 (a third-party copy, byte-identical in the other ports' repositories). In the public repo mzakamin-hub/iceland-firmware. Unit-specific data is never included. |
 | Fedora installed on the tablet | Fedora 44 installs with two partition writes: the system image into userdata and U-Boot into boot_b; nothing else is written. The tablet then boots Fedora on its own, the root is btrfs on a loop device in userdata, and Fedora marks the boot slot successful. |
 
 ## Display & input
@@ -46,10 +46,10 @@ This list shows the 85 features that work today, sorted by functionality. Featur
 
 | Feature | What works |
 |---|---|
-| Adreno 840 GPU, GLES 3.2 | OpenGL 4.6 / OpenGL ES 3.2 on Mesa 26.2.4, with no GPU faults in the test runs (glmark2 3213 offscreen, es2gears 119 fps in the session). |
+| Adreno 840 GPU, GLES 3.2 | OpenGL 4.6 / OpenGL ES 3.2 on Mesa 26.2.4, with no GPU faults in the test runs. Since 16 Oct 2026 the GPU runs the vendor firmware GMU v5.3.33 / SQE 0x094 (as the other ports of this chip) with GPU preemption on: in the test run 48356 preemption switches without a fenced-write failure, timeout or GPU fault. Stock's firmware v5.3.39 is also packaged and runs cleanly with preemption off. |
 | GNOME and Wayland drawn by the GPU | GNOME and Wayland are drawn by the GPU; buffers from other devices (video, shared memory) show correctly. |
-| GPU correctness, WebGL, stress | dEQP: Vulkan 34,650 cases with 2 failures, GLES 34,950 cases with 53 failures, 0 crashes; 193 of 196 WebGL test pages pass; a 90 s stress run had 0 GPU faults. Firefox renders normally. |
-| Vulkan | Vulkan 1.4 through turnip on Mesa 26.2.4; vkcube and vkmark run. |
+| GPU correctness, WebGL, stress | dEQP: Vulkan 34,650 cases with 2 failures, GLES 34,950 cases with 53 failures, 0 crashes; 193 of 196 WebGL test pages pass; a 90 s stress run had 0 GPU faults. Firefox renders normally; Chromium WebGL ran 180 s without a GPU-process crash with GPU preemption on. |
+| Vulkan | Vulkan 1.4 through turnip on Mesa 26.2.4; vkcube and vkmark run (vkmark about 22,000-23,600 headless). |
 | Hardware video decoding | H.264, HEVC up to 4K, VP9 (also 10-bit) and AV1 decode in hardware, bit-exact against Android's reference vectors. GNOME's video player uses it (1080p H.264 at 3 % CPU instead of 47 %); SD BT.601 colour is right with Fedora's GStreamer. |
 | Hardware video encoding | H.264 and HEVC encode in hardware (decoded back 30 of 30 frames, PSNR about 50 dB). GNOME's screen recording works on the hardware encoder with a V4L2 pipeline. |
 | NPU (Hexagon on the CDSP) | The CDSP runs the tablet's own firmware; FastRPC programs run in an unsigned process and the NPU runtime library loads. Idle, it sleeps without blocking deep sleep. |
@@ -130,7 +130,7 @@ This list shows the 85 features that work today, sorted by functionality. Featur
 
 | Feature | What works |
 |---|---|
-| Kernel package (kernel-iceland) | kernel-iceland RPMs (current 7.3.0~rc7.iceland.00438) install and update with dnf on the installed system: a new kernel boots once as a trial and becomes the default after a confirmed boot. The camera and backlight modules are included; no firmware is inside. The kernel and the package record a neutral build host name. |
+| Kernel package (kernel-iceland) | kernel-iceland RPMs (current 7.3.0~rc7.iceland.00453) install and update with dnf on the installed system: a new kernel boots once as a trial and becomes the default after a confirmed boot. The camera and backlight modules are included; no firmware is inside. The kernel and the package record a neutral build host name. |
 | Device package (iceland-device) | iceland-device 0.28-16 carries the tablet's settings: the battery guard, the thermal policy, the sound chain, the sensor and Bluetooth address services, the power-key handling and the power-saving boot options. |
 | Update policy and minimal package holds | Fedora 44 updates normally, with a read-only snapshot before each transaction and a GRUB rollback entry. Kernels and the project's packages come only from the local repository, and the release is pinned to 44. |
 | Stock-values audit | 1,249 values compared with stock: nothing above stock in the battery, charger, thermal, CPU or GPU tables, and all six amplifiers at stock. |
