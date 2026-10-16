@@ -53,6 +53,21 @@ say "kernel $KVER: entry ${e##*/}, generic initramfs $(du -m "/boot/initramfs-$K
 
 # 3. GRUB as on the installed tablet: per-kernel device tree, 3 s menu, $iceland_args (idempotent; kiwi's grub2-mkconfig
 # runs later and keeps GRUB_DEVICETREE; edit_boot_install.sh re-applies the entry lines kiwi rewrites)
+# a kiwi build root has no /etc/default/grub yet (on Fedora's own installs Anaconda writes it; no package owns it):
+# Fedora's default first, then iceland-grub-setup adds GRUB_DEVICETREE / GRUB_TIMEOUT; kiwi's grub2 setup keeps both
+if [ ! -f /etc/default/grub ]; then
+	cat > /etc/default/grub << 'GRUBEOF'
+GRUB_TIMEOUT=5
+GRUB_DISTRIBUTOR="$(sed 's, release .*$,,g' /etc/system-release)"
+GRUB_DEFAULT=saved
+GRUB_DISABLE_SUBMENU=true
+GRUB_TERMINAL_OUTPUT="console"
+GRUB_CMDLINE_LINUX="rhgb quiet"
+GRUB_DISABLE_RECOVERY="true"
+GRUB_ENABLE_BLSCFG=true
+GRUBEOF
+	say "grub: wrote Fedora's default /etc/default/grub"
+fi
 /usr/libexec/iceland/iceland-grub-setup || die "iceland-grub-setup"
 [ -x /usr/libexec/iceland/iceland-cmdline ] && { /usr/libexec/iceland/iceland-cmdline > /dev/null 2>&1 || say "iceland-cmdline rc $? (entries keep their options)"; }
 grep -q '^GRUB_DEVICETREE="qcom/kaanapali-oneplus-iceland.dtb"' /etc/default/grub || die "GRUB_DEVICETREE not set"
