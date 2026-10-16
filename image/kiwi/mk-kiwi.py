@@ -38,8 +38,8 @@ LOCALREPO = "/work/localrepo"           # the build container's path (build.sh /
 # one build of it, the spec below names the version prefix so a rebuild with another git hash is refused by image-check)
 OURS = {
     "kernel-iceland": "7.3.0~rc7.iceland.00453",
-    "iceland-device": "0.28-19",
-    "iceland-firmware": "11.A.38-5",
+    "iceland-device": "0.28-20",
+    "iceland-firmware": "11.A.38-6",
     "iio-sensor-proxy": "3.9-11.iceland1",
     "libssc": "0.4.4^8.git54dd13e-1.iceland1",
     "hexagonrpc": "0.5.0^19.git598b591-1.iceland2",

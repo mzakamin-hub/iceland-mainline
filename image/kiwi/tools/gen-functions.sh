@@ -9,7 +9,7 @@
 # The sensor registry stays (owner: generic, the same on every unit). In the PC / CI build iceland-firmware 11.A.38-4
 # owns every firmware / sensor-tree file including sensors/registry (gen_check proves it); on a tablet B run the
 # extractor's registry is counted, never a FAIL.
-GEN_DEVREL=${GEN_DEVREL:-0.28-19}; GEN_IIO=${GEN_IIO:-3.9-11.iceland1}; GEN_FW=${GEN_FW:-11.A.38-5}
+GEN_DEVREL=${GEN_DEVREL:-0.28-20}; GEN_IIO=${GEN_IIO:-3.9-11.iceland1}; GEN_FW=${GEN_FW:-11.A.38-6}
 GEN_KREL=${GEN_KREL:-7.3.0~rc7.iceland.00453}
 gen_clean() { # unit data and build residues out of the image ($MNT); prints what it removed (counts only)
 	local n=0 p m

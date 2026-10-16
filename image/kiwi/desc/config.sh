@@ -44,7 +44,7 @@ printf 'hostonly="no"\nhostonly_cmdline="no"\n' > /etc/dracut.conf.d/00-iceland-
 dracut -f --kver "$KVER" "/boot/initramfs-$KVER.img" > /dev/null 2>&1 || { rm -f /etc/dracut.conf.d/00-iceland-image-build.conf; die "dracut $KVER"; }
 rm -f /etc/dracut.conf.d/00-iceland-image-build.conf
 lsi=$(lsinitrd "/boot/initramfs-$KVER.img" 2>/dev/null)
-for want in iceland-carrier /nbd.ko 59-iceland-storage-ro gen80200_zap qcom_q6v5_pas iceland-gpu-stock/qcom/gen80200_gmu.bin iceland-gpu-stock/qcom/gen80200_sqe.fw; do
+for want in iceland-carrier /nbd.ko 59-iceland-storage-ro gen80200_zap qcom_q6v5_pas iceland-gpu-stock/qcom/gen80200_gmu.bin iceland-gpu-stock/qcom/gen80200_sqe.fw iceland-gpu-vendor533/qcom/gen80200_gmu.bin iceland-gpu-vendor533/qcom/gen80200_sqe.fw; do
 	# a here-string, not a pipe: under pipefail grep -q's early exit fails the pipe with SIGPIPE on a long listing
 	grep -q -- "$want" <<< "$lsi" || die "initramfs lacks $want"
 done
@@ -70,13 +70,14 @@ GRUBEOF
 fi
 /usr/libexec/iceland/iceland-grub-setup || die "iceland-grub-setup"
 [ -x /usr/libexec/iceland/iceland-cmdline ] && { /usr/libexec/iceland/iceland-cmdline > /dev/null 2>&1 || say "iceland-cmdline rc $? (entries keep their options)"; }
-# the managed kernel options (iceland-device >= 0.28-15: idle power; >= 0.28-19: firmware_class.path for stock's GPU pair)
+# the managed kernel options (iceland-device >= 0.28-15: idle power; >= 0.28-19: firmware_class.path for a GPU pair;
+# >= 0.28-20: the vendor pair with msm.enable_preemption=1 by default)
 # as iceland-cmdline computes them for THIS image (its boot.conf, its firmware): kiwi's grub2 setup rewrites every entry's
 # options later, so edit_boot_install.sh puts these back from /boot/iceland-managed-options (and removes that file)
 if [ -x /usr/libexec/iceland/iceland-cmdline ]; then
 	T=$(mktemp -d); mkdir -p "$T/etc/kernel" "$T/etc/iceland" "$T/usr/lib/firmware"
 	[ -f /etc/iceland/boot.conf ] && cp /etc/iceland/boot.conf "$T/etc/iceland/"
-	[ -d /usr/lib/firmware/iceland-gpu-stock ] && ln -s /usr/lib/firmware/iceland-gpu-stock "$T/usr/lib/firmware/iceland-gpu-stock"
+	for g in iceland-gpu-stock iceland-gpu-vendor533; do [ -d /usr/lib/firmware/$g ] && ln -s /usr/lib/firmware/$g "$T/usr/lib/firmware/$g"; done
 	echo 'ICELAND_MARK $iceland_args' > "$T/etc/kernel/cmdline"
 	ICELAND_ROOT=$T /usr/libexec/iceland/iceland-cmdline || die "iceland-cmdline (managed options)"
 	mo=$(sed -e 's/^ICELAND_MARK *//' -e 's/ *\$iceland_args$//' "$T/etc/kernel/cmdline"); rm -rf "$T"

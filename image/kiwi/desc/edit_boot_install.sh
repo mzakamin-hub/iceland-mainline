@@ -8,7 +8,8 @@
 # options (not the rollback entries), and "devicetree /dtb-<version>/qcom/kaanapali-oneplus-iceland.dtb" when that file
 # exists (PER_KERNEL_DT=1, the package default). Then the grubenv: no menu_auto_hide (the menu is shown 3 s for the
 # volume keys). Writes only the /boot partition of the image being built. One "iceland-editboot:" line; exit 1 on a miss.
-# Also the managed kernel options (iceland-cmdline: idle power, since iceland-device 0.28-19 the GPU firmware path) that
+# Also the managed kernel options (iceland-cmdline: idle power, since iceland-device 0.28-19 the GPU firmware path, since
+# 0.28-20 also GPU preemption) that
 # config.sh wrote to /boot/iceland-managed-options: each one missing from an entry goes before $iceland_args; the file
 # is removed afterwards (it is not part of the image).
 set -euo pipefail

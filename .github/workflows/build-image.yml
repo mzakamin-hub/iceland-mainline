@@ -18,11 +18,11 @@ on:
       firmware_tag:
         description: iceland-firmware release tag (iceland-firmware noarch rpm)
         required: true
-        default: 11.A.38-5
+        default: 11.A.38-6
       mainline_tag:
         description: iceland-mainline release tag (libssc / iio-sensor-proxy / iceland-device / hexagonrpc srpms)
         required: true
-        default: iceland-device-0.28-19
+        default: iceland-device-0.28-20
 
 permissions:
   contents: read

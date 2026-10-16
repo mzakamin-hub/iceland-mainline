@@ -70,14 +70,16 @@ if [ -n "$e" ]; then
 	# the managed options as the image's own iceland-cmdline computes them (its boot.conf, its firmware), before $iceland_args
 	T=$(mktemp -d); mkdir -p "$T/etc/kernel" "$T/etc/iceland" "$T/usr/lib/firmware"
 	cp "$MNT/etc/iceland/boot.conf" "$T/etc/iceland/" 2>/dev/null
-	[ -d "$MNT/usr/lib/firmware/iceland-gpu-stock" ] && ln -s "$MNT/usr/lib/firmware/iceland-gpu-stock" "$T/usr/lib/firmware/iceland-gpu-stock"
+	for g in iceland-gpu-stock iceland-gpu-vendor533; do [ -d "$MNT/usr/lib/firmware/$g" ] && ln -s "$MNT/usr/lib/firmware/$g" "$T/usr/lib/firmware/$g"; done
 	echo 'ICELAND_MARK $iceland_args' > "$T/etc/kernel/cmdline"
 	ICELAND_ROOT=$T sh "$MNT/usr/libexec/iceland/iceland-cmdline" 2>/dev/null
 	mo=$(sed -e 's/^ICELAND_MARK *//' -e 's/ *\$iceland_args$//' "$T/etc/kernel/cmdline"); rm -rf "$T"
 	miss=""; for w in $mo; do grep -q " $w \$iceland_args\| $w .*\$iceland_args" <<< "$o" || miss="$miss $w"; done
 	if [ -n "$mo" ] && [ -z "$miss" ]; then row PASS "boot: managed options before \$iceland_args: $mo"
 	else row FAIL "boot: managed options '${mo:-none computed}', missing:${miss:- none}"; fi
-	case " $mo " in *" firmware_class.path=/usr/lib/firmware/iceland-gpu-stock "*) row PASS "boot: stock GPU firmware selected (firmware_class.path)" ;; *) row FAIL "boot: firmware_class.path=/usr/lib/firmware/iceland-gpu-stock not among the managed options" ;; esac
+	case " $mo " in *" firmware_class.path=/usr/lib/firmware/iceland-gpu-vendor533 "*) row PASS "boot: vendor GPU firmware v5.3.33 selected (firmware_class.path)" ;; *) row FAIL "boot: firmware_class.path=/usr/lib/firmware/iceland-gpu-vendor533 not among the managed options" ;; esac
+	case " $mo " in *" msm.enable_preemption=1 "*) row PASS "boot: GPU preemption on with the vendor pair (msm.enable_preemption=1)" ;; *) row FAIL "boot: msm.enable_preemption=1 not among the managed options" ;; esac
+	case " $mo " in *" firmware_class.path=/usr/lib/firmware/iceland-gpu-stock "*) row FAIL "boot: stock's GPU path among the managed options (never with preemption)" ;; esac
 	[ -e "$MNT/boot/iceland-managed-options" ] && row FAIL "boot: /boot/iceland-managed-options left in the image"
 	grep -q "^devicetree /dtb-$KV/qcom/kaanapali-oneplus-iceland.dtb" "$e" && [ -e "$MNT/boot/dtb-$KV/qcom/kaanapali-oneplus-iceland.dtb" ] && row PASS "boot: per-kernel devicetree" || row FAIL "boot: devicetree line / file"
 else row FAIL "boot: no entry for $KV"; fi
@@ -98,8 +100,8 @@ if [ -s "$i" ] && command -v lsinitrd > /dev/null; then
 	ed=$(grep -c -E '/qcom_q6v5_pas\.ko|kaanapali/iceland/(adsp|cdsp)(_dtb)?\.mbn' "$l")
 	line="iceland-carrier $c nbd.ko $n storage rule $s zap $z root-firmware drivers $rf early dsp $ed; $(du -m "$i" | cut -f1) MiB"
 	[ "$c" -ge 1 ] && [ "$n" = 1 ] && [ "$s" = 1 ] && [ "$z" = 1 ] && [ "$rf" = 0 ] && [ "$ed" = 5 ] && row PASS "initramfs: $line" || row FAIL "initramfs: $line (B149: carrier 3 nbd 1 rule 1 zap 1 root-firmware 0 early dsp 5)"
-	g=$(grep -c -E 'usr/lib/firmware/iceland-gpu-stock/qcom/gen80200_(gmu\.bin|sqe\.fw)$' "$l")
-	[ "$g" = 2 ] && row PASS "initramfs: stock's GPU pair (iceland-gpu-stock gmu + sqe)" || row FAIL "initramfs: stock's GPU pair $g of 2"
+	g=$(grep -c -E 'usr/lib/firmware/iceland-gpu-(stock|vendor533)/qcom/gen80200_(gmu\.bin|sqe\.fw)$' "$l")
+	[ "$g" = 4 ] && row PASS "initramfs: both GPU pairs (iceland-gpu-stock + iceland-gpu-vendor533, gmu + sqe)" || row FAIL "initramfs: GPU pair files $g of 4"
 else row FAIL "initramfs: $i missing or no lsinitrd on the build host"; fi
 # ---- manifest vs B149
 rpm --root "$MNT" -qa --qf '%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}\t%{ARCH}\n' | sort > "$OUT/manifest.tsv"
