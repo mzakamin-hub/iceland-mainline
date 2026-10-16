@@ -47,8 +47,12 @@ python3 -I "$REC/mk-small.py" "$OUT/run/kiwi-b150g.json" --name kiwi-b150g-small
 rm -f "$OUT/run/kiwi-b150g.body"            # the small disk replaces it (same partitions; body copied)
 say "3-4 golden + small: $OUT/run/kiwi-b150g-small.json"
 # 5 (required)
-ICELAND_BUILD=$B bash "$HERE/tools/image-check.sh" "$OUT/run/kiwi-b150g-small.json" "$OUT/check" "$HERE/desc/b149-packages.json" > /dev/null || :
-tail -n 1 "$OUT/check/image-check.txt" | grep -q 'IMAGE-CHECK: PASS' || { grep '^FAIL' "$OUT/check/image-check.txt" | sed 's/^/build:   /'; die "5 image-check"; }
+mkdir -p "$OUT/check"
+ICELAND_BUILD=$B bash "$HERE/tools/image-check.sh" "$OUT/run/kiwi-b150g-small.json" "$OUT/check" "$HERE/desc/b149-packages.json" > "$OUT/check/image-check.log" 2>&1 || :
+if ! tail -n 1 "$OUT/check/image-check.txt" 2>/dev/null | grep -q 'IMAGE-CHECK: PASS'; then
+	{ grep '^FAIL' "$OUT/check/image-check.txt" 2>/dev/null || :; tail -n 5 "$OUT/check/image-check.log"; } | sed 's/^/build:   /'
+	die "5 image-check"
+fi
 say "5 image check: $(tail -n 1 "$OUT/check/image-check.txt")"
 # 6 7
 python3 -I "$IMG/mk-sparse.py" "$OUT/run/kiwi-b150g-small.json" "$OUT/fedora-iceland-generic.sparse.img" | tail -n 2 | sed 's/^/build:   /'

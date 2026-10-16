@@ -22,11 +22,17 @@ row() { echo "$1 $2" >> "$R"; [ "$1" = FAIL ] && nf=$((nf + 1)); return 0; }
 [ "$(id -u)" = 0 ] || { echo "image-check: needs root (read-only loop mounts)"; exit 2; }
 BODY=$(dirname "$J")/$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["body"])' "$J")
 MNT=$(mktemp -d /tmp/iceland-check.XXXX); LOOP=
-cleanup() { umount -R "$MNT" 2>/dev/null; [ -n "$LOOP" ] && losetup -d "$LOOP"; rmdir "$MNT" 2>/dev/null; }
+MADE=""
+cleanup() { umount -R "$MNT" 2>/dev/null; [ -n "$LOOP" ] && losetup -d "$LOOP"; rmdir "$MNT" 2>/dev/null; [ -n "$MADE" ] && rm -f $MADE; }
 trap cleanup EXIT
 LOOP=$(losetup -r -b 4096 -P --show -f "$BODY") || { echo "image-check: losetup failed"; exit 2; }
 udevadm settle 2>/dev/null; sleep 1
-for p in 1 2 3; do [ -b "${LOOP}p$p" ] || { echo "image-check: no ${LOOP}p$p"; exit 2; }; done
+# a build container has no udev of its own: make the partition nodes from sysfs when they are not there (removed again)
+for p in 1 2 3; do
+	n=${LOOP}p$p; s=/sys/class/block/${LOOP##*/}p$p/dev
+	if [ ! -b "$n" ] && [ -r "$s" ]; then mm=$(cat "$s"); mknod "$n" b "${mm%%:*}" "${mm##*:}" && MADE="$MADE $n"; fi
+	[ -b "$n" ] || { echo "image-check: no $n"; exit 2; }
+done
 # ---- layout
 t=$(blkid -o value -s TYPE "${LOOP}p1")/$(blkid -o value -s TYPE "${LOOP}p2")/$(blkid -o value -s TYPE "${LOOP}p3")
 [ "$t" = vfat/ext4/btrfs ] && row PASS "layout: file systems $t" || row FAIL "layout: file systems $t (want vfat/ext4/btrfs)"
