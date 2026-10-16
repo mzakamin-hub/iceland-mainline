@@ -60,6 +60,7 @@
         <package name="ca-certificates"/>
         <package name="fedora-gpg-keys"/>
         <package name="fedora-repos"/>
+        <package name="systemd-sysusers"/>
         <package name="fedora-release-common"/>
         <package name="fedora-release-identity-workstation"/>
         <package name="fedora-release-workstation"/>
