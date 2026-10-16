@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        21%{?dist}
+Release:        23%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -149,6 +149,9 @@ Source128:      62-iceland-speaker-raw.conf
 Source134:      63-iceland-mic-raw.conf
 Source135:      iceland-speaker-default
 Source136:      iceland-speaker-default.service
+# 0.28-23: the speaker tone switch (stock = the packaged default; classic / warm / bass / warmbass / superturtle as
+# a per-account drop-in)
+Source191:      iceland-audio-profile
 # 0.27r5: mark the Android A/B slot successful after a good boot (qbootctl -m; never in a RAM kit / rehearsal)
 Source132:      iceland-slot-mark
 Source133:      iceland-slot-mark.service
@@ -477,6 +480,7 @@ install -Dm0644 %{SOURCE128} %{buildroot}/usr/share/wireplumber/wireplumber.conf
 install -Dm0644 %{SOURCE134} %{buildroot}/usr/share/wireplumber/wireplumber.conf.d/63-iceland-mic-raw.conf
 install -Dm0755 %{SOURCE135} %{buildroot}/usr/libexec/iceland/iceland-speaker-default
 install -Dm0644 %{SOURCE136} %{buildroot}/usr/lib/systemd/user/iceland-speaker-default.service
+install -Dm0755 %{SOURCE191} %{buildroot}/usr/bin/iceland-audio-profile
 install -Dm0755 %{SOURCE132} %{buildroot}/usr/libexec/iceland/iceland-slot-mark
 install -Dm0644 %{SOURCE133} %{buildroot}/usr/lib/systemd/system/iceland-slot-mark.service
 install -Dm0755 %{SOURCE150} %{buildroot}/usr/libexec/iceland/iceland-backlight-default
@@ -657,6 +661,7 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/wireplumber/wireplumber.conf.d/63-iceland-mic-raw.conf
 /usr/libexec/iceland/iceland-speaker-default
 /usr/lib/systemd/user/iceland-speaker-default.service
+/usr/bin/iceland-audio-profile
 /usr/libexec/iceland/iceland-slot-mark
 /usr/lib/systemd/system/iceland-slot-mark.service
 /usr/libexec/iceland/iceland-backlight-default
@@ -783,6 +788,24 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
 
 %changelog
+* Sat Oct 17 2026 mzak <mzak.amin@gmail.com> - 0.28-23
+- (numbering: 0.28-22 is the dual-boot package; this one builds on 0.28-21)
+- speakers: the stock tone is the packaged default (the owner's choice of 17 Oct 2026 after the listening A/B):
+  62-iceland-speakers.conf keeps the 150 Hz 4th-order high-pass, the compressor (2.5:1 @ -24 dBFS, +9 dB make-up)
+  and the -1 dBFS limiter unchanged and adds a cuts-only set fitted to the stock reference (LineageOS 24, vendor
+  DSP; predicted residual rms 1.7 dB, max 4.0 dB, 90 Hz - 10 kHz): a second 4th-order high-pass 228 Hz, peaking
+  -10 dB @ 280 Hz (Q 0.73), -15 dB @ 612 Hz (Q 1.55), high-shelf -22 dB @ 2.52 kHz, peaking -15 dB @ 3.91 kHz
+  (Q 0.98) and -8.1 dB @ 9.09 kHz (Q 4). Every band is at or below the 0.28-21 chain (1 kHz -9 dB before the
+  compressor). Sink name effect_input.speakers and the off switch iceland.speaker-protection unchanged
+- new /usr/bin/iceland-audio-profile stock|classic|warm|bass|warmbass|superturtle|status|print: one account's tone
+  as a drop-in ~/.config/pipewire/pipewire.conf.d/63-iceland-audio-profile.conf (the packaged chain off, the
+  chosen one under the same sink name); stock removes the drop-in; classic = the 0.28-21 chain. Refuses root, an
+  unknown name and (except superturtle) missing LADSPA plug-ins. A drop-in left by the A/B test script stays (the
+  account's own file): 'iceland-audio-profile stock' returns to the default
+- tests: test_audio_profiles.py (cuts only vs classic, residual bound vs tests/stock_response.json, every drop-in
+  parses, sink identical, dry run); test_speaker_protection.py follows the longer chain
+- carries 0.28-21 otherwise unchanged (and 0.28-18's login screen default 50-iceland-greeter-ambient)
+
 * Fri Oct 16 2026 mzak <mzak.amin@gmail.com> - 0.28-21
 - (numbering: this fix package is 0.28-21, the dual-boot package becomes 0.28-22)
 - carries 0.28-20 otherwise unchanged (and 0.28-18's login screen default 50-iceland-greeter-ambient)
