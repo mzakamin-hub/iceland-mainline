@@ -5,3 +5,5 @@
 # VERSION-RELEASE	asset	sha256	URL
 11.A.38-2	iceland-firmware-11.A.38-2.fc44.noarch.rpm	14833f719be4ea6da91d018cb99901ab7605c8550ed195e8c9e3e2b85acbaa4c	https://github.com/mzakamin-hub/iceland-firmware/releases/download/11.A.38-2/iceland-firmware-11.A.38-2.fc44.noarch.rpm
 11.A.38-3	iceland-firmware-11.A.38-3.fc44.noarch.rpm	297669a04ca0c47ebf7c695043d4190c30c5613c31165bc243778741f07d66d4	https://github.com/mzakamin-hub/iceland-firmware/releases/download/11.A.38-3/iceland-firmware-11.A.38-3.fc44.noarch.rpm
+11.A.38-4	iceland-firmware-11.A.38-4.fc44.noarch.rpm	fb86f5fa6d167c798b0609d2fbf840f89602e6a4b75f14c1ca5adaefec114a50	https://github.com/mzakamin-hub/iceland-firmware/releases/download/11.A.38-4/iceland-firmware-11.A.38-4.fc44.noarch.rpm
+11.A.38-5	iceland-firmware-11.A.38-5.fc44.noarch.rpm	8e430110570a151dff5b5fa4fc0501f09a7fea20e6a1ae05365c7fa5d77a97f5	https://github.com/mzakamin-hub/iceland-firmware/releases/download/11.A.38-5/iceland-firmware-11.A.38-5.fc44.noarch.rpm

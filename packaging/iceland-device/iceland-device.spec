@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        18%{?dist}
+Release:        19%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -198,8 +198,12 @@ Source178:      iceland-grow
 Source179:      iceland-grow.service
 # 0.28-18 (wf/scanfix C2): the login screen's own default - no automatic brightness, no light sensor claim
 Source180:      50-iceland-greeter-ambient
+# 0.28-19: stock's GPU pair into every kernel-iceland initramfs that lacks it (once, %posttrans)
+Source181:      iceland-gpu-initramfs
 
 Requires:       kernel-iceland
+# 0.28-19: stock's GPU GMU / SQE pair (/usr/lib/firmware/iceland-gpu-stock), selected by iceland-cmdline (GPU_FW=stock)
+Requires:       iceland-firmware >= 11.A.38-5
 Requires:       bluez
 Requires:       python3
 Requires:       python3-gobject
@@ -261,6 +265,9 @@ Settings that make Fedora 44 work safely on the OnePlus Pad 4 with the kernel-ic
   stock value, never shipped);
 - the kernel command line carries the options kernel-iceland still needs;
 - the initramfs carries the display, touch and GPU drivers and their firmware;
+- the GPU runs stock 11.A.38's GMU firmware v5.3.39 / SQE microcode 0x103 (iceland-firmware >= 11.A.38-5):
+  firmware_class.path=/usr/lib/firmware/iceland-gpu-stock on the kernel command line and the pair in the initramfs;
+  GPU_FW=linux-firmware in /etc/iceland/boot.conf goes back to Fedora's linux-firmware pair;
 - Wi-Fi power saving is on;
 - iceland-battery-guard enforces the stock 11.A.38 charging limits as a second layer over the charger firmware
   (temperature regions, per-region voltages and currents, the USB-C connector thermistors, 70/77 C power-off)
@@ -338,6 +345,7 @@ install -Dm0644 %{SOURCE3} %{buildroot}/usr/share/polkit-1/rules.d/49-iceland-no
 install -Dm0644 %{SOURCE4} %{buildroot}/usr/lib/systemd/system/iceland-bdaddr.service
 install -Dm0755 %{SOURCE5} %{buildroot}/usr/libexec/iceland/iceland-bdaddr
 install -Dm0755 %{SOURCE6} %{buildroot}/usr/libexec/iceland/iceland-cmdline
+install -Dm0755 %{SOURCE181} %{buildroot}/usr/libexec/iceland/iceland-gpu-initramfs
 install -Dm0644 %{SOURCE7} %{buildroot}/usr/lib/dracut/dracut.conf.d/90-iceland.conf
 install -Dm0644 %{SOURCE8} %{buildroot}/usr/lib/NetworkManager/conf.d/60-iceland-wifi-powersave.conf
 install -Dm0755 %{SOURCE9} %{buildroot}/usr/libexec/iceland/iceland-battery-guard
@@ -488,6 +496,9 @@ UPDATEDEFAULT=yes
 DEFAULTKERNEL=kernel-iceland
 EOT
 /usr/libexec/iceland/iceland-cmdline || :
+# 0.28-19: stock's GPU pair (90-iceland.conf) into the existing kernel-iceland initramfs images that lack it; a new
+# kernel's initramfs gets it from dracut. Without it firmware_class.path would find linux-firmware's copies there.
+/usr/libexec/iceland/iceland-gpu-initramfs || :
 # a stale saved ALSA mixer state can route MultiMedia1 into back ends the ADSP can't open (pc-026 S12: GNOME showed
 # only a Dummy Output); drop it once, the UCM FixedBootSequence then sets the routes at every boot
 if [ ! -e /var/lib/iceland/.asound-state-reset ]; then
@@ -614,6 +625,7 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/lib/systemd/system/iceland-bdaddr.service
 /usr/libexec/iceland/iceland-bdaddr
 /usr/libexec/iceland/iceland-cmdline
+/usr/libexec/iceland/iceland-gpu-initramfs
 /usr/lib/dracut/dracut.conf.d/90-iceland.conf
 /usr/lib/NetworkManager/conf.d/60-iceland-wifi-powersave.conf
 /usr/libexec/iceland/iceland-battery-guard
@@ -761,6 +773,19 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
 
 %changelog
+* Fri Oct 16 2026 mzak <mzak.amin@gmail.com> - 0.28-19
+- the GPU runs stock 11.A.38's firmware pair, GMU v5.3.39 / SQE 0x103 (the owner's decision of 16 Oct 2026 after
+  the RAM rehearsal R4: kernel q89m, GPU preemption off, clean GPU start, 0 GMU errors, 0 fenced writes, Chromium
+  WebGL 180 s without a GPU-process exit, vkmark 23613). iceland-cmdline puts
+  firmware_class.path=/usr/lib/firmware/iceland-gpu-stock on every boot entry and /etc/kernel/cmdline (switch
+  GPU_FW=stock|linux-firmware in /etc/iceland/boot.conf, default stock; only when both files are installed, else
+  the option is removed); the kernel searches that directory first and finds only the GMU and SQE files there.
+  Requires iceland-firmware >= 11.A.38-5 (the pair; linux-firmware's files are not replaced)
+- 90-iceland.conf: the pair in the initramfs (the GPU loads its microcode there); new iceland-gpu-initramfs
+  (%posttrans) rebuilds the existing kernel-iceland initramfs images that lack it (--check lists them)
+- firmware-pins.tsv: iceland-firmware 11.A.38-4 (fb86f5fa) and 11.A.38-5 (8e430110, the new default of
+  iceland-firmware-fetch). New tests/test_gpu_fw.py
+- carries 0.28-18 unchanged (the login screen's 50-iceland-greeter-ambient, wf/scanfix C2) and 0.28-17
 * Fri Oct 16 2026 mzak <mzak.amin@gmail.com> - 0.28-18
 - the login screen no longer claims the ambient light sensor (wf/scanfix C2): /etc/dconf/db/gdm.d/
   50-iceland-greeter-ambient sets org.gnome.settings-daemon.plugins.power ambient-enabled=false in GDM's system

@@ -16,17 +16,27 @@
 #     A managed option that is on replaces another value of the same name (e.g. cpuidle.governor=menu); a switch
 #     that is off removes only the exact managed option. The options go before $iceland_args, so a value in GRUB's
 #     iceland_args (a rehearsal or a one-off test) still wins.
+#  3. 0.28-19, the GPU firmware (switch GPU_FW in /etc/iceland/boot.conf):
+#       GPU_FW=stock (default): firmware_class.path=/usr/lib/firmware/iceland-gpu-stock - the kernel looks for
+#                 firmware there first and finds stock's GMU v5.3.39 / SQE 0x103 (iceland-firmware >= 11.A.38-5;
+#                 RAM rehearsal R4, 16 Oct 2026: clean GPU start, 0 GMU errors); every other file still comes from
+#                 the default paths. Only when both files are installed: without them the option is removed.
+#       GPU_FW=linux-firmware: the option is removed; Fedora's linux-firmware pair (v5.3.23 / 0x088) is used.
 # ICELAND_ROOT (tests only): the root to work on.
 R=${ICELAND_ROOT:-}
 ARGS="clk_ignore_unused pd_ignore_unused regulator_ignore_unused"
-IDLE_GOV=teo; RCU_LAZY=1
+IDLE_GOV=teo; RCU_LAZY=1; GPU_FW=stock
+GPUDIR=/usr/lib/firmware/iceland-gpu-stock
 if [ -r "$R/etc/iceland/boot.conf" ]; then
 	v=$(sed -n 's/^IDLE_GOV=\([a-z]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); [ "$v" = menu ] && IDLE_GOV=menu
 	v=$(sed -n 's/^RCU_LAZY=\([0-9]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); [ "$v" = 0 ] && RCU_LAZY=0
+	v=$(sed -n 's/^GPU_FW=\([a-z-]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); [ "$v" = linux-firmware ] && GPU_FW=linux-firmware
 fi
 ON=""; OFF=""
 if [ "$IDLE_GOV" = teo ]; then ON="$ON cpuidle.governor=teo"; else OFF="$OFF cpuidle.governor=teo"; fi
 if [ "$RCU_LAZY" = 1 ]; then ON="$ON rcu_nocbs=all rcutree.enable_rcu_lazy=1"; else OFF="$OFF rcu_nocbs=all rcutree.enable_rcu_lazy=1"; fi
+if [ "$GPU_FW" = stock ] && [ -f "$R$GPUDIR/qcom/gen80200_gmu.bin" ] && [ -f "$R$GPUDIR/qcom/gen80200_sqe.fw" ]; then
+	ON="$ON firmware_class.path=$GPUDIR"; else OFF="$OFF firmware_class.path=$GPUDIR"; fi
 fix() { # stdin: one options line -> the managed line (single spaces)
 	out=""; tail=""; set -f
 	for w in $(cat); do
