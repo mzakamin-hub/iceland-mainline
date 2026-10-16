@@ -50,7 +50,7 @@ jobs:
             kiwi-cli kiwi-systemdeps-disk-images kiwi-systemdeps-bootloaders kiwi-systemdeps-filesystems \
             btrfs-progs dosfstools mtools e2fsprogs gdisk util-linux grub2-tools-minimal dracut \
             rpm-build createrepo_c dnf5-plugins git-core gh python3 findutils xz
-          kiwi-ng --version
+          rpm -q kiwi-cli python3-kiwi
 
       - name: Check out the project
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
