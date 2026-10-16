@@ -1,0 +1,123 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Builds the GENERIC OnePlus Pad 4 install image (Fedora Remix for OnePlus Pad 4) with kiwi-ng on GitHub's arm64 runner,
+# natively, in a privileged fedora:44 container, from the PUBLISHED release assets + Fedora's mirrors.
+# Repository layout: image/kiwi/ (build.sh, desc/, tools/, ci/inputs.sha256), image/tools/ (iceland_disk.py, mk-sparse.py,
+# mk-small.py, split-parts.py, privscan.py). See image/README.md.
+# Output: a workflow ARTIFACT (nothing is published by this workflow). The image check and the privacy scan are required
+# steps: the artifact is uploaded only after both passed. Manual start only: every input is a release tag + the pinned
+# sha256 list (image/kiwi/ci/inputs.sha256), so a build cannot pick up an unpinned file.
+name: build-image
+
+on:
+  workflow_dispatch:
+    inputs:
+      linux_tag:
+        description: iceland-linux release tag (kernel-iceland binary rpm)
+        required: true
+        default: q89l
+      firmware_tag:
+        description: iceland-firmware release tag (iceland-firmware noarch rpm)
+        required: true
+        default: 11.A.38-4
+      mainline_tag:
+        description: iceland-mainline release tag (libssc / iio-sensor-proxy / iceland-device / hexagonrpc srpms)
+        required: true
+        default: iceland-device-0.28-18
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-image
+  cancel-in-progress: false
+
+jobs:
+  image:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 300
+    container:
+      image: registry.fedoraproject.org/fedora:44
+      # loop devices + their partition nodes (kiwi builds in a loop; image-check and privscan mount it read-only)
+      options: --privileged -v /dev:/dev
+    env:
+      ICELAND_TOOLS_DIR: ${{ github.workspace }}/image/tools
+      ICELAND_IMAGE_TOOLS: ${{ github.workspace }}/image/tools
+      ICELAND_BUILD: /root/mainline/build
+    steps:
+      - name: Build host packages (Fedora 44 repositories)
+        run: |
+          dnf5 -y --setopt=install_weak_deps=False install \
+            kiwi-cli kiwi-systemdeps-disk-images kiwi-systemdeps-bootloaders kiwi-systemdeps-filesystems \
+            btrfs-progs dosfstools mtools e2fsprogs gdisk util-linux grub2-tools-minimal dracut \
+            rpm-build createrepo_c dnf5-plugins git-core gh python3 findutils xz
+          kiwi-ng --version
+
+      - name: Check out the project
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Fetch the release assets (pinned)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          IN=/work/inputs; mkdir -p "$IN"
+          gh release download "${{ inputs.linux_tag }}"    -R mzakamin-hub/iceland-linux    -D "$IN" -p 'kernel-iceland-*.aarch64.rpm'
+          gh release download "${{ inputs.firmware_tag }}" -R mzakamin-hub/iceland-firmware -D "$IN" -p 'iceland-firmware-*.noarch.rpm'
+          gh release download "${{ inputs.mainline_tag }}" -R mzakamin-hub/iceland-mainline -D "$IN" \
+            -p 'libssc-*.src.rpm' -p 'iio-sensor-proxy-*.src.rpm' -p 'iceland-device-*.src.rpm' -p 'hexagonrpc-*'
+          # only the files the pin list names stay; every one of them must be there and match
+          cp image/kiwi/ci/inputs.sha256 "$IN/SHA256SUMS.pins"
+          ( cd "$IN" && for f in *; do [ "$f" = SHA256SUMS.pins ] || grep -q "[ *]$f\$" SHA256SUMS.pins || rm -v -- "$f"; done
+            sha256sum -c --strict SHA256SUMS.pins )
+
+      - name: Build the image (kiwi-ng, native aarch64)
+        run: |
+          set -euo pipefail
+          df -h / /work
+          start=$(date +%s)
+          bash image/kiwi/build.sh /work/inputs /work/out 2>&1 | tee /work/build.log
+          end=$(date +%s)
+          echo "build time: $(( (end - start) / 60 )) min" | tee -a /work/build.log
+          # intermediates out before the upload
+          rm -rf /work/out/kiwi/build /work/out/kiwi/*.raw
+
+      - name: Image check (required)
+        run: |
+          tail -n 1 /work/out/check/image-check.txt
+          tail -n 1 /work/out/check/image-check.txt | grep -q 'IMAGE-CHECK: PASS'
+
+      - name: Privacy scan (required)
+        run: |
+          # CI has none of the private reference files: the structural rows (paths, accounts, keys, machine-id, journals,
+          # Bluetooth / NetworkManager state, the provisioning stamps) run here; the byte search for unit values runs on the
+          # maintainer's PC before any publication.
+          cat /work/out/privscan/privscan-report.txt
+          tail -n 1 /work/out/privscan/privscan-report.txt | grep -q 'PRIVSCAN: PASS'
+
+      - name: Upload the image as a workflow artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fedora-remix-pad4-${{ github.run_number }}
+          retention-days: 7
+          compression-level: 0
+          if-no-files-found: error
+          path: |
+            /work/out/parts/
+            /work/out/check/
+            /work/out/privscan/privscan-report.txt
+            /work/out/local-repo.txt
+            /work/build.log
+
+      - name: Logs on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: build-logs-${{ github.run_number }}
+          retention-days: 7
+          path: |
+            /work/build.log
+            /work/out/kiwi.log
+            /work/out/check/
+            /work/out/privscan.log

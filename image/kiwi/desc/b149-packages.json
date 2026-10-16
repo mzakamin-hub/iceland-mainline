@@ -1,0 +1,8641 @@
+{
+"brun": 149,
+"manifest_sha256": "7cc06a969b13f0dfea04dd6c0deb2af2aeec90ce66c6539cdfe31364990c5776",
+"packages": [
+{
+"name": "7zip",
+"evr": "26.04-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "Box2D",
+"evr": "2.4.2-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ImageMagick",
+"evr": "1:7.1.2.32-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ImageMagick-libs",
+"evr": "1:7.1.2.32-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "LibRaw",
+"evr": "0.22.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ModemManager",
+"evr": "1.24.2-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ModemManager-glib",
+"evr": "1.24.2-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "NetworkManager",
+"evr": "1:1.56.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "NetworkManager-adsl",
+"evr": "1:1.56.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "NetworkManager-bluetooth",
+"evr": "1:1.56.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "NetworkManager-config-connectivity-fedora",
+"evr": "1:1.56.1-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "NetworkManager-libnm",
+"evr": "1:1.56.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "NetworkManager-openconnect",
+"evr": "1.2.10-11.fc44",
+"arch": "aarch64"
+},
+{
+"name": "NetworkManager-openconnect-gnome",
+"evr": "1.2.10-11.fc44",
+"arch": "aarch64"
+},
+{
+"name": "NetworkManager-openvpn",
+"evr": "1:1.12.5-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "NetworkManager-openvpn-gnome",
+"evr": "1:1.12.5-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "NetworkManager-ppp",
+"evr": "1:1.56.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "NetworkManager-ssh",
+"evr": "1.4.5-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "NetworkManager-ssh-gnome",
+"evr": "1.4.5-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "NetworkManager-ssh-selinux",
+"evr": "1.4.5-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "NetworkManager-vpnc",
+"evr": "1:1.4.0-6.fc44",
+"arch": "aarch64"
+},
+{
+"name": "NetworkManager-vpnc-gnome",
+"evr": "1:1.4.0-6.fc44",
+"arch": "aarch64"
+},
+{
+"name": "NetworkManager-wifi",
+"evr": "1:1.56.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "NetworkManager-wwan",
+"evr": "1:1.56.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "PackageKit",
+"evr": "1.4.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "PackageKit-command-not-found",
+"evr": "1.4.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "PackageKit-glib",
+"evr": "1.4.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "PackageKit-gstreamer-plugin",
+"evr": "1.4.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "PackageKit-gtk3-module",
+"evr": "1.4.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "SDL3",
+"evr": "3.4.18-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "aardvark-dns",
+"evr": "2:1.17.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "abattis-cantarell-fonts",
+"evr": "0.301-17.fc44",
+"arch": "noarch"
+},
+{
+"name": "abattis-cantarell-vf-fonts",
+"evr": "0.301-17.fc44",
+"arch": "noarch"
+},
+{
+"name": "abrt",
+"evr": "2.17.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "abrt-addon-ccpp",
+"evr": "2.17.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "abrt-addon-kerneloops",
+"evr": "2.17.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "abrt-addon-pstoreoops",
+"evr": "2.17.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "abrt-addon-vmcore",
+"evr": "2.17.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "abrt-addon-xorg",
+"evr": "2.17.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "abrt-cli",
+"evr": "2.17.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "abrt-dbus",
+"evr": "2.17.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "abrt-libs",
+"evr": "2.17.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "abrt-plugin-bodhi",
+"evr": "2.17.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "abrt-tui",
+"evr": "2.17.9-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "abseil-cpp",
+"evr": "20260107.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "accountsservice",
+"evr": "23.13.9-16.fc44",
+"arch": "aarch64"
+},
+{
+"name": "accountsservice-libs",
+"evr": "23.13.9-16.fc44",
+"arch": "aarch64"
+},
+{
+"name": "acl",
+"evr": "2.4.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "adobe-mappings-cmap",
+"evr": "20231115-5.fc44",
+"arch": "noarch"
+},
+{
+"name": "adobe-mappings-cmap-deprecated",
+"evr": "20231115-5.fc44",
+"arch": "noarch"
+},
+{
+"name": "adobe-mappings-pdf",
+"evr": "20190401-12.fc44",
+"arch": "noarch"
+},
+{
+"name": "adobe-source-code-pro-fonts",
+"evr": "2.042.1.062.1.026-9.fc44",
+"arch": "noarch"
+},
+{
+"name": "adwaita-cursor-theme",
+"evr": "50.0-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "adwaita-icon-theme",
+"evr": "50.0-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "adwaita-icon-theme-legacy",
+"evr": "46.2-7.fc44",
+"arch": "noarch"
+},
+{
+"name": "adwaita-mono-fonts",
+"evr": "50.0-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "adwaita-sans-fonts",
+"evr": "50.0-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "alsa-lib",
+"evr": "1.2.16.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "alsa-ucm",
+"evr": "1.2.16.1-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "alsa-utils",
+"evr": "1.2.16-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "alternatives",
+"evr": "1.33-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "amd-gpu-firmware",
+"evr": "20260916-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "amd-ucode-firmware",
+"evr": "20260916-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "anthy-unicode",
+"evr": "1.0.0.20260213-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "antiword",
+"evr": "0.37-44.fc44",
+"arch": "aarch64"
+},
+{
+"name": "appstream",
+"evr": "1.1.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "appstream-data",
+"evr": "44-4.fc44",
+"arch": "noarch"
+},
+{
+"name": "apr",
+"evr": "1.7.6-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "apr-util",
+"evr": "1.6.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "apr-util-lmdb",
+"evr": "1.6.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "apr-util-openssl",
+"evr": "1.6.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "aribb24",
+"evr": "1.0.3^20160216git5e9be27-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "arm-image-installer",
+"evr": "5.4-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "at",
+"evr": "3.2.5-21.fc44",
+"arch": "aarch64"
+},
+{
+"name": "at-spi2-atk",
+"evr": "2.60.7-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "at-spi2-core",
+"evr": "2.60.7-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "atheros-firmware",
+"evr": "20260916-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "atk",
+"evr": "2.60.7-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "attr",
+"evr": "2.6.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "audit",
+"evr": "4.2.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "audit-libs",
+"evr": "4.2.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "audit-rules",
+"evr": "4.2.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "augeas-libs",
+"evr": "1.14.2-0.11.20260408gitada6219.fc44",
+"arch": "aarch64"
+},
+{
+"name": "authselect",
+"evr": "1.7.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "authselect-libs",
+"evr": "1.7.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "autocorr-en",
+"evr": "1:26.2.6.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "avahi",
+"evr": "0.9~rc2-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "avahi-glib",
+"evr": "0.9~rc2-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "avahi-libs",
+"evr": "0.9~rc2-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "avahi-tools",
+"evr": "0.9~rc2-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "b43-fwcutter",
+"evr": "021-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "b43-openfwwf",
+"evr": "5.2-48.fc44",
+"arch": "noarch"
+},
+{
+"name": "baobab",
+"evr": "50.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "bash",
+"evr": "5.3.9-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "bash-color-prompt",
+"evr": "0.7.1-3.fc44",
+"arch": "noarch"
+},
+{
+"name": "bash-completion",
+"evr": "1:2.17-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "bc",
+"evr": "1.08.2-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "bind-libs",
+"evr": "32:9.18.50-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "bind-utils",
+"evr": "32:9.18.50-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "binutils",
+"evr": "2.46.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "bluez",
+"evr": "5.87+1.git8750129efca8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "bluez-cups",
+"evr": "5.87+1.git8750129efca8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "bluez-libs",
+"evr": "5.87+1.git8750129efca8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "bluez-obexd",
+"evr": "5.87+1.git8750129efca8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "bolt",
+"evr": "0.9.11-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "boost-atomic",
+"evr": "1.90.0-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "boost-charconv",
+"evr": "1.90.0-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "boost-chrono",
+"evr": "1.90.0-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "boost-container",
+"evr": "1.90.0-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "boost-date-time",
+"evr": "1.90.0-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "boost-iostreams",
+"evr": "1.90.0-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "boost-locale",
+"evr": "1.90.0-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "boost-random",
+"evr": "1.90.0-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "boost-regex",
+"evr": "1.90.0-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "boost-thread",
+"evr": "1.90.0-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "braille-printer-app",
+"evr": "1:2.0~b0^386eea385f-11.fc44",
+"arch": "aarch64"
+},
+{
+"name": "brcmfmac-firmware",
+"evr": "20260916-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "brlapi",
+"evr": "0.8.7-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "brltty",
+"evr": "6.8-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "btrfs-progs",
+"evr": "7.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "bubblewrap",
+"evr": "0.12.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "busybox",
+"evr": "1:1.37.0-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "bzip2",
+"evr": "1.0.8-23.fc44",
+"arch": "aarch64"
+},
+{
+"name": "bzip2-libs",
+"evr": "1.0.8-23.fc44",
+"arch": "aarch64"
+},
+{
+"name": "c-ares",
+"evr": "1.34.8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ca-certificates",
+"evr": "2026.2.90_v9.0.317-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "cairo",
+"evr": "1.18.6-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "cairo-gobject",
+"evr": "1.18.6-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "cairomm1.16",
+"evr": "1.18.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "capstone",
+"evr": "5.0.6-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "catatonit",
+"evr": "0.2.1-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "cdparanoia-libs",
+"evr": "10.2-50.fc44",
+"arch": "aarch64"
+},
+{
+"name": "checkpolicy",
+"evr": "3.11-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "chrony",
+"evr": "4.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "cifs-utils",
+"evr": "7.8-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "cifs-utils-info",
+"evr": "7.8-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "cirrus-audio-firmware",
+"evr": "20260916-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "cjson",
+"evr": "1.7.19-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "cldr-emoji-annotation",
+"evr": "1:48.2-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "cldr-emoji-annotation-dtd",
+"evr": "1:48.2-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "clucene-contribs-lib",
+"evr": "2.3.3.4-55.20130812.e8e3d20git.fc44",
+"arch": "aarch64"
+},
+{
+"name": "clucene-core",
+"evr": "2.3.3.4-55.20130812.e8e3d20git.fc44",
+"arch": "aarch64"
+},
+{
+"name": "cmake-filesystem",
+"evr": "4.3.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "codec2",
+"evr": "1.2.0-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "color-filesystem",
+"evr": "1-38.fc44",
+"arch": "noarch"
+},
+{
+"name": "colord",
+"evr": "1.4.8-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "colord-gtk4",
+"evr": "0.3.1-6.fc44",
+"arch": "aarch64"
+},
+{
+"name": "colord-libs",
+"evr": "1.4.8-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "composefs",
+"evr": "1.0.8-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "composefs-libs",
+"evr": "1.0.8-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "compsize",
+"evr": "1.5^git20250123.d79eacf-15.fc44",
+"arch": "aarch64"
+},
+{
+"name": "conmon",
+"evr": "2:2.2.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "container-selinux",
+"evr": "4:2.251.0-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "containers-common",
+"evr": "5:0.67.2-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "containers-common-extra",
+"evr": "5:0.67.2-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "coreutils",
+"evr": "9.10-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "coreutils-common",
+"evr": "9.10-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "cpio",
+"evr": "2.15-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "cpp",
+"evr": "16.2.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "cracklib",
+"evr": "2.10.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "cracklib-dicts",
+"evr": "2.10.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "createrepo_c",
+"evr": "1.2.1-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "createrepo_c-libs",
+"evr": "1.2.1-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "criu",
+"evr": "4.2.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "criu-libs",
+"evr": "4.2.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "cronie",
+"evr": "1.7.2-16.fc44",
+"arch": "aarch64"
+},
+{
+"name": "cronie-anacron",
+"evr": "1.7.2-16.fc44",
+"arch": "aarch64"
+},
+{
+"name": "crontabs",
+"evr": "1.11^20190603git9e74f2d-10.fc44",
+"arch": "noarch"
+},
+{
+"name": "crun",
+"evr": "1.28-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "crypto-policies",
+"evr": "20251128-3.git19878fe.fc44",
+"arch": "noarch"
+},
+{
+"name": "crypto-policies-scripts",
+"evr": "20251128-3.git19878fe.fc44",
+"arch": "noarch"
+},
+{
+"name": "cryptsetup",
+"evr": "2.8.8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "cryptsetup-libs",
+"evr": "2.8.8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ctags",
+"evr": "6.2.1-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "cups",
+"evr": "1:2.4.19-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "cups-browsed",
+"evr": "1:2.1.1-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "cups-client",
+"evr": "1:2.4.19-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "cups-filesystem",
+"evr": "1:2.4.19-3.fc44",
+"arch": "noarch"
+},
+{
+"name": "cups-filters",
+"evr": "1:2.0.1-17.fc44",
+"arch": "aarch64"
+},
+{
+"name": "cups-filters-driverless",
+"evr": "1:2.0.1-17.fc44",
+"arch": "aarch64"
+},
+{
+"name": "cups-ipptool",
+"evr": "1:2.4.19-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "cups-libs",
+"evr": "1:2.4.19-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "cups-pk-helper",
+"evr": "0.2.7-12.fc44",
+"arch": "aarch64"
+},
+{
+"name": "curl",
+"evr": "8.18.0-13.fc44",
+"arch": "aarch64"
+},
+{
+"name": "cyrus-sasl-gssapi",
+"evr": "2.1.28-35.fc44",
+"arch": "aarch64"
+},
+{
+"name": "cyrus-sasl-lib",
+"evr": "2.1.28-35.fc44",
+"arch": "aarch64"
+},
+{
+"name": "cyrus-sasl-plain",
+"evr": "2.1.28-35.fc44",
+"arch": "aarch64"
+},
+{
+"name": "dbus",
+"evr": "1:1.16.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "dbus-broker",
+"evr": "37-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "dbus-common",
+"evr": "1:1.16.2-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "dbus-libs",
+"evr": "1:1.16.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "dbus-tools",
+"evr": "1:1.16.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "dconf",
+"evr": "0.49.0-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "decibels",
+"evr": "49.6.1-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-editor",
+"evr": "8.7.1-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-am",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-ar",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-as",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-ast",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-be",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-bg",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-bn",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-bo",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-br",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-chr",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-cjk-mono",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-cjk-sans",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-cjk-serif",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-core-emoji",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-core-math",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-core-mono",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-core-sans",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-core-serif",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-dv",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-dz",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-el",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-eo",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-eu",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-fa",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-got",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-gu",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-he",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-hi",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-hy",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-ia",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-ii",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-iu",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-ka",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-kab",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-km",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-kn",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-ku",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-lo",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-mai",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-ml",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-mni",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-mr",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-my",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-nb",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-ne",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-nn",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-nqo",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-nr",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-nso",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-or",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-other-mono",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-other-sans",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-other-serif",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-pa",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-ru",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-sat",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-si",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-ss",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-syr",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-ta",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-te",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-th",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-tn",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-ts",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-uk",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-ur",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-ve",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-vi",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-xh",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-yi",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "default-fonts-zu",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "deltarpm",
+"evr": "3.6.5-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "desktop-backgrounds-gnome",
+"evr": "44.0.0-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "desktop-file-utils",
+"evr": "0.28-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "device-mapper",
+"evr": "1.02.212-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "device-mapper-libs",
+"evr": "1.02.212-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "diffutils",
+"evr": "3.12-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "distribution-gpg-keys",
+"evr": "1.123-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "djvulibre-libs",
+"evr": "3.5.30-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "dmidecode",
+"evr": "1:3.7-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "dnf-data",
+"evr": "4.24.0-3.fc44",
+"arch": "noarch"
+},
+{
+"name": "dnf5",
+"evr": "5.4.6.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "dnf5-plugins",
+"evr": "5.4.6.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "dnf5daemon-server",
+"evr": "5.4.6.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "dnf5daemon-server-polkit",
+"evr": "5.4.6.0-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "dns-root-data",
+"evr": "2026260100-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "dnsmasq",
+"evr": "2.92rel2-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "dos2unix",
+"evr": "7.5.6-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "dosfstools",
+"evr": "4.2-18.fc44",
+"arch": "aarch64"
+},
+{
+"name": "dotconf",
+"evr": "1.4.1-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "double-conversion",
+"evr": "3.4.0-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "dracut",
+"evr": "108-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "drpm",
+"evr": "0.5.3-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "duktape",
+"evr": "2.7.0-11.fc44",
+"arch": "aarch64"
+},
+{
+"name": "e2fsprogs",
+"evr": "1.47.3-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "e2fsprogs-libs",
+"evr": "1.47.3-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ed",
+"evr": "1.22.5-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "editorconfig-libs",
+"evr": "0.12.11-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "efi-filesystem",
+"evr": "6-6.fc44",
+"arch": "noarch"
+},
+{
+"name": "efivar-libs",
+"evr": "39-12.fc44",
+"arch": "aarch64"
+},
+{
+"name": "elfutils",
+"evr": "0.196-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "elfutils-debuginfod-client",
+"evr": "0.196-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "elfutils-default-yama-scope",
+"evr": "0.196-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "elfutils-libelf",
+"evr": "0.196-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "elfutils-libs",
+"evr": "0.196-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "emacs-filesystem",
+"evr": "1:30.2-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "enchant2",
+"evr": "2.8.21-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "epiphany-runtime",
+"evr": "1:50.6-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "espeak-ng",
+"evr": "1.52.0-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ethtool",
+"evr": "2:7.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "evince-djvu",
+"evr": "48.1-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "evince-libs",
+"evr": "48.1-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "evolution-data-server",
+"evr": "3.60.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "evolution-data-server-langpacks",
+"evr": "3.60.2-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "evolution-ews-core",
+"evr": "3.60.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "evolution-ews-langpacks",
+"evr": "3.60.2-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "exempi",
+"evr": "2.6.4-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "exfatprogs",
+"evr": "1.4.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "exiv2",
+"evr": "0.28.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "exiv2-libs",
+"evr": "0.28.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "expat",
+"evr": "2.8.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "f2fs-tools",
+"evr": "1.16.0-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "f44-backgrounds-base",
+"evr": "44.0.0-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "f44-backgrounds-gnome",
+"evr": "44.0.0-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "faad2-libs",
+"evr": "1:2.11.2-6.fc44",
+"arch": "aarch64"
+},
+{
+"name": "fdk-aac-free",
+"evr": "2.0.3-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "fedora-bookmarks",
+"evr": "28-36.fc44",
+"arch": "noarch"
+},
+{
+"name": "fedora-chromium-config",
+"evr": "3.0-9.fc44",
+"arch": "noarch"
+},
+{
+"name": "fedora-chromium-config-gnome",
+"evr": "3.0-9.fc44",
+"arch": "noarch"
+},
+{
+"name": "fedora-flathub-remote",
+"evr": "1-12.fc44",
+"arch": "noarch"
+},
+{
+"name": "fedora-gpg-keys",
+"evr": "44-2",
+"arch": "noarch"
+},
+{
+"name": "fedora-logos",
+"evr": "42.0.1-3.fc44",
+"arch": "noarch"
+},
+{
+"name": "fedora-logos-httpd",
+"evr": "42.0.1-3.fc44",
+"arch": "noarch"
+},
+{
+"name": "fedora-release-common",
+"evr": "44-18",
+"arch": "noarch"
+},
+{
+"name": "fedora-release-identity-workstation",
+"evr": "44-18",
+"arch": "noarch"
+},
+{
+"name": "fedora-release-workstation",
+"evr": "44-18",
+"arch": "noarch"
+},
+{
+"name": "fedora-repos",
+"evr": "44-2",
+"arch": "noarch"
+},
+{
+"name": "fedora-third-party",
+"evr": "0.10-16.fc44",
+"arch": "noarch"
+},
+{
+"name": "fedora-workstation-backgrounds",
+"evr": "1.6-9.fc44",
+"arch": "noarch"
+},
+{
+"name": "fedora-workstation-repositories",
+"evr": "38-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ffmpeg-free",
+"evr": "8.1.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "fftw-libs-double",
+"evr": "3.3.10-17.fc44",
+"arch": "aarch64"
+},
+{
+"name": "fftw-libs-single",
+"evr": "3.3.10-17.fc44",
+"arch": "aarch64"
+},
+{
+"name": "file",
+"evr": "5.46-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "file-libs",
+"evr": "5.46-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "filesystem",
+"evr": "3.18-52.fc44",
+"arch": "aarch64"
+},
+{
+"name": "findutils",
+"evr": "1:4.10.0-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "firefox",
+"evr": "157.0.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "firefox-langpacks",
+"evr": "157.0.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "firewalld",
+"evr": "2.4.4-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "firewalld-filesystem",
+"evr": "2.4.4-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "flac-libs",
+"evr": "1.5.0-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "flashrom",
+"evr": "1.6.0-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "flatpak",
+"evr": "1.18.4-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "flatpak-libs",
+"evr": "1.18.4-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "flatpak-selinux",
+"evr": "1.18.4-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "flatpak-session-helper",
+"evr": "1.18.4-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "flite",
+"evr": "2.2-13.fc44",
+"arch": "aarch64"
+},
+{
+"name": "fmt",
+"evr": "11.2.0-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "folks",
+"evr": "1:0.15.12-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "fontconfig",
+"evr": "2.17.0-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "fonts-filesystem",
+"evr": "1:5.0.0-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "fpaste",
+"evr": "0.5.0.0-4.fc44",
+"arch": "noarch"
+},
+{
+"name": "fprintd",
+"evr": "1.94.5-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "fprintd-pam",
+"evr": "1.94.5-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "freeglut",
+"evr": "3.8.0-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "freerdp-libs",
+"evr": "2:3.32.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "freetype",
+"evr": "2.14.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "fribidi",
+"evr": "1.0.16-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "fstrm",
+"evr": "0.6.1-14.fc44",
+"arch": "aarch64"
+},
+{
+"name": "fuse-common",
+"evr": "3.18.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "fuse-overlayfs",
+"evr": "1.17-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "fuse3",
+"evr": "3.18.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "fuse3-libs",
+"evr": "3.18.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "fwupd",
+"evr": "2.1.8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "fwupd-plugin-modem-manager",
+"evr": "2.1.8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "game-music-emu",
+"evr": "0.6.4-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gamemode",
+"evr": "1.8.2-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gawk",
+"evr": "5.3.2-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gawk-all-langpacks",
+"evr": "5.3.2-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gcr",
+"evr": "4.4.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gcr-libs",
+"evr": "4.4.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gcr3",
+"evr": "3.41.1-12.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gcr3-base",
+"evr": "3.41.1-12.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gd",
+"evr": "2.3.3-21.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gdb-headless",
+"evr": "17.2-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gdbm",
+"evr": "1:1.23-11.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gdbm-libs",
+"evr": "1:1.23-11.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gdk-pixbuf2",
+"evr": "2.44.6^really2.44.4-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gdm",
+"evr": "1:50.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gdouros-symbola-fonts",
+"evr": "10.24-19.fc44",
+"arch": "noarch"
+},
+{
+"name": "geoclue2",
+"evr": "2.8.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "geoclue2-libs",
+"evr": "2.8.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "geocode-glib",
+"evr": "3.26.4-15.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gettext",
+"evr": "0.26-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gettext-envsubst",
+"evr": "0.26-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gettext-libs",
+"evr": "0.26-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gettext-runtime",
+"evr": "0.26-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ghostscript",
+"evr": "10.06.0-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ghostscript-tools-fontutils",
+"evr": "10.06.0-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "ghostscript-tools-printing",
+"evr": "10.06.0-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "giflib",
+"evr": "6.1.3-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "git",
+"evr": "2.56.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "git-core",
+"evr": "2.56.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "git-core-doc",
+"evr": "2.56.0-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "gjs",
+"evr": "1.88.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "glib-networking",
+"evr": "2.80.1-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "glib2",
+"evr": "2.88.4-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "glibc",
+"evr": "2.43-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "glibc-all-langpacks",
+"evr": "2.43-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "glibc-common",
+"evr": "2.43-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "glibc-gconv-extra",
+"evr": "2.43-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "glibc-minimal-langpack",
+"evr": "2.43-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "glibmm2.68",
+"evr": "2.88.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "glx-utils",
+"evr": "9.0.0-11.fc44",
+"arch": "aarch64"
+},
+{
+"name": "glycin-gtk4-libs",
+"evr": "2.1.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "glycin-libs",
+"evr": "2.1.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "glycin-loaders",
+"evr": "2.1.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "glycin-thumbnailer",
+"evr": "2.1.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gmp",
+"evr": "1:6.3.0-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-app-list",
+"evr": "3.0-4.fc44",
+"arch": "noarch"
+},
+{
+"name": "gnome-autoar",
+"evr": "0.4.5-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-backgrounds",
+"evr": "50.0-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "gnome-bluetooth",
+"evr": "1:47.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-bluetooth-libs",
+"evr": "1:47.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-browser-connector",
+"evr": "42.1-14.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-calculator",
+"evr": "50.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-calendar",
+"evr": "50.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-characters",
+"evr": "50.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-classic-session",
+"evr": "50.4-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "gnome-clocks",
+"evr": "50.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-color-manager",
+"evr": "3.36.2-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-connections",
+"evr": "50.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-contacts",
+"evr": "50.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-control-center",
+"evr": "50.4-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-control-center-filesystem",
+"evr": "50.4-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "gnome-desktop3",
+"evr": "44.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-desktop4",
+"evr": "44.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-disk-utility",
+"evr": "46.1-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-epub-thumbnailer",
+"evr": "1.8-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-extensions-app",
+"evr": "50.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-font-viewer",
+"evr": "50.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-initial-setup",
+"evr": "50.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-keyring",
+"evr": "50.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-keyring-pam",
+"evr": "50.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-logs",
+"evr": "50.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-maps",
+"evr": "50.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-menus",
+"evr": "3.38.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-online-accounts",
+"evr": "3.58.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-online-accounts-libs",
+"evr": "3.58.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-remote-desktop",
+"evr": "50.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-session",
+"evr": "50.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-session-wayland-session",
+"evr": "50.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-settings-daemon",
+"evr": "50.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-shell",
+"evr": "50.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-shell-common",
+"evr": "50.5-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "gnome-shell-extension-apps-menu",
+"evr": "50.4-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "gnome-shell-extension-background-logo",
+"evr": "50.1-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "gnome-shell-extension-common",
+"evr": "50.4-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "gnome-shell-extension-launch-new-instance",
+"evr": "50.4-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "gnome-shell-extension-places-menu",
+"evr": "50.4-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "gnome-shell-extension-window-list",
+"evr": "50.4-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "gnome-software",
+"evr": "50.4-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-software-fedora-langpacks",
+"evr": "50.4-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-system-monitor",
+"evr": "50.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-text-editor",
+"evr": "50.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-tour",
+"evr": "50.0-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-tweaks",
+"evr": "49.0-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "gnome-user-docs",
+"evr": "50.5-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "gnome-user-share",
+"evr": "48.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnome-weather",
+"evr": "50.0-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "gnulib-l10n",
+"evr": "20241231-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "gnupg2",
+"evr": "2.4.9-16.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnupg2-dirmngr",
+"evr": "2.4.9-16.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnupg2-gpg-agent",
+"evr": "2.4.9-16.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnupg2-gpgconf",
+"evr": "2.4.9-16.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnupg2-keyboxd",
+"evr": "2.4.9-16.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnupg2-verify",
+"evr": "2.4.9-16.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnutls",
+"evr": "3.8.13-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gnutls-dane",
+"evr": "3.8.13-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gobject-introspection",
+"evr": "1.86.0-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "google-carlito-fonts",
+"evr": "1.103-0.28.20130920.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-crosextra-caladea-fonts",
+"evr": "1:1.002-0.22.20130214.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-droid-sans-fonts",
+"evr": "20200215-24.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-color-emoji-fonts",
+"evr": "20260921-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-emoji-fonts",
+"evr": "20260921-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-fonts-common",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-naskh-arabic-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-arabic-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-armenian-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-bengali-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-canadian-aboriginal-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-cherokee-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-cjk-vf-fonts",
+"evr": "1:2.004-11.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-devanagari-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-ethiopic-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-georgian-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-gothic-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-gujarati-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-gurmukhi-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-hebrew-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-kannada-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-khmer-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-lao-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-math-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-meetei-mayek-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-mono-cjk-vf-fonts",
+"evr": "1:2.004-11.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-mono-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-nko-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-ol-chiki-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-oriya-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-sinhala-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-symbols-2-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-symbols-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-syriac-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-tamil-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-telugu-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-thaana-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-thai-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-sans-yi-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-serif-armenian-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-serif-bengali-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-serif-cjk-vf-fonts",
+"evr": "1:2.003-4.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-serif-devanagari-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-serif-ethiopic-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-serif-georgian-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-serif-gujarati-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-serif-gurmukhi-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-serif-hebrew-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-serif-kannada-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-serif-khmer-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-serif-lao-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-serif-oriya-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-serif-sinhala-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-serif-tamil-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-serif-telugu-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-serif-thai-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "google-noto-serif-vf-fonts",
+"evr": "20251201-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "gpg-pubkey",
+"evr": "36f612dcf27f7d1a48a835e4dbfcf71c6d9f90a6-6786af3b",
+"arch": "(none)"
+},
+{
+"name": "gpgme",
+"evr": "2.0.1-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gpgmepp",
+"evr": "2.0.1-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "graphene",
+"evr": "1.10.8-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "graphite2",
+"evr": "1.3.14-20.fc44",
+"arch": "aarch64"
+},
+{
+"name": "graphviz-libs",
+"evr": "14.1.4-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "grep",
+"evr": "3.12-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "groff-base",
+"evr": "1.23.0-12.fc44",
+"arch": "aarch64"
+},
+{
+"name": "grub2-common",
+"evr": "1:2.12-66.fc44",
+"arch": "noarch"
+},
+{
+"name": "grub2-efi-aa64",
+"evr": "1:2.12-66.fc44",
+"arch": "aarch64"
+},
+{
+"name": "grub2-efi-aa64-modules",
+"evr": "1:2.12-66.fc44",
+"arch": "noarch"
+},
+{
+"name": "grub2-tools",
+"evr": "1:2.12-66.fc44",
+"arch": "aarch64"
+},
+{
+"name": "grub2-tools-minimal",
+"evr": "1:2.12-66.fc44",
+"arch": "aarch64"
+},
+{
+"name": "grubby",
+"evr": "8.40-88.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gsettings-desktop-schemas",
+"evr": "50.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gsm",
+"evr": "1.0.24-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gsound",
+"evr": "1.0.3-12.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gspell",
+"evr": "1.14.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gssdp",
+"evr": "1.6.6-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gssproxy",
+"evr": "0.9.2-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gst-editing-services",
+"evr": "1.28.8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gst-thumbnailers",
+"evr": "1.0.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gstreamer1",
+"evr": "1.28.8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gstreamer1-plugin-dav1d",
+"evr": "0.15.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gstreamer1-plugin-gtk4",
+"evr": "0.15.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gstreamer1-plugin-libav",
+"evr": "1.28.8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gstreamer1-plugin-openh264",
+"evr": "1.28.8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gstreamer1-plugins-bad-free",
+"evr": "1.28.8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gstreamer1-plugins-bad-free-libs",
+"evr": "1.28.8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gstreamer1-plugins-base",
+"evr": "1.28.8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gstreamer1-plugins-good",
+"evr": "1.28.8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gstreamer1-plugins-good-gtk",
+"evr": "1.28.8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gstreamer1-plugins-good-qt6",
+"evr": "1.28.8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gstreamer1-plugins-ugly-free",
+"evr": "1.28.8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gtk-update-icon-cache",
+"evr": "3.24.52-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gtk-vnc2",
+"evr": "1.5.0-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gtk3",
+"evr": "3.24.52-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gtk4",
+"evr": "4.22.5-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gtkmm4.0",
+"evr": "4.22.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gtksourceview4",
+"evr": "4.8.4-11.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gtksourceview5",
+"evr": "5.20.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gupnp",
+"evr": "1.6.10-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gupnp-av",
+"evr": "0.14.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gupnp-dlna",
+"evr": "0.12.0-12.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gupnp-igd",
+"evr": "1.6.0-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gutenprint",
+"evr": "5.3.5-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gutenprint-cups",
+"evr": "5.3.5-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gutenprint-libs",
+"evr": "5.3.5-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gvfs",
+"evr": "1.60.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gvfs-afc",
+"evr": "1.60.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gvfs-afp",
+"evr": "1.60.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gvfs-archive",
+"evr": "1.60.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gvfs-client",
+"evr": "1.60.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gvfs-fuse",
+"evr": "1.60.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gvfs-goa",
+"evr": "1.60.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gvfs-gphoto2",
+"evr": "1.60.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gvfs-mtp",
+"evr": "1.60.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gvfs-smb",
+"evr": "1.60.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gvnc",
+"evr": "1.5.0-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gvncpulse",
+"evr": "1.5.0-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gweather-locations",
+"evr": "2026.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "gweather-locations-common",
+"evr": "2026.2-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "gzip",
+"evr": "1.14-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "harfbuzz",
+"evr": "14.1.0-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "harfbuzz-icu",
+"evr": "14.1.0-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "hdparm",
+"evr": "9.65-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "hexagonrpc",
+"evr": "0.5.0^19.git598b591-1.iceland1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "hicolor-icon-theme",
+"evr": "0.18-3.fc44",
+"arch": "noarch"
+},
+{
+"name": "hidapi",
+"evr": "0.15.0-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "highway",
+"evr": "1.3.0-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "hiredis",
+"evr": "1.2.0-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "hostname",
+"evr": "3.25-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "hplip",
+"evr": "3.26.6-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "hplip-common",
+"evr": "3.26.6-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "hplip-libs",
+"evr": "3.26.6-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "httpd",
+"evr": "2.4.69-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "httpd-core",
+"evr": "2.4.69-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "httpd-filesystem",
+"evr": "2.4.69-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "httpd-tools",
+"evr": "2.4.69-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "hunspell",
+"evr": "1.7.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "hunspell-en",
+"evr": "0.20260225-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "hunspell-en-AU",
+"evr": "0.20260225-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "hunspell-en-CA",
+"evr": "0.20260225-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "hunspell-en-GB",
+"evr": "0.20260225-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "hunspell-en-US",
+"evr": "0.20260225-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "hunspell-filesystem",
+"evr": "1.7.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "hwdata",
+"evr": "0.412-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "hyphen",
+"evr": "2.8.8-28.fc44",
+"arch": "aarch64"
+},
+{
+"name": "hyphen-en",
+"evr": "2.8.8-28.fc44",
+"arch": "noarch"
+},
+{
+"name": "ibus",
+"evr": "1.5.34-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ibus-anthy",
+"evr": "1.5.18-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ibus-anthy-python",
+"evr": "1.5.18-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "ibus-chewing",
+"evr": "2.1.7-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ibus-gtk3",
+"evr": "1.5.34-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ibus-gtk4",
+"evr": "1.5.34-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ibus-hangul",
+"evr": "1.5.5-12.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ibus-libpinyin",
+"evr": "1.16.5-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ibus-libs",
+"evr": "1.5.34-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ibus-m17n",
+"evr": "1.4.39-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ibus-setup",
+"evr": "1.5.34-4.fc44",
+"arch": "noarch"
+},
+{
+"name": "ibus-typing-booster",
+"evr": "2.31.1-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "iceland-device",
+"evr": "0.28-7.fc44",
+"arch": "noarch"
+},
+{
+"name": "iceland-firmware",
+"evr": "11.A.38-3.fc44",
+"arch": "noarch"
+},
+{
+"name": "iio-sensor-proxy",
+"evr": "3.9-10.iceland1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ilbc",
+"evr": "3.0.4-19.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ima-evm-utils-libs",
+"evr": "1.6.2-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "imath",
+"evr": "3.1.12-6.fc44",
+"arch": "aarch64"
+},
+{
+"name": "inih",
+"evr": "62-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "inih-cpp",
+"evr": "62-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "initscripts-service",
+"evr": "10.27-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "intel-audio-firmware",
+"evr": "20260916-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "intel-gpu-firmware",
+"evr": "20260916-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "ipp-usb",
+"evr": "0.9.34-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "iproute",
+"evr": "6.17.0-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ipset",
+"evr": "7.24-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ipset-libs",
+"evr": "7.24-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "iptables-libs",
+"evr": "1.8.11-13.fc44",
+"arch": "aarch64"
+},
+{
+"name": "iptables-nft",
+"evr": "1.8.11-13.fc44",
+"arch": "aarch64"
+},
+{
+"name": "iptstate",
+"evr": "2.3.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "iputils",
+"evr": "20250605-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "irqbalance",
+"evr": "2:1.9.5-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "iso-codes",
+"evr": "4.20.1-3.fc44",
+"arch": "noarch"
+},
+{
+"name": "iw",
+"evr": "6.17-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "iwlbluetooth-firmware",
+"evr": "20260916-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "iwlegacy-firmware",
+"evr": "20260916-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "iwlwifi-dvm-firmware",
+"evr": "20260916-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "iwlwifi-mld-firmware",
+"evr": "20260916-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "iwlwifi-mvm-firmware",
+"evr": "20260916-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "jansson",
+"evr": "2.14-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "java-25-openjdk-crypto-adapter",
+"evr": "1:25.0.4.1.1-1.1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "java-25-openjdk-headless",
+"evr": "1:25.0.4.1.1-1.1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "javapackages-filesystem",
+"evr": "6.4.1-10.fc44",
+"arch": "noarch"
+},
+{
+"name": "javascriptcoregtk4.1",
+"evr": "2.54.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "javascriptcoregtk6.0",
+"evr": "2.54.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "jbig2dec-libs",
+"evr": "0.20-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "jbigkit-libs",
+"evr": "2.1-33.fc44",
+"arch": "aarch64"
+},
+{
+"name": "jomolhari-fonts",
+"evr": "0.003-45.fc44",
+"arch": "noarch"
+},
+{
+"name": "jq",
+"evr": "1.8.1-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "json-c",
+"evr": "0.18-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "json-glib",
+"evr": "1.10.8-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "julietaula-montserrat-fonts",
+"evr": "1:9.000-4.fc44",
+"arch": "noarch"
+},
+{
+"name": "jxrlib",
+"evr": "1.1-33.fc44",
+"arch": "aarch64"
+},
+{
+"name": "kasumi-common",
+"evr": "2.5-50.fc44",
+"arch": "noarch"
+},
+{
+"name": "kasumi-unicode",
+"evr": "2.5-50.fc44",
+"arch": "aarch64"
+},
+{
+"name": "kbd",
+"evr": "2.9.0-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "kbd-legacy",
+"evr": "2.9.0-4.fc44",
+"arch": "noarch"
+},
+{
+"name": "kbd-misc",
+"evr": "2.9.0-4.fc44",
+"arch": "noarch"
+},
+{
+"name": "kde-filesystem",
+"evr": "5-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "kernel-iceland",
+"evr": "7.3.0~rc7.iceland.00426.g520e85da9244-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "kernel-tools",
+"evr": "7.2.9-201.fc44",
+"arch": "aarch64"
+},
+{
+"name": "kernel-tools-libs",
+"evr": "7.2.9-201.fc44",
+"arch": "aarch64"
+},
+{
+"name": "kexec-tools",
+"evr": "2.0.32-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "keyutils",
+"evr": "1.6.3-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "keyutils-libs",
+"evr": "1.6.3-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "kf6-filesystem",
+"evr": "6.31.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "kf6-karchive",
+"evr": "6.31.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "kf6-kimageformats",
+"evr": "6.31.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "kmod",
+"evr": "34.2-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "kmod-libs",
+"evr": "34.2-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "kpartx",
+"evr": "0.13.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "krb5-libs",
+"evr": "1.22.2-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "kyotocabinet-libs",
+"evr": "1.2.80-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ladspa",
+"evr": "1.17-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ladspa-swh-plugins",
+"evr": "0.4.17-20.fc44",
+"arch": "aarch64"
+},
+{
+"name": "lame-libs",
+"evr": "3.100-21.fc44",
+"arch": "aarch64"
+},
+{
+"name": "langpacks-core-en",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "langpacks-en",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "langpacks-fonts-en",
+"evr": "4.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "langtable",
+"evr": "0.0.71-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "lcms2",
+"evr": "2.16-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "leptonica",
+"evr": "1.87.0-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "less",
+"evr": "704-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "less-color",
+"evr": "704-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libICE",
+"evr": "1.1.2-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libSM",
+"evr": "1.2.5-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libX11",
+"evr": "1.8.13-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libX11-common",
+"evr": "1.8.13-3.fc44",
+"arch": "noarch"
+},
+{
+"name": "libX11-xcb",
+"evr": "1.8.13-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libXau",
+"evr": "1.0.12-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libXcomposite",
+"evr": "0.4.6-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libXcursor",
+"evr": "1.2.3-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libXdamage",
+"evr": "1.1.6-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libXdmcp",
+"evr": "1.1.5-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libXext",
+"evr": "1.3.6-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libXfixes",
+"evr": "6.0.1-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libXfont2",
+"evr": "2.0.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libXft",
+"evr": "2.3.8-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libXi",
+"evr": "1.8.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libXinerama",
+"evr": "1.1.5-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libXmu",
+"evr": "1.2.1-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libXpm",
+"evr": "3.5.17-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libXrandr",
+"evr": "1.5.4-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libXrender",
+"evr": "0.9.12-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libXres",
+"evr": "1.2.2-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libXt",
+"evr": "1.3.1-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libXtst",
+"evr": "1.2.5-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libXv",
+"evr": "1.0.13-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libXxf86vm",
+"evr": "1.1.6-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "liba52",
+"evr": "0.7.4-53.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libabw",
+"evr": "0.1.4-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libacl",
+"evr": "2.4.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libadwaita",
+"evr": "1.9.4-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libao",
+"evr": "1.2.0-31.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libaom",
+"evr": "3.13.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libarchive",
+"evr": "3.8.7-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libargon2",
+"evr": "20190702-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libaribcaption",
+"evr": "1.1.1-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libass",
+"evr": "0.17.4-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libassuan",
+"evr": "2.5.7-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libasyncns",
+"evr": "0.8-34.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libatasmart",
+"evr": "0.19-32.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libattr",
+"evr": "2.6.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libavc1394",
+"evr": "0.5.4-27.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libavcodec-free",
+"evr": "8.1.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libavdevice-free",
+"evr": "8.1.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libavfilter-free",
+"evr": "8.1.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libavformat-free",
+"evr": "8.1.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libavif",
+"evr": "1.3.0-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libavutil-free",
+"evr": "8.1.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libb2",
+"evr": "0.98.1-15.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libbabeltrace",
+"evr": "1.5.11-17.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libbabeltrace2",
+"evr": "2.1.2-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libbasicobjects",
+"evr": "0.1.1-61.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libblkid",
+"evr": "2.41.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libblockdev",
+"evr": "3.5.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libblockdev-btrfs",
+"evr": "3.5.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libblockdev-crypto",
+"evr": "3.5.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libblockdev-fs",
+"evr": "3.5.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libblockdev-loop",
+"evr": "3.5.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libblockdev-mdraid",
+"evr": "3.5.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libblockdev-nvme",
+"evr": "3.5.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libblockdev-part",
+"evr": "3.5.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libblockdev-smart",
+"evr": "3.5.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libblockdev-swap",
+"evr": "3.5.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libblockdev-utils",
+"evr": "3.5.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libbluray",
+"evr": "1.4.0-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libbpf",
+"evr": "2:1.6.3-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libbrotli",
+"evr": "1.2.0-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libbs2b",
+"evr": "3.1.0-37.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libbsd",
+"evr": "0.12.2-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libbytesize",
+"evr": "2.12-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libcaca",
+"evr": "0.99-0.82.beta20.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libcacard",
+"evr": "3:2.8.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libcamera",
+"evr": "0.7.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libcamera-ipa",
+"evr": "0.7.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libcamera-tools",
+"evr": "0.7.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libcanberra",
+"evr": "0.30-39.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libcanberra-gtk3",
+"evr": "0.30-39.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libcap",
+"evr": "2.78-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libcap-ng",
+"evr": "0.9.6-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libcap-ng-python3",
+"evr": "0.9.6-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libcbor",
+"evr": "0.13.0-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libcdio",
+"evr": "2.3.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libcdio-paranoia",
+"evr": "10.2+2.0.2-6.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libcdr",
+"evr": "0.1.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libchewing",
+"evr": "0.13.1-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libchromaprint",
+"evr": "1.6.0-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libcloudproviders",
+"evr": "0.4.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libcmis",
+"evr": "0.6.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libcollection",
+"evr": "0.7.0-61.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libcom_err",
+"evr": "1.47.3-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libcomps",
+"evr": "0.1.24-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libcue",
+"evr": "2.3.0-14.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libcupsfilters",
+"evr": "1:2.1.1-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libcurl",
+"evr": "8.18.0-13.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libdaemon",
+"evr": "0.14-33.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libdatrie",
+"evr": "0.2.14-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libdav1d",
+"evr": "1.5.4-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libdc1394",
+"evr": "2.2.7-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libdecor",
+"evr": "0.2.5-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libdeflate",
+"evr": "1.26-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libdhash",
+"evr": "0.5.0-61.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libdisplay-info",
+"evr": "0.3.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libdnf",
+"evr": "0.76.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libdnf5",
+"evr": "5.4.6.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libdnf5-cli",
+"evr": "5.4.6.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libdnf5-plugin-actions",
+"evr": "5.4.6.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libdnf5-plugin-appstream",
+"evr": "5.4.6.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libdovi",
+"evr": "3.3.2-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libdrm",
+"evr": "2.4.134-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libdvdnav",
+"evr": "7.0.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libdvdread",
+"evr": "7.0.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libe-book",
+"evr": "0.1.4-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libebur128",
+"evr": "1.2.6-15.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libeconf",
+"evr": "0.7.9-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libedit",
+"evr": "3.1-59.20260512cvs.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libei",
+"evr": "1.6.0-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libeis",
+"evr": "1.6.0-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libeot",
+"evr": "0.01-35.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libepoxy",
+"evr": "1.5.10-12.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libepubgen",
+"evr": "0.1.1-22.fc44",
+"arch": "aarch64"
+},
+{
+"name": "liberation-mono-fonts",
+"evr": "1:2.1.5-15.fc44",
+"arch": "noarch"
+},
+{
+"name": "liberation-sans-fonts",
+"evr": "1:2.1.5-15.fc44",
+"arch": "noarch"
+},
+{
+"name": "liberation-serif-fonts",
+"evr": "1:2.1.5-15.fc44",
+"arch": "noarch"
+},
+{
+"name": "libertas-firmware",
+"evr": "20260916-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "libestr",
+"evr": "0.1.11-13.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libetonyek",
+"evr": "0.1.13-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libev",
+"evr": "4.33-15.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libevdev",
+"evr": "1.13.7-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libevent",
+"evr": "2.1.13-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libexif",
+"evr": "0.6.26-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libexttextcat",
+"evr": "3.4.6-13.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libfastjson",
+"evr": "1.2304.0-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libfdisk",
+"evr": "2.41.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libffi",
+"evr": "3.5.2-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libfido2",
+"evr": "1.16.0-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libfontenc",
+"evr": "1.1.8-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libfprint",
+"evr": "1.94.100-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libfreehand",
+"evr": "0.1.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libfsverity",
+"evr": "1.6-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libftdi",
+"evr": "1.5-22.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libfyaml",
+"evr": "0.8-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libgcc",
+"evr": "16.2.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libgcrypt",
+"evr": "1.12.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libgee",
+"evr": "0.20.8-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libgexiv2",
+"evr": "0.16.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libglvnd",
+"evr": "1:1.7.0-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libglvnd-egl",
+"evr": "1:1.7.0-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libglvnd-gles",
+"evr": "1:1.7.0-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libglvnd-glx",
+"evr": "1:1.7.0-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libglvnd-opengl",
+"evr": "1:1.7.0-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libgomp",
+"evr": "16.2.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libgpg-error",
+"evr": "1.58-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libgphoto2",
+"evr": "2.5.33-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libgs",
+"evr": "10.06.0-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libgsf",
+"evr": "1.14.60-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libgtop2",
+"evr": "2.41.3-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libgudev",
+"evr": "238-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libgusb",
+"evr": "0.4.9-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libgweather",
+"evr": "4.6.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libgxps",
+"evr": "0.3.2-12.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libhandy",
+"evr": "1.8.3-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libhangul",
+"evr": "0.2.0-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libheif",
+"evr": "1.23.5-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libibverbs",
+"evr": "61.1^20260812git975bdaf-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libical",
+"evr": "3.0.20-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libical-glib",
+"evr": "3.0.20-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libicu",
+"evr": "77.1-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libidn2",
+"evr": "2.3.8-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libiec61883",
+"evr": "1.2.0-39.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libieee1284",
+"evr": "0.2.11-48.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libijs",
+"evr": "0.35-26.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libimagequant",
+"evr": "4.1.0-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libimobiledevice",
+"evr": "1.4.0-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libimobiledevice-glue",
+"evr": "1.3.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libini_config",
+"evr": "1.3.1-61.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libinput",
+"evr": "1.31.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libjaylink",
+"evr": "0.5.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libjcat",
+"evr": "0.2.6-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libjpeg-turbo",
+"evr": "3.1.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libjxl",
+"evr": "1:0.11.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libkcapi",
+"evr": "1.5.0-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libkcapi-hasher",
+"evr": "1.5.0-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libkcapi-hmaccalc",
+"evr": "1.5.0-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libklvanc",
+"evr": "1.6.0-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libksba",
+"evr": "1.6.7-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "liblangtag",
+"evr": "0.6.7-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "liblangtag-data",
+"evr": "0.6.7-7.fc44",
+"arch": "noarch"
+},
+{
+"name": "liblastlog2",
+"evr": "2.41.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "liblc3",
+"evr": "1.1.3-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libldac",
+"evr": "2.0.2.3-19.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libldb",
+"evr": "2:4.24.7-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "liblerc",
+"evr": "4.0.0-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "liblouis",
+"evr": "3.33.0-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "liblouis-tables",
+"evr": "3.33.0-7.fc44",
+"arch": "noarch"
+},
+{
+"name": "liblouisutdml",
+"evr": "2.12.0-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "liblouisutdml-utils",
+"evr": "2.12.0-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "liblqr-1",
+"evr": "0.4.2-29.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libmanette",
+"evr": "0.2.13-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libmaxminddb",
+"evr": "1.14.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libmbim",
+"evr": "1.32.0-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libmbim-utils",
+"evr": "1.32.0-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libmd",
+"evr": "1.3.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libmediaart",
+"evr": "1.9.7-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libmnl",
+"evr": "1.0.5-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libmodplug",
+"evr": "1:0.8.9.0-29.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libmodulemd",
+"evr": "2.15.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libmount",
+"evr": "2.41.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libmpc",
+"evr": "1.4.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libmpeg2",
+"evr": "0.5.1-33.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libmspack",
+"evr": "0.10.1-0.16.alpha.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libmspub",
+"evr": "0.1.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libmtp",
+"evr": "1.1.22-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libmwaw",
+"evr": "0.3.23-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libmysofa",
+"evr": "1.3.3-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libndp",
+"evr": "1.9-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libnet",
+"evr": "1.3-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libnetfilter_conntrack",
+"evr": "1.1.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libnfnetlink",
+"evr": "1.0.1-32.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libnfsidmap",
+"evr": "1:2.8.7-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libnftnl",
+"evr": "1.3.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libnghttp2",
+"evr": "1.68.0-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libnghttp3",
+"evr": "1.18.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libnice",
+"evr": "0.1.23-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libnl3",
+"evr": "3.12.0-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libnma",
+"evr": "1.10.6-11.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libnma-common",
+"evr": "1.10.6-11.fc44",
+"arch": "noarch"
+},
+{
+"name": "libnma-gtk4",
+"evr": "1.10.6-11.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libnotify",
+"evr": "0.8.8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libnsl2",
+"evr": "2.0.1-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libnumbertext",
+"evr": "1.0.11-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libnvme",
+"evr": "1.16.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libodfgen",
+"evr": "0.1.8-16.fc44",
+"arch": "aarch64"
+},
+{
+"name": "liboeffis",
+"evr": "1.6.0-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libogg",
+"evr": "2:1.3.6-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libopenjph",
+"evr": "0.25.3-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libopenmpt",
+"evr": "0.8.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "liborcus",
+"evr": "0.21.0-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libosinfo",
+"evr": "1.12.0-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libpagemaker",
+"evr": "0.0.4-28.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libpaper",
+"evr": "1:2.1.1-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libpasswdqc",
+"evr": "2.0.3-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libpath_utils",
+"evr": "0.2.1-61.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libpcap",
+"evr": "14:1.10.7-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libpciaccess",
+"evr": "0.16-17.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libpfm",
+"evr": "4.13.0-20.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libphodav",
+"evr": "3.0-13.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libphonenumber",
+"evr": "8.13.55-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libpinyin",
+"evr": "2.11.91-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libpinyin-data",
+"evr": "2.11.91-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libpipeline",
+"evr": "1.5.8-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libpkgconf",
+"evr": "2.5.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libplacebo",
+"evr": "7.360.1-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libplist",
+"evr": "2.7.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libpng",
+"evr": "2:1.6.58-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libportal",
+"evr": "0.10.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libportal-gtk4",
+"evr": "0.10.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libppd",
+"evr": "1:2.1.1-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libproxy",
+"evr": "0.5.12-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libpskc",
+"evr": "2.6.14-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libpsl",
+"evr": "0.21.5-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libpwquality",
+"evr": "1.4.5-15.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libqmi",
+"evr": "1.36.0-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libqmi-utils",
+"evr": "1.36.0-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libqrtr-glib",
+"evr": "1.2.2-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libqxp",
+"evr": "0.0.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "librabbitmq",
+"evr": "0.18.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libraqm",
+"evr": "0.10.1-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libraw1394",
+"evr": "2.1.2-25.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libref_array",
+"evr": "0.1.5-61.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libreoffice-calc",
+"evr": "1:26.2.6.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libreoffice-core",
+"evr": "1:26.2.6.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libreoffice-data",
+"evr": "1:26.2.6.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libreoffice-emailmerge",
+"evr": "1:26.2.6.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libreoffice-filters",
+"evr": "1:26.2.6.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libreoffice-graphicfilter",
+"evr": "1:26.2.6.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libreoffice-gtk3",
+"evr": "1:26.2.6.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libreoffice-gtk4",
+"evr": "1:26.2.6.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libreoffice-help-en",
+"evr": "1:26.2.6.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libreoffice-impress",
+"evr": "1:26.2.6.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libreoffice-langpack-en",
+"evr": "1:26.2.6.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libreoffice-ogltrans",
+"evr": "1:26.2.6.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libreoffice-opensymbol-fonts",
+"evr": "1:26.2.6.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "libreoffice-pdfimport",
+"evr": "1:26.2.6.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libreoffice-pyuno",
+"evr": "1:26.2.6.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libreoffice-ure",
+"evr": "1:26.2.6.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libreoffice-ure-common",
+"evr": "1:26.2.6.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "libreoffice-writer",
+"evr": "1:26.2.6.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libreoffice-xsltfilter",
+"evr": "1:26.2.6.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "librepo",
+"evr": "1.21.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libreport",
+"evr": "2.17.15-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libreport-cli",
+"evr": "2.17.15-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libreport-fedora",
+"evr": "2.17.15-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libreport-filesystem",
+"evr": "2.17.15-10.fc44",
+"arch": "noarch"
+},
+{
+"name": "libreport-plugin-bugzilla",
+"evr": "2.17.15-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libreport-plugin-kerneloops",
+"evr": "2.17.15-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libreport-plugin-logger",
+"evr": "2.17.15-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libreport-plugin-systemd-journal",
+"evr": "2.17.15-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libreport-plugin-ureport",
+"evr": "2.17.15-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libreport-web",
+"evr": "2.17.15-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "librevenge",
+"evr": "0.0.6-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "librist",
+"evr": "0.2.11-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "librsvg2",
+"evr": "2.62.4-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libsamplerate",
+"evr": "0.2.2-12.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libsane-airscan",
+"evr": "0.99.36-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libsane-hpaio",
+"evr": "3.26.6-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libsbc",
+"evr": "2.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libseccomp",
+"evr": "2.6.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libsecret",
+"evr": "0.21.8.2-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libselinux",
+"evr": "3.11-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libselinux-utils",
+"evr": "3.11-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libsemanage",
+"evr": "3.11-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libsepol",
+"evr": "3.11-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libshaderc",
+"evr": "2026.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libshout",
+"evr": "2.4.6-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libshumate",
+"evr": "1.6.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libsigc++30",
+"evr": "3.8.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libsmartcols",
+"evr": "2.41.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libsmbclient",
+"evr": "2:4.24.7-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libsndfile",
+"evr": "1.2.2-11.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libsodium",
+"evr": "1.0.22-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libsolv",
+"evr": "0.7.40-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libsoup3",
+"evr": "3.6.6-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libspectre",
+"evr": "0.2.12-11.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libspelling",
+"evr": "0.4.10-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libsrtp",
+"evr": "2.8.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libss",
+"evr": "1.47.3-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libssc",
+"evr": "0.4.4^8.git54dd13e-1.iceland1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libssh",
+"evr": "0.12.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libssh-config",
+"evr": "0.12.2-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "libsss_certmap",
+"evr": "2.13.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libsss_idmap",
+"evr": "2.13.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libsss_nss_idmap",
+"evr": "2.13.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libsss_sudo",
+"evr": "2.13.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libstaroffice",
+"evr": "0.0.8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libstdc++",
+"evr": "16.2.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libstemmer",
+"evr": "3.0.1-11.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libswresample-free",
+"evr": "8.1.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libswscale-free",
+"evr": "8.1.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libtalloc",
+"evr": "2.4.4-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libtasn1",
+"evr": "4.21.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libtdb",
+"evr": "1.4.15-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libtevent",
+"evr": "0.17.1-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libtextstyle",
+"evr": "0.26-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libthai",
+"evr": "0.1.30-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libtheora",
+"evr": "1:1.1.1-41.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libtiff",
+"evr": "4.7.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libtinysparql",
+"evr": "3.11.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libtirpc",
+"evr": "1.3.8-0.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libtommath",
+"evr": "1.3.1~rc1-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libtool-ltdl",
+"evr": "2.5.4-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libtraceevent",
+"evr": "1.8.4-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libudfread",
+"evr": "1.2.0-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libudisks2",
+"evr": "2.11.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libultrahdr",
+"evr": "1.4.0^20251202git8cbc983-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libunibreak",
+"evr": "6.1-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libunistring",
+"evr": "1.1-11.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libunwind",
+"evr": "1.8.3-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "liburing",
+"evr": "2.13-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libusb1",
+"evr": "1.0.30-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libusbmuxd",
+"evr": "2.1.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libuser",
+"evr": "0.64-17.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libuuid",
+"evr": "2.41.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libuv",
+"evr": "1:1.52.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libv4l",
+"evr": "1.32.0-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libva",
+"evr": "2.23.0-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libvdpau",
+"evr": "1.5-11.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libverto",
+"evr": "0.3.2-12.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libverto-libev",
+"evr": "0.3.2-12.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libvisio",
+"evr": "0.1.11-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libvisual",
+"evr": "1:0.4.2-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libvncserver",
+"evr": "0.9.15-6.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libvorbis",
+"evr": "1:1.3.7-14.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libvpx",
+"evr": "1.15.0-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libwacom",
+"evr": "2.19.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libwacom-data",
+"evr": "2.19.0-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "libwayland-client",
+"evr": "1.26.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libwayland-cursor",
+"evr": "1.26.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libwayland-egl",
+"evr": "1.26.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libwayland-server",
+"evr": "1.26.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libwbclient",
+"evr": "2:4.24.7-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libwebp",
+"evr": "1.6.0-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libwinpr",
+"evr": "2:3.32.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libwmf-lite",
+"evr": "0.2.16-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libwnck3",
+"evr": "43.3-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libwpd",
+"evr": "0.10.3-24.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libwpg",
+"evr": "0.3.4-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libwps",
+"evr": "0.4.14-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libxcb",
+"evr": "1.17.0-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libxcrypt",
+"evr": "4.5.2-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libxcvt",
+"evr": "0.1.2-11.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libxkbcommon",
+"evr": "1.13.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libxkbcommon-x11",
+"evr": "1.13.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libxkbfile",
+"evr": "1.1.3-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libxml2",
+"evr": "2.12.10-6.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libxmlb",
+"evr": "0.3.29-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libxshmfence",
+"evr": "1.3.2-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libxslt",
+"evr": "1.1.43-6.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libyaml",
+"evr": "0.2.5-18.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libyuv",
+"evr": "0-0.61.20260213git6067afd.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libzip",
+"evr": "1.11.4-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libzmf",
+"evr": "0.0.2-42.fc44",
+"arch": "aarch64"
+},
+{
+"name": "libzstd",
+"evr": "1.5.7-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "lilv-libs",
+"evr": "0.26.4-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "linux-atm-libs",
+"evr": "2.5.1-46.fc44",
+"arch": "aarch64"
+},
+{
+"name": "linux-firmware",
+"evr": "20260916-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "linux-firmware-whence",
+"evr": "20260916-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "lksctp-tools",
+"evr": "1.0.21-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "llvm-filesystem",
+"evr": "22.1.8-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "llvm-libs",
+"evr": "22.1.8-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "lm_sensors-libs",
+"evr": "3.6.0-24.fc44",
+"arch": "aarch64"
+},
+{
+"name": "lmdb-libs",
+"evr": "0.9.34-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "localsearch",
+"evr": "3.11.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "lockdev",
+"evr": "1.0.4-0.54.20111007git.fc44",
+"arch": "aarch64"
+},
+{
+"name": "logrotate",
+"evr": "3.22.0-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "loupe",
+"evr": "50.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "lpcnetfreedv",
+"evr": "0.5-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "lpsolve",
+"evr": "5.5.2.14-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "lrzsz",
+"evr": "0.12.20-76.fc44",
+"arch": "aarch64"
+},
+{
+"name": "lsof",
+"evr": "4.98.0-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "lttng-ust",
+"evr": "2.14.0-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "lua-libs",
+"evr": "5.4.8-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "lz4-libs",
+"evr": "1.10.0-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "lzo",
+"evr": "2.10-16.fc44",
+"arch": "aarch64"
+},
+{
+"name": "m17n-db",
+"evr": "1.8.14-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "m17n-lib",
+"evr": "1.8.6-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "madan-fonts",
+"evr": "2.000-43.fc44",
+"arch": "noarch"
+},
+{
+"name": "mailcap",
+"evr": "2.1.54-10.fc44",
+"arch": "noarch"
+},
+{
+"name": "malcontent",
+"evr": "0.14.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "malcontent-control",
+"evr": "0.14.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "malcontent-libs",
+"evr": "0.14.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "malcontent-ui-libs",
+"evr": "0.14.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "man-db",
+"evr": "2.13.1-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "man-pages",
+"evr": "6.13-3.fc44",
+"arch": "noarch"
+},
+{
+"name": "mariadb-connector-c",
+"evr": "3.4.9-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "mariadb-connector-c-config",
+"evr": "3.4.9-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "md4c",
+"evr": "0.5.1-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "mdadm",
+"evr": "4.3-11.fc44",
+"arch": "aarch64"
+},
+{
+"name": "mediawriter",
+"evr": "5.3.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "memstrack",
+"evr": "0.2.5-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "mesa-dri-drivers",
+"evr": "26.2.4-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "mesa-filesystem",
+"evr": "26.2.4-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "mesa-libEGL",
+"evr": "26.2.4-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "mesa-libGL",
+"evr": "26.2.4-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "mesa-libGLU",
+"evr": "9.0.3-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "mesa-libgbm",
+"evr": "26.2.4-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "mesa-vulkan-drivers",
+"evr": "26.2.4-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "mkpasswd",
+"evr": "5.6.6-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "mobile-broadband-provider-info",
+"evr": "20240407-5.fc44",
+"arch": "noarch"
+},
+{
+"name": "mod_dnssd",
+"evr": "0.6-36.fc44",
+"arch": "aarch64"
+},
+{
+"name": "mod_http2",
+"evr": "2.0.39-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "mod_lua",
+"evr": "2.4.69-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "mokutil",
+"evr": "2:0.7.2-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "mozilla-filesystem",
+"evr": "1.9-38.fc44",
+"arch": "aarch64"
+},
+{
+"name": "mozjs140",
+"evr": "140.13.0-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "mpage",
+"evr": "2.5.7-24.fc44",
+"arch": "aarch64"
+},
+{
+"name": "mpdecimal",
+"evr": "4.0.1-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "mpfr",
+"evr": "4.2.2-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "mpg123-libs",
+"evr": "1.32.10-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "msgraph",
+"evr": "0.3.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "mt7xxx-firmware",
+"evr": "20260916-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "mtdev",
+"evr": "1.1.6-12.fc44",
+"arch": "aarch64"
+},
+{
+"name": "mtr",
+"evr": "2:0.96-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "mutter",
+"evr": "50.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "mutter-common",
+"evr": "50.5-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "mythes",
+"evr": "1.2.5-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "mythes-en",
+"evr": "3.0-43.fc44",
+"arch": "noarch"
+},
+{
+"name": "nano",
+"evr": "8.7.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "nano-default-editor",
+"evr": "8.7.1-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "nautilus",
+"evr": "50.3.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "nautilus-extensions",
+"evr": "50.3.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "nbd",
+"evr": "3.27.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ncurses",
+"evr": "6.6-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ncurses-base",
+"evr": "6.6-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "ncurses-libs",
+"evr": "6.6-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "net-snmp-libs",
+"evr": "1:5.9.5.2-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "net-tools",
+"evr": "2.0-0.77.20160912git.fc44",
+"arch": "aarch64"
+},
+{
+"name": "netavark",
+"evr": "2:1.17.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "nettle",
+"evr": "3.10.1-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "nfs-client-utils",
+"evr": "1:2.8.7-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "nfs-common-utils",
+"evr": "1:2.8.7-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "nfs-utils",
+"evr": "1:2.8.7-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "nfsv3-client-utils",
+"evr": "1:2.8.7-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "nfsv4-client-utils",
+"evr": "1:2.8.7-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "nftables",
+"evr": "1:1.1.6-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "nftables-services",
+"evr": "1:1.1.6-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "ngtcp2",
+"evr": "1.22.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ngtcp2-crypto-gnutls",
+"evr": "1.22.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ngtcp2-crypto-ossl",
+"evr": "1.22.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "nilfs-utils",
+"evr": "2.2.11-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "nm-connection-editor",
+"evr": "1.36.0-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "nmap-ncat",
+"evr": "4:7.92-11.fc44",
+"arch": "aarch64"
+},
+{
+"name": "noopenh264",
+"evr": "2.6.0-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "npth",
+"evr": "1.8-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "nspr",
+"evr": "4.39.0-6.fc44",
+"arch": "aarch64"
+},
+{
+"name": "nss",
+"evr": "3.130.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "nss-mdns",
+"evr": "0.15.1-28.fc44",
+"arch": "aarch64"
+},
+{
+"name": "nss-softokn",
+"evr": "3.130.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "nss-softokn-freebl",
+"evr": "3.130.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "nss-sysinit",
+"evr": "3.130.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "nss-util",
+"evr": "3.130.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ntfs-3g",
+"evr": "2:2026.2.25-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ntfs-3g-libs",
+"evr": "2:2026.2.25-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ntfs-3g-system-compression",
+"evr": "1.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ntfsprogs",
+"evr": "2:2026.2.25-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "numactl-libs",
+"evr": "2.0.19-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "nvidia-gpu-firmware",
+"evr": "20260916-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "nxpwireless-firmware",
+"evr": "20260916-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "oniguruma",
+"evr": "6.9.10-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "open-sans-fonts",
+"evr": "1.10-25.fc44",
+"arch": "noarch"
+},
+{
+"name": "openal-soft",
+"evr": "1.24.2-6.fc44",
+"arch": "aarch64"
+},
+{
+"name": "openapv-libs",
+"evr": "0.2.1.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "openconnect",
+"evr": "9.12-11.fc44",
+"arch": "aarch64"
+},
+{
+"name": "opencore-amr",
+"evr": "0.1.6-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "opencsd",
+"evr": "1.6.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "openexr-libs",
+"evr": "3.2.4-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "openjpeg",
+"evr": "2.5.4-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "openldap",
+"evr": "2.6.15-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "openpace",
+"evr": "1.1.3-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "openpgm",
+"evr": "5.3.128-6.fc44",
+"arch": "aarch64"
+},
+{
+"name": "opensc",
+"evr": "0.27.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "opensc-libs",
+"evr": "0.27.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "openssh",
+"evr": "10.2p1-14.fc44",
+"arch": "aarch64"
+},
+{
+"name": "openssh-clients",
+"evr": "10.2p1-14.fc44",
+"arch": "aarch64"
+},
+{
+"name": "openssh-server",
+"evr": "10.2p1-14.fc44",
+"arch": "aarch64"
+},
+{
+"name": "openssl-libs",
+"evr": "1:3.5.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "openvpn",
+"evr": "2.7.8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "opus",
+"evr": "1.6-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "orc",
+"evr": "0.4.41-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "orca",
+"evr": "50.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "os-prober",
+"evr": "1.81-11.fc44",
+"arch": "aarch64"
+},
+{
+"name": "osinfo-db",
+"evr": "20251212-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "osinfo-db-tools",
+"evr": "1.12.0-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ostree-libs",
+"evr": "2026.4-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "p11-kit",
+"evr": "0.26.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "p11-kit-server",
+"evr": "0.26.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "p11-kit-trust",
+"evr": "0.26.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "paktype-naskh-basic-fonts",
+"evr": "7.0-4.20231228.fc44",
+"arch": "noarch"
+},
+{
+"name": "pam",
+"evr": "1.7.2-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pam-libs",
+"evr": "1.7.2-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pam_afs_session",
+"evr": "2.6-25.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pam_passwdqc",
+"evr": "2.0.3-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pango",
+"evr": "1.57.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pangomm2.48",
+"evr": "2.56.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "papers",
+"evr": "49.8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "papers-libs",
+"evr": "49.8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "papers-nautilus",
+"evr": "49.8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "papers-previewer",
+"evr": "49.8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "papers-thumbnailer",
+"evr": "49.8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "paps",
+"evr": "0.8.0-15.fc44",
+"arch": "aarch64"
+},
+{
+"name": "parted",
+"evr": "3.6-15.fc44",
+"arch": "aarch64"
+},
+{
+"name": "passim",
+"evr": "0.1.12-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "passim-libs",
+"evr": "0.1.12-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "passt",
+"evr": "0^20261002.gcba3570-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "passt-selinux",
+"evr": "0^20261002.gcba3570-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "passwdqc",
+"evr": "2.0.3-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "passwdqc-utils",
+"evr": "2.0.3-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pcaudiolib",
+"evr": "1.1-19.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pciutils",
+"evr": "3.15.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pciutils-libs",
+"evr": "3.15.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pcre2",
+"evr": "10.47-1.fc44.1",
+"arch": "aarch64"
+},
+{
+"name": "pcre2-syntax",
+"evr": "10.47-1.fc44.1",
+"arch": "noarch"
+},
+{
+"name": "pcre2-utf16",
+"evr": "10.47-1.fc44.1",
+"arch": "aarch64"
+},
+{
+"name": "pcre2-utf32",
+"evr": "10.47-1.fc44.1",
+"arch": "aarch64"
+},
+{
+"name": "pcsc-lite",
+"evr": "2.4.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pcsc-lite-ccid",
+"evr": "1.7.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pcsc-lite-libs",
+"evr": "2.4.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "perl-AutoLoader",
+"evr": "0:5.74-525.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-B",
+"evr": "0:1.89-525.fc44",
+"arch": "aarch64"
+},
+{
+"name": "perl-Carp",
+"evr": "1.54-521.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-Class-Struct",
+"evr": "0:0.68-525.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-Data-Dumper",
+"evr": "2.192-523.fc44",
+"arch": "aarch64"
+},
+{
+"name": "perl-Digest",
+"evr": "1.20-521.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-Digest-MD5",
+"evr": "2.59-521.fc44",
+"arch": "aarch64"
+},
+{
+"name": "perl-DynaLoader",
+"evr": "0:1.57-525.fc44",
+"arch": "aarch64"
+},
+{
+"name": "perl-Encode",
+"evr": "4:3.21-521.fc44",
+"arch": "aarch64"
+},
+{
+"name": "perl-Errno",
+"evr": "0:1.38-525.fc44",
+"arch": "aarch64"
+},
+{
+"name": "perl-Error",
+"evr": "1:0.17030-3.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-Exporter",
+"evr": "5.79-521.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-Fcntl",
+"evr": "0:1.20-525.fc44",
+"arch": "aarch64"
+},
+{
+"name": "perl-File-Basename",
+"evr": "0:2.86-525.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-File-Path",
+"evr": "2.18-522.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-File-Temp",
+"evr": "1:0.231.200-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-File-stat",
+"evr": "0:1.14-525.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-FileHandle",
+"evr": "0:2.05-525.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-Getopt-Long",
+"evr": "1:2.58-521.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-Getopt-Std",
+"evr": "0:1.14-525.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-Git",
+"evr": "2.56.0-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-HTTP-Tiny",
+"evr": "0.096-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-IO",
+"evr": "0:1.55-525.fc44",
+"arch": "aarch64"
+},
+{
+"name": "perl-IO-Socket-IP",
+"evr": "0.43-522.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-IO-Socket-SSL",
+"evr": "2.098-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-IPC-Open3",
+"evr": "0:1.24-525.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-MIME-Base32",
+"evr": "1.303-25.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-MIME-Base64",
+"evr": "3.16-521.fc44",
+"arch": "aarch64"
+},
+{
+"name": "perl-NDBM_File",
+"evr": "0:1.18-525.fc44",
+"arch": "aarch64"
+},
+{
+"name": "perl-Net-SSLeay",
+"evr": "1.94-12.fc44",
+"arch": "aarch64"
+},
+{
+"name": "perl-POSIX",
+"evr": "0:2.23-525.fc44",
+"arch": "aarch64"
+},
+{
+"name": "perl-PathTools",
+"evr": "3.94-521.fc44",
+"arch": "aarch64"
+},
+{
+"name": "perl-Pod-Escapes",
+"evr": "1:1.07-521.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-Pod-Perldoc",
+"evr": "3.28.01-522.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-Pod-Simple",
+"evr": "1:3.47-4.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-Pod-Usage",
+"evr": "4:2.05-521.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-Scalar-List-Utils",
+"evr": "5:1.70-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "perl-SelectSaver",
+"evr": "0:1.02-525.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-Socket",
+"evr": "4:2.043-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "perl-Storable",
+"evr": "1:3.37-522.fc44",
+"arch": "aarch64"
+},
+{
+"name": "perl-Symbol",
+"evr": "0:1.09-525.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-Term-ANSIColor",
+"evr": "5.01-522.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-Term-Cap",
+"evr": "1.18-521.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-TermReadKey",
+"evr": "2.38-27.fc44",
+"arch": "aarch64"
+},
+{
+"name": "perl-Text-ParseWords",
+"evr": "3.31-521.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-Text-Tabs+Wrap",
+"evr": "2024.001-521.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-Time-HiRes",
+"evr": "4:1.9778-521.fc44",
+"arch": "aarch64"
+},
+{
+"name": "perl-Time-Local",
+"evr": "2:1.350-521.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-URI",
+"evr": "5.36-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-Unicode-Normalize",
+"evr": "1.32-521.fc44",
+"arch": "aarch64"
+},
+{
+"name": "perl-base",
+"evr": "0:2.27-525.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-constant",
+"evr": "1.33-522.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-if",
+"evr": "0:0.61.000-525.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-interpreter",
+"evr": "4:5.42.3-525.fc44",
+"arch": "aarch64"
+},
+{
+"name": "perl-lib",
+"evr": "0:0.65-525.fc44",
+"arch": "aarch64"
+},
+{
+"name": "perl-libnet",
+"evr": "3.15-522.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-libs",
+"evr": "4:5.42.3-525.fc44",
+"arch": "aarch64"
+},
+{
+"name": "perl-locale",
+"evr": "0:1.13-525.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-mro",
+"evr": "0:1.29-525.fc44",
+"arch": "aarch64"
+},
+{
+"name": "perl-overload",
+"evr": "0:1.40-525.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-overloading",
+"evr": "0:0.02-525.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-parent",
+"evr": "1:0.244-521.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-podlators",
+"evr": "1:6.0.2-522.fc44",
+"arch": "noarch"
+},
+{
+"name": "perl-vars",
+"evr": "0:1.05-525.fc44",
+"arch": "noarch"
+},
+{
+"name": "pinentry",
+"evr": "1.3.2-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pinentry-gnome3",
+"evr": "1.3.2-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pinfo",
+"evr": "0.6.13-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pipewire",
+"evr": "1.6.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pipewire-alsa",
+"evr": "1.6.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pipewire-config-raop",
+"evr": "1.6.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pipewire-gstreamer",
+"evr": "1.6.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pipewire-jack-audio-connection-kit",
+"evr": "1.6.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pipewire-jack-audio-connection-kit-libs",
+"evr": "1.6.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pipewire-libs",
+"evr": "1.6.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pipewire-plugin-libcamera",
+"evr": "1.6.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pipewire-pulseaudio",
+"evr": "1.6.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pipewire-utils",
+"evr": "1.6.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pixman",
+"evr": "0.46.2-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pkcs11-helper",
+"evr": "1.30.0-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pkcs11-provider",
+"evr": "1.1-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pkgconf",
+"evr": "2.5.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pkgconf-m4",
+"evr": "2.5.1-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "pkgconf-pkg-config",
+"evr": "2.5.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "plocate",
+"evr": "1.1.25-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "plymouth",
+"evr": "24.004.60-24.fc44",
+"arch": "aarch64"
+},
+{
+"name": "plymouth-core-libs",
+"evr": "24.004.60-24.fc44",
+"arch": "aarch64"
+},
+{
+"name": "plymouth-graphics-libs",
+"evr": "24.004.60-24.fc44",
+"arch": "aarch64"
+},
+{
+"name": "plymouth-plugin-label",
+"evr": "24.004.60-24.fc44",
+"arch": "aarch64"
+},
+{
+"name": "plymouth-plugin-two-step",
+"evr": "24.004.60-24.fc44",
+"arch": "aarch64"
+},
+{
+"name": "plymouth-scripts",
+"evr": "24.004.60-24.fc44",
+"arch": "aarch64"
+},
+{
+"name": "plymouth-system-theme",
+"evr": "24.004.60-24.fc44",
+"arch": "aarch64"
+},
+{
+"name": "plymouth-theme-spinner",
+"evr": "24.004.60-24.fc44",
+"arch": "aarch64"
+},
+{
+"name": "podman",
+"evr": "5:5.8.7-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "podman-sequoia",
+"evr": "0.3.2-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "policycoreutils",
+"evr": "3.11-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "policycoreutils-python-utils",
+"evr": "3.11-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "polkit",
+"evr": "127-2.fc44.2",
+"arch": "aarch64"
+},
+{
+"name": "polkit-libs",
+"evr": "127-2.fc44.2",
+"arch": "aarch64"
+},
+{
+"name": "polkit-pkla-compat",
+"evr": "0.1-32.fc44",
+"arch": "aarch64"
+},
+{
+"name": "poppler",
+"evr": "26.01.0-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "poppler-cpp",
+"evr": "26.01.0-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "poppler-data",
+"evr": "0.4.11-11.fc44",
+"arch": "noarch"
+},
+{
+"name": "poppler-glib",
+"evr": "26.01.0-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "poppler-utils",
+"evr": "26.01.0-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "popt",
+"evr": "1.19-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "portaudio",
+"evr": "19.7.0-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ppp",
+"evr": "2.5.1-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "prefixdevname",
+"evr": "0.2.0-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "procps-ng",
+"evr": "4.0.6-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "protobuf",
+"evr": "3.19.6-20.fc44",
+"arch": "aarch64"
+},
+{
+"name": "protobuf-c",
+"evr": "1.5.2-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "psacct",
+"evr": "6.6.4-26.fc44",
+"arch": "aarch64"
+},
+{
+"name": "psmisc",
+"evr": "23.7-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "ptyxis",
+"evr": "50.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "publicsuffix-list-dafsa",
+"evr": "20260116-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "pulseaudio-libs",
+"evr": "17.0-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pulseaudio-libs-glib2",
+"evr": "17.0-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "pulseaudio-utils",
+"evr": "17.0-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python-pip-wheel",
+"evr": "26.0.1-3.fc44",
+"arch": "noarch"
+},
+{
+"name": "python-unversioned-command",
+"evr": "3.14.8-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3",
+"evr": "3.14.8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-abrt",
+"evr": "2.17.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-abrt-addon",
+"evr": "2.17.9-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-anyio",
+"evr": "4.13.0-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-argcomplete",
+"evr": "3.6.3-4.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-audit",
+"evr": "4.2.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-augeas",
+"evr": "1.2.0-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-brlapi",
+"evr": "0.8.7-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-cairo",
+"evr": "1.28.0-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-certifi",
+"evr": "2026.01.04-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-cffi",
+"evr": "2.0.0-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-charset-normalizer",
+"evr": "3.4.4-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-click",
+"evr": "1:8.3.3-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-cups",
+"evr": "2.0.4-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-dasbus",
+"evr": "1.7-14.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-dbus",
+"evr": "1.4.0-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-distro",
+"evr": "1.9.0-11.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-dnf",
+"evr": "4.24.0-3.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-enchant",
+"evr": "3.3.0-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-file-magic",
+"evr": "5.46-10.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-firewall",
+"evr": "2.4.4-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-gobject",
+"evr": "3.56.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-gobject-base",
+"evr": "3.56.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-h11",
+"evr": "0.16.0-6.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-hawkey",
+"evr": "0.76.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-html2text",
+"evr": "2025.4.15-6.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-httpcore",
+"evr": "1.0.9-6.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-httpx",
+"evr": "0.28.1-11.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-ibus",
+"evr": "1.5.34-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-idna",
+"evr": "3.18-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-inotify",
+"evr": "0.9.6-43.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-langtable",
+"evr": "0.0.71-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-libcomps",
+"evr": "0.1.24-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-libdnf",
+"evr": "0.76.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-libreport",
+"evr": "2.17.15-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-libs",
+"evr": "3.14.8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-libselinux",
+"evr": "3.11-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-libsemanage",
+"evr": "3.11-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-linux-procfs",
+"evr": "0.7.4-3.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-louis",
+"evr": "3.33.0-7.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-nftables",
+"evr": "1:1.1.6-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-olefile",
+"evr": "0.47-13.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-packaging",
+"evr": "25.0-8.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-pam",
+"evr": "2.0.2-18.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-perf",
+"evr": "7.2.9-201.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-pexpect",
+"evr": "4.9.0-15.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-pillow",
+"evr": "12.3.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-policycoreutils",
+"evr": "3.11-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-psutil",
+"evr": "7.2.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-ptyprocess",
+"evr": "0.7.0-15.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-pyatspi",
+"evr": "2.58.2-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-pyaudio",
+"evr": "0.2.13-11.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-pycparser",
+"evr": "2.22-8.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-pysocks",
+"evr": "1.7.1-32.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-pyudev",
+"evr": "0.24.4-3.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-pyxdg",
+"evr": "0.28-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-pyyaml",
+"evr": "6.0.3-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-rapidfuzz",
+"evr": "3.14.3-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-regex",
+"evr": "2026.9.10-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-requests",
+"evr": "2.33.1-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-rpm",
+"evr": "6.0.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-satyr",
+"evr": "0.43-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-setools",
+"evr": "4.6.0-6.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-speechd",
+"evr": "0.12.1-6.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-systemd",
+"evr": "235-18.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-unbound",
+"evr": "1.26.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "python3-urllib3",
+"evr": "2.8.0-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "python3-urllib3+socks",
+"evr": "2.8.0-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "qbootctl",
+"evr": "0.2.2-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "qcom-firmware",
+"evr": "20260916-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "qcom-wwan-firmware",
+"evr": "20260916-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "qpdf-libs",
+"evr": "12.3.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "qrencode-libs",
+"evr": "4.1.1-12.fc44",
+"arch": "aarch64"
+},
+{
+"name": "qrtr",
+"evr": "1.2-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "qrtr-libs",
+"evr": "1.2-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "qt6-filesystem",
+"evr": "6.11.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "qt6-qtbase",
+"evr": "6.11.2-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "qt6-qtbase-common",
+"evr": "6.11.2-3.fc44",
+"arch": "noarch"
+},
+{
+"name": "qt6-qtbase-gui",
+"evr": "6.11.2-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "qt6-qtdeclarative",
+"evr": "6.11.2-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "qt6-qtsvg",
+"evr": "6.11.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "qt6-qttranslations",
+"evr": "6.11.2-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "qt6-qtwayland",
+"evr": "6.11.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "qt6-qtwayland-adwaita-decoration",
+"evr": "6.11.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "quota",
+"evr": "1:4.11-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "quota-nls",
+"evr": "1:4.11-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "raptor2",
+"evr": "2.0.15-50.fc44",
+"arch": "aarch64"
+},
+{
+"name": "rasqal",
+"evr": "0.9.33-32.fc44",
+"arch": "aarch64"
+},
+{
+"name": "rav1e-libs",
+"evr": "0.8.1-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "rdma-core-common",
+"evr": "61.1^20260812git975bdaf-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "readline",
+"evr": "8.3-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "realmd",
+"evr": "0.17.1-19.fc44",
+"arch": "aarch64"
+},
+{
+"name": "realtek-firmware",
+"evr": "20260916-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "redhat-menus",
+"evr": "12.0.2-39.fc44",
+"arch": "noarch"
+},
+{
+"name": "redland",
+"evr": "1.0.17-41.fc44",
+"arch": "aarch64"
+},
+{
+"name": "rest",
+"evr": "0.10.2-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "rit-meera-new-fonts",
+"evr": "1.6.2-5.fc44",
+"arch": "noarch"
+},
+{
+"name": "rit-rachana-fonts",
+"evr": "1.5.2-5.fc44",
+"arch": "noarch"
+},
+{
+"name": "rmtfs",
+"evr": "1.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "rootfiles",
+"evr": "9.0-6.fc44",
+"arch": "noarch"
+},
+{
+"name": "rpcbind",
+"evr": "1.3.1-0.fc44",
+"arch": "aarch64"
+},
+{
+"name": "rpm",
+"evr": "6.0.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "rpm-build-libs",
+"evr": "6.0.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "rpm-libs",
+"evr": "6.0.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "rpm-plugin-audit",
+"evr": "6.0.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "rpm-plugin-dbus-announce",
+"evr": "6.0.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "rpm-plugin-selinux",
+"evr": "6.0.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "rpm-plugin-systemd-inhibit",
+"evr": "6.0.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "rpm-sequoia",
+"evr": "1.10.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "rpm-sign-libs",
+"evr": "6.0.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "rsync",
+"evr": "3.5.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "rsyslog",
+"evr": "8.2604.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "rtkit",
+"evr": "0.11-70.fc44",
+"arch": "aarch64"
+},
+{
+"name": "rubberband-libs",
+"evr": "4.0.0-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "rygel",
+"evr": "45.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "samba-client",
+"evr": "2:4.24.7-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "samba-client-libs",
+"evr": "2:4.24.7-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "samba-common",
+"evr": "2:4.24.7-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "samba-core-libs",
+"evr": "2:4.24.7-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "samba-ndr-libs",
+"evr": "2:4.24.7-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "sane-airscan",
+"evr": "0.99.36-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "sane-backends",
+"evr": "1.4.0-6.fc44",
+"arch": "aarch64"
+},
+{
+"name": "sane-backends-drivers-cameras",
+"evr": "1.4.0-6.fc44",
+"arch": "aarch64"
+},
+{
+"name": "sane-backends-drivers-scanners",
+"evr": "1.4.0-6.fc44",
+"arch": "aarch64"
+},
+{
+"name": "sane-backends-libs",
+"evr": "1.4.0-6.fc44",
+"arch": "aarch64"
+},
+{
+"name": "satyr",
+"evr": "0.43-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "sdbus-cpp",
+"evr": "2.2.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "sdl2-compat",
+"evr": "2.32.74-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "sed",
+"evr": "4.9-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "selinux-policy",
+"evr": "44.11-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "selinux-policy-targeted",
+"evr": "44.11-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "serd",
+"evr": "0.32.8-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "setup",
+"evr": "2.15.0-28.fc44",
+"arch": "noarch"
+},
+{
+"name": "setxkbmap",
+"evr": "1.3.4-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "shadow-utils",
+"evr": "2:4.19.0-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "shadow-utils-subid",
+"evr": "2:4.19.0-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "shared-mime-info",
+"evr": "2.4-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "shim-aa64",
+"evr": "16.1-7",
+"arch": "aarch64"
+},
+{
+"name": "showtime",
+"evr": "50.0-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "sil-padauk-fonts",
+"evr": "3.003-21.fc44",
+"arch": "noarch"
+},
+{
+"name": "simdutf",
+"evr": "7.2.1-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "simple-scan",
+"evr": "50.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "skopeo",
+"evr": "1:1.22.3-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "slang",
+"evr": "2.3.3-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "smartmontools",
+"evr": "1:7.5-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "smartmontools-selinux",
+"evr": "1:7.5-10.fc44",
+"arch": "noarch"
+},
+{
+"name": "snappy",
+"evr": "1.2.2-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "snapshot",
+"evr": "50.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "sord",
+"evr": "0.16.22-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "sos",
+"evr": "4.12.0-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "sound-theme-freedesktop",
+"evr": "0.8-31.fc44",
+"arch": "noarch"
+},
+{
+"name": "soundtouch",
+"evr": "2.4.0-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "source-highlight",
+"evr": "3.1.9-27.fc44",
+"arch": "aarch64"
+},
+{
+"name": "soxr",
+"evr": "0.1.3-21.fc44",
+"arch": "aarch64"
+},
+{
+"name": "spandsp",
+"evr": "0.0.6-22.fc44",
+"arch": "aarch64"
+},
+{
+"name": "speech-dispatcher",
+"evr": "0.12.1-6.fc44",
+"arch": "aarch64"
+},
+{
+"name": "speech-dispatcher-espeak-ng",
+"evr": "0.12.1-6.fc44",
+"arch": "aarch64"
+},
+{
+"name": "speech-dispatcher-libs",
+"evr": "0.12.1-6.fc44",
+"arch": "aarch64"
+},
+{
+"name": "speech-dispatcher-utils",
+"evr": "0.12.1-6.fc44",
+"arch": "aarch64"
+},
+{
+"name": "speex",
+"evr": "1.2.0-21.fc44",
+"arch": "aarch64"
+},
+{
+"name": "spice-glib",
+"evr": "0.42-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "spice-gtk3",
+"evr": "0.42-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "spirv-tools-libs",
+"evr": "2026.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "sqlite-libs",
+"evr": "3.51.2-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "sratom",
+"evr": "0.6.22-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "srt-libs",
+"evr": "1.5.7-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "sshpass",
+"evr": "1.09-12.fc44",
+"arch": "aarch64"
+},
+{
+"name": "sso-mib-libs",
+"evr": "0.8.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "sssd-client",
+"evr": "2.13.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "sssd-common",
+"evr": "2.13.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "sssd-kcm",
+"evr": "2.13.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "sssd-krb5-common",
+"evr": "2.13.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "sssd-nfs-idmap",
+"evr": "2.13.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "sssd-proxy",
+"evr": "2.13.1-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "startup-notification",
+"evr": "0.12-33.fc44",
+"arch": "aarch64"
+},
+{
+"name": "stix-fonts",
+"evr": "2.13b171-10.fc44",
+"arch": "noarch"
+},
+{
+"name": "stoken-libs",
+"evr": "0.93-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "sudo",
+"evr": "1.9.17-10.p2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "sudo-python-plugin",
+"evr": "1.9.17-10.p2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "sushi",
+"evr": "50.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "svt-av1-libs",
+"evr": "3.1.2-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "switcheroo-control",
+"evr": "3.0-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "symlinks",
+"evr": "1.7-14.fc44",
+"arch": "aarch64"
+},
+{
+"name": "system-config-printer-libs",
+"evr": "1.5.18-20.fc44",
+"arch": "noarch"
+},
+{
+"name": "system-config-printer-udev",
+"evr": "1.5.18-20.fc44",
+"arch": "aarch64"
+},
+{
+"name": "systemd",
+"evr": "259.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "systemd-libs",
+"evr": "259.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "systemd-networkd",
+"evr": "259.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "systemd-oomd-defaults",
+"evr": "259.9-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "systemd-pam",
+"evr": "259.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "systemd-resolved",
+"evr": "259.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "systemd-shared",
+"evr": "259.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "systemd-sysusers",
+"evr": "259.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "systemd-udev",
+"evr": "259.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "taglib",
+"evr": "2.3-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "tar",
+"evr": "2:1.35-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "tcl",
+"evr": "1:9.0.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "tcpdump",
+"evr": "14:4.99.6-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "tecla",
+"evr": "50.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "tesseract-common",
+"evr": "5.5.3-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "tesseract-langpack-eng",
+"evr": "4.1.0-12.fc44",
+"arch": "noarch"
+},
+{
+"name": "tesseract-libs",
+"evr": "5.5.3-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "tesseract-tessdata-doc",
+"evr": "4.1.0-12.fc44",
+"arch": "noarch"
+},
+{
+"name": "texlive-lib",
+"evr": "12:20260301-111.fc44",
+"arch": "aarch64"
+},
+{
+"name": "time",
+"evr": "1.9-28.fc44",
+"arch": "aarch64"
+},
+{
+"name": "tinysparql",
+"evr": "3.11.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "tiwilink-firmware",
+"evr": "20260916-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "toolbox",
+"evr": "0.3-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "totem-pl-parser",
+"evr": "3.26.7-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "tpm2-tools",
+"evr": "5.7-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "tpm2-tss",
+"evr": "4.1.3-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "tpm2-tss-fapi",
+"evr": "4.1.3-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "traceroute",
+"evr": "3:2.1.6-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "tree",
+"evr": "2.2.1-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "tslib",
+"evr": "1.24-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "tuned",
+"evr": "2.28.0-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "tuned-ppd",
+"evr": "2.28.0-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "twolame-libs",
+"evr": "0.4.0-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "tzdata",
+"evr": "2026e-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "tzdata-java",
+"evr": "2026e-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "uchardet",
+"evr": "0.0.8-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "udftools",
+"evr": "2.3-13.fc44",
+"arch": "aarch64"
+},
+{
+"name": "udisks2",
+"evr": "2.11.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "udisks2-btrfs",
+"evr": "2.11.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "unbound-anchor",
+"evr": "1.26.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "unbound-libs",
+"evr": "1.26.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "unicode-ucd",
+"evr": "18.0.0-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "unoconv",
+"evr": "0.9.0-18.fc44",
+"arch": "noarch"
+},
+{
+"name": "unzip",
+"evr": "6.0-69.fc44",
+"arch": "aarch64"
+},
+{
+"name": "upower",
+"evr": "1.91.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "upower-libs",
+"evr": "1.91.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "uresourced",
+"evr": "0.5.4-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "uriparser",
+"evr": "1.0.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "urw-base35-bookman-fonts",
+"evr": "20200910-27.fc44",
+"arch": "noarch"
+},
+{
+"name": "urw-base35-c059-fonts",
+"evr": "20200910-27.fc44",
+"arch": "noarch"
+},
+{
+"name": "urw-base35-d050000l-fonts",
+"evr": "20200910-27.fc44",
+"arch": "noarch"
+},
+{
+"name": "urw-base35-fonts",
+"evr": "20200910-27.fc44",
+"arch": "noarch"
+},
+{
+"name": "urw-base35-fonts-common",
+"evr": "20200910-27.fc44",
+"arch": "noarch"
+},
+{
+"name": "urw-base35-gothic-fonts",
+"evr": "20200910-27.fc44",
+"arch": "noarch"
+},
+{
+"name": "urw-base35-nimbus-mono-ps-fonts",
+"evr": "20200910-27.fc44",
+"arch": "noarch"
+},
+{
+"name": "urw-base35-nimbus-roman-fonts",
+"evr": "20200910-27.fc44",
+"arch": "noarch"
+},
+{
+"name": "urw-base35-nimbus-sans-fonts",
+"evr": "20200910-27.fc44",
+"arch": "noarch"
+},
+{
+"name": "urw-base35-p052-fonts",
+"evr": "20200910-27.fc44",
+"arch": "noarch"
+},
+{
+"name": "urw-base35-standard-symbols-ps-fonts",
+"evr": "20200910-27.fc44",
+"arch": "noarch"
+},
+{
+"name": "urw-base35-z003-fonts",
+"evr": "20200910-27.fc44",
+"arch": "noarch"
+},
+{
+"name": "usb_modeswitch",
+"evr": "2.6.2-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "usb_modeswitch-data",
+"evr": "20191128-15.fc44",
+"arch": "noarch"
+},
+{
+"name": "usbmuxd",
+"evr": "1.1.1^20251205git3ded00c-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "usbredir",
+"evr": "0.15.0-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "usbutils",
+"evr": "019-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "usermode",
+"evr": "1.114-16.fc44",
+"arch": "aarch64"
+},
+{
+"name": "userspace-rcu",
+"evr": "0.15.6-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "util-linux",
+"evr": "2.41.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "util-linux-core",
+"evr": "2.41.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "vazirmatn-vf-fonts",
+"evr": "33.003-16.fc44",
+"arch": "noarch"
+},
+{
+"name": "vid.stab",
+"evr": "1.1.1-8.fc44",
+"arch": "aarch64"
+},
+{
+"name": "vim-data",
+"evr": "2:9.2.1129-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "vim-minimal",
+"evr": "2:9.2.1129-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "virt-what",
+"evr": "1.27-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "vo-amrwbenc",
+"evr": "0.1.3-24.fc44",
+"arch": "aarch64"
+},
+{
+"name": "volume_key-libs",
+"evr": "0.3.12-29.fc44",
+"arch": "aarch64"
+},
+{
+"name": "vpnc",
+"evr": "0.5.3^20241114.git11e15a1-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "vpnc-script",
+"evr": "20230907-7.git5b9e7e4c.fc44",
+"arch": "noarch"
+},
+{
+"name": "vte-profile",
+"evr": "0.84.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "vte291",
+"evr": "0.84.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "vte291-gtk4",
+"evr": "0.84.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "vulkan-loader",
+"evr": "1.4.341.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "wavpack",
+"evr": "5.9.0-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "wcurl",
+"evr": "2026.01.05-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "webkit2gtk4.1",
+"evr": "2.54.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "webkitgtk6.0",
+"evr": "2.54.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "webrtc-audio-processing",
+"evr": "2.1-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "wget2",
+"evr": "2.3.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "wget2-libs",
+"evr": "2.3.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "wget2-wget",
+"evr": "2.3.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "which",
+"evr": "2.25-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "whois",
+"evr": "5.6.6-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "whois-nls",
+"evr": "5.6.6-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "wireless-regdb",
+"evr": "2026.09.03-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "wireplumber",
+"evr": "0.5.18-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "wireplumber-libs",
+"evr": "0.5.18-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "wl-clipboard",
+"evr": "2.2.1^git20251124.e808203-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "words",
+"evr": "3.0-63.fc44",
+"arch": "noarch"
+},
+{
+"name": "wpa_supplicant",
+"evr": "1:2.11-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "wsdd",
+"evr": "0.8-6.fc44",
+"arch": "noarch"
+},
+{
+"name": "xcb-util",
+"evr": "0.4.1-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xcb-util-cursor",
+"evr": "0.1.6-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xcb-util-image",
+"evr": "0.4.1-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xcb-util-keysyms",
+"evr": "0.4.1-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xcb-util-renderutil",
+"evr": "0.3.10-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xcb-util-wm",
+"evr": "0.4.2-9.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xdg-dbus-proxy",
+"evr": "0.1.9-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xdg-desktop-portal",
+"evr": "1.22.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xdg-desktop-portal-gnome",
+"evr": "50.0-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xdg-desktop-portal-gtk",
+"evr": "1.15.3-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xdg-user-dirs",
+"evr": "0.18-11.fc43",
+"arch": "aarch64"
+},
+{
+"name": "xdg-user-dirs-gtk",
+"evr": "0.16-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xdg-utils",
+"evr": "1.2.1-5.fc44",
+"arch": "noarch"
+},
+{
+"name": "xdriinfo",
+"evr": "1.0.7-6.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xevd-libs",
+"evr": "0.5.0-6.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xeve-libs",
+"evr": "0.5.1-6.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xfsprogs",
+"evr": "7.1.1-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xhost",
+"evr": "1.0.9-11.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xkbcomp",
+"evr": "1.5.0-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xkeyboard-config",
+"evr": "2.47-1.fc44",
+"arch": "noarch"
+},
+{
+"name": "xml-common",
+"evr": "0.6.3-68.fc44",
+"arch": "noarch"
+},
+{
+"name": "xmlrpc-c",
+"evr": "1.60.04-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xmlrpc-c-client",
+"evr": "1.60.04-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xmlsec1",
+"evr": "1:1.2.41-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xmlsec1-nss",
+"evr": "1:1.2.41-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xmodmap",
+"evr": "1.0.11-10.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xorg-x11-server-Xwayland",
+"evr": "24.1.14-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xorg-x11-xauth",
+"evr": "1:1.1.5-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xorg-x11-xinit",
+"evr": "1.4.3-4.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xprop",
+"evr": "1.2.8-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xrdb",
+"evr": "1.2.2-7.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xvidcore",
+"evr": "1.3.7-19.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xxhash-libs",
+"evr": "0.8.4-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xz",
+"evr": "1:5.8.2-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "xz-libs",
+"evr": "1:5.8.2-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "yajl",
+"evr": "2.1.0-40.fc44",
+"arch": "aarch64"
+},
+{
+"name": "yelp",
+"evr": "2:49.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "yelp-libs",
+"evr": "2:49.2-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "yelp-xsl",
+"evr": "49.0-2.fc44",
+"arch": "noarch"
+},
+{
+"name": "zchunk-libs",
+"evr": "1.5.4-1.fc44",
+"arch": "aarch64"
+},
+{
+"name": "zeromq",
+"evr": "4.3.5-22.fc43",
+"arch": "aarch64"
+},
+{
+"name": "zimg",
+"evr": "3.0.6-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "zip",
+"evr": "3.0-45.fc44",
+"arch": "aarch64"
+},
+{
+"name": "zix",
+"evr": "0.8.0-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "zlib-ng-compat",
+"evr": "2.3.3-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "zram-generator",
+"evr": "1.2.1-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "zram-generator-defaults",
+"evr": "1.2.1-5.fc44",
+"arch": "noarch"
+},
+{
+"name": "zstd",
+"evr": "1.5.7-5.fc44",
+"arch": "aarch64"
+},
+{
+"name": "zvbi",
+"evr": "0.2.44-3.fc44",
+"arch": "aarch64"
+},
+{
+"name": "zxcvbn-c",
+"evr": "2.6-2.fc44",
+"arch": "aarch64"
+},
+{
+"name": "zxing-cpp",
+"evr": "2.2.1-6.fc44",
+"arch": "aarch64"
+}
+]
+}

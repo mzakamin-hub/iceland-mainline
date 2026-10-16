@@ -1,0 +1,20 @@
+#!/bin/bash
+# image/kiwi/desc/root/etc/fstab.script - kiwi runs this CHROOTED after writing /etc/fstab, then deletes it.
+# The fstab of B149 (Fedora's): every btrfs subvolume mounted with compress=zstd:1, the root with x-systemd.growfs (gen_check's
+# fstab-growfs row: the btrfs grows with its partition at the first boot). Fails if the three subvolume lines are not there.
+set -euo pipefail
+f=/etc/fstab
+awk 'BEGIN { OFS = " " }
+	$3 == "btrfs" {
+		o = $4
+		if (o !~ /(^|,)compress=/) o = o ",compress=zstd:1"
+		if ($2 == "/" && o !~ /x-systemd\.growfs/) o = o ",x-systemd.growfs"
+		$4 = o
+	}
+	{ print }' "$f" > "$f.new"
+mv "$f.new" "$f"
+for m in / /home /var; do
+	awk -v m="$m" '$2 == m && $3 == "btrfs" && $4 ~ /subvol=/' "$f" | grep -q . || { echo "fstab.script: no btrfs subvolume line for $m"; exit 1; }
+done
+grep -q ' / btrfs .*x-systemd.growfs' "$f" || { echo "fstab.script: root without x-systemd.growfs"; exit 1; }
+echo "fstab.script: btrfs lines $(awk '$3 == "btrfs"' "$f" | wc -l), growfs on /"
