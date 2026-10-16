@@ -1,7 +1,8 @@
 #!/bin/bash
 # image/kiwi/desc/root/etc/fstab.script - kiwi runs this CHROOTED after writing /etc/fstab, then deletes it.
 # The fstab of B149 (Fedora's): every btrfs subvolume mounted with compress=zstd:1, the root with x-systemd.growfs (gen_check's
-# fstab-growfs row: the btrfs grows with its partition at the first boot). Fails if the three subvolume lines are not there.
+# fstab-growfs row: the btrfs grows with its partition at the first boot), the ESP with Fedora's umask=0077,shortname=winnt
+# (kiwi 11.1's schema has no efimountoptions). Fails if the three subvolume lines or the ESP line are not there.
 set -euo pipefail
 f=/etc/fstab
 awk 'BEGIN { OFS = " " }
@@ -11,10 +12,12 @@ awk 'BEGIN { OFS = " " }
 		if ($2 == "/" && o !~ /x-systemd\.growfs/) o = o ",x-systemd.growfs"
 		$4 = o
 	}
+	$2 == "/boot/efi" && $3 == "vfat" { $4 = "umask=0077,shortname=winnt" }
 	{ print }' "$f" > "$f.new"
 mv "$f.new" "$f"
 for m in / /home /var; do
 	awk -v m="$m" '$2 == m && $3 == "btrfs" && $4 ~ /subvol=/' "$f" | grep -q . || { echo "fstab.script: no btrfs subvolume line for $m"; exit 1; }
 done
 grep -q ' / btrfs .*x-systemd.growfs' "$f" || { echo "fstab.script: root without x-systemd.growfs"; exit 1; }
+awk '$2 == "/boot/efi" && $3 == "vfat" && $4 == "umask=0077,shortname=winnt"' "$f" | grep -q . || { echo "fstab.script: no /boot/efi vfat line with Fedora's options"; exit 1; }
 echo "fstab.script: btrfs lines $(awk '$3 == "btrfs"' "$f" | wc -l), growfs on /"
