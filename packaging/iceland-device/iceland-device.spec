@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        19%{?dist}
+Release:        20%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -198,12 +198,15 @@ Source178:      iceland-grow
 Source179:      iceland-grow.service
 # 0.28-18 (wf/scanfix C2): the login screen's own default - no automatic brightness, no light sensor claim
 Source180:      50-iceland-greeter-ambient
-# 0.28-19: stock's GPU pair into every kernel-iceland initramfs that lacks it (once, %posttrans)
+# 0.28-19: stock's GPU pair (0.28-20: and the vendor pair) into every kernel-iceland initramfs that lacks it (once,
+# %posttrans)
 Source181:      iceland-gpu-initramfs
 
 Requires:       kernel-iceland
-# 0.28-19: stock's GPU GMU / SQE pair (/usr/lib/firmware/iceland-gpu-stock), selected by iceland-cmdline (GPU_FW=stock)
-Requires:       iceland-firmware >= 11.A.38-5
+# 0.28-19: stock's GPU GMU / SQE pair (/usr/lib/firmware/iceland-gpu-stock, GPU_FW=stock); 0.28-20: the vendor pair
+# v5.3.33 / 0x094 (/usr/lib/firmware/iceland-gpu-vendor533, GPU_FW=vendor533, the default), both selected by
+# iceland-cmdline
+Requires:       iceland-firmware >= 11.A.38-6
 Requires:       bluez
 Requires:       python3
 Requires:       python3-gobject
@@ -265,9 +268,11 @@ Settings that make Fedora 44 work safely on the OnePlus Pad 4 with the kernel-ic
   stock value, never shipped);
 - the kernel command line carries the options kernel-iceland still needs;
 - the initramfs carries the display, touch and GPU drivers and their firmware;
-- the GPU runs stock 11.A.38's GMU firmware v5.3.39 / SQE microcode 0x103 (iceland-firmware >= 11.A.38-5):
-  firmware_class.path=/usr/lib/firmware/iceland-gpu-stock on the kernel command line and the pair in the initramfs;
-  GPU_FW=linux-firmware in /etc/iceland/boot.conf goes back to Fedora's linux-firmware pair;
+- the GPU runs the vendor GMU firmware v5.3.33 / SQE microcode 0x094 (iceland-firmware >= 11.A.38-6) with GPU
+  preemption on: firmware_class.path=/usr/lib/firmware/iceland-gpu-vendor533 and msm.enable_preemption=1 on the
+  kernel command line, both GPU pairs in the initramfs; GPU_FW=stock in /etc/iceland/boot.conf selects stock
+  11.A.38's v5.3.39 / 0x103 with preemption off, GPU_FW=linux-firmware Fedora's pair (GPU_PREEMPT=auto|0|1;
+  preemption is never switched on with stock's or linux-firmware's pair);
 - Wi-Fi power saving is on;
 - iceland-battery-guard enforces the stock 11.A.38 charging limits as a second layer over the charger firmware
   (temperature regions, per-region voltages and currents, the USB-C connector thermistors, 70/77 C power-off)
@@ -496,7 +501,8 @@ UPDATEDEFAULT=yes
 DEFAULTKERNEL=kernel-iceland
 EOT
 /usr/libexec/iceland/iceland-cmdline || :
-# 0.28-19: stock's GPU pair (90-iceland.conf) into the existing kernel-iceland initramfs images that lack it; a new
+# 0.28-19: stock's GPU pair (90-iceland.conf; 0.28-20: and the vendor pair) into the existing kernel-iceland
+# initramfs images that lack one; a new
 # kernel's initramfs gets it from dracut. Without it firmware_class.path would find linux-firmware's copies there.
 /usr/libexec/iceland/iceland-gpu-initramfs || :
 # a stale saved ALSA mixer state can route MultiMedia1 into back ends the ADSP can't open (pc-026 S12: GNOME showed
@@ -773,6 +779,24 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
 
 %changelog
+* Fri Oct 16 2026 mzak <mzak.amin@gmail.com> - 0.28-20
+- the GPU runs the vendor firmware pair GMU v5.3.33 / SQE 0x094 (iceland-firmware 11.A.38-6, as SuperTurtleDev and
+  the TB323FU port) with GPU preemption ON, keeping kernel-iceland's GPU power-vote patches (the owner's decision
+  of 16 Oct 2026 after the RAM rehearsal P2: kernel q89m, msm.enable_preemption=1, 48356 preemption ring switches,
+  0 fenced-write failures / preemption timeouts / faults / recoveries, Chromium WebGL 0 crashes, vkmark 22112).
+  GPU_FW in /etc/iceland/boot.conf gains vendor533, the new default: iceland-cmdline puts
+  firmware_class.path=/usr/lib/firmware/iceland-gpu-vendor533 and msm.enable_preemption=1 on every boot entry
+  and /etc/kernel/cmdline; GPU_FW=stock = stock's path and no preemption option (kernel default off);
+  GPU_FW=linux-firmware = neither. A missing vendor pair falls back to stock's, a missing stock pair to
+  linux-firmware's
+- new switch GPU_PREEMPT=auto|0|1 (auto = on exactly with vendor533; 1 is refused with stock's or
+  linux-firmware's pair: preemption with them reset the tablet early in boot, rehearsals P1 / R3); with
+  preemption off every msm.enable_preemption value other than 0 is removed from the entries
+- 90-iceland.conf: both GPU pairs in the initramfs; iceland-gpu-initramfs checks / rebuilds for every installed
+  pair. Requires iceland-firmware >= 11.A.38-6; firmware-pins.tsv: 11.A.38-6 (f8e202b3, the new
+  iceland-firmware-fetch default). tests/test_gpu_fw.py: the firmware x preemption matrix
+- carries 0.28-19 otherwise unchanged (and 0.28-18's login screen default 50-iceland-greeter-ambient)
+
 * Fri Oct 16 2026 mzak <mzak.amin@gmail.com> - 0.28-19
 - the GPU runs stock 11.A.38's firmware pair, GMU v5.3.39 / SQE 0x103 (the owner's decision of 16 Oct 2026 after
   the RAM rehearsal R4: kernel q89m, GPU preemption off, clean GPU start, 0 GMU errors, 0 fenced writes, Chromium

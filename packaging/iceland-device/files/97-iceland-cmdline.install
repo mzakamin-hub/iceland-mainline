@@ -3,7 +3,7 @@
 # kernel-install plugin (iceland-device 0.28-15): after a new kernel-iceland's boot entry has been written (Fedora's
 # 20-grub.install / 90-loaderentry.install take its options from /etc/kernel/cmdline, or /proc/cmdline when that
 # file does not exist), iceland-cmdline brings every entry's options in line with /etc/iceland/boot.conf (IDLE_GOV,
-# RCU_LAZY, GPU_FW since 0.28-19) - so a new kernel gets the same managed options as the installed ones, whichever source was used.
+# RCU_LAZY, GPU_FW since 0.28-19, GPU_PREEMPT since 0.28-20) - so a new kernel gets the same managed options as the installed ones, whichever source was used.
 # ICELAND_CMDLINE_PROG (tests only): the program to run.
 COMMAND="$1"; KERNEL_VERSION="$2"
 [ "$COMMAND" = add ] || exit 0

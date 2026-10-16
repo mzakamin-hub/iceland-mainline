@@ -1,29 +1,32 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-2.0-or-later
-# iceland-gpu-initramfs (iceland-device 0.28-19): puts stock's GPU GMU / SQE pair (iceland-firmware >= 11.A.38-5,
-# /usr/lib/firmware/iceland-gpu-stock/qcom) into every kernel-iceland initramfs that lacks it. The GPU driver starts
-# from the initramfs and loads its microcode there; with firmware_class.path=/usr/lib/firmware/iceland-gpu-stock on
-# the command line but without the pair in the initramfs, the kernel would fall back to linux-firmware's v5.3.23 /
-# 0x088 copies. 90-iceland.conf (dracut) lists the pair, so every initramfs built from now on has it; this rebuilds
-# only the existing ones that miss either file (once: a rebuilt one has both). Run by the package's %posttrans.
-#   iceland-gpu-initramfs           rebuild what misses the pair
-#   iceland-gpu-initramfs --check   list each kernel-iceland initramfs and whether it has the pair (changes nothing)
-# Nothing to do when the pair is not installed. Exit 0, or 1 when a rebuild failed (the old initramfs is kept: dracut
+# iceland-gpu-initramfs (iceland-device 0.28-19, both pairs since 0.28-20): puts the GPU GMU / SQE pairs of
+# iceland-firmware into every kernel-iceland initramfs that lacks one: stock's (/usr/lib/firmware/iceland-gpu-stock,
+# >= 11.A.38-5) and the vendor's v5.3.33 / 0x094 (/usr/lib/firmware/iceland-gpu-vendor533, >= 11.A.38-6). The GPU
+# driver starts from the initramfs and loads its microcode there; with firmware_class.path naming a pair's directory
+# but without that pair in the initramfs, the kernel would fall back to linux-firmware's v5.3.23 / 0x088 copies.
+# 90-iceland.conf (dracut) lists both pairs, so every initramfs built from now on has them; this rebuilds only the
+# existing ones that miss a file of an installed pair (once: a rebuilt one has them). Run by the package's %posttrans.
+#   iceland-gpu-initramfs           rebuild what misses a pair
+#   iceland-gpu-initramfs --check   list each kernel-iceland initramfs and the pairs in it (changes nothing)
+# Nothing to do when no pair is installed. Exit 0, or 1 when a rebuild failed (the old initramfs is kept: dracut
 # writes a new file and renames it).
 # Test hooks (env): ICELAND_ROOT (the root to work on), ICELAND_LSINITRD, ICELAND_DRACUT (the programs to run).
 R=${ICELAND_ROOT:-}
 LSINITRD=${ICELAND_LSINITRD:-lsinitrd}
 DRACUT=${ICELAND_DRACUT:-dracut}
-G=usr/lib/firmware/iceland-gpu-stock/qcom/gen80200_gmu.bin
-S=usr/lib/firmware/iceland-gpu-stock/qcom/gen80200_sqe.fw
 MODE=fix
 case "${1:-}" in
 --check) MODE=check ;;
 "") ;;
 *) echo "usage: iceland-gpu-initramfs [--check]" >&2; exit 2 ;;
 esac
-if [ ! -f "$R/$G" ] || [ ! -f "$R/$S" ]; then
-	echo "iceland-gpu-initramfs: stock's GPU pair is not installed (iceland-firmware < 11.A.38-5): nothing to do"
+PAIRS=""
+for p in stock vendor533; do
+	[ -f "$R/usr/lib/firmware/iceland-gpu-$p/qcom/gen80200_gmu.bin" ] && [ -f "$R/usr/lib/firmware/iceland-gpu-$p/qcom/gen80200_sqe.fw" ] && PAIRS="$PAIRS $p"
+done
+if [ -z "$PAIRS" ]; then
+	echo "iceland-gpu-initramfs: no GPU pair of iceland-firmware is installed (iceland-firmware < 11.A.38-5): nothing to do"
 	exit 0
 fi
 rc=0
@@ -33,11 +36,17 @@ for img in "$R"/boot/initramfs-*-iceland*.img; do
 	case "$k" in *kdump*|*rescue*) continue ;; esac
 	[ -d "$R/usr/lib/modules/$k" ] || [ -d "$R/lib/modules/$k" ] || continue
 	l=$("$LSINITRD" "$img" 2>/dev/null)
-	has=no
-	case "$l" in *"$G"*) case "$l" in *"$S"*) has=yes ;; esac ;; esac
-	if [ "$MODE" = check ]; then echo "$k: stock GPU pair in the initramfs: $has"; continue; fi
-	[ "$has" = yes ] && continue
-	echo "iceland-gpu-initramfs: $k: adding stock's GPU pair (dracut -f)"
+	all=yes; st=""
+	for p in $PAIRS; do
+		h=no
+		case "$l" in *"usr/lib/firmware/iceland-gpu-$p/qcom/gen80200_gmu.bin"*)
+			case "$l" in *"usr/lib/firmware/iceland-gpu-$p/qcom/gen80200_sqe.fw"*) h=yes ;; esac ;; esac
+		[ $h = yes ] || all=no
+		st="$st $p=$h"
+	done
+	if [ "$MODE" = check ]; then echo "$k: GPU pairs in the initramfs:$st: $all"; continue; fi
+	[ "$all" = yes ] && continue
+	echo "iceland-gpu-initramfs: $k: adding the GPU pairs ($st ) (dracut -f)"
 	if ! "$DRACUT" -f "$img" "$k" >/dev/null 2>&1; then
 		echo "iceland-gpu-initramfs: $k: dracut failed, the old initramfs is kept" >&2; rc=1
 	fi

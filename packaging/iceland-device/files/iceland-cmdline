@@ -16,31 +16,58 @@
 #     A managed option that is on replaces another value of the same name (e.g. cpuidle.governor=menu); a switch
 #     that is off removes only the exact managed option. The options go before $iceland_args, so a value in GRUB's
 #     iceland_args (a rehearsal or a one-off test) still wins.
-#  3. 0.28-19, the GPU firmware (switch GPU_FW in /etc/iceland/boot.conf):
-#       GPU_FW=stock (default): firmware_class.path=/usr/lib/firmware/iceland-gpu-stock - the kernel looks for
-#                 firmware there first and finds stock's GMU v5.3.39 / SQE 0x103 (iceland-firmware >= 11.A.38-5;
-#                 RAM rehearsal R4, 16 Oct 2026: clean GPU start, 0 GMU errors); every other file still comes from
-#                 the default paths. Only when both files are installed: without them the option is removed.
-#       GPU_FW=linux-firmware: the option is removed; Fedora's linux-firmware pair (v5.3.23 / 0x088) is used.
+#  3. The GPU firmware (0.28-19; switch GPU_FW in /etc/iceland/boot.conf) and GPU preemption (0.28-20; GPU_PREEMPT):
+#       GPU_FW=vendor533 (default since 0.28-20): firmware_class.path=/usr/lib/firmware/iceland-gpu-vendor533 - the
+#                 vendor GMU v5.3.33 / SQE 0x094 of iceland-firmware >= 11.A.38-6 (as SuperTurtleDev and the TB323FU
+#                 port), with msm.enable_preemption=1 (RAM rehearsal P2, 16 Oct 2026, kernel q89m: 48356 preemption
+#                 ring switches, 0 fenced-write failures, 0 preemption timeouts, 0 faults / recoveries).
+#       GPU_FW=stock: firmware_class.path=/usr/lib/firmware/iceland-gpu-stock - stock 11.A.38's GMU v5.3.39 /
+#                 SQE 0x103 (iceland-firmware >= 11.A.38-5; rehearsal R4: clean with preemption off), and NO
+#                 preemption option (kernel-iceland's default is off, queue 0311).
+#       GPU_FW=linux-firmware: neither option; Fedora's linux-firmware pair (v5.3.23 / 0x088), preemption off.
+#     A pair is used only when both of its files are installed; a missing vendor533 pair falls back to stock's, a
+#     missing stock pair to linux-firmware. The kernel searches firmware_class.path first, every other file still
+#     comes from the default paths.
+#       GPU_PREEMPT=auto (default): msm.enable_preemption=1 exactly when the vendor533 pair is in use; 0: never;
+#       1: on, but ONLY with the vendor533 pair. Preemption with stock's pair (rehearsal P1) or linux-firmware's (R3)
+#       reset the tablet early in boot, so it is refused there: with preemption off every msm.enable_preemption
+#       value other than 0 is removed from the entries (GRUB's $iceland_args is not touched).
 # ICELAND_ROOT (tests only): the root to work on.
 R=${ICELAND_ROOT:-}
 ARGS="clk_ignore_unused pd_ignore_unused regulator_ignore_unused"
-IDLE_GOV=teo; RCU_LAZY=1; GPU_FW=stock
-GPUDIR=/usr/lib/firmware/iceland-gpu-stock
+IDLE_GOV=teo; RCU_LAZY=1; GPU_FW=vendor533; GPU_PREEMPT=auto
+FW=/usr/lib/firmware
 if [ -r "$R/etc/iceland/boot.conf" ]; then
 	v=$(sed -n 's/^IDLE_GOV=\([a-z]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); [ "$v" = menu ] && IDLE_GOV=menu
 	v=$(sed -n 's/^RCU_LAZY=\([0-9]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); [ "$v" = 0 ] && RCU_LAZY=0
-	v=$(sed -n 's/^GPU_FW=\([a-z-]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); [ "$v" = linux-firmware ] && GPU_FW=linux-firmware
+	v=$(sed -n 's/^GPU_FW=\([a-z0-9-]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1)
+	case "$v" in vendor533|stock|linux-firmware) GPU_FW=$v ;; esac
+	v=$(sed -n 's/^GPU_PREEMPT=\([a-z0-9]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1)
+	case "$v" in auto|0|1) GPU_PREEMPT=$v ;; esac
 fi
-ON=""; OFF=""
+pair() { [ -f "$R$FW/iceland-gpu-$1/qcom/gen80200_gmu.bin" ] && [ -f "$R$FW/iceland-gpu-$1/qcom/gen80200_sqe.fw" ]; }
+GPU=$GPU_FW
+[ "$GPU" = vendor533 ] && ! pair vendor533 && GPU=stock
+[ "$GPU" = stock ] && ! pair stock && GPU=linux-firmware
+PRE=0
+case "$GPU_PREEMPT" in
+auto) [ "$GPU" = vendor533 ] && PRE=1 ;;
+1) if [ "$GPU" = vendor533 ]; then PRE=1
+   else echo "iceland-cmdline: GPU_PREEMPT=1 refused with the $GPU GPU firmware (early-boot reset): preemption stays off" >&2; fi ;;
+esac
+ON=""; OFF=""; DROP=""
 if [ "$IDLE_GOV" = teo ]; then ON="$ON cpuidle.governor=teo"; else OFF="$OFF cpuidle.governor=teo"; fi
 if [ "$RCU_LAZY" = 1 ]; then ON="$ON rcu_nocbs=all rcutree.enable_rcu_lazy=1"; else OFF="$OFF rcu_nocbs=all rcutree.enable_rcu_lazy=1"; fi
-if [ "$GPU_FW" = stock ] && [ -f "$R$GPUDIR/qcom/gen80200_gmu.bin" ] && [ -f "$R$GPUDIR/qcom/gen80200_sqe.fw" ]; then
-	ON="$ON firmware_class.path=$GPUDIR"; else OFF="$OFF firmware_class.path=$GPUDIR"; fi
+case "$GPU" in
+vendor533|stock) ON="$ON firmware_class.path=$FW/iceland-gpu-$GPU" ;;
+*) OFF="$OFF firmware_class.path=$FW/iceland-gpu-vendor533 firmware_class.path=$FW/iceland-gpu-stock" ;;
+esac
+if [ $PRE = 1 ]; then ON="$ON msm.enable_preemption=1"; else DROP=msm.enable_preemption; fi
 fix() { # stdin: one options line -> the managed line (single spaces)
 	out=""; tail=""; set -f
 	for w in $(cat); do
 		case " $ARGS $OFF " in *" $w "*) continue ;; esac
+		[ -n "$DROP" ] && [ "${w%%=*}" = "$DROP" ] && [ "$w" != "$DROP=0" ] && continue
 		keep=1
 		for o in $ON; do [ "${w%%=*}" = "${o%%=*}" ] && keep=0; done
 		[ $keep = 1 ] || continue
