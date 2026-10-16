@@ -188,11 +188,9 @@ if __name__ == "__main__":
     a = sys.argv[1:]
     if a[:1] == ["--selftest"]:
         sys.exit(selftest())
-    pos = [x for x in a if not x.startswith("--")]
+    nm = a[a.index("--name") + 1] if "--name" in a else "kiwi-b150g"
+    pos = [x for i, x in enumerate(a) if not x.startswith("--") and not (i > 0 and a[i - 1] == "--name")]
     if len(pos) != 2:
         print(__doc__); sys.exit(2)
-    nm = a[a.index("--name") + 1] if "--name" in a else "kiwi-b150g"
-    if nm in pos:
-        pos.remove(nm)
     j, m = convert(pos[0], pos[1], nm, "--keep-esp" in a)
     print("kiwi2golden: %s (%d bytes, body %d, ESP %s/%s) body sha256 %s" % (j, m["size"], m["body_len"], m["esp"]["fat"], m["esp"]["sector"], m["body_sha256"][:16]))
