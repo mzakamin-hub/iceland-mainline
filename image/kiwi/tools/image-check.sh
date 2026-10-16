@@ -1,7 +1,7 @@
 #!/bin/bash
 # SPDX-License-Identifier: GPL-2.0-or-later
 # image/kiwi/tools/image-check.sh - the finished PC-built disk against the B150g invariants and B149's content. READ ONLY:
-# a read-only 4 KiB loop over the golden body (losetup -r -b 4096 -P), every mount -o ro (ext4 noload, btrfs
+# a read-only loop per partition of the golden body (losetup -r -o / --sizelimit), every mount -o ro (ext4 noload, btrfs
 # rescue=nologreplay). Needs root (WSL: wsl.exe -u root; CI: the privileged build container) and rpm, btrfs-progs, mtools.
 #   image-check.sh GOLDEN.json OUT_DIR [B149.json]
 # Writes OUT_DIR/{image-check.txt,manifest.tsv,manifest-diff.txt,esp-files.txt,lsinitrd.txt}. Last line of image-check.txt
@@ -21,30 +21,29 @@ nf=0
 row() { echo "$1 $2" >> "$R"; [ "$1" = FAIL ] && nf=$((nf + 1)); return 0; }
 [ "$(id -u)" = 0 ] || { echo "image-check: needs root (read-only loop mounts)"; exit 2; }
 BODY=$(dirname "$J")/$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["body"])' "$J")
-MNT=$(mktemp -d /tmp/iceland-check.XXXX); LOOP=
-MADE=""
-cleanup() { umount -R "$MNT" 2>/dev/null; [ -n "$LOOP" ] && losetup -d "$LOOP"; rmdir "$MNT" 2>/dev/null; [ -n "$MADE" ] && rm -f $MADE; }
+MNT=$(mktemp -d /tmp/iceland-check.XXXX); LOOPS=""
+cleanup() { umount -R "$MNT" 2>/dev/null; for l in $LOOPS; do losetup -d "$l"; done; rmdir "$MNT" 2>/dev/null; }
 trap cleanup EXIT
-LOOP=$(losetup -r -b 4096 -P --show -f "$BODY") || { echo "image-check: losetup failed"; exit 2; }
-udevadm settle 2>/dev/null; sleep 1
-# a build container has no udev of its own: make the partition nodes from sysfs when they are not there (removed again)
-for p in 1 2 3; do
-	n=${LOOP}p$p; s=/sys/class/block/${LOOP##*/}p$p/dev
-	if [ ! -b "$n" ] && [ -r "$s" ]; then mm=$(cat "$s"); mknod "$n" b "${mm%%:*}" "${mm##*:}" && MADE="$MADE $n"; fi
-	[ -b "$n" ] || { echo "image-check: no $n"; exit 2; }
-done
+# one read-only loop per partition (offset and size from the golden json); no partition scan: the body ends at the root
+# partition (its backup GPT is in the .tail), so the kernel would not take the GPT of a loop over the body alone
+P1=; P2=; P3=
+while read -r n off size; do
+	l=$(losetup -r -f --show -o "$off" --sizelimit "$size" "$BODY") || { echo "image-check: losetup p$n failed"; exit 2; }
+	LOOPS="$LOOPS $l"; eval "P$n=$l"
+done < <(python3 -I -c 'import json,sys; [print(p["n"], p["offset"], p["bytes"]) for p in json.load(open(sys.argv[1]))["partitions"]]' "$J")
+for p in "$P1" "$P2" "$P3"; do [ -b "$p" ] || { echo "image-check: a partition loop is missing ($P1 $P2 $P3)"; exit 2; }; done
 # ---- layout
-t=$(blkid -o value -s TYPE "${LOOP}p1")/$(blkid -o value -s TYPE "${LOOP}p2")/$(blkid -o value -s TYPE "${LOOP}p3")
+t=$(blkid -o value -s TYPE "$P1")/$(blkid -o value -s TYPE "$P2")/$(blkid -o value -s TYPE "$P3")
 [ "$t" = vfat/ext4/btrfs ] && row PASS "layout: file systems $t" || row FAIL "layout: file systems $t (want vfat/ext4/btrfs)"
 pt=$(python3 -I -c 'import json,sys; m=json.load(open(sys.argv[1])); print(" ".join(p["type"][:8]+"/"+p["name"].replace(" ","_") for p in m["partitions"]))' "$J")
 [ "$pt" = "c12a7328/EFI_System_Partition bc13c2ff/boot b921b045/root" ] && row PASS "layout: GPT types + names as B149" || row FAIL "layout: GPT $pt"
-mount -o ro,subvolid=5,rescue=nologreplay "${LOOP}p3" "$MNT" || { echo "image-check: mount top level failed"; exit 2; }
+mount -o ro,subvolid=5,rescue=nologreplay "$P3" "$MNT" || { echo "image-check: mount top level failed"; exit 2; }
 sv=$(btrfs subvolume list -t "$MNT" 2>/dev/null | awk 'NR > 2 {print $4 ":" $NF}' | sort | tr '\n' ' ')
 case "$sv" in "5:home 5:root 5:var ") row PASS "layout: btrfs top-level subvolumes root home var" ;; *) row FAIL "layout: btrfs subvolumes '$sv' (want root home var under 5)" ;; esac
 umount "$MNT"
-mount -o ro,subvol=root,rescue=nologreplay "${LOOP}p3" "$MNT" && mount -o ro,subvol=var,rescue=nologreplay "${LOOP}p3" "$MNT/var" \
-	&& mount -o ro,subvol=home,rescue=nologreplay "${LOOP}p3" "$MNT/home" && mount -o ro,noload "${LOOP}p2" "$MNT/boot" \
-	&& mount -o ro "${LOOP}p1" "$MNT/boot/efi" || { echo "image-check: mounting the image failed"; exit 2; }
+mount -o ro,subvol=root,rescue=nologreplay "$P3" "$MNT" && mount -o ro,subvol=var,rescue=nologreplay "$P3" "$MNT/var" \
+	&& mount -o ro,subvol=home,rescue=nologreplay "$P3" "$MNT/home" && mount -o ro,noload "$P2" "$MNT/boot" \
+	&& mount -o ro "$P1" "$MNT/boot/efi" || { echo "image-check: mounting the image failed"; exit 2; }
 for m in / /home /var; do
 	awk -v m="$m" '$2 == m && $3 == "btrfs" && $4 ~ /subvol=/ && $4 ~ /compress=zstd:1/' "$MNT/etc/fstab" | grep -q . && row PASS "fstab: $m btrfs subvol + zstd:1" || row FAIL "fstab: $m line"
 done
@@ -61,7 +60,7 @@ gc=$(gen_check); case "$gc" in "PASS "*) row PASS "gen_check: $gc" ;; *) row FAI
 # ---- boot
 KV=$(find "$MNT/usr/lib/modules" -mindepth 1 -maxdepth 1 -name '*-iceland*' -printf '%f\n' | sort -V | tail -n 1)
 e=$(ls "$MNT"/boot/loader/entries/*-"$KV".conf 2>/dev/null | head -n 1)
-ru=$(blkid -o value -s UUID "${LOOP}p3")
+ru=$(blkid -o value -s UUID "$P3")
 if [ -n "$e" ]; then
 	grep -q "^options root=UUID=$ru .*rootflags=subvol=root.*\$iceland_args" "$e" && row PASS "boot: entry options root=UUID(p3) subvol=root \$iceland_args" || row FAIL "boot: entry options: $(grep '^options' "$e" | sed "s/$ru/<p3>/")"
 	grep -q "^devicetree /dtb-$KV/qcom/kaanapali-oneplus-iceland.dtb" "$e" && [ -e "$MNT/boot/dtb-$KV/qcom/kaanapali-oneplus-iceland.dtb" ] && row PASS "boot: per-kernel devicetree" || row FAIL "boot: devicetree line / file"
@@ -72,7 +71,7 @@ grep -q '^menu_auto_hide=' "$MNT/boot/grub2/grubenv" 2>/dev/null && row FAIL "bo
 for f in EFI/BOOT/BOOTAA64.EFI EFI/fedora/shimaa64.efi EFI/fedora/grubaa64.efi EFI/fedora/grub.cfg dtb/qcom/kaanapali-oneplus-iceland.dtb; do
 	grep -qix "./$f" "$OUT/esp-files.txt" && row PASS "esp: $f" || row FAIL "esp: $f missing"
 done
-grep -qi "search.*--fs-uuid.*$(blkid -o value -s UUID "${LOOP}p2")" "$MNT/boot/efi/EFI/fedora/grub.cfg" 2>/dev/null && row PASS "esp: grub.cfg stub finds /boot by UUID" || row FAIL "esp: grub.cfg stub does not point at /boot's UUID"
+grep -qi "search.*--fs-uuid.*$(blkid -o value -s UUID "$P2")" "$MNT/boot/efi/EFI/fedora/grub.cfg" 2>/dev/null && row PASS "esp: grub.cfg stub finds /boot by UUID" || row FAIL "esp: grub.cfg stub does not point at /boot's UUID"
 # ---- initramfs (the B run's "initramfs has" line, same patterns)
 i=$MNT/boot/initramfs-$KV.img
 if [ -s "$i" ] && command -v lsinitrd > /dev/null; then
