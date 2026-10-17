@@ -70,7 +70,8 @@ instruction, or an unattended failure mode; **Low** = small points.
 - **Risk.** Write 1 replaces all of `userdata`: Android keeps its system partitions but loses its data and no longer
   starts. Dual boot would need the partition table of unit sda changed, which the design never writes.
 - **State.** The install is Fedora-only. The way back is the return to stock OxygenOS 11.A.38 (section 8 of the guide);
-  a way back to LineageOS is not written down.
+  a way back to LineageOS is not written down. A dual boot with BlissROM can be added after the install:
+  [DUAL-BOOT.md](../DUAL-BOOT.md).
 
 ### R-6 (Medium) - an unattended U-Boot that finds no Fedora
 

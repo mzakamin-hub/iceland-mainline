@@ -64,7 +64,7 @@ and the test material. Every binary records its source commits in its build info
 | Gunyah virtual machines (side package: VM-manager modules, test VMMs, a test guest kernel, smoke test) | [packaging/gunyah/](packaging/gunyah/) |
 | Audio topology and UCM | [audio/](audio/) |
 | Fedora image build (RAM-boot scripts) | [phase4/](phase4/) |
-| Dual-boot helper (untested) | [tools/dualboot/](tools/dualboot/) |
+| Dual boot BlissROM + Fedora (guide, table and `super` tools) | [docs/DUAL-BOOT.md](docs/DUAL-BOOT.md), [tools/dualboot/](tools/dualboot/) |
 | Kernel pin, patches, configs, port log | iceland-linux: `kernel.pin`, `patches/`, `configs/`, `docs/` |
 | U-Boot pin, patches, install build record | iceland-u-boot: `uboot.pin`, `patches/`, `tools/install/` |
 

@@ -92,7 +92,8 @@ All repositories are public under the GitHub user `mzakamin-hub`.
 - [docs/device-facts/](docs/device-facts/) and [docs/guide/](docs/guide/): the device facts and the guide set.
 - [firmware/README.md](firmware/README.md), [packaging/](packaging/), [phase4/README.md](phase4/README.md) and
   [tools/dualboot/README.md](tools/dualboot/README.md): the firmware manifest, the packages, the Fedora image build and
-  an untested dual-boot helper.
+  the dual-boot tools.
+- [docs/DUAL-BOOT.md](docs/DUAL-BOOT.md): the dual boot BlissROM + Fedora (U-Boot menu Fedora / BlissROM / Boot loader).
 
 ## Credits
 

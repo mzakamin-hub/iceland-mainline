@@ -165,7 +165,8 @@ touch slot b's flags, but a plain power-on would still start Android, and making
 write (`misc`). It is not needed, since Fedora marks the slot.
 
 Dual boot (Android next to Fedora) is outside this design: it needs the partition table of unit sda changed. The install
-build prefers a partition named `fedora` over `userdata`, so it is possible later, but it is not planned or tested.
+build prefers a partition named `fedora` over `userdata`; the dual boot with BlissROM that builds on this install is in
+[DUAL-BOOT.md](DUAL-BOOT.md).
 
 ## 6. Updates without breaking the tablet
 

@@ -1,16 +1,17 @@
-# Dual boot helper (untested, not part of the install)
+# Dual-boot tools (BlissROM + Fedora)
 
-The documented install is Fedora only (`docs/INSTALL-GUIDE.md`): it replaces Android's data, and Android no longer
-starts. A dual boot (Android next to Fedora) would need a `fedora` partition carved from `userdata`, which means a change
-of the partition table of unit sda; the install never writes a partition table. U-Boot's install build already prefers a
-partition named `fedora` over `userdata`, so such a layout is possible later, but it is not designed in detail and has
-not been tried.
+The tools of the dual boot in [docs/DUAL-BOOT.md](../../docs/DUAL-BOOT.md): a power-on menu Fedora / BlissROM / Boot
+loader from U-Boot v7, Fedora in its own `fedora` partition, BlissROM in a smaller `userdata`. These are the versions
+used on the tested tablet (only comments differ, and `gpt-parse.py` finds `image/tools/iceland_disk.py` in this
+repository). Block size is 4096 bytes everywhere.
 
-- `reflash-recovery.ps1`: writes U-Boot into the current slot's `recovery_<slot>` partition, the boot path a dual-boot
-  layout would use (recovery starts do not use a slot try, and the stock boot partition stays). It writes only
-  `recovery_a` or `recovery_b`, never switches slots, checks the sha256 and the Android header, and needs a typed
-  confirmation. It would be needed again after every Android OTA (an OTA switches slots). Rollback: write the saved stock
-  recovery image the same way.
+| Tool | Runs on | What it does |
+|---|---|---|
+| `gpt-plan.py` | PC | Computes, never writes, the two table changes from saved copies of a disk's first 6 and last 5 blocks. `split`: LUN 0, `userdata` keeps its name / type / GUID / attributes and starts later (optionally ends early: `--userdata-last`), a new `fedora` entry covers the old start. `shrink`: Fedora's own disk for a smaller size. Refuses on CRC errors, primary / backup mismatch, overlaps; re-parses its result. Writes `head-new.bin`, `tail-new.bin`, the undo `head-old.bin` / `tail-old.bin`, `REPORT.txt`, `SHA256SUMS` |
+| `gpt-parse.py` | PC | Prints a disk file's GPT through `iceland_disk.parse_gpt` (both CRCs) |
+| `dualboot-w2.sh` | the installed Fedora (root) | Writes Fedora's own (inner) table for the smaller disk: `--dry-run`, `--write --confirm CODE`, `--restore --confirm CODE`. Refuses unless the root is on the loop disk over `userdata`, systemd-repart is masked and the btrfs is already small enough; tail first, then head, each read back. Carries the tested layout's numbers |
+| `w3-gpt.sh` | Linux in RAM (root) | Writes LUN 0's table: `--dry-run`, `--write --confirm CODE`, `--restore --confirm CODE`. Refuses unless the device is UFS LUN 0 with the expected size, nothing on it is in use, and LUN 0 holds exactly the saved (or the planned) table; backup copy first, each read back, then the kernel re-reads the table and its partition view is compared |
+| `mk-super.py` | PC | Builds a sparse `super` image for ABL's `fastboot flash super`: the tablet's LP geometry and block device, new metadata with BlissROM's seven partitions for slot b (read-only, 1 MiB aligned), the raw images at their extents |
+| `check-super.py` | PC | Checks such an image independently: sparse structure, geometry, all metadata copies, every partition's bytes against its source image. Last line `SUPER-CHECK: N failure(s)` |
 
-**The install does not use this tool, and it is untested as a dual-boot path.** A U-Boot image in `recovery_<slot>` also needs an AVB footer made for that partition
-(`docs/guide/07-INSTALL-REVIEW.md` R-1).
+`SHA256SUMS` lists the files of this folder.

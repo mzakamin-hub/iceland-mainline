@@ -10,6 +10,16 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) ·
 [iceland-u-boot](https://github.com/mzakamin-hub/iceland-u-boot) (all public).
 
+## 2026-10-17 - dual boot BlissROM + Fedora; U-Boot v7
+
+- Dual boot: the power-on menu reads Fedora / BlissROM / Boot loader (fastboot). Fedora runs from a new `fedora`
+  partition (its bytes stay in place), BlissROM v20.1 from a smaller `userdata` on slot b
+  ([docs/DUAL-BOOT.md](docs/DUAL-BOOT.md), [tools/dualboot/](tools/dualboot/)).
+- U-Boot install build v7 (iceland-u-boot 0013-0015): a stricter gate for the Android entry, the entry named
+  "BlissROM", and `qcom_android_chain`: BlissROM's kernel from `boot_a` booted with the ramdisks, device tree and
+  bootconfig ABL prepared for `boot_b`. The OnePlus ABL starts `recovery_b` only without a kernel, so the earlier
+  recovery-based helper (`tools/dualboot/reflash-recovery.ps1`) is removed.
+
 ## 2026-10-14 - slot marking fixed in 0.28-8; U-Boot v4; matrix page v62
 
 - Fedora 44 GNOME boots from `boot_b` on its own ([docs/INSTALL-GUIDE.md](docs/INSTALL-GUIDE.md)).

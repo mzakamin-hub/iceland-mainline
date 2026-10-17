@@ -104,7 +104,8 @@ loop root); 0.28-8 and newer accept a loop root backed by `userdata`, make the b
 `qbootctl -m` call, and log both.
 
 Install checks: a full backup of the 151 partitions and the stock images, checked; a return-to-stock dry run; a second
-copy on another disk. The install is Fedora only (no dual boot).
+copy on another disk. The install is Fedora only; the dual boot with BlissROM is added afterwards
+([DUAL-BOOT.md](../DUAL-BOOT.md)).
 
 **ABL fastboot** (`getvar`) [measured]: `product=canoe`, `hw-revision=20000`, `variant=SM8 UFS`, `secure=yes`, `unlocked=yes`,
 `is-userspace=no` (ABL fastboot; fastbootd is in recovery), `max-download-size=805306368`, slots a/b with `slot-retry-count` 5 and
