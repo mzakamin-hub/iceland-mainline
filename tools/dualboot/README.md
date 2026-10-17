@@ -7,6 +7,7 @@ repository). Block size is 4096 bytes everywhere.
 
 | Tool | Runs on | What it does |
 |---|---|---|
+| `dualboot-backup.sh` | the installed Fedora (root) | Read only: the partition tables of every UFS LUN, Fedora's own table, the small Android partitions of both slots, `misc`, `metadata`, the ends of `super`, the slot flags and a comparison of the firmware partitions with BlissROM v20.1's, with `SHA256SUMS`. Its output is the input of `gpt-plan.py` and the undo of the flash steps; it holds the unit's GUIDs, so it stays private |
 | `gpt-plan.py` | PC | Computes, never writes, the two table changes from saved copies of a disk's first 6 and last 5 blocks. `split`: LUN 0, `userdata` keeps its name / type / GUID / attributes and starts later (optionally ends early: `--userdata-last`), a new `fedora` entry covers the old start. `shrink`: Fedora's own disk for a smaller size. Refuses on CRC errors, primary / backup mismatch, overlaps; re-parses its result. Writes `head-new.bin`, `tail-new.bin`, the undo `head-old.bin` / `tail-old.bin`, `REPORT.txt`, `SHA256SUMS` |
 | `gpt-parse.py` | PC | Prints a disk file's GPT through `iceland_disk.parse_gpt` (both CRCs) |
 | `dualboot-w2.sh` | the installed Fedora (root) | Writes Fedora's own (inner) table for the smaller disk: `--dry-run`, `--write --confirm CODE`, `--restore --confirm CODE`. Refuses unless the root is on the loop disk over `userdata`, systemd-repart is masked and the btrfs is already small enough; tail first, then head, each read back. Carries the tested layout's numbers |

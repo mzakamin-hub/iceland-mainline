@@ -19,6 +19,12 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
   "BlissROM", and `qcom_android_chain`: BlissROM's kernel from `boot_a` booted with the ramdisks, device tree and
   bootconfig ABL prepared for `boot_b`. The OnePlus ABL starts `recovery_b` only without a kernel, so the earlier
   recovery-based helper (`tools/dualboot/reflash-recovery.ps1`) is removed.
+- `iceland-device` 0.28-24 (the storage rule follows the `fedora` partition, `userdata` read-only for Android; a
+  stray-write guard around the slot mark) and 0.28-25 (the initramfs takes `fedora` even when udev names `userdata`
+  first; fixes a Fedora start that ended in the dracut shell after the split). Until 0.28-25 is installed, the guide
+  sets `iceland.carrier=fedora`.
+- The guide gained a backup step (`tools/dualboot/dualboot-backup.sh`, read only), an undo for every step, and the
+  limits (BlissROM updater off, reboot to the boot loader from Fedora, slot a).
 
 ## 2026-10-14 - slot marking fixed in 0.28-8; U-Boot v4; matrix page v62
 
