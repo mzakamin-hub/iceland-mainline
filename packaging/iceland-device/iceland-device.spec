@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        24%{?dist}
+Release:        25%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -788,6 +788,18 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
 
 %changelog
+* Sat Oct 17 2026 mzak <mzak.amin@gmail.com> - 0.28-25
+- dracut-iceland-carrier (initramfs): the carrier is chosen from the kernel's partition names (PARTNAME in
+  /sys/class/block/sdXN/uevent, UFS devices only) and opened as /dev/<kernel name>, no longer from udev's
+  /dev/disk/by-partlabel links. After the dual-boot split one Fedora start ended in the dracut shell: udev had made
+  the userdata link before the fedora link, the old wait loop took userdata (Android's data: no GPT header, exit 1)
+  and loop0p3 never appeared. Now fedora wins whenever a UFS partition carries that name; userdata is taken only when
+  none does, confirmed after udev has settled and a second scan 1 s later; iceland.carrier=NAME still overrides (by
+  PARTNAME); the decision is logged. ufs_ro, the GPT check and losetup are unchanged
+- tests: test_storage_dualboot.py carrier race rows (only the userdata link made / no link / fedora late in sysfs /
+  USB stick / override), test_install_parts.py carrier rows on PARTNAME
+- carries 0.28-24 unchanged (storage seat belt, slot-mark guard; 0.28-23's 50-iceland-greeter-ambient)
+
 * Sat Oct 17 2026 mzak <mzak.amin@gmail.com> - 0.28-24
 - the dual-boot package (wf/dualboot3, procedure step W0; numbered after 0.28-23, the number 0.28-22 stays unused)
 - storage seat belt follows Fedora's carrier: iceland-storage-ro chooses it as dracut-iceland-carrier does

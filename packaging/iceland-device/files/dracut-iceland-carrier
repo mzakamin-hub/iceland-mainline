@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 # dracut module "iceland" (initramfs): find the carrier of the Fedora disk and attach it as a partitioned loop
 # device, so that udev finds root=UUID=... on loop0p3 like on any disk.
-#   carrier = the partition labelled "fedora" if there is one (dual boot, U-Boot patch 0003 uses the same rule),
-#             else the partition labelled "userdata" (UFS LUN 0); iceland.carrier=LABEL overrides;
+#   carrier = the UFS partition named "fedora" if there is one (dual boot, U-Boot patch 0003 uses the same rule),
+#             else the one named "userdata" (UFS LUN 0); iceland.carrier=NAME overrides; the names are the kernel's
+#             PARTNAME (sysfs), the node is /dev/<kernel name> (devtmpfs) - since 0.28-25 no udev link is used;
 #             in a rehearsal (iceland.rehearsal= on the command line) the network disk from iceland-rehearsal.
 # It only reads the carrier here (the GPT check); the loop device is what Fedora then reads and writes.
 # ICELAND_ROOT / ICELAND_CMDLINE: test hooks for the PC unit tests (empty on the tablet).
@@ -34,18 +35,43 @@ if reh=$(getarg iceland.rehearsal); then
 	carrier=$("$R/usr/libexec/iceland/iceland-rehearsal" "$reh") || reboot_now
 	case "$carrier" in /dev/nbd*) ;; *) log "rehearsal carrier $carrier is not the network disk: refused"; reboot_now ;; esac
 else
-	label=$(getarg iceland.carrier) || label=""
-	for i in $(seq 1 150); do
-		if [ -z "$label" ]; then
-			[ -e "$R/dev/disk/by-partlabel/fedora" ] && label=fedora
-			[ -e "$R/dev/disk/by-partlabel/userdata" ] && [ -z "$label" ] && label=userdata
+	# 0.28-25 (17 Oct, a Fedora start after the split ended in the dracut shell): the carrier is chosen from the
+	# KERNEL's partition names (PARTNAME in /sys/class/block/sdXN/uevent, UFS devices only), no longer from udev's
+	# by-partlabel links - udev made the userdata link before the fedora link, and the old loop then took userdata
+	# (Android's data since the split: no GPT, exit 1, no root). fedora wins whenever it exists; userdata is taken only
+	# when no UFS partition is named fedora, confirmed after udev has settled and a second scan 1 s later.
+	pname() { # pname NAME -> the kernel name of the UFS partition called NAME (sda16), else nothing
+		local u n
+		for u in "$R"/sys/class/block/sd*/uevent; do
+			[ -e "$u" ] || continue
+			n=${u%/uevent}; n=${n##*/}
+			case "$(readlink -f "$R/sys/class/block/$n")" in */1d84000.ufs/*) ;; *) continue ;; esac
+			[ -e "$R/sys/class/block/$n/partition" ] || continue
+			grep -qx "PARTNAME=$1" "$u" 2>/dev/null && { echo "$n"; return 0; }
+		done
+		return 1
+	}
+	want=$(getarg iceland.carrier) || want=""
+	label=""; name=""; i=0
+	while [ $i -lt 150 ]; do   # up to 30 s for the UFS partitions and the carrier's device node
+		i=$((i + 1))
+		if [ -n "$want" ]; then
+			name=$(pname "$want") && label=$want
+		elif name=$(pname fedora); then
+			label=fedora
+		elif name=$(pname userdata); then
+			# no fedora partition (yet?): settle udev, look again 1 s later; fedora still wins if it shows up
+			command -v udevadm > /dev/null 2>&1 && [ -z "$R" ] && udevadm settle --timeout=10 2>/dev/null
+			sleep 1
+			if f=$(pname fedora); then name=$f; label=fedora; else name=$(pname userdata) && label=userdata; fi
 		fi
-		[ -n "$label" ] && [ -e "$R/dev/disk/by-partlabel/$label" ] && break
+		[ -n "$label" ] && { [ -b "$R/dev/$name" ] || [ -n "$R" -a -e "$R/dev/$name" ]; } && break
+		label=""; name=""
 		sleep 0.2
 	done
-	[ -n "$label" ] || { log "no partition labelled fedora or userdata"; exit 1; }
-	carrier=$(readlink -f "$R/dev/disk/by-partlabel/$label")   # ICELAND_INSTALL_ONLY (never in a rehearsal)
-	log "carrier: partition $label = $carrier"
+	[ -n "$label" ] || { log "no UFS partition named ${want:-fedora or userdata} with a device node within 30 s"; exit 1; }
+	carrier=$R/dev/$name   # ICELAND_INSTALL_ONLY (never in a rehearsal)
+	log "carrier: partition $label = /dev/$name (kernel PARTNAME${want:+, iceland.carrier=$want}; fedora $(pname fedora > /dev/null && echo present || echo absent))"
 	ufs_ro "${carrier##*/}"
 fi
 [ -b "$carrier" ] || [ -n "$R" -a -f "$carrier" ] || { log "carrier $carrier is not a block device"; exit 1; }
