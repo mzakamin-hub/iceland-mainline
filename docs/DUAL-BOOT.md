@@ -42,7 +42,7 @@ check after it, before the next one.
 
 | Item | Where |
 |---|---|
-| The Fedora install with iceland-device **0.28-25 or newer** (0.28-24: storage rule, `fedora` writable and `userdata` read-only once `fedora` exists, guarded slot marking; 0.28-25: the initramfs picks the `fedora` partition even when udev names `userdata` first). With 0.28-24, set `iceland.carrier=fedora` as in step W2b until 0.28-25 is installed | [INSTALL-GUIDE.md](INSTALL-GUIDE.md), [packaging/iceland-device/](../packaging/iceland-device/) (`build-rpm.sh`) |
+| The Fedora install with iceland-device **[0.28-25](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-25) or newer** (0.28-24: storage rule, `fedora` writable and `userdata` read-only once `fedora` exists, guarded slot marking; 0.28-25: the initramfs picks the `fedora` partition even when udev names `userdata` first). With 0.28-24, set `iceland.carrier=fedora` as in step W2b until 0.28-25 is installed | [INSTALL-GUIDE.md](INSTALL-GUIDE.md), [packaging/iceland-device/](../packaging/iceland-device/) (`build-rpm.sh`) |
 | U-Boot install build **v7** (0001-0015), plain image for a RAM test and AVB-footered for `boot_b` | [iceland-u-boot](https://github.com/mzakamin-hub/iceland-u-boot): `scripts/prepare.sh` + `scripts/build.sh`; footer as for v4 ([README-INSTALLER.md](../tools/installer/README-INSTALLER.md)) |
 | BlissROM v20.1 for `iceland` (the OTA zip) and a `payload.bin` extractor | BlissROM's download page |
 | The tools of [tools/dualboot/](../tools/dualboot/) | this repository |
@@ -117,7 +117,7 @@ writes `plan/`; copy `plan/` next to the script that uses it. Battery above 60 %
 | Step | Where | What | Check | Undo |
 |---|---|---|---|---|
 | B | Fedora, PC | [Backups first](#backups-first) | `sha256sum -c SHA256SUMS` on the PC | - |
-| W0a | Fedora | iceland-device 0.28-25 or newer installed; `qbootctl.service` stays disabled | the package's `--check` rows pass | the previous package again (`sudo rpm -Uvh --oldpackage ...`) |
+| W0a | Fedora | iceland-device [0.28-25](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-25) or newer installed; `qbootctl.service` stays disabled | the package's `--check` rows pass | the previous package again (`sudo rpm -Uvh --oldpackage ...`) |
 | W0b | Fedora | `sudo systemctl mask systemd-repart.service` (repart would grow Fedora's disk back over the new end) | `systemctl is-enabled systemd-repart` = masked | `sudo systemctl unmask systemd-repart.service` |
 | W1 | Fedora | `sudo btrfs filesystem resize 120g /`, then `sudo btrfs scrub start -B /` | scrub: no errors | `sudo btrfs filesystem resize max /` |
 | W2 | Fedora | Fedora's own partition table for the smaller disk: `gpt-plan.py shrink HEAD TAIL 57900303 32730388 plan/ --trust-primary`, then `sudo bash dualboot-w2.sh --dry-run` and `--write --confirm CODE` (CODE printed by the dry run) | two reboots: Fedora starts normally; `sfdisk -d` on the loop disk shows p3 ending at 32,730,382 | `sudo bash dualboot-w2.sh --restore --confirm CODE` |
