@@ -8,12 +8,16 @@
 #   probe     insmod the 10 add-on modules from /run/gunyah/mods; read-only checks (hypervisor id, resource
 #             manager, /dev/gunyah)
 #   vm        protected VMs only: 4 MiB lent memory, 1 vCPU; power-off x5, MMIO exit, hello text
+#   guest     boot the test guest kernel (guest/Image, 64 MiB lent, 1 vCPU) with gh_boot.py: its /init prints a
+#             GUEST-HELLO line (tty + kmsg) on the emulated UART and powers off (needs guest/Image in the
+#             package); run alone, it loads the modules first (probe) and unloads them afterwards (teardown)
 #   teardown  rmmod in reverse order, check /dev/gunyah is gone and the memory came back
-#   all       probe -> vm -> teardown (stops after probe if probe fails)
+#   all       probe -> vm -> guest -> teardown (stops after probe if probe fails)
 #
 # installed  run on the installed system: the btrfs root/home/var subvolumes may be mounted rw (by design), no
 #            other block device may be; needs battery >= 30 % or a charger; a paste-safe summary goes to
-#            ~/gunyah-test-<time>.txt of the calling user. Without the flag (RAM rehearsal) no block device may
+#            ~/gunyah-test-<time>.txt of the calling user (with the full guest console after a guest step).
+#            Without the flag (RAM rehearsal) no block device may
 #            be mounted rw.
 #
 # Writes: /run/gunyah (tmpfs) and, in installed mode, the one summary file. Nothing goes to /lib/modules, /etc,
@@ -25,9 +29,10 @@ D=/run/gunyah
 KR=$(modinfo -F vermagic "$D/mods/gunyah.ko" 2>/dev/null | cut -d' ' -f1 || true)
 MODS="gunyah_hypercall timer gunyah_platform_hooks gunyah gunyah_rsc_mgr gunyah_vcpu gunyah_qcom gunyah_irqfd gunyah_ioeventfd gunyah_qtvm"
 INSTALLED=0
+GUEST_RAN=0
 [ "${1:-}" = installed ] && { INSTALLED=1; shift; }
 STEP=${1:-}
-case "$STEP" in probe|vm|teardown|all) ;; *) echo "usage: $0 [installed] probe|vm|teardown|all"; exit 2 ;; esac
+case "$STEP" in probe|vm|guest|teardown|all) ;; *) echo "usage: $0 [installed] probe|vm|guest|teardown|all"; exit 2 ;; esac
 [ "$(id -u)" = 0 ] || { echo "FAIL not root (use sudo)"; exit 1; }
 mkdir -p "$D"; L=$D/log; S=$D/summary
 
@@ -39,6 +44,9 @@ finish() {
 	u=${SUDO_USER:-root}; h=$(getent passwd "$u" | cut -d: -f6); [ -d "$h" ] || h=/root
 	out=$h/gunyah-test-$(date +%Y%m%d-%H%M%S).txt
 	{ echo "gunyah side-package test, step '$STEP', $(date -Is)"; echo "kernel $(uname -r)"; cat "$S"
+	  if [ "$GUEST_RAN" = 1 ] && [ -f "$D/vm-guest.txt" ]; then
+		echo "== guest console (gh_boot.py output, $D/vm-guest.txt)"; cat "$D/vm-guest.txt"; echo "== end of guest console"
+	  fi
 	  echo "note: a reboot clears everything (modules, VM state); nothing was written to /lib/modules, /etc, /boot or a partition"; } > "$out"
 	chown "$u": "$out" 2>/dev/null || true
 	echo "summary: $out"
@@ -120,6 +128,28 @@ vm() {
 		&& say "FAIL kernel messages during the VM runs (see $D/dmesg-vm)" || say "PASS no kernel warnings during the VM runs"
 }
 
+guest() {
+	[ -c /dev/gunyah ] || fail "no /dev/gunyah (run probe)"
+	[ -f "$D/guest/Image" ] || { say "SKIP guest: no $D/guest/Image in this package"; return 0; }
+	GUEST_RAN=1; rm -f "$D/vm-guest.txt"
+	dmesg > "$D/dmesg-guest-before"
+	timeout 120 python3 -I "$D/gh_boot.py" "$D/guest/Image" 64 90 > "$D/vm-guest.txt" 2>&1
+	# the guest's /init writes its line through the tty (a line starting with GUEST-HELLO) and through /dev/kmsg
+	# (printk: "[    t] GUEST-HELLO: ..."); either one counts
+	tty=$(grep -c '^GUEST-HELLO: Linux ' "$D/vm-guest.txt"); km=$(grep -c '\] GUEST-HELLO: Linux ' "$D/vm-guest.txt")
+	if [ $((tty + km)) -gt 0 ] && grep -q "STATUS EXITED.*PASS" "$D/vm-guest.txt"; then
+		say "PASS guest kernel: $(grep -o 'GUEST-HELLO: Linux .*' "$D/vm-guest.txt" | head -1) (tty $tty, kmsg $km)"
+	else
+		say "FAIL guest kernel: $(grep -E '^\[5\]' "$D/vm-guest.txt" | head -1) (GUEST-HELLO lines: tty $tty, kmsg $km)"
+	fi
+	grep -E '^\[[1-5]\]|Booting Linux|Kernel panic|Unable to handle' "$D/vm-guest.txt" | head -8 | sed 's/^/guest: /' \
+		| while IFS= read -r x; do say "$x"; done
+	echo "== $D/vm-guest.txt" >> "$L"; cat "$D/vm-guest.txt" >> "$L"
+	dmesg | diff "$D/dmesg-guest-before" - | grep '^>' > "$D/dmesg-guest"
+	grep -E -i "BUG|WARNING|Oops|Unable to handle|SError" "$D/dmesg-guest" > /dev/null \
+		&& say "FAIL kernel messages during the guest run (see $D/dmesg-guest)" || say "PASS no kernel warnings during the guest run"
+}
+
 teardown() {
 	for m in $(echo $MODS | tr ' ' '\n' | tac); do
 		lsmod | grep -q "^$m " || continue
@@ -140,9 +170,10 @@ teardown() {
 case "$STEP" in
 	probe) guard; probe ;;
 	vm) guard; vm ;;
+	guest) guard; if [ -c /dev/gunyah ]; then guest; else probe; guest; teardown; fi ;;
 	teardown) teardown ;;
-	all) guard; probe; vm; teardown ;;
-	*) echo "usage: $0 [installed] probe|vm|teardown|all"; exit 2 ;;
+	all) guard; probe; vm; guest; teardown ;;
+	*) echo "usage: $0 [installed] probe|vm|guest|teardown|all"; exit 2 ;;
 esac
 say "done. A reboot clears everything."
 finish

@@ -1,0 +1,36 @@
+From 2aa0a303c24ccea6f25c996e1f2d82a21395e596 Mon Sep 17 00:00:00 2001
+From: mzak <mzak.amin@gmail.com>
+Date: Sat, 17 Oct 2026 11:42:31 +0300
+Subject: [PATCH 7/7] virt: gunyah: allow gunyah.ko to be unloaded
+
+gunyah.c has an init function but no exit function, so the module can
+never be removed (delete_module returns -EBUSY), and it keeps the
+modules it uses (timer, gunyah_hypercall) loaded as well. Add an exit
+function that unmaps the address-space info area.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Signed-off-by: mzak <mzak.amin@gmail.com>
+---
+ drivers/virt/gunyah/gunyah.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/drivers/virt/gunyah/gunyah.c b/drivers/virt/gunyah/gunyah.c
+index eac9593956d2..1048ec238775 100644
+--- a/drivers/virt/gunyah/gunyah.c
++++ b/drivers/virt/gunyah/gunyah.c
+@@ -116,5 +116,12 @@ static int __init gunyah_init(void)
+ }
+ core_initcall(gunyah_init);
+ 
++static void __exit gunyah_exit(void)
++{
++	if (info_area)
++		gunyah_unmap_addrspace_info_area();
++}
++module_exit(gunyah_exit);
++
+ MODULE_LICENSE("GPL");
+ MODULE_DESCRIPTION("Gunyah Driver");
+-- 
+2.43.0
+

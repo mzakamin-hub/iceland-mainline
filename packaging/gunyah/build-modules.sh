@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # build-modules.sh - build the Gunyah VM-manager modules out of tree for one kernel-iceland kernel.
 #
-#   build-modules.sh --src LINUX [--rev COMMIT] --kout KBUILD [--kver KVER] [--out DIR]
-#   build-modules.sh --src LINUX [--rev COMMIT] --config CONFIG --full [--kver KVER] [--out DIR]
+#   build-modules.sh --src LINUX [--rev COMMIT] --kout KBUILD [--kver KVER] [--out DIR] [--guest IMAGE]
+#   build-modules.sh --src LINUX [--rev COMMIT] --config CONFIG --full [--kver KVER] [--out DIR] [--guest IMAGE]
 #
 #   --src LINUX     a git tree of iceland-linux (github.com/mzakamin-hub/iceland-linux), checked out at the exact
 #                   commit the kernel was built from (kernel-iceland: /usr/lib/modules/<kver>/BUILD_INFO names it).
@@ -18,8 +18,11 @@
 #   --kver KVER     the kernel release the modules are for (default: KBUILD/include/config/kernel.release, or
 #                   the version in the path of --config /usr/lib/modules/<kver>/config).
 #   --out DIR       output directory (default ./out-<kver>)
+#   --guest IMAGE   also pack a test guest kernel (guest/build-guest.sh) as gunyah/guest/Image for the
+#                   smoke test's "guest" step
 #
-# Result: DIR/gunyah/{mods/*.ko, gh_vmtest.py, gunyah-rehearsal.sh, SHA256SUMS} and DIR/gunyah-mods-<kver>.tar.gz
+# Result: DIR/gunyah/{mods/*.ko, gh_vmtest.py, gh_boot.py, gunyah-rehearsal.sh, [guest/Image], SHA256SUMS} and
+# DIR/gunyah-mods-<kver>.tar.gz
 # (unpacks to gunyah/: `sudo tar -C /run -xzf ...` gives /run/gunyah, where gunyah-rehearsal.sh expects it).
 # The modules are debug-stripped; their vermagic must equal the kernel's (checked).
 #
@@ -30,7 +33,7 @@
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
-src= rev=HEAD kout= config= full=0 kver= out=
+src= rev=HEAD kout= config= full=0 kver= out= guest=
 while [ $# -gt 0 ]; do
 	case "$1" in
 	--src) src=$2; shift 2 ;;
@@ -40,7 +43,8 @@ while [ $# -gt 0 ]; do
 	--full) full=1; shift ;;
 	--kver) kver=$2; shift 2 ;;
 	--out) out=$2; shift 2 ;;
-	-h | --help) sed -n '3,31p' "$0"; exit 0 ;;
+	--guest) guest=$2; shift 2 ;;
+	-h | --help) sed -n '3,32p' "$0"; exit 0 ;;
 	*) echo "unknown argument: $1" >&2; exit 2 ;;
 	esac
 done
@@ -62,6 +66,10 @@ else
 	die "give --kout KBUILD or --config FILE --full"
 fi
 [ -n "$kver" ] || die "kernel release unknown: give --kver"
+if [ -n "$guest" ]; then
+	[ -f "$guest" ] || die "--guest $guest missing"
+	guest=$(cd "$(dirname "$guest")" && pwd)/$(basename "$guest")
+fi
 out=${out:-$PWD/out-$kver}
 mkdir -p "$out"; out=$(cd "$out" && pwd)
 
@@ -120,8 +128,12 @@ for k in "$pkg"/mods/*.ko; do
 	vm=$(modinfo -F vermagic "$k" | cut -d' ' -f1)
 	[ "$vm" = "$kver" ] || die "$(basename "$k"): vermagic $vm != $kver"
 done
-install -m 0755 "$here/gh_vmtest.py" "$here/gunyah-rehearsal.sh" "$pkg/"
-(cd "$pkg" && sha256sum mods/*.ko gh_vmtest.py gunyah-rehearsal.sh > SHA256SUMS)
+install -m 0755 "$here/gh_vmtest.py" "$here/gh_boot.py" "$here/gunyah-rehearsal.sh" "$pkg/"
+if [ -n "$guest" ]; then
+	[ "$(od -An -tx4 -j56 -N4 "$guest" | tr -d ' ')" = 644d5241 ] || die "$guest is not an arm64 Image"
+	install -D -m 0644 "$guest" "$pkg/guest/Image"
+fi
+(cd "$pkg" && find . -type f ! -name SHA256SUMS | sed 's|^\./||' | sort | xargs sha256sum > SHA256SUMS)
 tar -C "$out" --owner=0 --group=0 -czf "$out/gunyah-mods-$kver.tar.gz" gunyah
 echo "build-modules: $(ls "$pkg"/mods | wc -l) modules, vermagic $kver"
 echo "build-modules: $out/gunyah-mods-$kver.tar.gz sha256 $(sha256sum < "$out/gunyah-mods-$kver.tar.gz" | cut -c1-64)"
