@@ -22,15 +22,58 @@
 # transaction, systemd stayed 'starting' and every boot ended in 'FAIL ... starting after 300 s'. A FAIL line now
 # names the jobs still queued; a degraded boot names its failed units in the log (it still marks: the desktop is up).
 # systemctl is only asked (is-system-running, is-active, list-jobs, list-units --failed).
-# Test hooks (tests/test_slot_mark.py): ICELAND_CMDLINE ICELAND_ROOTSRC ICELAND_QBOOTCTL ICELAND_SYSTEMCTL
-# ICELAND_SLOTMARK_OFF ICELAND_WAIT ICELAND_SETTLE ICELAND_SYS ICELAND_BYPARTLABEL ICELAND_BLOCKDEV.
+# 0.28-24 (wf/dualboot3, 17 Oct): the stray-write guard. qbootctl -m rewrites the GPT copies of every LUN holding a
+# slot partition (LUN 0 for vbmeta_system_*, the boot LUN). It must change nothing else. The 17 Oct backup found 5
+# stray attribute bytes 4 blocks before LUN 0's backup entry array (inside userdata; after the dual-boot split that
+# is Android's data). qbootctl 0.2.2 itself left everything outside the two copies untouched on a 4 KiB-block PC test
+# (wf/dualboot3/qbootctl-exp), and the stray block also holds vbmeta_vendor_b, which qbootctl never touches, so the
+# writer is most likely the boot loader. The guard still checks every mark: before qbootctl -m it reads (O_DIRECT)
+# blocks 6-255 and the last 256 blocks without the 5 backup-table blocks of the LUN holding userdata / fedora and of the
+# boot LUN, and compares them afterwards. A change -> FAIL, the bytes from before are kept under
+# /var/lib/iceland/slot-mark/ (to restore by hand), the off switch is created, exit 1. When a "fedora" partition exists
+# (dual boot: Android's data behind userdata) and a region cannot be read, nothing is marked. --dry-run reads the
+# regions and says so.
+# Test hooks (tests/test_slot_mark.py, tests/test_storage_dualboot.py): ICELAND_CMDLINE ICELAND_ROOTSRC ICELAND_QBOOTCTL
+# ICELAND_SYSTEMCTL ICELAND_SLOTMARK_OFF ICELAND_WAIT ICELAND_SETTLE ICELAND_SYS ICELAND_BYPARTLABEL ICELAND_BLOCKDEV
+# ICELAND_DEVDIR ICELAND_DDFLAG ICELAND_SLOTMARK_STATE.
 set -u
 MODE=${1:-mark}
 CMDLINE=${ICELAND_CMDLINE:-/proc/cmdline}; QB=${ICELAND_QBOOTCTL:-qbootctl}; SC=${ICELAND_SYSTEMCTL:-systemctl}
 OFF=${ICELAND_SLOTMARK_OFF:-/etc/iceland/slot-mark-off}; WAIT=${ICELAND_WAIT:-300}; SETTLE=${ICELAND_SETTLE:-30}
 ROOTSRC=${ICELAND_ROOTSRC-$(findmnt -n -o SOURCE / 2>/dev/null)}
 SYS=${ICELAND_SYS:-/sys}; BYLABEL=${ICELAND_BYPARTLABEL:-/dev/disk/by-partlabel}; BD=${ICELAND_BLOCKDEV:-blockdev}
+DEVDIR=${ICELAND_DEVDIR:-/dev}; DDFLAG=${ICELAND_DDFLAG-iflag=direct}; STATE=${ICELAND_SLOTMARK_STATE:-/var/lib/iceland/slot-mark}
 log() { echo "iceland-slot-mark: $*"; }
+lun_of() {   # 0.28-24: $1 = a partition label -> the whole LUN's kernel name (sda), else nothing
+	local p
+	p=$(readlink -f "$BYLABEL/$1" 2>/dev/null) || return 0
+	[ -n "$p" ] && [ -e "$SYS/class/block/${p##*/}/partition" ] || return 0
+	basename "$(readlink -f "$SYS/class/block/${p##*/}/..")"
+}
+G_DIR=""; G_LUNS=""
+guard_read() {   # 0.28-24: guard_read TAG -> $G_DIR/LUN-head.TAG / LUN-tail.TAG for every guarded LUN; rc 1 when one fails
+	local l n bs sz ok=0
+	for l in $G_LUNS; do
+		bs=$(cat "$SYS/class/block/$l/queue/logical_block_size" 2>/dev/null); sz=$(cat "$SYS/class/block/$l/size" 2>/dev/null)
+		{ [ -n "$bs" ] && [ -n "$sz" ] && [ "$bs" -gt 0 ]; } || { log "guard: /dev/$l has no size / block size in sysfs"; ok=1; continue; }
+		n=$((sz * 512 / bs))
+		[ "$n" -gt 600 ] || { log "guard: /dev/$l is too small ($n blocks)"; ok=1; continue; }
+		# head: blocks 6..255 (after the primary table); tail: blocks n-256..n-6 (before the backup table)
+		dd if="$DEVDIR/$l" of="$G_DIR/$l-head.$1" bs="$bs" skip=6 count=250 $DDFLAG status=none 2>/dev/null \
+			&& dd if="$DEVDIR/$l" of="$G_DIR/$l-tail.$1" bs="$bs" skip=$((n - 256)) count=251 $DDFLAG status=none 2>/dev/null \
+			|| { log "guard: /dev/$l could not be read"; ok=1; }
+	done
+	return $ok
+}
+guard_setup() {   # 0.28-24: the LUNs to guard (userdata / fedora and boot<slot>), a private work dir; rc 1 = not usable
+	local l x; G_LUNS=""
+	for x in userdata fedora "boot$1"; do l=$(lun_of "$x"); case " $G_LUNS " in *" $l "*) ;; *) [ -n "$l" ] && G_LUNS="$G_LUNS $l" ;; esac; done
+	G_LUNS=${G_LUNS# }
+	[ -n "$G_LUNS" ] || { log "guard: no LUN found for userdata / fedora / boot$1"; return 1; }
+	G_DIR=$(mktemp -d "${TMPDIR:-/tmp}/iceland-slot-mark.XXXXXX") || return 1
+	guard_read before
+}
+dualboot() { [ -e "$BYLABEL/fedora" ]; }
 loop_carrier() {   # 0.28-8: $1 = /dev/loopN[pM]: "sdXN (userdata)" when its backing file is that partition, else rc 1
 	local l=${1#/dev/} bf n pn
 	l=$(echo "$l" | sed -E 's/^(loop[0-9]+)p[0-9]+$/\1/')   # loop0p3 -> loop0, loop0 stays
@@ -72,6 +115,11 @@ status)
 	need_qb; w=$(why_skip)
 	log "dry run: slots (read-only): $(dump | tr '\n\t' '  ' | tr -s ' ')"
 	if [ -n "$w" ]; then log "dry run: would SKIP: $w"; else log "dry run: would mark the current slot successful (qbootctl -m) after a good boot; current slot successful now: $(cur_ok)"; fi
+	c=$(dump | awk '/^Current slot:/ {print $3; exit}')
+	if guard_setup "$c"; then log "dry run: guard: blocks 6-255 and the last 256 without the backup table of $G_LUNS read (O_DIRECT); a mark compares them afterwards"
+	elif dualboot; then log "dry run: guard: NOT usable with a fedora partition - a mark would refuse"
+	else log "dry run: guard: not usable - a mark would go ahead with a warning (no fedora partition)"; fi
+	[ -n "$G_DIR" ] && rm -rf "$G_DIR"
 	exit 0 ;;
 mark) ;;
 *) echo "usage: iceland-slot-mark [mark|--dry-run|status]"; exit 2 ;;
@@ -105,7 +153,15 @@ restore_ro() {
 	ro0=""
 	if "$BD" --setro "/dev/$lun"; then log "/dev/$lun read-only again"; else log "FAIL /dev/$lun could not be made read-only again"; fi
 }
-trap restore_ro EXIT
+trap 'restore_ro; [ -n "$G_DIR" ] && rm -rf "$G_DIR"' EXIT
+# 0.28-24: the stray-write guard (before anything is made writable)
+if guard_setup "$cur"; then
+	G_ON=1; log "guard: blocks 6-255 and the last 256 without the backup table of $G_LUNS read before the mark"
+elif dualboot; then
+	log "FAIL guard not usable and a fedora partition exists (Android's data behind userdata) - the slot is NOT marked"; exit 1
+else
+	G_ON=0; log "WARN guard not usable - marking without it (no fedora partition: the region is Fedora's own disk)"
+fi
 if [ "$ro0" = 1 ]; then
 	"$BD" --setrw "/dev/$lun" || { ro0=""; log "FAIL /dev/$lun (boot$cur) could not be made writable - the slot is NOT marked"; exit 1; }
 	log "/dev/$lun (boot$cur) writable for the mark"
@@ -113,5 +169,19 @@ fi
 out=$("$QB" -m 2>&1); rc=$?
 restore_ro
 log "qbootctl -m rc $rc: $(echo "$out" | tr '\n' ' ')"
+if [ "$G_ON" = 1 ]; then
+	bad=""
+	guard_read after || bad="(re-read failed) "
+	for f in "$G_DIR"/*.before; do
+		cmp -s "$f" "${f%.before}.after" || bad="$bad$(basename "${f%.before}") "
+	done
+	if [ -n "$bad" ]; then
+		k=$STATE/stray-$(date +%Y%m%d-%H%M%S); mkdir -p "$k" && cp -p "$G_DIR"/*.before "$k"/ 2>/dev/null
+		mkdir -p "$(dirname "$OFF")" && : > "$OFF"
+		log "FAIL qbootctl -m changed blocks outside the GPT copies: $bad- the bytes from before are in $k (restore by hand); the slot mark is switched off ($OFF)"
+		exit 1
+	fi
+	log "guard: nothing outside the GPT copies of $G_LUNS changed"
+fi
 [ $rc = 0 ] || { log "FAIL the slot could not be marked"; exit 1; }
 log "slots after: $(dump | tr '\n\t' '  ' | tr -s ' ')"

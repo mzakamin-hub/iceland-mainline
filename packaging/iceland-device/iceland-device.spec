@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        23%{?dist}
+Release:        24%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -788,6 +788,24 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
 
 %changelog
+* Sat Oct 17 2026 mzak <mzak.amin@gmail.com> - 0.28-24
+- the dual-boot package (wf/dualboot3, procedure step W0; numbered after 0.28-23, the number 0.28-22 stays unused)
+- storage seat belt follows Fedora's carrier: iceland-storage-ro chooses it as dracut-iceland-carrier does
+  (iceland.carrier=, else the UFS partition "fedora" if there is one, else "userdata"; none in a rehearsal) and keeps
+  only the carrier and its LUN writable. Once a "fedora" partition exists, "userdata" belongs to Android and is
+  read-only; without one (today's layout) nothing changes. Up to 0.28-23 the rule kept "userdata" writable and
+  would have made a "fedora" carrier read-only under Fedora's root. 59-iceland-storage-ro.rules hands both names
+  to the helper (ICELAND_STORAGE=carrier-candidate); new "iceland-storage-ro --explain" (reads only)
+- iceland-slot-mark: the stray-write guard. Before qbootctl -m it reads blocks 6-255 and the last 256 blocks
+  (without the backup table) of the LUN holding userdata / fedora and of the boot LUN, and compares them after the
+  mark: a change is a FAIL, the bytes from before are kept in /var/lib/iceland/slot-mark/, the off switch
+  /etc/iceland/slot-mark-off is created. With a "fedora" partition an unreadable region means no mark. Reason: the
+  17 Oct backup holds 5 stray GPT attribute bytes 4 blocks before LUN 0's backup entry array (inside userdata);
+  qbootctl 0.2.2 itself was proven clean on 4 KiB-block loop LUNs, the writer is most likely the boot loader, and
+  the guard makes every mark from Fedora prove it. A loop root over "fedora" was already accepted (0.28-8)
+- tests: new tests/test_storage_dualboot.py (both layouts, the guard), test_install_parts.py follows the rule
+- carries 0.28-23 unchanged (and 0.28-18's login screen default 50-iceland-greeter-ambient)
+
 * Sat Oct 17 2026 mzak <mzak.amin@gmail.com> - 0.28-23
 - (numbering: 0.28-22 is the dual-boot package; this one builds on 0.28-21)
 - speakers: the stock tone is the packaged default (the owner's choice of 17 Oct 2026 after the listening A/B):

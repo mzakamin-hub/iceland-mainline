@@ -1,33 +1,94 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-2.0-or-later
 # iceland-device: make one internal UFS block device read-only (called by 59-iceland-storage-ro.rules).
-#   iceland-storage-ro DEVNODE disk|partition
-# A whole disk is left writable only when one of its partitions is "userdata" (the disk Fedora lives on): a
-# read-only whole disk would make userdata read-only too. Logs one line to the kernel log either way.
-# ICELAND_ROOT: test prefix for /sys (PC unit tests); empty on the tablet.
-dev=$1; type=$2
-name=${dev##*/}
+#   iceland-storage-ro DEVNODE disk|partition [PARTNAME]
+#   iceland-storage-ro --explain     every internal UFS block device with the decision and its read-only flag now;
+#                                    reads sysfs and the kernel command line only, never sets a flag
+# 0.28-19 (wf/dualboot3, dual boot): Fedora's "carrier" is chosen as dracut-iceland-carrier chooses it:
+# iceland.carrier=LABEL on the kernel command line, else the UFS partition named "fedora" if there is one, else the
+# one named "userdata". The carrier stays writable, and so does the whole LUN that holds it (a read-only whole disk
+# would make the carrier read-only too). Everything else is made read-only: also "userdata" once a "fedora"
+# partition exists (it then belongs to Android), and every UFS device in a rehearsal (iceland.rehearsal=: the
+# Fedora disk is on the PC). Up to 0.28-18 only "userdata" stayed writable, so a "fedora" carrier would have been
+# made read-only under Fedora's own root. Logs one line to the kernel log either way.
+# PARTNAME: given by the rule for "userdata" / "fedora" (from PARTNAME or blkid's ID_PART_ENTRY_NAME), else read
+# from sysfs. Only UFS partitions count when looking for "fedora" (a USB stick's partition never does).
+# Test hooks (tests/test_install_parts.py, tests/test_storage_dualboot.py), empty on the tablet: ICELAND_ROOT
+# (prefix for /sys and /dev; records setro.log instead of the ioctl), ICELAND_CMDLINE (a file, not /proc/cmdline).
+dev=$1; type=$2; pname=${3:-}
 R=${ICELAND_ROOT:-}
+CMDLINE=${ICELAND_CMDLINE:-/proc/cmdline}
 log() { echo "iceland-storage: $*" > "$R/dev/kmsg" 2>/dev/null || echo "iceland-storage: $*"; }
 [ -n "$dev" ] || exit 0
-if [ "$type" = disk ]; then
-	for p in "$R/sys/class/block/$name/$name"*; do
-		[ -e "$p/partition" ] || continue
-		if grep -qx 'PARTNAME=userdata' "$p/uevent" 2>/dev/null; then
-			log "$name holds userdata: the whole LUN stays writable, its other partitions are read-only"
-			exit 0
-		fi
+arg() {   # the value of $1= on the kernel command line, rc 1 when absent
+	for a in $(cat "$CMDLINE" 2>/dev/null); do
+		case "$a" in "$1="*) echo "${a#*=}"; return 0 ;; esac
 	done
+	return 1
+}
+ufs() { case "$(readlink -f "$R/sys/class/block/$1")" in */1d84000.ufs/*) return 0 ;; esac; return 1; }
+partname() { sed -n 's/^PARTNAME=//p' "$R/sys/class/block/$1/uevent" 2>/dev/null; }
+carrier() {   # the carrier's partition name; empty in a rehearsal
+	arg iceland.rehearsal > /dev/null && return 0
+	arg iceland.carrier && return 0
+	for b in "$R"/sys/class/block/sd*; do
+		[ -e "$b/partition" ] && ufs "${b##*/}" && [ "$(partname "${b##*/}")" = fedora ] && { echo fedora; return 0; }
+	done
+	# udev's link (made from blkid's ID_PART_ENTRY_NAME), as dracut-iceland-carrier looks for it; UFS only
+	b=$(readlink -f "$R/dev/disk/by-partlabel/fedora" 2>/dev/null)
+	case "${b##*/}" in sd[a-z]*) ufs "${b##*/}" && { echo fedora; return 0; } ;; esac
+	echo userdata
+}
+why() {   # prints nothing when the device stays writable, else why it is made read-only; $1 name, $2 type, $3 partname
+	c=$(carrier)
+	[ -n "$c" ] || { echo "a rehearsal boot: every internal device is read-only"; return; }
+	if [ "$2" = disk ]; then
+		for p in "$R/sys/class/block/$1/$1"*; do
+			[ -e "$p/partition" ] && [ "$(partname "${p##*/}")" = "$c" ] && return
+		done
+		p=$(readlink -f "$R/dev/disk/by-partlabel/$c" 2>/dev/null); p=${p##*/}
+		[ -n "$p" ] && [ -e "$R/sys/class/block/$1/$p/partition" ] && return
+		echo "Fedora's carrier ($c) is not on this LUN"; return
+	fi
+	[ "$3" = "$c" ] && return
+	case "$3" in
+	userdata) echo "Fedora's carrier is \"$c\": userdata belongs to Android" ;;
+	*) echo "not Fedora's carrier ($c)" ;;
+	esac
+}
+if [ "$dev" = --explain ]; then
+	c=$(carrier)
+	echo "iceland-storage: carrier ${c:-none (a rehearsal boot)}"
+	for b in "$R"/sys/class/block/sd*; do
+		n=${b##*/}
+		ufs "$n" || continue
+		if [ -e "$b/partition" ]; then t=partition; else t=disk; fi
+		p=$(partname "$n"); w=$(why "$n" "$t" "$p")
+		if [ -n "$w" ]; then d="read-only: $w"; else d="writable (the carrier or its LUN)"; fi
+		ro=$(cat "$b/ro" 2>/dev/null) || ro="?"
+		echo "iceland-storage: $n${p:+ ($p)} $t: $d; ro flag now $ro"
+	done
+	exit 0
 fi
-part=$(sed -n 's/^PARTNAME=//p' "$R/sys/class/block/$name/uevent" 2>/dev/null)
+name=${dev##*/}
+[ -n "$pname" ] || pname=$(partname "$name")
+w=$(why "$name" "$type" "$pname")
+if [ -z "$w" ]; then
+	if [ "$type" = disk ]; then
+		log "$name holds Fedora's carrier ($(carrier)): the whole LUN stays writable, its other partitions are read-only"
+	else
+		log "$name ($pname) is Fedora's carrier: stays writable"
+	fi
+	exit 0
+fi
 if [ -n "$R" ]; then
 	echo "$name" >> "$R/setro.log"   # test mode: record instead of the ioctl
 	exit 0
 fi
 blockdev --setro "$dev" 2>/dev/null
 if [ "$(blockdev --getro "$dev" 2>/dev/null)" = 1 ]; then
-	log "$name${part:+ ($part)} read-only"
+	log "$name${pname:+ ($pname)} read-only ($w)"
 else
-	log "$name${part:+ ($part)}: could NOT be made read-only"
+	log "$name${pname:+ ($pname)}: could NOT be made read-only"
 	exit 1
 fi
