@@ -1,14 +1,14 @@
 # OnePlus Pad 4 mainline: what works
 
-Status 16 Oct 2026. Fedora 44 with GNOME is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel). Current versions: kernel 7.3.0-rc7-iceland-00438 (q89l, iceland-linux branch iceland-7.3-rc7-next), iceland-device 0.28-16, iio-sensor-proxy 3.9-11.iceland1, iceland-firmware 11.A.38-3, U-Boot install build v4.
+Status 16 Oct 2026. Fedora 44 with GNOME is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel). Current versions: kernel 7.3.0-rc7-iceland-00438 (q89l, iceland-linux branch iceland-7.3-rc7-next), iceland-device 0.28-16, iio-sensor-proxy 3.9-11.iceland1, iceland-firmware 11.A.38-3, U-Boot install build v7.
 
-This list shows the 85 features that work today, sorted by functionality. Features that are still being worked on are not listed.
+This list shows the 86 features that work today, sorted by functionality. Features that are still being worked on are not listed.
 
 ## Boot & platform
 
 | Feature | What works |
 |---|---|
-| U-Boot (install build and RAM boot) | The stock boot loader (ABL) starts U-Boot from boot_b, and U-Boot starts Fedora through EFI. The install build (v4 since 14 Oct 2026) shows a power-on boot menu on the keys (Fedora, or the boot loader's fastboot), boots Fedora by default and never resets or powers off by itself. A RAM-boot build gives display, USB fastboot, UFS read and EFI, with fastboot flashing compiled out. |
+| U-Boot (install build and RAM boot) | The stock boot loader (ABL) starts U-Boot from boot_b, and U-Boot starts Fedora through EFI. The install build (v7 since 17 Oct 2026) shows a power-on boot menu on the keys (Fedora, BlissROM on the dual-boot layout, or the boot loader's fastboot), boots Fedora by default and never resets or powers off by itself. A RAM-boot build gives display, USB fastboot, UFS read and EFI, with fastboot flashing compiled out. |
 | U-Boot boot setting for single or dual boot | Boots a “fedora” partition if there is one, else the Fedora image in userdata. |
 | Linux 7.3-rc7 through EFI | Linux 7.3-rc7 with the Pad 4 patch queue (current kernel 7.3.0-rc7-iceland-00453, iceland-linux branch iceland-7.3-rc7-next) boots through U-Boot's EFI, Fedora's shim and GRUB. |
 | Internal storage (UFS 4) | UFS 4 with 4 KiB blocks in MCQ mode (9 hardware queues per LUN), about 2.3 GB/s direct read. The installed root is btrfs (zstd compression) on a loop device in userdata, and Fedora's own I/O scheduler rule applies to all six LUNs. |
@@ -26,6 +26,7 @@ This list shows the 85 features that work today, sorted by functionality. Featur
 | Firmware extractor (tablet's own partitions, read-only) | iceland-fw-extract copies the GPU, video, Wi-Fi, Bluetooth, sound, touch and sensor-hub firmware read-only from the tablet's own partitions; the files match the checksum record. |
 | Firmware package (iceland-firmware) | iceland-firmware 11.A.38-6: the generic stock 11.A.38 firmware (with stock's decoded thermal model and the sensor hub registry) as an RPM, each file sha256-pinned to our own extraction, plus two GPU firmware pairs in their own directories: stock's v5.3.39 and the vendor v5.3.33 (a third-party copy, byte-identical in the other ports' repositories). In the public repo mzakamin-hub/iceland-firmware. Unit-specific data is never included. |
 | Fedora installed on the tablet | Fedora 44 installs with two partition writes: the system image into userdata and U-Boot into boot_b; nothing else is written. The tablet then boots Fedora on its own, the root is btrfs on a loop device in userdata, and Fedora marks the boot slot successful. |
+| Dual boot BlissROM + Fedora | A power-on menu (U-Boot v7) starts Fedora or BlissROM v20.1: Volume Up / Down move, Power selects, Fedora after 5 s. Fedora runs from its own fedora partition and BlissROM keeps its encrypted data in a smaller userdata, both on slot b; BlissROM's kernel comes from boot_a and starts with the ramdisk and device tree that the stock boot loader prepared. Guide and tools: docs/DUAL-BOOT.md, tools/dualboot. |
 
 ## Display & input
 

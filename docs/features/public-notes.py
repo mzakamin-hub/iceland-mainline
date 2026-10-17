@@ -10,14 +10,15 @@
 PUBLIC_STATUS = ("Fedora 44 with GNOME is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> "
                  "kernel). Current versions: kernel 7.3.0-rc7-iceland-00438 (q89l, iceland-linux branch "
                  "iceland-7.3-rc7-next), iceland-device 0.28-16, iio-sensor-proxy 3.9-11.iceland1, "
-                 "iceland-firmware 11.A.38-3, U-Boot install build v4.")
+                 "iceland-firmware 11.A.38-3, U-Boot install build v7.")
 
 PUBLIC = {
 # Boot & platform
 "U-Boot (RAM boot and the install build)": (
     "U-Boot (install build and RAM boot)",
     "The stock boot loader (ABL) starts U-Boot from boot_b, and U-Boot starts Fedora through EFI. The install build "
-    "(v4 since 14 Oct 2026) shows a power-on boot menu on the keys (Fedora, or the boot loader's fastboot), boots "
+    "(v7 since 17 Oct 2026) shows a power-on boot menu on the keys (Fedora, BlissROM on the dual-boot layout, or "
+    "the boot loader's fastboot), boots "
     "Fedora by default and never resets or powers off by itself. A RAM-boot build gives display, USB fastboot, UFS "
     "read and EFI, with fastboot flashing compiled out."),
 "U-Boot boot setting for single or dual boot":
@@ -68,6 +69,11 @@ PUBLIC = {
     "Fedora 44 installs with two partition writes: the system image into userdata and U-Boot into boot_b; nothing "
     "else is written. The tablet then boots Fedora on its own, the root is btrfs on a loop device in userdata, and "
     "Fedora marks the boot slot successful.",
+"Dual boot BlissROM + Fedora":
+    "A power-on menu (U-Boot v7) starts Fedora or BlissROM v20.1: Volume Up / Down move, Power selects, Fedora "
+    "after 5 s. Fedora runs from its own fedora partition and BlissROM keeps its encrypted data in a smaller "
+    "userdata, both on slot b; BlissROM's kernel comes from boot_a and starts with the ramdisk and device tree "
+    "that the stock boot loader prepared. Guide and tools: docs/DUAL-BOOT.md, tools/dualboot.",
 # Display & input
 "Native display 3392×2400, dual DSI + DSC":
     "The panel runs at its native 3392×2400 over dual DSI with DSC; the boot splash hands over to the MSM DRM "
