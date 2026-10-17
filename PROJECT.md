@@ -61,6 +61,7 @@ and the test material. Every binary records its source commits in its build info
 | Generic firmware package (sha256 per file, notices) | [packaging/iceland-firmware/](packaging/iceland-firmware/) |
 | Device settings package (`iceland-device`) | [packaging/iceland-device/](packaging/iceland-device/) |
 | Sensor programs (hexagonrpc, libssc, iio-sensor-proxy) | [packaging/sensors/](packaging/sensors/), [docs/sensors/](docs/sensors/) |
+| Gunyah virtual machines (side package: VM-manager modules, test VMM, smoke test) | [packaging/gunyah/](packaging/gunyah/) |
 | Audio topology and UCM | [audio/](audio/) |
 | Fedora image build (RAM-boot scripts) | [phase4/](phase4/) |
 | Dual-boot helper (untested) | [tools/dualboot/](tools/dualboot/) |

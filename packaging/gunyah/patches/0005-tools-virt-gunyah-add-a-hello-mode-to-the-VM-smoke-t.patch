@@ -1,0 +1,84 @@
+From fb72c6d0042fd14ffe5f058c6640680b3fb7f48a Mon Sep 17 00:00:00 2001
+From: mzak <mzak.amin@gmail.com>
+Date: Sat, 17 Oct 2026 11:39:16 +0300
+Subject: [PATCH 5/5] tools: virt: gunyah: add a "hello" mode to the VM smoke
+ test
+
+The guest writes a short text byte by byte to the unmapped GPA 0x10000000;
+every store is an MMIO exit that the host collects, then the guest powers
+off through PSCI SYSTEM_OFF. Proves guest code execution and the MMIO exit
+path with a visible result, without a guest kernel or a VMM.
+
+  python3 gh_vmtest.py hello lend   ->  "[8h] ... HELLO OK"
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Signed-off-by: mzak <mzak.amin@gmail.com>
+---
+ tools/virt/gunyah/gh_vmtest.py | 21 +++++++++++++++++----
+ 1 file changed, 17 insertions(+), 4 deletions(-)
+
+diff --git a/tools/virt/gunyah/gh_vmtest.py b/tools/virt/gunyah/gh_vmtest.py
+index 05b8697481ce..b8e64c2177f2 100755
+--- a/tools/virt/gunyah/gh_vmtest.py
++++ b/tools/virt/gunyah/gh_vmtest.py
+@@ -1,9 +1,10 @@
+ #!/usr/bin/env python3
+ """Minimal Gunyah pVM smoke test for /dev/gunyah (unauthenticated VM, 1 vCPU).
+ 
+-usage: gh_vmtest.py [off|mmio|shared] [lend|share] [none|vmmio|shm]
++usage: gh_vmtest.py [off|mmio|shared|hello] [lend|share] [none|vmmio|shm]
+   3rd arg (shared mode): how the shared region is declared in the DTB: not at all, as
+           gunyah-vm-config/vmmio-ranges, or as a vdevices/shm-0 node (crosvm swiotlb style)
++  hello: guest writes a text byte by byte to unmapped 0x10000000 (MMIO exits), then SYSTEM_OFF
+   off : guest issues PSCI SYSTEM_OFF via HVC               -> expect VCPU exit STATUS/EXITED
+   mmio: guest stores to unmapped 0x10000000, then SYSTEM_OFF -> expect PAGE_FAULT/MMIO exit first
+   shared: protected image + a second SHARE binding at RAM_BASE+4M; guest writes 0x1234 there,
+@@ -103,7 +104,13 @@ MMIO_THEN_OFF = [0xD2A20000,  # movz x0, #0x1000, lsl #16 -> 0x10000000
+ SHARED_WRITE  = [0xD2B00800,  # movz x0, #0x8040, lsl #16 -> 0x80400000 (second, shared binding)
+                  0x52824681,  # movz w1, #0x1234
+                  0xB9000001]  # str w1, [x0]
+-PAYLOADS = {"off": PSCI_OFF, "mmio": MMIO_THEN_OFF + PSCI_OFF, "shared": SHARED_WRITE + PSCI_OFF}
++HELLO_TEXT = b"hello from a Gunyah guest\n"
++HELLO = [0xD2A20000]  # movz x0, #0x1000, lsl #16 -> 0x10000000 (an unmapped GPA used as a byte "UART")
++for _c in HELLO_TEXT:
++    HELLO += [0x52800001 | (_c << 5),  # movz w1, #<char>
++              0x39000001]              # strb w1, [x0]
++PAYLOADS = {"off": PSCI_OFF, "mmio": MMIO_THEN_OFF + PSCI_OFF, "shared": SHARED_WRITE + PSCI_OFF,
++            "hello": HELLO + PSCI_OFF}
+ 
+ # ---- run -------------------------------------------------------------------
+ def main():
+@@ -155,7 +162,8 @@ def main():
+     print("[7] VM_START ok (%.1f ms)" % ((time.monotonic() - t0) * 1000))
+ 
+ 
+-    for i in range(8):
++    out = bytearray()
++    for i in range(8 + len(HELLO_TEXT) if mode == "hello" else 8):
+         t0 = time.monotonic()
+         try:
+             fcntl.ioctl(vcpu, GUNYAH_VCPU_RUN)
+@@ -165,7 +173,10 @@ def main():
+         exit_reason, = struct.unpack_from("<I", run, 8)
+         if exit_reason == 1:
+             pa, data, ln, is_w, act = struct.unpack_from("<Q8sIBB", run, 16)
+-            print("[8.%d] exit MMIO %s pa=%#x len=%d data=%s (%.2f ms)" % (i, "write" if is_w else "read", pa, ln, data[:ln].hex(), dt))
++            if mode == "hello" and is_w and pa == 0x10000000:
++                out += data[:1]
++            else:
++                print("[8.%d] exit MMIO %s pa=%#x len=%d data=%s (%.2f ms)" % (i, "write" if is_w else "read", pa, ln, data[:ln].hex(), dt))
+             struct.pack_into("<B", run, 16 + 8 + 8 + 4 + 1, 0)   # resume_action = HANDLED
+         elif exit_reason == 2:
+             st, ty, pad, rsz, reason = struct.unpack_from("<IHHI8s", run, 16)
+@@ -177,6 +188,8 @@ def main():
+             struct.pack_into("<B", run, 16 + 8 + 4, 1)           # resume_action = FAULT (inject back)
+         else:
+             print("[8.%d] exit_reason=%d (%.2f ms)" % (i, exit_reason, dt)); break
++    if mode == "hello":
++        print("[8h] guest wrote %r -> %s" % (bytes(out), "HELLO OK" if bytes(out) == HELLO_TEXT else "MISMATCH"))
+     if EXTRA_SIZE:
+         got = bytes(extra[0:4])
+         print("[8x] shared binding word 0 = %s -> %s" % (got.hex(), "guest write visible on host" if got == bytes.fromhex("34120000") else "MISMATCH"))
+-- 
+2.43.0
+

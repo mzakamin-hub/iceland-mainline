@@ -1,0 +1,44 @@
+From 86262d2be058665e9cd554d5f7463986843e0f22 Mon Sep 17 00:00:00 2001
+From: mzak <mzak.amin@gmail.com>
+Date: Sat, 17 Oct 2026 11:39:16 +0300
+Subject: [PATCH 4/5] virt: gunyah: follow the v7.3 rename of the file rmap
+ interval tree
+
+v7.3 renamed vma_interval_tree_foreach(vma, &mapping->i_mmap, ...) to
+mapping_rmap_tree_foreach(vma, mapping, ...); folio_mmapped() in vm_mgr.h
+no longer compiled. Use the new form and make the helper static inline,
+like its only user gunyah_folio_lend_safe(), so that W=1 does not flag it
+as unused (neither helper is called in this tree).
+
+No functional change.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Signed-off-by: mzak <mzak.amin@gmail.com>
+---
+ drivers/virt/gunyah/vm_mgr.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/virt/gunyah/vm_mgr.h b/drivers/virt/gunyah/vm_mgr.h
+index 84f0e60b0ccc..135139996287 100644
+--- a/drivers/virt/gunyah/vm_mgr.h
++++ b/drivers/virt/gunyah/vm_mgr.h
+@@ -166,14 +166,14 @@ int gunyah_vm_mmio_write(struct gunyah_vm *ghvm, u64 addr, u32 len, u64 data);
+  * folio_mmapped() - Returns true if the folio is mapped into any vma
+  * @folio: Folio to test
+  */
+-static bool folio_mmapped(struct folio *folio)
++static inline bool folio_mmapped(struct folio *folio)
+ {
+ 	struct address_space *mapping = folio->mapping;
+ 	struct vm_area_struct *vma;
+ 	bool ret = false;
+ 
+ 	i_mmap_lock_read(mapping);
+-	vma_interval_tree_foreach(vma, &mapping->i_mmap, folio->index,
++	mapping_rmap_tree_foreach(vma, mapping, folio->index,
+ 				  folio->index + folio_nr_pages(folio)) {
+ 		ret = true;
+ 		break;
+-- 
+2.43.0
+
