@@ -1,30 +1,129 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-2.0-or-later
-# iceland-bdaddr v2 (iceland-device 0.28-2; proven in r139a row BTf, wf/final-fix). Sets the tablet's own Bluetooth
-# address from /etc/iceland/bdaddr.
-# Why v2 (r139, bluez 5.87): v1 ran "power off; public-addr; power on" as soon as the kernel index existed. While the
-# controller still sits in the kernel's 2 s auto-off window after its setup (HCI_UP + HCI_AUTO_OFF: not "powered" for
-# mgmt), "power off" is a no-op; Set Public Address then removes the index and queues power_on, which takes the
-# HCI_UP + HCI_AUTO_OFF shortcut in hci_power_on() and never sends Index Added again -> bluetoothd has no adapter for the
-# whole boot ("no powered controller"). bluez 5.86 had powered the adapter (AutoEnable) before v1's "power off"; 5.87's
-# slower start lost that race. v2 makes the sequence independent of bluetoothd's timing: a REAL power-on first (clears the
-# auto-off state), a real power-off (closes the controller), then the address, then it waits for the index to come back.
-addr=$(tr -d ' \n' < "${ICELAND_BDADDR_FILE:-/etc/iceland/bdaddr}")
-echo "$addr" | grep -Eq '^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$' || { echo "iceland-bdaddr: bad address in /etc/iceland/bdaddr" >&2; exit 1; }
-up() { btmgmt --index 0 info 2>/dev/null | grep -q 'addr '; }
-cur() { btmgmt --index 0 info 2>/dev/null | grep -o -E 'addr ([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}' | head -n 1 | cut -c6- | tr a-f A-F; }
-powered() { btmgmt --index 0 info 2>/dev/null | grep 'current settings:' | grep -q -w powered; }
-want=$(echo "$addr" | tr a-f A-F)
-i=0; until up; do i=$((i + 1)); [ $i -ge 40 ] && { echo "iceland-bdaddr: no hci0 index" >&2; exit 1; }; sleep 0.5; done
-# let bluetoothd take the adapter first (its own power-on must not interleave with the steps below)
-i=0; until bluetoothctl list 2>/dev/null | grep -q '^Controller'; do i=$((i + 1)); [ $i -ge 20 ] && break; sleep 0.5; done
-[ "$(cur)" = "$want" ] && exit 0
-btmgmt --index 0 power on > /dev/null 2>&1
-i=0; until powered; do i=$((i + 1)); [ $i -ge 20 ] && break; sleep 0.25; done
-btmgmt --index 0 power off > /dev/null 2>&1
-i=0; while powered; do i=$((i + 1)); [ $i -ge 20 ] && break; sleep 0.25; done
-btmgmt --index 0 public-addr "$addr" > /dev/null 2>&1 || { echo "iceland-bdaddr: Set Public Address refused" >&2; exit 1; }
-i=0; until [ "$(cur)" = "$want" ]; do i=$((i + 1)); [ $i -ge 40 ] && { echo "iceland-bdaddr: hci0 did not come back with the address" >&2; exit 1; }; sleep 0.5; done
-btmgmt --index 0 power on > /dev/null 2>&1
-echo "iceland-bdaddr: own address set (v2)"
-exit 0
+# iceland-bdaddr v3 (iceland-device 0.28-26). Gives the controller the tablet's own Bluetooth
+# address from /etc/iceland/bdaddr and keeps retrying until it sticks.
+#
+# Why v3 (field bug, 18 Oct 2026): v2 made ONE attempt after bluetoothd had started; its Set Public Address was refused
+# (the controller was powered again when the command arrived), the unit failed for good and bluetoothd ran the whole
+# boot on the device tree's shared placeholder address -> a new /var/lib/bluetooth/<placeholder> folder, pairings gone.
+# The kernel (btqca qca_check_bdaddr) marks the WCN7860 address invalid (HCI_QUIRK_USE_BDADDR_PROPERTY: the chip
+# reports its NVM default) and then takes the device tree's local-bd-address; with a real address there the controller
+# is configured, with an all-zero one it stays UNCONFIGURED (bluetoothd ignores it) until Set Public Address.
+# v3:
+#   - waits for the controller (configured or unconfigured) up to ICELAND_BDADDR_WAIT s (setup can come late);
+#   - unconfigured controller (all-zero device tree value): Set Public Address there - the clean path, bluetoothd never
+#     sees another address; with no address file the shared placeholder is configured (WARNING), so Bluetooth still runs;
+#   - configured controller on another address (the placeholder): power on -> power off -> Set Public Address (the
+#     proven v2 order), retried with back-off when refused, the mgmt status logged (never the address);
+#   - runs before bluetooth.service, again on every hci0 registration (udev) and on failure (Restart=on-failure).
+# The kernel keeps the address in hdev->public_addr and programs it at every later power-on (the USE_BDADDR_PROPERTY
+# path of hci_dev_setup_sync), so Bluetooth off/on, rfkill and suspend keep it; only a new registration needs this again.
+# Exit: 0 done (or nothing to do), 1 no controller / refused every time (systemd retries), 2 bad address file (no retry).
+FILE=${ICELAND_BDADDR_FILE:-/etc/iceland/bdaddr}
+WAIT=${ICELAND_BDADDR_WAIT:-180}
+TRIES=${ICELAND_BDADDR_TRIES:-6}
+IDX=${ICELAND_BDADDR_INDEX:-0}
+FALLBACK=AD:5A:00:00:00:25   # the device tree's placeholder (what the kernel used before the all-zero change)
+
+log() { echo "iceland-bdaddr: $*"; }
+err() { echo "iceland-bdaddr: $*" >&2; }
+# known placeholders, either byte order: zero, FF, the device tree's value, the WCN NVM defaults
+placeholder() {
+	case "$1" in
+	00:00:00:00:00:00|FF:FF:FF:FF:FF:FF|AD:5A:00:00:00:25|25:00:00:00:5A:AD|00:00:00:00:5A:AD|AD:5A:00:00:00:00|78:55:00:01:5A:AD|AD:5A:01:00:55:78) return 0 ;;
+	esac
+	return 1
+}
+# controller state: "unconf", "conf ADDR" or "none" (no index yet / still in setup / re-registering)
+state() {
+	if btmgmt --index "$IDX" config 2>/dev/null | grep -q 'missing options:.*public-address'; then echo unconf; return; fi
+	a=$(btmgmt --index "$IDX" info 2>/dev/null | grep -o -E 'addr ([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}' | head -n 1 | cut -c6- | tr a-f A-F)
+	if [ -n "$a" ]; then echo "conf $a"; else echo none; fi
+}
+powered() { btmgmt --index "$IDX" info 2>/dev/null | grep 'current settings:' | grep -q -w powered; }
+# wait for the controller (up to WAIT s); sets s
+waitctl() {
+	i=0
+	while :; do
+		s=$(state)
+		[ "$s" != none ] && break
+		i=$((i + 1))
+		[ $i -ge "$WAIT" ] && { err "no hci$IDX controller after $WAIT s (systemd retries)"; exit 1; }
+		sleep 1
+	done
+	[ $i -gt 0 ] && log "controller hci$IDX ready after about $i s"
+	return 0
+}
+# Set Public Address ADDR TRY; on refusal log only the mgmt status (the reply text never carries the address)
+setaddr() {
+	o=$(btmgmt --index "$IDX" public-addr "$1" 2>&1) && return 0
+	st=$(printf '%s\n' "$o" | grep -o 'status 0x[0-9a-fA-F]*.*' | head -n 1)
+	log "Set Public Address refused (${st:-no status}), try $2 of $TRIES"
+	return 1
+}
+# wait up to $2 half-seconds for the state $1
+waitstate() { j=0; until [ "$(state)" = "$1" ]; do j=$((j + 1)); [ $j -ge "$2" ] && return 1; sleep 0.5; done; return 0; }
+backoff() { sleep $d; d=$((d * 2)); [ $d -gt 8 ] && d=8; return 0; }
+
+want=
+if [ -e "$FILE" ]; then
+	want=$(tr -d ' \n\r' < "$FILE" | tr a-f A-F)
+	printf '%s\n' "$want" | grep -Eq '^([0-9A-F]{2}:){5}[0-9A-F]{2}$' || { err "bad address in $FILE (format XX:XX:XX:XX:XX:XX)"; exit 2; }
+	placeholder "$want" && { err "WARNING $FILE holds a placeholder, not an own address: ignored"; want=; }
+fi
+
+waitctl
+
+# 1. unconfigured controller (device tree all-zero): the clean path
+if [ "$s" = unconf ]; then
+	addr=$want
+	[ -n "$addr" ] || { addr=$FALLBACK; err "WARNING no own address in $FILE: configuring the shared placeholder (set the own one: sudo iceland-provision --bdaddr XX:XX:XX:XX:XX:XX)"; }
+	n=0; d=1
+	while :; do
+		n=$((n + 1))
+		if setaddr "$addr" $n; then
+			waitstate "conf $addr" 40 && { log "own address set on the unconfigured controller (v3)"; exit 0; }
+			log "controller did not come back configured, try $n of $TRIES"
+		fi
+		[ $n -ge "$TRIES" ] && { err "address not applied after $TRIES tries (systemd retries)"; exit 1; }
+		backoff
+		[ "$(state)" = unconf ] || break   # configured meanwhile: handled below
+	done
+	waitctl
+fi
+
+# 2. configured controller
+cur=${s#conf }
+if [ -z "$want" ]; then
+	placeholder "$cur" && err "WARNING no own address in $FILE: Bluetooth runs on the shared placeholder address"
+	exit 0
+fi
+[ "$cur" = "$want" ] && { log "own address already set"; exit 0; }
+if placeholder "$cur"; then log "self-heal: the controller is up on the shared placeholder address, setting the own one"
+else log "the controller has another address, setting the own one"; fi
+
+n=0; d=1
+while :; do
+	n=$((n + 1))
+	s=$(state)
+	[ "$s" = "conf $want" ] && { log "own address set (v3)"; exit 0; }
+	if [ "$s" = unconf ]; then
+		setaddr "$want" $n && waitstate "conf $want" 40 && { log "own address set on the unconfigured controller (v3)"; exit 0; }
+	elif [ "$s" != none ]; then
+		# a REAL power-on first (leaves the kernel's 2 s auto-off state), a real power-off, then the address (v2 order)
+		btmgmt --index "$IDX" power on > /dev/null 2>&1
+		j=0; until powered; do j=$((j + 1)); [ $j -ge 20 ] && break; sleep 0.25; done
+		btmgmt --index "$IDX" power off > /dev/null 2>&1
+		j=0; while powered; do j=$((j + 1)); [ $j -ge 20 ] && break; sleep 0.25; done
+		if setaddr "$want" $n; then
+			if waitstate "conf $want" 40; then
+				btmgmt --index "$IDX" power on > /dev/null 2>&1
+				log "own address set (v3, try $n)"
+				exit 0
+			fi
+			log "hci$IDX did not come back with the address, try $n of $TRIES"
+		fi
+	fi
+	[ $n -ge "$TRIES" ] && { err "address not applied after $TRIES tries (systemd retries)"; exit 1; }
+	backoff
+done

@@ -24,6 +24,10 @@ value 25:00:00:00:5A:AD
 value AD:5A:00:00:00:25
 value 00:00:00:00:5A:AD
 value AD:5A:00:00:00:00
+# The WCN7860 Bluetooth controller's built-in default address (what the chip reports before an address is set;
+# iceland-bdaddr treats it as a placeholder). Shared by every unit; not this tablet's address. Both byte orders.
+value 78:55:00:01:5A:AD
+value AD:5A:01:00:55:78
 #
 # The documentation example address (format examples in comments and help texts).
 value aa:bb:cc:dd:ee:ff

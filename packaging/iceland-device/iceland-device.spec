@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        25%{?dist}
+Release:        26%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -67,6 +67,7 @@ Source2:        journald-iceland.conf
 Source3:        49-iceland-no-system-upgrade.rules
 Source4:        iceland-bdaddr.service
 Source5:        iceland-bdaddr
+Source192:      73-iceland-bdaddr.rules
 Source6:        iceland-cmdline
 Source7:        90-iceland-dracut.conf
 Source8:        60-iceland-wifi-powersave.conf
@@ -354,6 +355,7 @@ install -Dm0644 %{SOURCE2} %{buildroot}/usr/lib/systemd/journald.conf.d/60-icela
 install -Dm0644 %{SOURCE3} %{buildroot}/usr/share/polkit-1/rules.d/49-iceland-no-system-upgrade.rules
 install -Dm0644 %{SOURCE4} %{buildroot}/usr/lib/systemd/system/iceland-bdaddr.service
 install -Dm0755 %{SOURCE5} %{buildroot}/usr/libexec/iceland/iceland-bdaddr
+install -Dm0644 %{SOURCE192} %{buildroot}/usr/lib/udev/rules.d/73-iceland-bdaddr.rules
 install -Dm0755 %{SOURCE6} %{buildroot}/usr/libexec/iceland/iceland-cmdline
 install -Dm0755 %{SOURCE181} %{buildroot}/usr/libexec/iceland/iceland-gpu-initramfs
 install -Dm0644 %{SOURCE7} %{buildroot}/usr/lib/dracut/dracut.conf.d/90-iceland.conf
@@ -637,6 +639,7 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/polkit-1/rules.d/49-iceland-no-system-upgrade.rules
 /usr/lib/systemd/system/iceland-bdaddr.service
 /usr/libexec/iceland/iceland-bdaddr
+/usr/lib/udev/rules.d/73-iceland-bdaddr.rules
 /usr/libexec/iceland/iceland-cmdline
 /usr/libexec/iceland/iceland-gpu-initramfs
 /usr/lib/dracut/dracut.conf.d/90-iceland.conf
@@ -788,6 +791,21 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
 
 %changelog
+* Sun Oct 18 2026 mzak <mzak.amin@gmail.com> - 0.28-26
+- bluetooth: iceland-bdaddr v3. Field bug (18 Oct): v2's single Set Public Address was refused (the controller powered
+  again), the unit failed for good and bluetoothd ran the boot on the device tree's shared placeholder address (new
+  /var/lib/bluetooth folder, pairings missing). v3 waits up to 180 s for the controller (configured or unconfigured),
+  sets the address on an UNCONFIGURED controller directly (ready for the all-zero local-bd-address kernel change), on a
+  configured one with the v2 order (power on, power off, address), retries a refusal with back-off and logs the mgmt
+  status (never the address), self-heals a controller found on the placeholder, and without /etc/iceland/bdaddr gives
+  an unconfigured controller the shared placeholder (WARNING) so Bluetooth still runs
+- iceland-bdaddr.service: Before=bluetooth.service (was After + Requires), Restart=on-failure (15 s, exit 2 = bad file
+  not retried), no RemainAfterExit, no ConditionPathExists; new 73-iceland-bdaddr.rules starts it on every hci0
+  registration
+- tests: test_bdaddr.py v3 (refused-then-accepted, late setup, already correct, missing file, unconfigured, self-heal)
+- carries 0.28-25 unchanged (the initramfs carrier fix; 0.28-24's storage seat belt and slot-mark guard; 0.28-23's
+  50-iceland-greeter-ambient)
+
 * Sat Oct 17 2026 mzak <mzak.amin@gmail.com> - 0.28-25
 - dracut-iceland-carrier (initramfs): the carrier is chosen from the kernel's partition names (PARTNAME in
   /sys/class/block/sdXN/uevent, UFS devices only) and opened as /dev/<kernel name>, no longer from udev's

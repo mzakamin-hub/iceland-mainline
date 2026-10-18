@@ -1,13 +1,20 @@
 [Unit]
 Description=Set the OnePlus Pad 4's own Bluetooth address
-After=bluetooth.service
-Requires=bluetooth.service
-ConditionPathExists=/etc/iceland/bdaddr
+# v3 (0.28-26): before bluetoothd, so it never adopts the placeholder address first; no Requires= (bluetoothd starts
+# even when this fails); retried on failure; started again by 73-iceland-bdaddr.rules on every hci0 registration.
+# No ConditionPathExists: without /etc/iceland/bdaddr an unconfigured controller still gets the shared placeholder.
+Before=bluetooth.service
+After=iceland-provision.service
+StartLimitIntervalSec=15min
+StartLimitBurst=8
 
 [Service]
 Type=oneshot
 ExecStart=/usr/libexec/iceland/iceland-bdaddr
-RemainAfterExit=yes
+Restart=on-failure
+RestartSec=15s
+RestartPreventExitStatus=2
+TimeoutStartSec=300
 
 [Install]
 WantedBy=bluetooth.target

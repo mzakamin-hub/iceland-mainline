@@ -10,6 +10,13 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) ·
 [iceland-u-boot](https://github.com/mzakamin-hub/iceland-u-boot) (all public).
 
+## 2026-10-18 - iceland-device 0.28-26: the own Bluetooth address at every start
+
+- `iceland-bdaddr` v3: the tablet's own Bluetooth address is applied before bluetoothd starts and again whenever
+  the controller registers; a refused attempt is retried, and a controller that came up on the device tree's shared
+  placeholder address is moved to the own one. Before, one refused attempt left Bluetooth on the placeholder for
+  that boot (pairings made there are missing on the own address). Carries 0.28-25 unchanged.
+
 ## 2026-10-17 - dual boot BlissROM + Fedora; U-Boot v7
 
 - Dual boot: the power-on menu reads Fedora / BlissROM / Boot loader (fastboot). Fedora runs from a new `fedora`
