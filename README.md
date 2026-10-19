@@ -94,14 +94,16 @@ SHA-256 before you write it.
 The Windows installer ([tools/installer](tools/installer/README-INSTALLER.md)) cannot install yet: it refuses both
 writes until a generic install image exists. Its read-only backup part works.
 
-**What is never written, and why.** The install writes two partitions only (`userdata` and `boot_b`). The guide
-lists these groups as never written:
+**What is never written, and why.** The Fedora install (Parts A and B) writes two partitions only (`userdata` and
+`boot_b`). The optional dual boot (Parts C and D) also changes LUN 0's partition table, writes slot b's Android boot
+partitions, `boot_a` and `super`, and erases `userdata` and `metadata`, exactly as its steps list. Every group
+below except "Android system" and "Partition table" is never written in any part:
 
 | Group | Partitions (examples) | Why, in plain words |
 |---|---|---|
-| Boot firmware | `xbl*`, `abl*`, `tz*`, `hyp*`, `aop*`, `uefi*`, `soccp*` and the others of the boot chain | They start fastboot. No public emergency loader exists for this tablet, so a broken chain cannot be repaired at home. |
+| Boot firmware | `xbl*`, `abl*`, `tz*`, `hyp*`, `aop*`, `uefi*`, `soccp*`, `engineering_cdt*` and the others of the boot chain | They start fastboot. No public emergency loader exists for this tablet, so a broken chain cannot be repaired at home. |
 | Radio and DSP firmware | `modem*`, `bluetooth*`, `dsp*` | Signed and version-locked. Fedora only reads them. |
-| Per-device data | `persist`, `cdt`, `ddr`, `dinfo`, `engineering_cdt*`, `ocdt` | Calibration and identity of one tablet. They exist nowhere but in its backup. |
+| Per-device data | `persist`, `cdt`, `ddr`, `dinfo`, `ocdt` | Calibration and identity of one tablet. They exist nowhere but in its backup. |
 | Security state | `devinfo`, `keystore`, `frp`, `secdata`, `uefivarstore` | One wrong byte can lock the boot loader or the secure world. |
 | Android system | `super`, `vbmeta*`, `vendor_boot*`, `init_boot*`, `dtbo*`, `recovery*`, `boot_a`, `misc` | Fedora does not need them. Leaving them alone keeps the way back short. |
 | Partition table | the GPT of every unit | The Fedora install does not repartition. Part C changes LUN 0's table for the dual boot. |
