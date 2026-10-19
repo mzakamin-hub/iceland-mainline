@@ -10,6 +10,17 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) ·
 [iceland-u-boot](https://github.com/mzakamin-hub/iceland-u-boot) (all public).
 
+## 2026-10-19 - iceland-device 0.28-29: suspend-to-idle as the kernel's default, display interrupts on CPU 0
+
+- `mem_sleep_default=s2idle` on every boot entry and in `/etc/kernel/cmdline` (`MEM_SLEEP` in
+  `/etc/iceland/boot.conf`): `mem` is suspend-to-idle, the path systemd's suspend uses.
+- irqbalance keeps the display (MDSS) and GPU / GMU interrupts on CPU 0 through a policy script.
+- pcscd and switcheroo-control are preset off (no smart-card reader, one GPU).
+- `iceland-refresh` can treat a battery that discharges on a weak USB source as battery (`DISCHARGING_IS_BATTERY`,
+  off by default).
+- Recommends `clinfo` and `mesa-libOpenCL` (OpenCL through Mesa's rusticl; not yet tested on the tablet).
+- 0.28-28 was not released. Carries 0.28-27 unchanged otherwise.
+
 ## 2026-10-18 - iceland-device 0.28-27: the refresh switch on real power changes, a quieter and faster boot
 
 - `iceland-refresh` switches between 60 and 120 Hz only at its start and when the power source really changes: a rate

@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        27%{?dist}
+Release:        29%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -199,6 +199,9 @@ Source174:      iceland-ssc-watch.timer
 Source193:      iio-sensor-proxy-iceland-watch.conf
 Source194:      70-iceland-battery-ready.rules
 Source195:      iceland-memlat.conf
+# 0.28-29: P-3 the irqbalance policy for the display / GPU interrupts
+Source196:      iceland-irqbalance-policy
+Source197:      irqbalance-iceland.conf
 # 0.28-17 (wf/generic): the unit's own values on the first boot of a generic image (Bluetooth address, read only)
 Source175:      iceland-provision
 Source176:      iceland-provision.service
@@ -252,6 +255,12 @@ Requires:       util-linux
 Requires:       nbd
 Requires:       busybox
 Recommends:     snapshot
+# 0.28-29 (GAPS-2026-10-18 G-2): OpenCL through Mesa's rusticl on the Adreno (freedreno); both packages exist for
+# Fedora 44 aarch64 (clinfo in the release, mesa-libOpenCL in updates; ~230 MB with ocl-icd / libclc / clang-libs).
+# Untested on the Adreno 840: the tablet test is `RUSTICL_ENABLE=freedreno clinfo` (Mesa 26.2 enables freedreno in
+# rusticl by default; the variable is harmless). `dnf install --exclude=clinfo,mesa-libOpenCL` leaves them out.
+Recommends:     clinfo
+Recommends:     mesa-libOpenCL
 # F1 (wf/fedtest, r2g 3 Oct 2026): GNOME Snapshot died with SIGBUS in pipewire 1.6.2's GStreamer device provider
 # (libgstpipewire re-adds its metadata listener when the portal re-announces the default metadata); fixed upstream
 # in PipeWire 1.6.8 (gst: device-provider: don't re-add metadata listener on permission change). The floor pulls
@@ -431,6 +440,8 @@ install -Dm0644 %{SOURCE174} %{buildroot}/usr/lib/systemd/system/iceland-ssc-wat
 install -Dm0644 %{SOURCE193} %{buildroot}/usr/lib/systemd/system/iio-sensor-proxy.service.d/iceland-watch.conf
 install -Dm0644 %{SOURCE194} %{buildroot}/usr/lib/udev/rules.d/70-iceland-battery-ready.rules
 install -Dm0644 %{SOURCE195} %{buildroot}/usr/lib/modules-load.d/iceland-memlat.conf
+install -Dm0755 %{SOURCE196} %{buildroot}/usr/libexec/iceland/iceland-irqbalance-policy
+install -Dm0644 %{SOURCE197} %{buildroot}/usr/lib/systemd/system/irqbalance.service.d/iceland.conf
 install -Dm0755 %{SOURCE175} %{buildroot}/usr/libexec/iceland/iceland-provision
 install -Dm0644 %{SOURCE176} %{buildroot}/usr/lib/systemd/system/iceland-provision.service
 install -Dm0644 %{SOURCE177} %{buildroot}/usr/share/iceland/provision-sources.tsv
@@ -605,6 +616,19 @@ if [ ! -e /var/lib/iceland/.preset-unused-0.28-27 ]; then
 	done
 	mkdir -p /var/lib/iceland && touch /var/lib/iceland/.preset-unused-0.28-27
 fi
+# 0.28-29 (owner 18 Oct): pcscd.socket / pcscd.service / switcheroo-control.service, added to
+# 50-iceland-unused.preset, once per system and only while still enabled (as the blocks above)
+if [ ! -e /var/lib/iceland/.preset-unused-0.28-29 ]; then
+	for u in pcscd.socket pcscd.service switcheroo-control.service; do
+		[ "$(systemctl is-enabled "$u" 2>/dev/null)" = enabled ] && systemctl preset "$u" >/dev/null 2>&1 || :
+	done
+	mkdir -p /var/lib/iceland && touch /var/lib/iceland/.preset-unused-0.28-29
+fi
+# 0.28-29 (P-3): a running irqbalance takes the policy script (the display / GPU interrupts stay on CPU 0)
+if [ -d /run/systemd/system ]; then
+	systemctl daemon-reload >/dev/null 2>&1 || :
+	systemctl try-restart irqbalance.service >/dev/null 2>&1 || :
+fi
 # 0.28-9 (4): sysctl.d / tmpfiles.d take effect through systemd's file triggers at once and at every boot
 # 0.28-18: GDM's dconf database with the greeter default (ambient-enabled=false); the greeter reads it at its next
 # start (the next login screen), user sessions are not touched
@@ -720,6 +744,9 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/lib/systemd/system/iio-sensor-proxy.service.d/iceland-watch.conf
 /usr/lib/udev/rules.d/70-iceland-battery-ready.rules
 /usr/lib/modules-load.d/iceland-memlat.conf
+/usr/libexec/iceland/iceland-irqbalance-policy
+/usr/lib/systemd/system/irqbalance.service.d/iceland.conf
+%dir /usr/lib/systemd/system/irqbalance.service.d
 %dir /usr/lib/systemd/system/hexagonrpcd-adsp-sensorspd.service.d
 /usr/lib/systemd/system/hexagonrpcd-adsp-sensorspd.service.d/iceland.conf
 /usr/lib/tmpfiles.d/iceland-dsp-tree.conf
@@ -810,6 +837,19 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
 
 %changelog
+* Mon Oct 19 2026 mzak <mzak.amin@gmail.com> - 0.28-29
+- iceland-refresh (P-1): DISCHARGING_IS_BATTERY=1 counts a battery that discharges on a weak USB source as
+  battery (after DISCHARGING_DELAY_S); off by default until the kernel switches 120 <-> 60 Hz in place (q89v D-1)
+- irqbalance (P-3): a policy script bans the MDSS and GPU / GMU interrupts by name (resolved from
+  /proc/interrupts at every call), so they stay on CPU 0 where queue patch 0335's latency request is
+- mem_sleep_default=s2idle on the managed kernel command line (K-4; MEM_SLEEP in /etc/iceland/boot.conf): "mem"
+  is suspend-to-idle, as systemd's suspend already is; every entry gets it (kernels, trial, rollback)
+- pcscd.socket, pcscd.service, switcheroo-control.service in 50-iceland-unused.preset, preset once per system
+  while enabled (marker /var/lib/iceland/.preset-unused-0.28-29) (owner, 18 Oct)
+- Recommends clinfo and mesa-libOpenCL (G-2; the tablet test is RUSTICL_ENABLE=freedreno clinfo)
+- 0.28-28 was not released; this version follows 0.28-27
+- carries 0.28-27 unchanged otherwise (automatic brightness unchanged; 0.28-23's 50-iceland-greeter-ambient)
+
 * Sun Oct 18 2026 mzak <mzak.amin@gmail.com> - 0.28-27
 - iceland-refresh: acts only at its start and when UPower's OnBattery really flips; a rate picked in GNOME Settings
   stays until the next plug / unplug. Up to 0.28-26 it forced its rate again at every display change

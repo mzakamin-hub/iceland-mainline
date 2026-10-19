@@ -32,10 +32,18 @@
 #       1: on, but ONLY with the vendor533 pair. Preemption with stock's pair (rehearsal P1) or linux-firmware's (R3)
 #       reset the tablet early in boot, so it is refused there: with preemption off every msm.enable_preemption
 #       value other than 0 is removed from the entries (GRUB's $iceland_args is not touched).
+#  4. 0.28-29 (GAPS-2026-10-18 K-4), the kernel's own suspend default (switch MEM_SLEEP in /etc/iceland/boot.conf):
+#       MEM_SLEEP=s2idle (default, also when the key is missing): mem_sleep_default=s2idle - "mem" (echo mem >
+#                 /sys/power/state, rtcwake -m mem) means suspend-to-idle, as systemd's suspend already does
+#                 (sleep.conf.d/60-iceland.conf MemorySleepMode=s2idle); without it the kernel picks PSCI SYSTEM_SUSPEND
+#                 ("deep"), a path the tablet's suspend tests never covered. Another mem_sleep_default value is replaced.
+#       MEM_SLEEP=kernel: the option is removed (the kernel's own choice).
+#     Every entry gets it: the kernels' own entries (also a trial kernel's: 97-iceland-cmdline.install) and the
+#     "Roll back to ..." entries (iceland-snapshot takes /etc/kernel/cmdline).
 # ICELAND_ROOT (tests only): the root to work on.
 R=${ICELAND_ROOT:-}
 ARGS="clk_ignore_unused pd_ignore_unused regulator_ignore_unused"
-IDLE_GOV=teo; RCU_LAZY=1; GPU_FW=vendor533; GPU_PREEMPT=auto
+IDLE_GOV=teo; RCU_LAZY=1; GPU_FW=vendor533; GPU_PREEMPT=auto; MEM_SLEEP=s2idle
 FW=/usr/lib/firmware
 if [ -r "$R/etc/iceland/boot.conf" ]; then
 	v=$(sed -n 's/^IDLE_GOV=\([a-z]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); [ "$v" = menu ] && IDLE_GOV=menu
@@ -44,6 +52,7 @@ if [ -r "$R/etc/iceland/boot.conf" ]; then
 	case "$v" in vendor533|stock|linux-firmware) GPU_FW=$v ;; esac
 	v=$(sed -n 's/^GPU_PREEMPT=\([a-z0-9]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1)
 	case "$v" in auto|0|1) GPU_PREEMPT=$v ;; esac
+	v=$(sed -n 's/^MEM_SLEEP=\([a-z0-9]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); [ "$v" = kernel ] && MEM_SLEEP=kernel
 fi
 pair() { [ -f "$R$FW/iceland-gpu-$1/qcom/gen80200_gmu.bin" ] && [ -f "$R$FW/iceland-gpu-$1/qcom/gen80200_sqe.fw" ]; }
 GPU=$GPU_FW
@@ -63,6 +72,7 @@ vendor533|stock) ON="$ON firmware_class.path=$FW/iceland-gpu-$GPU" ;;
 *) OFF="$OFF firmware_class.path=$FW/iceland-gpu-vendor533 firmware_class.path=$FW/iceland-gpu-stock" ;;
 esac
 if [ $PRE = 1 ]; then ON="$ON msm.enable_preemption=1"; else DROP=msm.enable_preemption; fi
+if [ "$MEM_SLEEP" = s2idle ]; then ON="$ON mem_sleep_default=s2idle"; else OFF="$OFF mem_sleep_default=s2idle"; fi
 fix() { # stdin: one options line -> the managed line (single spaces)
 	out=""; tail=""; set -f
 	for w in $(cat); do

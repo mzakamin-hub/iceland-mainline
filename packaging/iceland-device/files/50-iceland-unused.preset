@@ -19,3 +19,10 @@ disable smartd.service
 #   writes; journald is persistent already and no package requires rsyslog). journalctl has every line. The
 #   package presets it once per system (marker /var/lib/iceland/.preset-unused-0.28-27) while still enabled.
 disable rsyslog.service
+# 0.28-29 (owner, 18 Oct; GAPS-2026-10-18 U-4, the two the owner chose): the package presets them once per system
+#   (marker /var/lib/iceland/.preset-unused-0.28-29) while still enabled; enabled again later, they stay enabled.
+# pcscd: the smart-card daemon (socket-activated); the tablet has no smart-card reader.
+disable pcscd.socket
+disable pcscd.service
+# switcheroo-control: switches between two GPUs (hybrid graphics); the tablet has one GPU.
+disable switcheroo-control.service

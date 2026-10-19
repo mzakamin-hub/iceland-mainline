@@ -9,10 +9,16 @@
 #   ENABLED=1
 #   RELIGHT=0
 #   RELIGHT_OFF_MS=1000
+#   DISCHARGING_IS_BATTERY=0   (0.28-29, P-1; off by default, see refresh.conf)
+#   DISCHARGING_DELAY_S=120
 # It changes the mode through mutter's DisplayConfig D-Bus API as a *temporary* configuration, so the user's own
 # monitors.xml is never rewritten; the resolution, scale and layout are kept.
 # It acts only at start and when the power source really changes (UPower OnBattery flips): a rate the user picks
 # in GNOME Settings stays until the next plug / unplug (0.28-27; before, every display change re-forced the rate).
+# 0.28-29 (GAPS-2026-10-18 P-1): DISCHARGING_IS_BATTERY=1 also counts a battery that discharges on a weak USB source
+# (UPower's display device State discharging / pending-discharge while OnBattery is false) as battery; such a change
+# waits DISCHARGING_DELAY_S and is checked again. Off by default: enable it only once the kernel switches 120 <-> 60 Hz
+# in place (q89v D-1), because every rate change is a full modeset today.
 #
 # RELIGHT (off by default since 0.12): kernels without queue patch 0058 leave the Pad 4 panel black after a live
 # refresh-rate change (one modeset) until the next display off/on (area-display-2). With RELIGHT=1, after every rate
@@ -23,7 +29,8 @@ import os, sys
 from gi.repository import Gio, GLib
 
 def conf():
-    c = {"BATTERY_HZ": "60", "AC_HZ": "120", "ENABLED": "1", "RELIGHT": "0", "RELIGHT_OFF_MS": "1000"}
+    c = {"BATTERY_HZ": "60", "AC_HZ": "120", "ENABLED": "1", "RELIGHT": "0", "RELIGHT_OFF_MS": "1000",
+         "DISCHARGING_IS_BATTERY": "0", "DISCHARGING_DELAY_S": "120"}
     for p in ("/etc/iceland/refresh.conf", os.path.expanduser("~/.config/iceland/refresh.conf")):
         try:
             for line in open(p):
@@ -65,7 +72,15 @@ class Refresh:
         self.rate = builtin_rate(self.dc.call_sync("GetCurrentState", None, 0, -1, None).unpack()[1])
         self.pending = None
         self.last_ob = None
+        self.dis_timer = None
+        self.disp = None
         self.up.connect("g-properties-changed", lambda *a: self.apply())
+        if conf().get("DISCHARGING_IS_BATTERY", "0") == "1":
+            # P-1: the battery's charge state (UPower's display device); only with the switch on
+            self.disp = Gio.DBusProxy.new_sync(self.sysbus, 0, None, "org.freedesktop.UPower",
+                                               "/org/freedesktop/UPower/devices/DisplayDevice",
+                                               "org.freedesktop.UPower.Device", None)
+            self.disp.connect("g-properties-changed", lambda *a: self.apply())
         self.dc.connect("g-signal", lambda p, s, sig, a: sig == "MonitorsChanged" and self.changed())
 
     def changed(self):
@@ -100,14 +115,48 @@ class Refresh:
             print("iceland-refresh: relight: " + e.message, file=sys.stderr, flush=True)
         return False
 
-    def apply(self):
+    def source(self, c):
+        """(on battery?, decided by the discharging rule?): UPower's OnBattery; with DISCHARGING_IS_BATTERY=1 (P-1) also
+        a battery that discharges while OnBattery is false (a weak USB source): State 2 discharging / 6 pending"""
+        ob = self.up.get_cached_property("OnBattery")
+        on_battery = bool(ob.unpack()) if ob is not None else False
+        if on_battery or c.get("DISCHARGING_IS_BATTERY", "0") != "1":
+            return on_battery, False
+        disp = getattr(self, "disp", None)
+        st = disp.get_cached_property("State") if disp is not None else None
+        try:
+            return (st is not None and int(st.unpack()) in (2, 6)), True
+        except (TypeError, ValueError):
+            return False, True
+
+    def cancel_wait(self):
+        if getattr(self, "dis_timer", None) is not None:
+            GLib.source_remove(self.dis_timer)
+            self.dis_timer = None
+
+    def settle(self):
+        self.dis_timer = None
+        self.apply(settled=True)
+        return False
+
+    def apply(self, settled=False):
         c = conf()
         if c.get("ENABLED", "1") != "1":
             return
-        ob = self.up.get_cached_property("OnBattery")
-        on_battery = bool(ob.unpack()) if ob is not None else False
+        on_battery, by_dis = self.source(c)
         if on_battery == self.last_ob:
+            self.cancel_wait()
             return
+        if by_dis and self.last_ob is not None and not settled:
+            # P-1: a change made by the discharging rule waits (UPower's State follows the load) and is checked again
+            if getattr(self, "dis_timer", None) is None:
+                try:
+                    d = max(1, int(c.get("DISCHARGING_DELAY_S", "120")))
+                except ValueError:
+                    d = 120
+                self.dis_timer = GLib.timeout_add_seconds(d, self.settle)
+            return
+        self.cancel_wait()
         self.last_ob = on_battery
         target = float(c["BATTERY_HZ"] if on_battery else c["AC_HZ"])
         serial, monitors, logical, props = self.dc.call_sync("GetCurrentState", None, 0, -1, None).unpack()
@@ -130,7 +179,8 @@ class Refresh:
         args = GLib.Variant("(uua(iiduba(ssa{sv}))a{sv})", (serial, 1, new_logical, {}))
         try:
             self.dc.call_sync("ApplyMonitorsConfig", args, 0, -1, None)
-            print("iceland-refresh: %s -> %.0f Hz" % ("battery" if on_battery else "AC", target), flush=True)
+            print("iceland-refresh: %s -> %.0f Hz%s" % ("battery" if on_battery else "AC", target,
+                  " (the battery discharges on a weak USB source)" if on_battery and by_dis else ""), flush=True)
         except GLib.Error as e:
             print("iceland-refresh: " + e.message, file=sys.stderr, flush=True)
 
