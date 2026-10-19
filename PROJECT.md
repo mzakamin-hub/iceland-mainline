@@ -10,16 +10,16 @@ Start with [README.md](README.md) for the status and the install guide ([docs/IN
 The dated history is in [CHANGELOG.md](CHANGELOG.md), the release notes in [docs/RELEASE-NOTES.md](docs/RELEASE-NOTES.md),
 and the guide set in [docs/guide/](docs/guide/).
 
-## Current state (15 Oct 2026)
+## Current state (19 Oct 2026)
 
-What works on the installed tablet (the full list, feature by feature: [docs/FEATURES.md](docs/FEATURES.md), 84
+What works on the installed tablet (the full list, feature by feature: [docs/FEATURES.md](docs/FEATURES.md), 86
 working features):
 
 | Stage | State |
 |---|---|
 | Boot loader: RAM boot of test images (`fastboot boot`) | works; used for every test kit and rehearsal |
-| U-Boot on the tablet: display, USB fastboot, UFS, EFI, power-on boot menu | works; the install build v4 is the boot path in `boot_b` |
-| Linux 7.3-rc7 through U-Boot EFI (kernel q89k, `7.3.0-rc7-iceland-00436`) | works; the default kernel, updated with dnf |
+| U-Boot on the tablet: display, USB fastboot, UFS, EFI, power-on boot menu | works; the install build v7 is the boot path in `boot_b` |
+| Linux 7.3-rc7 through U-Boot EFI (kernel q89w, `7.3.0-rc7-iceland-00519`) | works; the default kernel, updated with dnf |
 | Display: native 3392 x 2400, dual DSI with DSC, 30 to 144 Hz, backlight with automatic brightness | works |
 | Touch, pen, auto-rotate (tablet mode), lid and power keys | works |
 | Wi-Fi 2.4 GHz (WCN7860, ath12k), Bluetooth with pairing | works |
@@ -30,16 +30,16 @@ working features):
 | Sensors and gyroscope (through the ADSP sensor hub; iio-sensor-proxy 3.9-11.iceland1) | works |
 | Cameras: both sensors stream through libcamera; GNOME Camera | works |
 | Install on the tablet: Fedora 44 GNOME in `userdata`, U-Boot in `boot_b` | works ([docs/INSTALL-GUIDE.md](docs/INSTALL-GUIDE.md)) |
-| Packages: `iceland-device` 0.28-16, `iceland-firmware` 11.A.38-3, `kernel-iceland` 00436 | installed |
+| Packages: `iceland-device` 0.28-29, `iceland-firmware` 11.A.38-6, `kernel-iceland` 00519 | installed |
 
 ## Our repositories (public, GitHub user `mzakamin-hub`)
 
 | Repo | Contents | Licence |
 |---|---|---|
 | [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) (this repo) | status, install guide and design, device facts, the list of working features, `iceland-device` package, firmware manifest and packaging text, sensor and audio notes | GPL-2.0-or-later (scripts) |
-| [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) | kernel patch queue: Linux v7.3-rc7 + `0001-infiniti` + `0002-iceland`; configs; prepare and build scripts. Current branch `iceland-7.3-rc7-next` (kernel q89k, `7.3.0-rc7-iceland-00436`) | GPL-2.0 |
-| [iceland-u-boot](https://github.com/mzakamin-hub/iceland-u-boot) | U-Boot patch queue: v2026.10-rc5 + infiniti-mainline (14 patches) + Pad 4 board (0002-iceland, 0001-0012); build scripts; install build record (v4 in `boot_b`) | GPL-2.0+ |
-| [iceland-firmware](https://github.com/mzakamin-hub/iceland-firmware) | generic stock 11.A.38 firmware as an RPM (tags 11.A.38-2, 11.A.38-3), manifest, notices | vendor notices kept in the repo |
+| [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) | kernel patch queue: Linux v7.3-rc7 + `0001-infiniti` + `0002-iceland`; configs; prepare and build scripts. Current branch `iceland-7.3-rc7-next` (kernel q89w, `7.3.0-rc7-iceland-00519`) | GPL-2.0 |
+| [iceland-u-boot](https://github.com/mzakamin-hub/iceland-u-boot) | U-Boot patch queue: v2026.10-rc5 + infiniti-mainline (14 patches) + Pad 4 board (0002-iceland, 0001-0015); build scripts; install build record (v7 in `boot_b`) | GPL-2.0+ |
+| [iceland-firmware](https://github.com/mzakamin-hub/iceland-firmware) | generic stock 11.A.38 firmware as an RPM (tags 11.A.38-2 to 11.A.38-6), manifest, notices | vendor notices kept in the repo |
 | `android_device_oneplus_iceland` | Android device tree for the Pad 4 | see the repo |
 | [proprietary_vendor_oneplus_iceland](https://github.com/mzakamin-hub/proprietary_vendor_oneplus_iceland) | LineageOS 24.0 vendor tree for the Pad 4 (stock proprietary files and `radio/` images); public since 14 Oct, no unit-specific data | `lineage-24.0` |
 

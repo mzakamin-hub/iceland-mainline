@@ -3,16 +3,16 @@
 The working features, one by one, are listed in [FEATURES.md](FEATURES.md); the install is described in
 [INSTALL-GUIDE.md](INSTALL-GUIDE.md). The dated history is in [../CHANGELOG.md](../CHANGELOG.md).
 
-## 1. Current versions (15 Oct 2026)
+## 1. Current versions (19 Oct 2026)
 
 | Piece | Version |
 |---|---|
-| Kernel | `7.3.0-rc7-iceland-00436` (queue q89k): Linux v7.3-rc7 plus the Pad 4 patch queue, iceland-linux branch `iceland-7.3-rc7-next`; package `kernel-iceland`, updated with dnf |
-| Device package | `iceland-device` 0.28-16 |
+| Kernel | `7.3.0-rc7-iceland-00519` (queue q89w): Linux v7.3-rc7 plus the Pad 4 patch queue, iceland-linux branch `iceland-7.3-rc7-next`; package `kernel-iceland`, updated with dnf |
+| Device package | `iceland-device` 0.28-29 |
 | Sensor programs | `iio-sensor-proxy` 3.9-11.iceland1, `hexagonrpc`, `libssc` |
-| Firmware | `iceland-firmware` 11.A.38-3 (the generic stock firmware, sha256-pinned, with the decoded thermal model) |
+| Firmware | `iceland-firmware` 11.A.38-6 (the generic stock firmware, sha256-pinned, with the decoded thermal model, the sensor hub registry and two GPU firmware pairs: stock's and the vendor's) |
 | libcamera | Fedora's 0.7.1-2 |
-| U-Boot | install build v4 (patches 0001-0012), with the power-on boot menu; written to `boot_b` with an AVB footer |
+| U-Boot | install build v7 (patches 0001-0015), with the power-on boot menu (BlissROM as well on the dual-boot layout); written to `boot_b` with an AVB footer |
 | Fedora | release 44 with the stable updates; GNOME Shell 50.5; Mesa 26.2.4 |
 
 ## 2. The install image (13 Oct 2026)
@@ -49,6 +49,11 @@ should carry 0.28-8 or newer (see the install guide, section 6).
   sensor programs and `alsa-ucm` are held); `iceland-firmware-fetch` with sha256 pins; the firmware repository is
   public.
 - **Slot marking:** the Fedora-side marking works on the installed layout (0.28-8).
+- **Since 15 Oct** (kernels q89l to q89w, `iceland-device` 0.28-17 to 0.28-29; details in
+  [../CHANGELOG.md](../CHANGELOG.md)): the battery energy at the cell's nominal voltage; the vendor GPU firmware with
+  GPU preemption; the dual boot BlissROM + Fedora (U-Boot v7); the own Bluetooth address at every start; a change
+  between 120 and 60 Hz without a modeset and a screen off without an underrun; suspend-to-idle as the kernel's
+  default; the refresh switch acting only on real power changes; the memory-latency governor loaded at boot.
 
 ## 4. Known limits
 
@@ -56,6 +61,8 @@ should carry 0.28-8 or newer (see the install guide, section 6).
 - The camera into the hardware H.264 encoder (`pipewiresrc` -> `v4l2h264enc`) does not negotiate; screen recording on
   the hardware encoder works.
 - Chromium / Electron apps do not use the GPU path yet.
+- Short visual glitches in animations while auto-rotate is on in tablet mode (the accelerometer streams); rotation
+  lock avoids them.
 - The display's idle refresh mode is in the kernel but off: it measured 74.8 Hz instead of 60 Hz. Do not switch it on.
 - No fast charging (SuperVOOC is not supported).
 - Fedora 45 stays blocked until it has been tested on the tablet.

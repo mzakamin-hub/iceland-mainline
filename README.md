@@ -5,16 +5,17 @@ project's front page and reference set: the status, the install guide, the devic
 tablet's settings, the firmware manifest and the audio and sensor notes. The kernel, the U-Boot port and the generic
 firmware package live in their own repositories (see [Repositories](#repositories)).
 
-## Status (15 Oct 2026)
+## Status (19 Oct 2026)
 
 - **Fedora 44 with GNOME installs on the tablet** (Fedora in `userdata`, U-Boot in `boot_b`) and boots on its own.
 - **Current versions on the tablet:**
-  - Kernel `7.3.0-rc7-iceland-00436` (q89k): Linux v7.3-rc7 plus the Pad 4 patch queue, from the iceland-linux branch
+  - Kernel `7.3.0-rc7-iceland-00519` (q89w): Linux v7.3-rc7 plus the Pad 4 patch queue, from the iceland-linux branch
     `iceland-7.3-rc7-next`, packaged as `kernel-iceland`.
-  - `iceland-device` 0.28-16 (the tablet's settings) and `iio-sensor-proxy` 3.9-11.iceland1.
-  - `iceland-firmware` 11.A.38-3 (generic stock firmware, sha256-pinned) and Fedora's libcamera 0.7.1-2.
-  - U-Boot install build v4 in `boot_b`, footered for AVB, with a power-on boot menu on the keys.
-- **What works:** [docs/FEATURES.md](docs/FEATURES.md) lists the 84 features that work today.
+  - `iceland-device` 0.28-29 (the tablet's settings) and `iio-sensor-proxy` 3.9-11.iceland1.
+  - `iceland-firmware` 11.A.38-6 (generic stock firmware, sha256-pinned, with two GPU firmware pairs) and Fedora's
+    libcamera 0.7.1-2.
+  - U-Boot install build v7 in `boot_b`, footered for AVB, with a power-on boot menu on the keys.
+- **What works:** [docs/FEATURES.md](docs/FEATURES.md) lists the 86 features that work today.
 
 ### What works
 
@@ -34,9 +35,10 @@ Each item, with what was measured, is in [docs/FEATURES.md](docs/FEATURES.md).
 ## How it boots
 
 1. The stock boot loader (ABL, closed) starts `boot_b`, checks its AVB footer and counts the tries of slot b.
-2. `boot_b` holds our U-Boot v4 install build. It shows a short boot menu (Fedora by default, or the boot loader's
-   fastboot), finds no `fedora` partition, runs the EFI boot manager on the disk image in `userdata`, and falls back
-   to USB fastboot if that finds nothing. It never resets or powers off by itself.
+2. `boot_b` holds our U-Boot install build (v7). It shows a short boot menu (Fedora by default, or the boot loader's
+   fastboot; BlissROM as well on the dual-boot layout, see [docs/DUAL-BOOT.md](docs/DUAL-BOOT.md)), boots the `fedora`
+   partition if there is one, else runs the EFI boot manager on the disk image in `userdata`, and falls back to USB
+   fastboot if that finds nothing. It never resets or powers off by itself.
 3. `userdata` holds the whole Fedora disk image. Its EFI programs are Fedora's shim and GRUB.
 4. GRUB loads `kernel-iceland` with the Pad 4 device tree and the initramfs.
 5. The root is btrfs on a loop device backed by `userdata`. Every other internal partition is read-only to the running
@@ -58,13 +60,14 @@ is made by hand after its own checks; nothing in this repository writes to a dev
 
 ### Download
 
-- [iceland-device-0.28-16](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-16): the source RPMs of
-  `iceland-device` 0.28-16, `iio-sensor-proxy` 3.9-11.iceland1 and `libssc` (build dependency), and the Windows
-  installer ([tools/installer/](tools/installer/README-INSTALLER.md); it refuses both writes until a generic
-  install image exists).
-- Kernel q89k: [iceland-linux release `q89k`](https://github.com/mzakamin-hub/iceland-linux/releases/tag/q89k).
-- U-Boot install build v4: [iceland-u-boot release `v4-2026-10-15`](https://github.com/mzakamin-hub/iceland-u-boot/releases/tag/v4-2026-10-15).
-- Firmware: [iceland-firmware release `11.A.38-3`](https://github.com/mzakamin-hub/iceland-firmware/releases/tag/11.A.38-3).
+- [iceland-device-0.28-29](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-29): `iceland-device` 0.28-29
+  (noarch and source RPM) and the source RPMs of `hexagonrpc`, `libssc` and `iio-sensor-proxy` 3.9-11.iceland1.
+- The Windows installer: [iceland-device-0.28-16](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-16)
+  ([tools/installer/](tools/installer/README-INSTALLER.md); it refuses both writes until a generic install image
+  exists).
+- Kernel q89w: [iceland-linux release `q89w`](https://github.com/mzakamin-hub/iceland-linux/releases/tag/q89w).
+- U-Boot install build v7: [iceland-u-boot release `v7-2026-10-17`](https://github.com/mzakamin-hub/iceland-u-boot/releases/tag/v7-2026-10-17).
+- Firmware: [iceland-firmware release `11.A.38-6`](https://github.com/mzakamin-hub/iceland-firmware/releases/tag/11.A.38-6).
 
 There is no published install image: every install image carries the tablet's own unit-specific files.
 
@@ -75,9 +78,9 @@ All repositories are public under the GitHub user `mzakamin-hub`.
 | Repository | What it holds |
 |---|---|
 | [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) (this one) | Status, install guide, device facts, the Fedora packaging of the tablet's settings (`iceland-device`), the firmware manifest, the sensor and audio notes, the list of working features. |
-| [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) | The kernel: the patch queue on Linux v7.3-rc7 (current branch `iceland-7.3-rc7-next`, kernel q89k `7.3.0-rc7-iceland-00436`), the configs and the build scripts. |
-| [iceland-u-boot](https://github.com/mzakamin-hub/iceland-u-boot) | The U-Boot port on v2026.10-rc5: the infiniti-mainline base, the Pad 4 board patches, the install build (v4) and its build scripts. |
-| [iceland-firmware](https://github.com/mzakamin-hub/iceland-firmware) | The generic stock 11.A.38 firmware as an RPM (tags 11.A.38-2 and 11.A.38-3), with a manifest of sha256 sums and the vendor notices. Unit-specific data is never in it. |
+| [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) | The kernel: the patch queue on Linux v7.3-rc7 (current branch `iceland-7.3-rc7-next`, kernel q89w `7.3.0-rc7-iceland-00519`), the configs and the build scripts. |
+| [iceland-u-boot](https://github.com/mzakamin-hub/iceland-u-boot) | The U-Boot port on v2026.10-rc5: the infiniti-mainline base, the Pad 4 board patches, the install build (v7) and its build scripts. |
+| [iceland-firmware](https://github.com/mzakamin-hub/iceland-firmware) | The generic stock 11.A.38 firmware as an RPM (tags 11.A.38-2 to 11.A.38-6), with a manifest of sha256 sums and the vendor notices. Unit-specific data is never in it. |
 | [android_device_oneplus_iceland](https://github.com/mzakamin-hub/android_device_oneplus_iceland) | The LineageOS 24.0 device tree for the Pad 4 (branch `lineage-24.0`), from the Android test phase before the install. |
 | [proprietary_vendor_oneplus_iceland](https://github.com/mzakamin-hub/proprietary_vendor_oneplus_iceland) | The LineageOS 24.0 vendor tree for the Pad 4: the stock proprietary files and `radio/` firmware images that go with the device tree. Made public on 14 Oct 2026; it holds no unit-specific data. |
 

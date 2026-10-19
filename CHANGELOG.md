@@ -10,6 +10,17 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) ·
 [iceland-u-boot](https://github.com/mzakamin-hub/iceland-u-boot) (all public).
 
+## 2026-10-19 - kernel q89w (7.3.0-rc7-iceland-00519); feature matrix r171
+
+- Kernel q89w (iceland-linux `iceland-7.3-rc7-next`, tag `q89w`) is the current kernel of the installed tablet: a
+  video-mode DSI slave is torn down only after both timing engines stop, so the screen turns off without an underrun;
+  a change between 120 and 60 Hz is made in place, without a modeset; the DSPs are told about system sleep (SMP2P sleep
+  state); fastrpc waits are freezable; the IOMMU runs in lazy mode; upstream fixes for q6apm, UCSI, ath12k, iris, UFS,
+  power supply and remoteproc. Display off / on and suspends are clean in the regression set.
+- q89w still limits the Wi-Fi PCIe link to Gen2 (queue 0349); the next kernel drops that limit (the link runs at Gen3
+  without it).
+- Feature matrix r171: 86 working features ([docs/FEATURES.md](docs/FEATURES.md)).
+
 ## 2026-10-19 - iceland-device 0.28-29: suspend-to-idle as the kernel's default, display interrupts on CPU 0
 
 - `mem_sleep_default=s2idle` on every boot entry and in `/etc/kernel/cmdline` (`MEM_SLEEP` in
