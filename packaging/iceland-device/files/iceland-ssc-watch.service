@@ -1,4 +1,5 @@
-# iceland-device 0.28-16 (wf/r16): one check of the sensor programs (iceland-ssc-watch), run by iceland-ssc-watch.timer.
+# iceland-device 0.28-16 (wf/r16): one check of the sensor programs (iceland-ssc-watch), run by iceland-ssc-watch.timer
+# (0.28-27, AUDIT-2026-10-18 U4: 90 s after the boot and after every stop / failure of iio-sensor-proxy, no period).
 [Unit]
 Description=OnePlus Pad 4: start the sensor programs again if they stopped
 Documentation=file:///usr/libexec/iceland/iceland-ssc-watch
@@ -9,3 +10,6 @@ ConditionPathExists=/dev/fastrpc-adsp
 Type=oneshot
 ExecStart=/usr/libexec/iceland/iceland-ssc-watch
 TimeoutStartSec=20
+# 0.28-27 (U4): systemd's Starting / Finished lines of this unit are info: not journaled. The script's own lines
+# (logger: notice) and any failure still are.
+LogLevelMax=notice

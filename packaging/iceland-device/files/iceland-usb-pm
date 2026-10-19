@@ -35,7 +35,9 @@ ROOTSRC=${ICELAND_ROOTSRC-$(findmnt -n -o SOURCE / 2>/dev/null)}
 log() {
 	echo "iceland-usb-pm: $*"
 	# udev's RUN programs have no journal stdout: one kernel log line as well (ignored in the PC tests)
-	[ -z "${ICELAND_SYS:-}" ] && [ "$MODE" = apply ] && [ -w /dev/kmsg ] && echo "iceland-usb-pm: $*" > /dev/kmsg 2>/dev/null
+	# 0.28-27 (D5): an explicit level, <4> for a FAIL line, else <6> (/dev/kmsg defaults to 4 = warning)
+	case "$*" in FAIL*) l=4 ;; *) l=6 ;; esac
+	[ -z "${ICELAND_SYS:-}" ] && [ "$MODE" = apply ] && [ -w /dev/kmsg ] && echo "<$l>iceland-usb-pm: $*" > /dev/kmsg 2>/dev/null
 	return 0
 }
 loop_carrier() {   # $1 = /dev/loopN[pM]: rc 0 when its backing file is the sd* partition labelled userdata / fedora

@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-device 0.28-27 (OPTIMIZATION-DELTA-2026-10-18 D3): /usr/lib/udev/rules.d/70-iceland-battery-ready.rules
+# A systemd device unit for the Pad 4 battery (sys-subsystem-power_supply-devices-iceland_battery.device) once udev
+# has processed it WITH the charge-limit property: CHARGE_LIMIT comes from UPower's 60-upower-battery.rules (hwdb
+# lookup) and 61-iceland-battery.hwdb, so this file sorts after 60. upower.service.d/iceland.conf starts UPower after
+# this unit, so UPower always reads the limit and GNOME shows "Battery Charging" (area-combo-37, -40) without
+# systemd-udev-settle. The initramfs (qcom_battmgr is in it) has neither rule: the unit appears only from the real
+# root's udev.
+ACTION=="remove", GOTO="iceland_battery_ready_end"
+SUBSYSTEM=="power_supply", KERNEL=="qcom-battmgr-bat", ENV{CHARGE_LIMIT}=="?*", \
+  TAG+="systemd", ENV{SYSTEMD_ALIAS}+="/sys/subsystem/power_supply/devices/iceland_battery"
+LABEL="iceland_battery_ready_end"

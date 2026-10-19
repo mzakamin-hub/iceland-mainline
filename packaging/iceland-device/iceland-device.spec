@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        26%{?dist}
+Release:        27%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -195,6 +195,10 @@ Source171:      iceland-charging-detect.service
 Source172:      iceland-ssc-watch
 Source173:      iceland-ssc-watch.service
 Source174:      iceland-ssc-watch.timer
+# 0.28-27: U4 the event-driven sensor watch, D3 the battery's device unit for UPower, K1 the memlat modules
+Source193:      iio-sensor-proxy-iceland-watch.conf
+Source194:      70-iceland-battery-ready.rules
+Source195:      iceland-memlat.conf
 # 0.28-17 (wf/generic): the unit's own values on the first boot of a generic image (Bluetooth address, read only)
 Source175:      iceland-provision
 Source176:      iceland-provision.service
@@ -424,6 +428,9 @@ install -Dm0644 %{SOURCE171} %{buildroot}/usr/lib/systemd/system/iceland-chargin
 install -Dm0755 %{SOURCE172} %{buildroot}/usr/libexec/iceland/iceland-ssc-watch
 install -Dm0644 %{SOURCE173} %{buildroot}/usr/lib/systemd/system/iceland-ssc-watch.service
 install -Dm0644 %{SOURCE174} %{buildroot}/usr/lib/systemd/system/iceland-ssc-watch.timer
+install -Dm0644 %{SOURCE193} %{buildroot}/usr/lib/systemd/system/iio-sensor-proxy.service.d/iceland-watch.conf
+install -Dm0644 %{SOURCE194} %{buildroot}/usr/lib/udev/rules.d/70-iceland-battery-ready.rules
+install -Dm0644 %{SOURCE195} %{buildroot}/usr/lib/modules-load.d/iceland-memlat.conf
 install -Dm0755 %{SOURCE175} %{buildroot}/usr/libexec/iceland/iceland-provision
 install -Dm0644 %{SOURCE176} %{buildroot}/usr/lib/systemd/system/iceland-provision.service
 install -Dm0644 %{SOURCE177} %{buildroot}/usr/share/iceland/provision-sources.tsv
@@ -554,7 +561,8 @@ if [ -d /run/systemd/system ]; then udevadm control --reload >/dev/null 2>&1 || 
 # a running guard or thermal policy takes the new version at once (both start at boot; an installation alone
 # does not start them)
 if [ -d /run/systemd/system ]; then systemctl daemon-reload >/dev/null 2>&1 || :; systemctl try-restart iceland-battery-guard.service iceland-thermal.service >/dev/null 2>&1 || :; systemctl start iceland-launchboost.service >/dev/null 2>&1 || :; fi
-# 0.28-16: the sensor watch runs from now on (its timer is linked into timers.target.wants)
+# 0.28-16: the sensor watch runs from now on (its timer is linked into timers.target.wants); 0.28-27: the timer
+# is one check 90 s after its start (armed again by every stop / failure of the proxy): arm it once now
 [ -d /run/systemd/system ] && systemctl start iceland-ssc-watch.timer >/dev/null 2>&1 || :
 systemctl --global enable iceland-refresh.service iceland-charge-alert.service iceland-speaker-default.service >/dev/null 2>&1 || :
 # bypass charging: the bus reads the D-Bus policy of iceland-bypassd again (the service starts on demand); a running
@@ -588,6 +596,14 @@ if [ ! -e /var/lib/iceland/.preset-unused-0.28-9 ]; then
 		done
 	done
 	mkdir -p /var/lib/iceland && touch /var/lib/iceland/.preset-unused-0.28-9
+fi
+# 0.28-27 (AUDIT-2026-10-18 U1): the units added to 50-iceland-unused.preset since 0.28-9 (rsyslog.service), once
+# per system and only while still enabled, as above (the 0.28-9 marker exists on systems that had 0.28-9..26)
+if [ ! -e /var/lib/iceland/.preset-unused-0.28-27 ]; then
+	for u in rsyslog.service; do
+		[ "$(systemctl is-enabled "$u" 2>/dev/null)" = enabled ] && systemctl preset "$u" >/dev/null 2>&1 || :
+	done
+	mkdir -p /var/lib/iceland && touch /var/lib/iceland/.preset-unused-0.28-27
 fi
 # 0.28-9 (4): sysctl.d / tmpfiles.d take effect through systemd's file triggers at once and at every boot
 # 0.28-18: GDM's dconf database with the greeter default (ambient-enabled=false); the greeter reads it at its next
@@ -701,6 +717,9 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/lib/udev/rules.d/81-iceland-ssc.rules
 %dir /usr/lib/systemd/system/iio-sensor-proxy.service.d
 /usr/lib/systemd/system/iio-sensor-proxy.service.d/iceland.conf
+/usr/lib/systemd/system/iio-sensor-proxy.service.d/iceland-watch.conf
+/usr/lib/udev/rules.d/70-iceland-battery-ready.rules
+/usr/lib/modules-load.d/iceland-memlat.conf
 %dir /usr/lib/systemd/system/hexagonrpcd-adsp-sensorspd.service.d
 /usr/lib/systemd/system/hexagonrpcd-adsp-sensorspd.service.d/iceland.conf
 /usr/lib/tmpfiles.d/iceland-dsp-tree.conf
@@ -791,6 +810,30 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
 
 %changelog
+* Sun Oct 18 2026 mzak <mzak.amin@gmail.com> - 0.28-27
+- iceland-refresh: acts only at its start and when UPower's OnBattery really flips; a rate picked in GNOME Settings
+  stays until the next plug / unplug. Up to 0.28-26 it forced its rate again at every display change
+  (MonitorsChanged: each wake, each GNOME Settings change) and at any UPower property change (owner, 18 Oct)
+- rsyslog.service off (AUDIT-2026-10-18 U1): 50-iceland-unused.preset, applied once per system while enabled
+  (marker /var/lib/iceland/.preset-unused-0.28-27); journald (persistent) keeps every line, ~35 MB a day less
+  written to UFS
+- GNOME power defaults (U2, gschema override): suspend after 6 min idle on battery (was 15), power saver mode at
+  GNOME's low-battery level; a value set in GNOME Settings still wins
+- kernel log levels (OPTIMIZATION-DELTA-2026-10-18 D5): iceland-storage-ro, iceland-carrier, iceland-rollback,
+  iceland-rehearsal and iceland-usb-pm write <6> (info), <4> only for a failure; /dev/kmsg's default 4 had put
+  ~330 lines a boot into journalctl -p warning. The initramfs copies change at its next rebuild
+- iceland-ssc-watch event-driven (U4): no 60 s timer; one check 90 s after the boot and 90 s after every stop or
+  final failure of iio-sensor-proxy (OnSuccess= / OnFailure=, iio-sensor-proxy.service.d/iceland-watch.conf);
+  the watch's own rules and the 0.28-21 suspend path (iceland-ssc-resume) unchanged; LogLevelMax=notice
+- UPower without systemd-udev-settle (D3, ~1.5 s of every boot): upower.service.d/iceland.conf orders it after
+  the battery's device unit, which 70-iceland-battery-ready.rules creates once udev has the charge limit
+  (GNOME's "Battery Charging" switch, area-combo-37 / -40)
+- memlat (AUDIT-2026-10-18-kernel K1): /usr/lib/modules-load.d/iceland-memlat.conf loads qcom-generic-ext and
+  scmi-qcom-memlat-devfreq (the memlat governor never loaded on the installed system); checked on the tablet:
+  the ddr, ddr-qos and llcc devfreq devices appear at boot
+- carries 0.28-26 unchanged otherwise (iceland-bdaddr v3; 0.28-25's carrier fix; 0.28-23's
+  50-iceland-greeter-ambient)
+
 * Sun Oct 18 2026 mzak <mzak.amin@gmail.com> - 0.28-26
 - bluetooth: iceland-bdaddr v3. Field bug (18 Oct): v2's single Set Public Address was refused (the controller powered
   again), the unit failed for good and bluetoothd ran the boot on the device tree's shared placeholder address (new

@@ -9,7 +9,9 @@
 # (81-iceland-ssc.rules, SYSTEMD_WANTS on /dev/fastrpc-adsp) - nothing starts it again after a stop that is not a
 # failure (Restart=always only covers a crash): a suspend whose resume unit did not run, a "systemctl isolate"
 # (0.28-16: both sensor units now have IgnoreOnIsolate=yes), a stop by hand or by a package script.
-# Run by iceland-ssc-watch.timer (every minute, from 90 s after the boot; timers do not fire during a suspend).
+# Run by iceland-ssc-watch.timer: 0.28-27 (AUDIT-2026-10-18 U4) once 90 s after the boot and once 90 s after every
+# stop or final failure of iio-sensor-proxy (OnSuccess= / OnFailure=, iio-sensor-proxy.service.d/iceland-watch.conf);
+# up to 0.28-26 every minute. Timers do not fire during a suspend.
 # Does nothing when: the DSP tree or /dev/fastrpc-adsp is missing; the proxy is active / activating / deactivating;
 # systemd has any job queued (a boot, a suspend, a restart in progress: that path decides); the unit is masked or not
 # loaded; /run/iceland/sensors-off exists (test / owner switch: keep the sensors down until it is removed); or it

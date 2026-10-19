@@ -10,6 +10,18 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) ·
 [iceland-u-boot](https://github.com/mzakamin-hub/iceland-u-boot) (all public).
 
+## 2026-10-18 - iceland-device 0.28-27: the refresh switch on real power changes, a quieter and faster boot
+
+- `iceland-refresh` switches between 60 and 120 Hz only at its start and when the power source really changes: a rate
+  picked in GNOME Settings stays until the next plug or unplug (before, every display change forced the rate again).
+- The CPU firmware's memory-latency governor loads at boot on the installed system: DDR, the system cache and the DDR
+  QoS level follow the CPU load as on stock (before, only the test images loaded its modules).
+- On battery the tablet suspends 6 min after the last input (GNOME's default: 15 min), and GNOME's power saver mode
+  switches on at its low-battery level; values set in GNOME Settings win.
+- rsyslog is off (journald keeps every line); the sensor watch checks only after a stop of the sensor service instead
+  of every minute; UPower waits for the battery device instead of udev's whole first scan; the boot-time helpers log
+  at info level instead of warning. Carries 0.28-26 unchanged otherwise.
+
 ## 2026-10-18 - iceland-device 0.28-26: the own Bluetooth address at every start
 
 - `iceland-bdaddr` v3: the tablet's own Bluetooth address is applied before bluetoothd starts and again whenever

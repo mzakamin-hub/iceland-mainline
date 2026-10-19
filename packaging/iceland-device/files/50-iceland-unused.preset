@@ -15,3 +15,7 @@ disable mdmonitor-takeover.service
 disable raid-check.timer
 # smartd: SMART monitoring; UFS has no SMART (its health is in the UFS device descriptor: life_time_estimation_a/b).
 disable smartd.service
+# 0.28-27 (AUDIT-2026-10-18 U1): rsyslog copies every journal line into /var/log/messages (~35 MB a day of extra
+#   writes; journald is persistent already and no package requires rsyslog). journalctl has every line. The
+#   package presets it once per system (marker /var/lib/iceland/.preset-unused-0.28-27) while still enabled.
+disable rsyslog.service

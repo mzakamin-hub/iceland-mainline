@@ -14,3 +14,9 @@ enabled-extensions=['background-logo@fedorahosted.org', 'iceland-bypass@oneplus-
 # the key as well (the guard's journal line says so).
 [org.gnome.settings-daemon.plugins.power]
 power-button-action='nothing'
+# 0.28-27 (AUDIT-2026-10-18 U2): on battery the tablet suspends 6 min after the last input (1 min after the
+# screen blanks at GNOME's 5 min) instead of 15 min: screen-off-awake ~0.67 W vs ~0.22 W in s2idle. On the
+# charger nothing changes (sleep-inactive-ac-* and the battery guard's KEEP_AWAKE). GNOME's power saver mode
+# switches on at its low-battery level. Defaults only: a value set in GNOME Settings wins.
+sleep-inactive-battery-timeout=360
+power-saver-profile-on-low-battery=true

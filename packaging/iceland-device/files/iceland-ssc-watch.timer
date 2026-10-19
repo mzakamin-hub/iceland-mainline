@@ -1,10 +1,15 @@
-# iceland-device 0.28-16 (wf/r16): the sensor programs are checked once a minute from 90 s after the boot
-# (iceland-ssc-watch.service). Pulled in by the package's own timers.target.wants link. AccuracySec lets systemd
-# merge the wake-up with others (no extra wake-ups at idle).
+# iceland-device 0.28-27 (AUDIT-2026-10-18 U4; 0.28-16 wf/r16 had a 60 s period): ONE check of the sensor programs
+# (iceland-ssc-watch.service) 90 s after the timer is started. It is started (1) at every boot through the package's
+# timers.target.wants link and (2) every time iio-sensor-proxy stops or fails for good: OnSuccess= / OnFailure= in
+# iio-sensor-proxy.service.d/iceland-watch.conf (a clean stop that nothing undoes; the start limit hit; a stop timeout
+# at suspend). RemainAfterElapse=no: after the check the timer is inactive, so the next stop arms it again. While the
+# proxy runs nothing wakes up (was: 1440 runs and ~4300 journal lines a day). The 90 s leave time to Restart=always,
+# the resume unit (iceland-ssc-resume, 0.28-21 suspend fix) and a running suspend; CLOCK_MONOTONIC does not count
+# the time asleep.
 [Unit]
-Description=OnePlus Pad 4: check the sensor programs once a minute
+Description=OnePlus Pad 4: check the sensor programs once, 90 s after a boot or a stop
 
 [Timer]
-OnBootSec=90s
-OnUnitActiveSec=60s
-AccuracySec=30s
+OnActiveSec=90s
+AccuracySec=10s
+RemainAfterElapse=no

@@ -13,7 +13,8 @@
 # What it writes: configfs (gadget), usb0's address, /run/*. Nothing on the tablet's storage.
 R=${ICELAND_ROOT:-}
 cmdline=${ICELAND_CMDLINE:-$(cat /proc/cmdline)}
-log() { echo "iceland-rehearsal: $*" > "$R/dev/kmsg" 2>/dev/null; echo "iceland-rehearsal: $*" >&2; }
+# 0.28-27 (D5): explicit kernel log level <6> (/dev/kmsg defaults to 4 = warning); <4> for the PC disk / NBD faults
+log() { echo "<6>iceland-rehearsal: $*" > "$R/dev/kmsg" 2>/dev/null; echo "iceland-rehearsal: $*" >&2; }
 getarg() { local a; for a in $cmdline; do case $a in "$1="*) echo "${a#*=}"; return 0 ;; esac; done; return 1; }
 spec=$1
 case "$spec" in nbd:*:*) ;; *) log "unknown rehearsal spec '$spec'"; exit 1 ;; esac
@@ -97,7 +98,7 @@ cat > "$RUN/setup.sh" <<'EOF'
 install -d -m 700 /root/.ssh && install -m 600 /run/iceland-rehearsal/authorized_keys /root/.ssh/authorized_keys
 restorecon -R /root/.ssh 2>/dev/null
 systemctl start sshd.service
-echo "iceland-rehearsal: sshd $(systemctl is-active sshd)" > /dev/kmsg
+echo "<6>iceland-rehearsal: sshd $(systemctl is-active sshd)" > /dev/kmsg
 EOF
 cat > "$RUN/guard.sh" <<EOF
 #!/bin/bash
@@ -111,9 +112,9 @@ while :; do
 	ext=\$(cat /run/iceland-rehearsal/extend 2>/dev/null); case "\$ext" in ''|*[!0-9]*) ext="" ;; esac
 	lim=\$max; [ -n "\$ext" ] && [ "\$ext" -gt "\$lim" ] && lim=\$ext
 	if [ "\$lim|\$ext" != "\$last" ]; then
-		echo "iceland-rehearsal: session limit \$lim s (head \$max s, extend \${ext:-none}) at uptime \$up s" > /dev/kmsg; last="\$lim|\$ext"
+		echo "<6>iceland-rehearsal: session limit \$lim s (head \$max s, extend \${ext:-none}) at uptime \$up s" > /dev/kmsg; last="\$lim|\$ext"
 	fi
-	if [ "\$up" -ge "\$lim" ]; then echo "iceland-rehearsal: session limit \$lim s reached - reboot" > /dev/kmsg; sleep 1; echo b > /proc/sysrq-trigger; fi
+	if [ "\$up" -ge "\$lim" ]; then echo "<4>iceland-rehearsal: session limit \$lim s reached - reboot" > /dev/kmsg; sleep 1; echo b > /proc/sysrq-trigger; fi
 	# r2o: a dd stuck in D state on a stalled nbd ignores timeout's KILL, so the probe runs in the background and the
 	# guard never waits on it (it keeps logging and the session limit keeps working).
 	ok=""
@@ -123,12 +124,12 @@ while :; do
 			if ! kill -0 \$p 2>/dev/null; then wait \$p && ok=1; break; fi
 			sleep 1; i=\$((i + 1))
 		done
-		[ \$i -ge 20 ] && echo "iceland-rehearsal: nbd probe stuck after 20 s (pid \$p, state \$(cut -d' ' -f3 /proc/\$p/stat 2>/dev/null))" > /dev/kmsg
+		[ \$i -ge 20 ] && echo "<4>iceland-rehearsal: nbd probe stuck after 20 s (pid \$p, state \$(cut -d' ' -f3 /proc/\$p/stat 2>/dev/null))" > /dev/kmsg
 	fi
 	if [ -n "\$ok" ]; then
 		systemd-notify WATCHDOG=1
 	else
-		echo "iceland-rehearsal: the PC's disk does not answer" > /dev/kmsg
+		echo "<4>iceland-rehearsal: the PC's disk does not answer" > /dev/kmsg
 	fi
 	sleep 10
 done

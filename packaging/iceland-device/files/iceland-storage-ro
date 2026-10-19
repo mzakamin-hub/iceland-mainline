@@ -18,7 +18,11 @@
 dev=$1; type=$2; pname=${3:-}
 R=${ICELAND_ROOT:-}
 CMDLINE=${ICELAND_CMDLINE:-/proc/cmdline}
-log() { echo "iceland-storage: $*" > "$R/dev/kmsg" 2>/dev/null || echo "iceland-storage: $*"; }
+# 0.28-27 (OPTIMIZATION-DELTA-2026-10-18 D5): an explicit kernel log level; without one /dev/kmsg uses 4 (warning)
+# and every per-device line of every boot landed in journalctl -p warning. <6> info, <4> only for a failure.
+logl() { l=$1; shift; echo "<$l>iceland-storage: $*" > "$R/dev/kmsg" 2>/dev/null || echo "iceland-storage: $*"; }
+log() { logl 6 "$@"; }
+warn() { logl 4 "$@"; }
 [ -n "$dev" ] || exit 0
 arg() {   # the value of $1= on the kernel command line, rc 1 when absent
 	for a in $(cat "$CMDLINE" 2>/dev/null); do
@@ -89,6 +93,6 @@ blockdev --setro "$dev" 2>/dev/null
 if [ "$(blockdev --getro "$dev" 2>/dev/null)" = 1 ]; then
 	log "$name${pname:+ ($pname)} read-only ($w)"
 else
-	log "$name${pname:+ ($pname)}: could NOT be made read-only"
+	warn "$name${pname:+ ($pname)}: could NOT be made read-only"
 	exit 1
 fi

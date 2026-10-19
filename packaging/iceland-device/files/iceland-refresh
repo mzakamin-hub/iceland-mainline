@@ -11,6 +11,8 @@
 #   RELIGHT_OFF_MS=1000
 # It changes the mode through mutter's DisplayConfig D-Bus API as a *temporary* configuration, so the user's own
 # monitors.xml is never rewritten; the resolution, scale and layout are kept.
+# It acts only at start and when the power source really changes (UPower OnBattery flips): a rate the user picks
+# in GNOME Settings stays until the next plug / unplug (0.28-27; before, every display change re-forced the rate).
 #
 # RELIGHT (off by default since 0.12): kernels without queue patch 0058 leave the Pad 4 panel black after a live
 # refresh-rate change (one modeset) until the next display off/on (area-display-2). With RELIGHT=1, after every rate
@@ -62,6 +64,7 @@ class Refresh:
                                          "/org/freedesktop/UPower", "org.freedesktop.UPower", None)
         self.rate = builtin_rate(self.dc.call_sync("GetCurrentState", None, 0, -1, None).unpack()[1])
         self.pending = None
+        self.last_ob = None
         self.up.connect("g-properties-changed", lambda *a: self.apply())
         self.dc.connect("g-signal", lambda p, s, sig, a: sig == "MonitorsChanged" and self.changed())
 
@@ -73,7 +76,6 @@ class Refresh:
                 GLib.source_remove(self.pending)
             self.pending = GLib.timeout_add(300, self.relight_off, self.rate, rate)
         self.rate = rate
-        self.apply()
 
     def power_save(self, mode):
         self.bus.call_sync("org.gnome.Mutter.DisplayConfig", "/org/gnome/Mutter/DisplayConfig",
@@ -104,6 +106,9 @@ class Refresh:
             return
         ob = self.up.get_cached_property("OnBattery")
         on_battery = bool(ob.unpack()) if ob is not None else False
+        if on_battery == self.last_ob:
+            return
+        self.last_ob = on_battery
         target = float(c["BATTERY_HZ"] if on_battery else c["AC_HZ"])
         serial, monitors, logical, props = self.dc.call_sync("GetCurrentState", None, 0, -1, None).unpack()
         changed, new_logical = False, []
