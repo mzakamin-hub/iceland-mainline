@@ -8,9 +8,9 @@
 # Keep the entries in sync when a matrix-*.py script adds, renames or re-words a working row.
 
 PUBLIC_STATUS = ("Fedora 44 with GNOME is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> "
-                 "kernel). Current versions: kernel 7.3.0-rc7-iceland-00438 (q89l, iceland-linux branch "
-                 "iceland-7.3-rc7-next), iceland-device 0.28-16, iio-sensor-proxy 3.9-11.iceland1, "
-                 "iceland-firmware 11.A.38-3, U-Boot install build v7.")
+                 "kernel). Current versions: kernel 7.3.0-rc7-iceland-00519 (q89w, iceland-linux branch "
+                 "iceland-7.3-rc7-next), iceland-device 0.28-29, iio-sensor-proxy 3.9-11.iceland1, "
+                 "iceland-firmware 11.A.38-6, U-Boot install build v7.")
 
 PUBLIC = {
 # Boot & platform
@@ -24,7 +24,7 @@ PUBLIC = {
 "U-Boot boot setting for single or dual boot":
     "Boots a “fedora” partition if there is one, else the Fedora image in userdata.",
 "Linux 7.3-rc7 through EFI":
-    "Linux 7.3-rc7 with the Pad 4 patch queue (current kernel 7.3.0-rc7-iceland-00453, iceland-linux branch "
+    "Linux 7.3-rc7 with the Pad 4 patch queue (current kernel 7.3.0-rc7-iceland-00519, iceland-linux branch "
     "iceland-7.3-rc7-next) boots through U-Boot's EFI, Fedora's shim and GRUB.",
 "Internal storage (UFS 4)":
     "UFS 4 with 4 KiB blocks in MCQ mode (9 hardware queues per LUN), about 2.3 GB/s direct read. The installed root "
@@ -78,11 +78,14 @@ PUBLIC = {
 "Native display 3392×2400, dual DSI + DSC":
     "The panel runs at its native 3392×2400 over dual DSI with DSC; the boot splash hands over to the MSM DRM "
     "driver. Since kernel 00436 the flicker in the lower quarter of the screen with automatic brightness is gone; "
-    "kernel 00453 adds fixes for the display state after a screen blank.",
+    "kernel 00453 adds fixes for the display state after a screen blank, and kernel 00519 stops the second DSI link "
+    "only after both links have stopped, so the screen turns off without an underrun.",
 "Refresh 30 / 60 / 90 / 120 / 144 Hz":
-    "Live rate changes keep the picture; GPU-drawn frames are paced exactly at 60, 120 and 144 Hz.",
+    "Live rate changes keep the picture, and since kernel 00511 a change between 120 and 60 Hz is made in place, "
+    "without a modeset; GPU-drawn frames are paced exactly at 60, 120 and 144 Hz.",
 "Backlight":
-    "Both backlight chips are programmed as on stock. GNOME's brightness slider and automatic brightness work; the "
+    "Both backlight chips are programmed as on stock. GNOME's brightness slider and automatic brightness work (automatic "
+    "brightness is off by default, as on stock); the "
     "thermal limit lowers only what the chips get, so the slider keeps the user's value.",
 "Display wake from sleep":
     "The picture comes back after every wake from sleep (16 of 16 wakes tested), with no display timeouts at "
@@ -102,7 +105,8 @@ PUBLIC = {
     "turns the screen off, as stock does.",
 "Auto-rotate":
     "Works in tablet mode, with the panel's landscape mount matrix. While a keyboard is connected GNOME leaves tablet "
-    "mode and stops rotating, as designed.",
+    "mode and stops rotating, as designed; GNOME then releases the accelerometer, as it does while rotation lock is "
+    "on, and the sensor hub stops streaming.",
 # Graphics & compute
 "Adreno 840 GPU, GLES 3.2":
     "OpenGL 4.6 / OpenGL ES 3.2 on Mesa 26.2.4, with no GPU faults in the test runs. Since 16 Oct 2026 the GPU runs "
@@ -208,7 +212,8 @@ PUBLIC = {
     "Upstream QMI cooling with stock's maps; it throttles and releases as on stock.",
 # Sleep & power saving
 "Suspend (s2idle)":
-    "Suspend (s2idle) and resume work: the installed tablet slept 8 h 34 min overnight and resumed normally. On a "
+    "Suspend (s2idle) and resume work, and s2idle is the kernel's default sleep state (iceland-device 0.28-29): the "
+    "installed tablet slept 8 h 34 min overnight and resumed normally. On a "
     "charger the battery guard keeps the tablet awake on purpose.",
 "Wi-Fi across sleep":
     "Wi-Fi powers off in sleep and is back about 2 s after the wake.",
@@ -243,14 +248,15 @@ PUBLIC = {
     "GNOME Camera (Snapshot) works with both cameras (40 of 40 open / close cycles clean).",
 # Software & packaging
 "Kernel package (kernel-iceland)":
-    "kernel-iceland RPMs (current 7.3.0~rc7.iceland.00453) install and update with dnf on the installed system: a "
+    "kernel-iceland RPMs (current 7.3.0~rc7.iceland.00519) install and update with dnf on the installed system: a "
     "new kernel boots once as a trial and becomes the default after a confirmed boot. The camera and backlight "
     "modules are included; no firmware is inside. The kernel and the package record a neutral build host name.",
-"Device package (iceland-device 0.28-20)": (
+"Device package (iceland-device 0.28-29)": (
     "Device package (iceland-device)",
-    "iceland-device 0.28-20 carries the tablet's settings: the battery guard, the thermal policy, the sound chain, "
-    "the sensor and Bluetooth address services, the power-key handling, the GPU firmware choice and the "
-    "power-saving boot options."),
+    "iceland-device 0.28-29 carries the tablet's settings: the battery guard, the thermal policy, the sound chain, "
+    "the sensor and Bluetooth address services, the power-key handling, the GPU firmware choice, the refresh-rate "
+    "switch and the power-saving boot options (suspend-to-idle as the kernel's default, the display and GPU "
+    "interrupts kept on CPU 0)."),
 "Update policy and minimal package holds":
     "Fedora 44 updates normally, with a read-only snapshot before each transaction and a GRUB rollback entry. Kernels "
     "and the project's packages come only from the local repository, and the release is pinned to 44.",
