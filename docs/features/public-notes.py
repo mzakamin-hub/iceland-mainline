@@ -7,10 +7,11 @@
 # A working row without an entry here is listed with its internal note, cleaned of run ids; build.py warns about it.
 # Keep the entries in sync when a matrix-*.py script adds, renames or re-words a working row.
 
-PUBLIC_STATUS = ("Fedora 44 with GNOME is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> "
-                 "kernel). Current versions: kernel 7.3.0-rc7-iceland-00519 (q89w, iceland-linux branch "
-                 "iceland-7.3-rc7-next), iceland-device 0.28-29, iio-sensor-proxy 3.9-11.iceland1, "
-                 "iceland-firmware 11.A.38-6, U-Boot install build v7.")
+PUBLIC_STATUS = ("Fedora 44 with GNOME 50 is installed on the tablet and boots on its own (ABL -> U-Boot -> "
+                 "GRUB -> kernel). Current versions: kernel 7.3.0-next-20261020-iceland-00463 (q90i, the "
+                 "patch queue on linux-next next-20261020; iceland-linux branch iceland-7.3-rc7-next), "
+                 "iceland-device 0.28-32, iceland-coexist 1.0-6, upower 1.91.5-1.fc44.iceland1, "
+                 "iio-sensor-proxy 3.9-11.iceland1, iceland-firmware 11.A.38-6, U-Boot install build v7.")
 
 PUBLIC = {
 # Boot & platform
@@ -23,13 +24,16 @@ PUBLIC = {
     "read and EFI, with fastboot flashing compiled out."),
 "U-Boot boot setting for single or dual boot":
     "Boots a “fedora” partition if there is one, else the Fedora image in userdata.",
-"Linux 7.3-rc7 through EFI":
-    "Linux 7.3-rc7 with the Pad 4 patch queue (current kernel 7.3.0-rc7-iceland-00519, iceland-linux branch "
-    "iceland-7.3-rc7-next) boots through U-Boot's EFI, Fedora's shim and GRUB.",
+"Linux 7.4 base (linux-next) through EFI":(
+    "Linux (7.4 base)",
+    "Linux with the Pad 4 patch queue on linux-next next-20261020 (Linux 7.3 plus the trees queued for "
+    "7.4; current kernel 7.3.0-next-20261020-iceland-00463, iceland-linux branch iceland-7.3-rc7-next, tag "
+    "q90i) boots through U-Boot's EFI, Fedora's shim and GRUB."),
 "Internal storage (UFS 4)":
-    "UFS 4 with 4 KiB blocks in MCQ mode (9 hardware queues per LUN), about 2.3 GB/s direct read. The installed root "
-    "is btrfs (zstd compression) on a loop device in userdata, and Fedora's own I/O scheduler rule applies to all six "
-    "LUNs.",
+    "UFS 4 with 4 KiB blocks in MCQ mode (9 hardware queues per LUN), about 2.3 GB/s direct read. The installed "
+    "root is btrfs (zstd compression) in userdata; with iceland-device 0.28-32's device-mapper option "
+    "(iceland.carrier.map=dm) TRIM reaches the flash (fstrim, btrfs discard=async). The LUNs use the none I/O "
+    "scheduler.",
 "Hardware watchdog":
     "qcom_wdt with a 30 s timeout, fed by systemd: a hung system reboots by itself.",
 "System cache (LLCC) and memory error counters":
@@ -38,7 +42,8 @@ PUBLIC = {
     "The three bandwidth monitors bind, and their interrupts follow the memory load.",
 "Memory bus DVFS (DDR / LLCC memlat)":
     "DDR (547 to 5333 MHz) and the system cache (282 to 1350 MHz) scale with the load (tb323fu-linux's memlat "
-    "series).",
+    "series). Since kernel q90i their frequencies are no longer polled every 2 ms, which saves thousands of "
+    "interrupts a second at idle.",
 "GPI DMA engines":
     "Four GPI DMA controllers serve the I2C and SPI buses.",
 "Fuses (QFPROM)":
@@ -82,11 +87,12 @@ PUBLIC = {
     "only after both links have stopped, so the screen turns off without an underrun.",
 "Refresh 30 / 60 / 90 / 120 / 144 Hz":
     "Live rate changes keep the picture, and since kernel 00511 a change between 120 and 60 Hz is made in place, "
-    "without a modeset; GPU-drawn frames are paced exactly at 60, 120 and 144 Hz.",
+    "without a modeset; GPU-drawn frames are paced exactly at 60, 120 and 144 Hz. A static screen drops to 30 Hz "
+    "after 1 s (idle refresh) and returns at the next frame.",
 "Backlight":
-    "Both backlight chips are programmed as on stock. GNOME's brightness slider and automatic brightness work (automatic "
-    "brightness is off by default, as on stock); the "
-    "thermal limit lowers only what the chips get, so the slider keeps the user's value.",
+    "Both backlight chips are programmed as on stock. GNOME's brightness slider and automatic brightness work "
+    "(automatic brightness is on by default since iceland-device 0.28-31, as on stock); the thermal limit "
+    "lowers only what the chips get, so the slider keeps the user's value.",
 "Display wake from sleep":
     "The picture comes back after every wake from sleep (16 of 16 wakes tested), with no display timeouts at "
     "suspend entry.",
@@ -104,21 +110,24 @@ PUBLIC = {
     "The power key wakes the tablet from sleep. Without a charger a press suspends; with a charger in it locks and "
     "turns the screen off, as stock does.",
 "Auto-rotate":
-    "Works in tablet mode, with the panel's landscape mount matrix. While a keyboard is connected GNOME leaves tablet "
-    "mode and stops rotating, as designed; GNOME then releases the accelerometer, as it does while rotation lock is "
-    "on, and the sensor hub stops streaming.",
+    "Works in tablet mode, with the panel's landscape mount matrix, without display glitches while the sensor "
+    "streams (fixed in kernel q90d). While a keyboard is connected GNOME leaves tablet mode and stops rotating, "
+    "as designed; GNOME then releases the accelerometer, as it does while rotation lock is on, and the sensor "
+    "hub stops streaming.",
 # Graphics & compute
 "Adreno 840 GPU, GLES 3.2":
-    "OpenGL 4.6 / OpenGL ES 3.2 on Mesa 26.2.4, with no GPU faults in the test runs. Since 16 Oct 2026 the GPU runs "
-    "the vendor firmware GMU v5.3.33 / SQE 0x094 (as the other ports of this chip) with GPU preemption on: in the "
-    "test run 48356 preemption switches without a fenced-write failure, timeout or GPU fault. Stock's firmware "
-    "v5.3.39 is also packaged and runs cleanly with preemption off.",
+    "OpenGL 4.6 / OpenGL ES 3.2 on Mesa, with no GPU faults in the test runs. Since 16 Oct 2026 the GPU runs "
+    "the vendor firmware GMU v5.3.33 / SQE 0x094 (as the other ports of this chip) with GPU preemption on: in "
+    "the test run 48356 preemption switches without a fenced-write failure, timeout or GPU fault. Stock's "
+    "firmware v5.3.39 is also packaged and runs cleanly with preemption off. The GPU's current limiter (CLX) "
+    "is on (iceland-device 0.28-32).",
 "GNOME and Wayland drawn by the GPU":
     "GNOME and Wayland are drawn by the GPU; buffers from other devices (video, shared memory) show correctly.",
 "GPU correctness, WebGL, stress":
-    "dEQP: Vulkan 34,650 cases with 2 failures, GLES 34,950 cases with 53 failures, 0 crashes; 193 of 196 WebGL test "
-    "pages pass; a 90 s stress run had 0 GPU faults. Firefox renders normally; Chromium WebGL ran 180 s without a "
-    "GPU-process crash with GPU preemption on.",
+    "dEQP: Vulkan 34,650 cases with 2 failures, GLES 34,950 cases with 53 failures, 0 crashes; 193 of 196 WebGL "
+    "test pages pass; a 90 s stress run had 0 GPU faults. Firefox renders normally; Chromium WebGL ran 180 s "
+    "without a GPU-process crash with GPU preemption on. A GPU hang is recovered: the GPU is reset and the "
+    "desktop keeps running (kernel q90e and later).",
 "Vulkan":
     "Vulkan 1.4 through turnip on Mesa 26.2.4; vkcube and vkmark run (vkmark about 22,000-23,600 headless).",
 "Hardware video decoding":
@@ -173,11 +182,14 @@ PUBLIC = {
     "Shown by UPower and GNOME's battery panel. The battery energy is reported at the cell's nominal voltage (full "
     "about 53.8 Wh, design 52.05 Wh); a 30-minute check matches the integrated current within 2 %.",
 "Battery power reading (power_now)":
-    "Right: the kernel reports voltage × current, because the battery firmware's own value is unusable on this SoC "
-    "(SuperTurtleDev's fix).",
+    "Right: the kernel reports the battery current at the nominal voltage of the battery's energy values, so "
+    "energy / power gives the time the charge lasts; the battery firmware's own power value is unusable on "
+    "this SoC (the kernel computes it, based on SuperTurtleDev's fix).",
 "Battery time estimate":
-    "A steady estimate in GNOME, based on the battery's real energy. Measured with the screen at 50 %: light use "
-    "14-15 h, 1080p video 15-16 h, all cores busy about 7 h, screen off but awake about 3.5 days.",
+    "A steady estimate in GNOME, based on the battery's real energy; the time remaining matches charge / current "
+    "and the time to full counts to the charge limit (upower 1.91.5-1.fc44.iceland1). Measured with the screen "
+    "at 50 %: light use 14-15 h, 1080p video 15-16 h, all cores busy about 7 h, screen off but awake about 3.5 "
+    "days.",
 "Battery safety guard (stock limits)":
     "One guard in iceland-device applies stock's JEITA temperature regions, voltages and currents, watches the three "
     "USB-C connector sensors and powers off at stock's limits.",
@@ -248,15 +260,17 @@ PUBLIC = {
     "GNOME Camera (Snapshot) works with both cameras (40 of 40 open / close cycles clean).",
 # Software & packaging
 "Kernel package (kernel-iceland)":
-    "kernel-iceland RPMs (current 7.3.0~rc7.iceland.00519) install and update with dnf on the installed system: a "
-    "new kernel boots once as a trial and becomes the default after a confirmed boot. The camera and backlight "
-    "modules are included; no firmware is inside. The kernel and the package record a neutral build host name.",
-"Device package (iceland-device 0.28-29)": (
+    "kernel-iceland RPMs (current 7.3.0.next.20261020.iceland.00463) install and update with dnf on the "
+    "installed system: a new kernel boots once as a trial and becomes the default after a confirmed boot. The "
+    "camera and backlight modules are included; no firmware is inside. The kernel and the package record a "
+    "neutral build host name.",
+"Device package (iceland-device 0.28-32)":(
     "Device package (iceland-device)",
-    "iceland-device 0.28-29 carries the tablet's settings: the battery guard, the thermal policy, the sound chain, "
-    "the sensor and Bluetooth address services, the power-key handling, the GPU firmware choice, the refresh-rate "
-    "switch and the power-saving boot options (suspend-to-idle as the kernel's default, the display and GPU "
-    "interrupts kept on CPU 0)."),
+    "iceland-device 0.28-32 carries the tablet's settings: the battery guard, the thermal policy, the sound "
+    "chain, the sensor and Bluetooth address services, the power-key handling, the GPU firmware choice, the "
+    "refresh-rate switch and the power-saving boot options (suspend-to-idle as the kernel's default, idle "
+    "refresh, CLX, the display and GPU interrupts kept on CPU 0, device interrupts off the prime cores), "
+    "automatic brightness by default and the device-mapper option that lets TRIM reach the flash."),
 "Update policy and minimal package holds":
     "Fedora 44 updates normally, with a read-only snapshot before each transaction and a GRUB rollback entry. Kernels "
     "and the project's packages come only from the local repository, and the release is pinned to 44.",

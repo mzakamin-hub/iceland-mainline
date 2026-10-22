@@ -1,6 +1,6 @@
 # OnePlus Pad 4 mainline: what works
 
-Status 19 Oct 2026. Fedora 44 with GNOME is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel). Current versions: kernel 7.3.0-rc7-iceland-00519 (q89w, iceland-linux branch iceland-7.3-rc7-next), iceland-device 0.28-29, iio-sensor-proxy 3.9-11.iceland1, iceland-firmware 11.A.38-6, U-Boot install build v7.
+Status 22 Oct 2026. Fedora 44 with GNOME 50 is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel). Current versions: kernel 7.3.0-next-20261020-iceland-00463 (q90i, the patch queue on linux-next next-20261020; iceland-linux branch iceland-7.3-rc7-next), iceland-device 0.28-32, iceland-coexist 1.0-6, upower 1.91.5-1.fc44.iceland1, iio-sensor-proxy 3.9-11.iceland1, iceland-firmware 11.A.38-6, U-Boot install build v7.
 
 This list shows the 86 features that work today, sorted by functionality. Features that are still being worked on are not listed.
 
@@ -10,12 +10,12 @@ This list shows the 86 features that work today, sorted by functionality. Featur
 |---|---|
 | U-Boot (install build and RAM boot) | The stock boot loader (ABL) starts U-Boot from boot_b, and U-Boot starts Fedora through EFI. The install build (v7 since 17 Oct 2026) shows a power-on boot menu on the keys (Fedora, BlissROM on the dual-boot layout, or the boot loader's fastboot), boots Fedora by default and never resets or powers off by itself. A RAM-boot build gives display, USB fastboot, UFS read and EFI, with fastboot flashing compiled out. |
 | U-Boot boot setting for single or dual boot | Boots a “fedora” partition if there is one, else the Fedora image in userdata. |
-| Linux 7.3-rc7 through EFI | Linux 7.3-rc7 with the Pad 4 patch queue (current kernel 7.3.0-rc7-iceland-00519, iceland-linux branch iceland-7.3-rc7-next) boots through U-Boot's EFI, Fedora's shim and GRUB. |
-| Internal storage (UFS 4) | UFS 4 with 4 KiB blocks in MCQ mode (9 hardware queues per LUN), about 2.3 GB/s direct read. The installed root is btrfs (zstd compression) on a loop device in userdata, and Fedora's own I/O scheduler rule applies to all six LUNs. |
+| Linux (7.4 base) | Linux with the Pad 4 patch queue on linux-next next-20261020 (Linux 7.3 plus the trees queued for 7.4; current kernel 7.3.0-next-20261020-iceland-00463, iceland-linux branch iceland-7.3-rc7-next, tag q90i) boots through U-Boot's EFI, Fedora's shim and GRUB. |
+| Internal storage (UFS 4) | UFS 4 with 4 KiB blocks in MCQ mode (9 hardware queues per LUN), about 2.3 GB/s direct read. The installed root is btrfs (zstd compression) in userdata; with iceland-device 0.28-32's device-mapper option (iceland.carrier.map=dm) TRIM reaches the flash (fstrim, btrfs discard=async). The LUNs use the none I/O scheduler. |
 | Hardware watchdog | qcom_wdt with a 30 s timeout, fed by systemd: a hung system reboots by itself. |
 | System cache (LLCC) and memory error counters | The system cache driver (qcom-llcc) binds, and EDAC reports the memory error counters (no errors recorded). |
 | Memory bandwidth monitors | The three bandwidth monitors bind, and their interrupts follow the memory load. |
-| Memory bus DVFS (DDR / LLCC memlat) | DDR (547 to 5333 MHz) and the system cache (282 to 1350 MHz) scale with the load (tb323fu-linux's memlat series). |
+| Memory bus DVFS (DDR / LLCC memlat) | DDR (547 to 5333 MHz) and the system cache (282 to 1350 MHz) scale with the load (tb323fu-linux's memlat series). Since kernel q90i their frequencies are no longer polled every 2 ms, which saves thousands of interrupts a second at idle. |
 | GPI DMA engines | Four GPI DMA controllers serve the I2C and SPI buses. |
 | Fuses (QFPROM) | Read through their drivers; the GPU picks its speed bin (18 levels) from them. |
 | Hardware random number generator | Two hardware sources: the firmware TRNG (the default, it feeds the kernel's random pool) and qcom_hwrng. The output passes statistical checks (chi-square, FIPS 140-2). |
@@ -33,23 +33,23 @@ This list shows the 86 features that work today, sorted by functionality. Featur
 | Feature | What works |
 |---|---|
 | Native display 3392×2400, dual DSI + DSC | The panel runs at its native 3392×2400 over dual DSI with DSC; the boot splash hands over to the MSM DRM driver. Since kernel 00436 the flicker in the lower quarter of the screen with automatic brightness is gone; kernel 00453 adds fixes for the display state after a screen blank, and kernel 00519 stops the second DSI link only after both links have stopped, so the screen turns off without an underrun. |
-| Refresh 30 / 60 / 90 / 120 / 144 Hz | Live rate changes keep the picture, and since kernel 00511 a change between 120 and 60 Hz is made in place, without a modeset; GPU-drawn frames are paced exactly at 60, 120 and 144 Hz. |
-| Backlight | Both backlight chips are programmed as on stock. GNOME's brightness slider and automatic brightness work (automatic brightness is off by default, as on stock); the thermal limit lowers only what the chips get, so the slider keeps the user's value. |
+| Refresh 30 / 60 / 90 / 120 / 144 Hz | Live rate changes keep the picture, and since kernel 00511 a change between 120 and 60 Hz is made in place, without a modeset; GPU-drawn frames are paced exactly at 60, 120 and 144 Hz. A static screen drops to 30 Hz after 1 s (idle refresh) and returns at the next frame. |
+| Backlight | Both backlight chips are programmed as on stock. GNOME's brightness slider and automatic brightness work (automatic brightness is on by default since iceland-device 0.28-31, as on stock); the thermal limit lowers only what the chips get, so the slider keeps the user's value. |
 | Display wake from sleep | The picture comes back after every wake from sleep (16 of 16 wakes tested), with no display timeouts at suspend entry. |
 | No pink / blocky glitches in GNOME | Fixed in queue 0060 (the compressed-buffer decoder is set up again after the splash hand-over); not seen since 30 Sep. |
 | Touchscreen | Works, also after display off / on and suspend. |
 | Pen | Works (checked on the tablet). |
 | Lid switch | The cover turns the screen off and on. On battery a closed cover suspends, on a charger it locks. |
 | Power and volume keys | The power key wakes the tablet from sleep. Without a charger a press suspends; with a charger in it locks and turns the screen off, as stock does. |
-| Auto-rotate | Works in tablet mode, with the panel's landscape mount matrix. While a keyboard is connected GNOME leaves tablet mode and stops rotating, as designed; GNOME then releases the accelerometer, as it does while rotation lock is on, and the sensor hub stops streaming. |
+| Auto-rotate | Works in tablet mode, with the panel's landscape mount matrix, without display glitches while the sensor streams (fixed in kernel q90d). While a keyboard is connected GNOME leaves tablet mode and stops rotating, as designed; GNOME then releases the accelerometer, as it does while rotation lock is on, and the sensor hub stops streaming. |
 
 ## Graphics & compute
 
 | Feature | What works |
 |---|---|
-| Adreno 840 GPU, GLES 3.2 | OpenGL 4.6 / OpenGL ES 3.2 on Mesa 26.2.4, with no GPU faults in the test runs. Since 16 Oct 2026 the GPU runs the vendor firmware GMU v5.3.33 / SQE 0x094 (as the other ports of this chip) with GPU preemption on: in the test run 48356 preemption switches without a fenced-write failure, timeout or GPU fault. Stock's firmware v5.3.39 is also packaged and runs cleanly with preemption off. |
+| Adreno 840 GPU, GLES 3.2 | OpenGL 4.6 / OpenGL ES 3.2 on Mesa, with no GPU faults in the test runs. Since 16 Oct 2026 the GPU runs the vendor firmware GMU v5.3.33 / SQE 0x094 (as the other ports of this chip) with GPU preemption on: in the test run 48356 preemption switches without a fenced-write failure, timeout or GPU fault. Stock's firmware v5.3.39 is also packaged and runs cleanly with preemption off. The GPU's current limiter (CLX) is on (iceland-device 0.28-32). |
 | GNOME and Wayland drawn by the GPU | GNOME and Wayland are drawn by the GPU; buffers from other devices (video, shared memory) show correctly. |
-| GPU correctness, WebGL, stress | dEQP: Vulkan 34,650 cases with 2 failures, GLES 34,950 cases with 53 failures, 0 crashes; 193 of 196 WebGL test pages pass; a 90 s stress run had 0 GPU faults. Firefox renders normally; Chromium WebGL ran 180 s without a GPU-process crash with GPU preemption on. |
+| GPU correctness, WebGL, stress | dEQP: Vulkan 34,650 cases with 2 failures, GLES 34,950 cases with 53 failures, 0 crashes; 193 of 196 WebGL test pages pass; a 90 s stress run had 0 GPU faults. Firefox renders normally; Chromium WebGL ran 180 s without a GPU-process crash with GPU preemption on. A GPU hang is recovered: the GPU is reset and the desktop keeps running (kernel q90e and later). |
 | Vulkan | Vulkan 1.4 through turnip on Mesa 26.2.4; vkcube and vkmark run (vkmark about 22,000-23,600 headless). |
 | Hardware video decoding | H.264, HEVC up to 4K, VP9 (also 10-bit) and AV1 decode in hardware, bit-exact against Android's reference vectors. GNOME's video player uses it (1080p H.264 at 3 % CPU instead of 47 %); SD BT.601 colour is right with Fedora's GStreamer. |
 | Hardware video encoding | H.264 and HEVC encode in hardware (decoded back 30 of 30 frames, PSNR about 50 dB). GNOME's screen recording works on the hardware encoder with a V4L2 pipeline. |
@@ -84,8 +84,8 @@ This list shows the 86 features that work today, sorted by functionality. Featur
 | Feature | What works |
 |---|---|
 | Battery level, voltage, current, temperature, health | Shown by UPower and GNOME's battery panel. The battery energy is reported at the cell's nominal voltage (full about 53.8 Wh, design 52.05 Wh); a 30-minute check matches the integrated current within 2 %. |
-| Battery power reading (power_now) | Right: the kernel reports voltage × current, because the battery firmware's own value is unusable on this SoC (SuperTurtleDev's fix). |
-| Battery time estimate | A steady estimate in GNOME, based on the battery's real energy. Measured with the screen at 50 %: light use 14-15 h, 1080p video 15-16 h, all cores busy about 7 h, screen off but awake about 3.5 days. |
+| Battery power reading (power_now) | Right: the kernel reports the battery current at the nominal voltage of the battery's energy values, so energy / power gives the time the charge lasts; the battery firmware's own power value is unusable on this SoC (the kernel computes it, based on SuperTurtleDev's fix). |
+| Battery time estimate | A steady estimate in GNOME, based on the battery's real energy; the time remaining matches charge / current and the time to full counts to the charge limit (upower 1.91.5-1.fc44.iceland1). Measured with the screen at 50 %: light use 14-15 h, 1080p video 15-16 h, all cores busy about 7 h, screen off but awake about 3.5 days. |
 | Battery safety guard (stock limits) | One guard in iceland-device applies stock's JEITA temperature regions, voltages and currents, watches the three USB-C connector sensors and powers off at stock's limits. |
 | Charger input cut at a hot USB-C connector | The guard cuts the charger input at a hot connector and keeps it cut (tested with an emulated 58 °C connector). |
 | Charge limit (80 / 85 %) | GNOME's 'Preserve Battery Health' works: charging stops at its 80 / 85 % thresholds (a kernel feature), with the battery guard as a second layer. |
@@ -131,8 +131,8 @@ This list shows the 86 features that work today, sorted by functionality. Featur
 
 | Feature | What works |
 |---|---|
-| Kernel package (kernel-iceland) | kernel-iceland RPMs (current 7.3.0~rc7.iceland.00519) install and update with dnf on the installed system: a new kernel boots once as a trial and becomes the default after a confirmed boot. The camera and backlight modules are included; no firmware is inside. The kernel and the package record a neutral build host name. |
-| Device package (iceland-device) | iceland-device 0.28-29 carries the tablet's settings: the battery guard, the thermal policy, the sound chain, the sensor and Bluetooth address services, the power-key handling, the GPU firmware choice, the refresh-rate switch and the power-saving boot options (suspend-to-idle as the kernel's default, the display and GPU interrupts kept on CPU 0). |
+| Kernel package (kernel-iceland) | kernel-iceland RPMs (current 7.3.0.next.20261020.iceland.00463) install and update with dnf on the installed system: a new kernel boots once as a trial and becomes the default after a confirmed boot. The camera and backlight modules are included; no firmware is inside. The kernel and the package record a neutral build host name. |
+| Device package (iceland-device) | iceland-device 0.28-32 carries the tablet's settings: the battery guard, the thermal policy, the sound chain, the sensor and Bluetooth address services, the power-key handling, the GPU firmware choice, the refresh-rate switch and the power-saving boot options (suspend-to-idle as the kernel's default, idle refresh, CLX, the display and GPU interrupts kept on CPU 0, device interrupts off the prime cores), automatic brightness by default and the device-mapper option that lets TRIM reach the flash. |
 | Update policy and minimal package holds | Fedora 44 updates normally, with a read-only snapshot before each transaction and a GRUB rollback entry. Kernels and the project's packages come only from the local repository, and the release is pinned to 44. |
 | Stock-values audit | 1,249 values compared with stock: nothing above stock in the battery, charger, thermal, CPU or GPU tables, and all six amplifiers at stock. |
 | GNOME About page (model, processor) | Shows “OnePlus Pad 4” and “Qualcomm Oryon × 8”. |
