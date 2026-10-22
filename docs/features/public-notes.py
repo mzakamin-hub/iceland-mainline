@@ -289,4 +289,32 @@ PUBLIC = {
 "Hardware inventory (every block vs stock)":
     "112 hardware blocks compared with stock: every unbound device is explained, and a read-only test re-checks it "
     "after each kernel change.",
+# 22 Oct 2026: confirmed working by the owner
+"CPU firmware (SCMI CPUCP) cold-soak hang": (
+    "CPU firmware after a cold start",
+    "The CPU control processor's firmware (SCMI) starts cleanly, also after the tablet has cooled down (SuperTurtleDev's quirk for its first notification). Confirmed working by the owner on 22 Oct 2026."),
+"Boot slot marked good from Fedora":
+    "Fedora marks the A/B boot slot successful after a good boot, so the boot loader keeps booting it. Confirmed working by the owner on 22 Oct 2026.",
+"Smooth window moves under load":
+    "Window moves stay smooth, also under load with stock's thermal policy. Confirmed working by the owner on 22 Oct 2026.",
+"Pogo keyboard":
+    "The keyboard cover on the pogo pins: keys, touchpad, lamps and the keyboard backlight. Confirmed working by the owner on 22 Oct 2026.",
+"Speaker level at stock (0 dB)": (
+    "Speaker level",
+    "The speakers play as loud as on stock, with the amplifiers at stock's settings. Confirmed working by the owner on 22 Oct 2026."),
+"Headset over USB-C":
+    "Headsets on the USB-C port. Confirmed working by the owner on 22 Oct 2026.",
+"USB host / OTG, PD hub": (
+    "USB host / OTG and hubs",
+    "USB host mode on the USB-C port: keyboards, mice, USB sticks and hubs. Confirmed working by the owner on 22 Oct 2026."),
+"DisplayPort over USB-C":
+    "An external monitor over USB-C DisplayPort. Confirmed working by the owner on 22 Oct 2026.",
+"Charging":
+    "Charging with stock's input limits per charger type; the battery guard, the charge limit and the connector temperature cut stay at stock. Confirmed working by the owner on 22 Oct 2026.",
+"Pen charging":
+    "The pen charges on the tablet's magnetic side (wireless pen charger driver). Confirmed working by the owner on 22 Oct 2026.",
+"Wake by lid, keyboard, charger":
+    "Opening the cover, the keyboard and plugging or unplugging a charger wake the tablet from sleep. Confirmed working by the owner on 22 Oct 2026.",
+"Full GNOME app set":
+    "Fedora 44 Workstation's default GNOME apps, the on-screen keyboard and GNOME Software with Flathub. Confirmed working by the owner on 22 Oct 2026.",
 }
