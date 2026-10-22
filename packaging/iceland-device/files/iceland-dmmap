@@ -11,18 +11,24 @@
 # CRCs), and the maps cover exactly the inner partitions, each inside the carrier (checked).
 #
 #   iceland-dmmap table CARRIER LABEL    print the maps it would create (read-only): N START LEN PARTUUID NAME (512 B)
-#   iceland-dmmap verify CARRIER LABEL   read-only: the computed maps against the partitions of a loop device that
-#                                        is attached over CARRIER now (the running system's loop0p1..3)
+#   iceland-dmmap verify [CARRIER LABEL] read-only: the computed maps against what runs now - the partitions of a loop
+#                                        device attached over CARRIER (loop0p1..3), else the maps iceland-LABELpN
 #   iceland-dmmap map CARRIER LABEL      create iceland-LABELpN for every inner partition (initramfs, dracut module
 #                                        "iceland", only with iceland.carrier.map=dm on the kernel command line)
 #   iceland-dmmap unmap LABEL            remove the unused maps iceland-LABELp* (tests; a mounted map stays)
-#   iceland-dmmap status                 the maps, their tables, discard limits and mounts
+#   iceland-dmmap status                 the carrier, a loop over it, the maps, their tables, discard limits and mounts
+# Without CARRIER LABEL: the carrier the initramfs recorded in /run/iceland/carrier (0.28-33), else the UFS partition
+# iceland.carrier= names, else "fedora", else "userdata" (dracut-iceland-carrier's rule). Installed on PATH as
+# /usr/bin/iceland-dmmap (0.28-33).
+# 0.28-33: a loop device is matched to the carrier by the block device NUMBER behind it, never by its back-file
+# string: a loop the initramfs attached reads "/sda16" there after the switch to the root file system (the kernel
+# prints the path inside the initramfs's /dev mount, which the new root cannot reach).
 # Before udev runs (iceland-oneshot clears its one-shot then) the maps are made without udev (--noudevsync, libdm
 # makes the /dev/mapper nodes, marker /run/iceland/dmmap/NAME.noudev); the next "map" with udev running removes and
 # re-creates them with udev synchronisation, so that udev records them as device-mapper activations (10-dm.rules:
 # a later coldplug "add" keeps the /dev/disk/by-uuid links only for devices activated with a udev cookie).
 # Test hooks (PC tests only): ICELAND_DMSETUP ICELAND_SFDISK ICELAND_DM_UDEV (1/0) ICELAND_DM_RUN ICELAND_DM_PREFIX
-# ICELAND_SETTLE (udevadm settle timeout, 0 = no settle) ICELAND_KMSG.
+# ICELAND_SETTLE (udevadm settle timeout, 0 = no settle) ICELAND_KMSG ICELAND_CARRIER_REC ICELAND_CMDLINE.
 set -u
 DMSETUP=${ICELAND_DMSETUP:-dmsetup}
 SFDISK=${ICELAND_SFDISK:-sfdisk}
@@ -71,7 +77,53 @@ table() {
 	[ "$cnt" -ge 1 ] && [ "$cnt" -le 16 ] || { echo "$cnt partitions in $c" >&2; return 1; }
 	printf '%s' "$out"
 }
-majmin() { local h; h=$(stat -L -c '%t %T' "$1" 2>/dev/null) || return 1; set -- $h; echo "$((16#$1)):$((16#$2))"; }
+majmin() { local h; [ -b "$1" ] || return 1; h=$(stat -L -c '%t %T' "$1" 2>/dev/null) || return 1; set -- $h; echo "$((16#$1)):$((16#$2))"; }
+# backing_mm LOOP (loop0) -> MAJ:MIN of the block device behind it; rc 1 for a regular file or an unknown device.
+# The back-file string is only a hint: a block-device path that resolves here -> that node's number; any other
+# string (e.g. "/sda16", see the header) -> its last component as a kernel block-device name (/sys/class/block/NAME,
+# the names devtmpfs gives its nodes). A regular file that exists is never a carrier.
+backing_mm() {
+	local bf n
+	bf=$(cat "/sys/block/$1/loop/backing_file" 2>/dev/null) || return 1
+	[ -n "$bf" ] || return 1
+	if [ -b "$bf" ]; then majmin "$bf"; return; fi
+	[ -e "$bf" ] && return 1
+	n=${bf##*/}
+	case "$n" in ''|.|..|*' '*) return 1 ;; esac
+	[ -r "/sys/class/block/$n/dev" ] || return 1
+	cat "/sys/class/block/$n/dev"
+}
+# loop_over CARRIER -> the loop device (loop0) whose backing block device is CARRIER's, rc 1 if none
+loop_over() {
+	local mm b l
+	mm=$(majmin "$1") || return 1
+	for b in /sys/block/loop*/loop/backing_file; do
+		[ -e "$b" ] || continue
+		l=${b%/loop/backing_file}; l=${l##*/}
+		[ "$(backing_mm "$l")" = "$mm" ] && { echo "$l"; return 0; }
+	done
+	return 1
+}
+# find_carrier -> "CARRIER LABEL" of the running system (see the header), rc 1 if none
+find_carrier() {
+	local rec=${ICELAND_CARRIER_REC:-/run/iceland/carrier} c="" l="" d="" u n want a
+	if [ -r "$rec" ]; then
+		c=$(sed -n 's/^CARRIER=//p' "$rec" | head -n 1); l=$(sed -n 's/^LABEL=//p' "$rec" | head -n 1); d=$(sed -n 's/^DEV=//p' "$rec" | head -n 1)
+		# the record must still name the same device (its number)
+		if [ -n "$c" ] && [ -n "$l" ] && [ "$(majmin "$c")" = "$d" ]; then echo "$c $l"; return 0; fi
+	fi
+	want=""; for a in ${ICELAND_CMDLINE:-$(cat /proc/cmdline 2>/dev/null)}; do case "$a" in iceland.carrier=*) want=${a#*=} ;; esac; done
+	for l in ${want:-fedora userdata}; do
+		for u in /sys/class/block/sd*/uevent; do
+			[ -e "$u" ] || continue
+			n=${u%/uevent}; n=${n##*/}
+			case "$(readlink -f "/sys/class/block/$n")" in */1d84000.ufs/*) ;; *) continue ;; esac
+			[ -e "/sys/class/block/$n/partition" ] || continue
+			grep -qx "PARTNAME=$l" "$u" 2>/dev/null && [ -b "/dev/$n" ] && { echo "/dev/$n $l"; return 0; }
+		done
+	done
+	return 1
+}
 
 cmd=${1:-}; shift || true
 case "$cmd" in
@@ -81,19 +133,34 @@ table)
 	echo "$t" | while read -r n st ln u nm; do echo "$PFX${2}p$n $st $ln linear $1 $st partuuid=$u name=$nm"; done
 	exit 0 ;;
 verify)
-	[ $# = 2 ] || { echo "usage: iceland-dmmap verify CARRIER LABEL" >&2; exit 2; }
+	if [ $# = 0 ]; then
+		set -- $(find_carrier) || true
+		[ $# = 2 ] || { echo "FAIL no carrier found (no /run/iceland/carrier record, no UFS partition fedora / userdata): give CARRIER LABEL"; exit 1; }
+		echo "carrier: $1 ($2)"
+	fi
+	[ $# = 2 ] || { echo "usage: iceland-dmmap verify [CARRIER LABEL]" >&2; exit 2; }
 	t=$(table "$1") || { echo "FAIL table: see above"; exit 1; }
-	lp=""; for b in /sys/block/loop*/loop/backing_file; do [ -e "$b" ] || continue
-		[ "$(readlink -f "$(cat "$b")")" = "$(readlink -f "$1")" ] && { lp=${b%/loop/backing_file}; lp=${lp##*/}; break; }; done
-	[ -n "$lp" ] || { echo "FAIL no loop device is attached over $1"; exit 1; }
+	mm=$(majmin "$1") || { echo "FAIL cannot read the device number of $1"; exit 1; }
 	f=0; k=0
-	while read -r n st ln u nm; do
-		k=$((k + 1)); p=/sys/block/$lp/${lp}p$n
-		if [ -e "$p/start" ] && [ "$(cat "$p/start")" = "$st" ] && [ "$(cat "$p/size")" = "$ln" ]; then echo "PASS p$n: start $st size $ln = ${lp}p$n ($nm)"
-		else echo "FAIL p$n: computed start $st size $ln, ${lp}p$n has $(cat "$p/start" 2>/dev/null || echo -) / $(cat "$p/size" 2>/dev/null || echo -)"; f=$((f + 1)); fi
-	done <<< "$t"
-	np=$(ls -d /sys/block/$lp/${lp}p* 2>/dev/null | wc -l)
-	[ "$np" = "$k" ] && echo "PASS partition count $k = $lp's $np" || { echo "FAIL partition count: computed $k, $lp has $np"; f=$((f + 1)); }
+	if lp=$(loop_over "$1"); then
+		while read -r n st ln u nm; do
+			k=$((k + 1)); p=/sys/block/$lp/${lp}p$n
+			if [ -e "$p/start" ] && [ "$(cat "$p/start")" = "$st" ] && [ "$(cat "$p/size")" = "$ln" ]; then echo "PASS p$n: start $st size $ln = ${lp}p$n ($nm)"
+			else echo "FAIL p$n: computed start $st size $ln, ${lp}p$n has $(cat "$p/start" 2>/dev/null || echo -) / $(cat "$p/size" 2>/dev/null || echo -)"; f=$((f + 1)); fi
+		done <<< "$t"
+		np=$(ls -d /sys/block/$lp/${lp}p* 2>/dev/null | wc -l)
+		[ "$np" = "$k" ] && echo "PASS partition count $k = $lp's $np ($lp over $mm, back-file '$(cat "/sys/block/$lp/loop/backing_file" 2>/dev/null)')" || { echo "FAIL partition count: computed $k, $lp has $np"; f=$((f + 1)); }
+	elif [ -n "$("$DMSETUP" ls 2>/dev/null | while read -r x _; do case "$x" in "$PFX${2}p"*) echo "$x" ;; esac; done)" ]; then
+		while read -r n st ln u nm; do
+			k=$((k + 1)); name=$PFX${2}p$n; want="0 $ln linear $mm $st"; have=$("$DMSETUP" table "$name" 2>/dev/null)
+			if [ "$have" = "$want" ]; then echo "PASS p$n: start $st size $ln = $name ($nm)"
+			else echo "FAIL p$n: computed '$want', $name has '${have:--}'"; f=$((f + 1)); fi
+		done <<< "$t"
+		np=$("$DMSETUP" ls 2>/dev/null | while read -r x _; do case "$x" in "$PFX${2}p"*) echo "$x" ;; esac; done | wc -l)
+		[ "$np" = "$k" ] && echo "PASS map count $k = the $np maps $PFX${2}p*" || { echo "FAIL map count: computed $k, $np maps $PFX${2}p*"; f=$((f + 1)); }
+	else
+		echo "FAIL no loop device over $1 ($mm) and no maps $PFX${2}p*"; exit 1
+	fi
 	echo "verify: $f failure(s)"; [ "$f" = 0 ]; exit $? ;;
 map)
 	[ $# = 2 ] || { echo "usage: iceland-dmmap map CARRIER LABEL" >&2; exit 2; }
@@ -150,10 +217,17 @@ unmap)
 	done
 	exit $f ;;
 status)
+	if cl=$(find_carrier); then
+		set -- $cl
+		echo "carrier: $1 ($2, $(majmin "$1" || echo ?))$([ -r "${ICELAND_CARRIER_REC:-/run/iceland/carrier}" ] && echo ", recorded by the initramfs: $(sed -n 's/^MODE=//p' "${ICELAND_CARRIER_REC:-/run/iceland/carrier}" | head -n 1)")"
+		lp=$(loop_over "$1") && echo "$lp over $1: back-file '$(cat "/sys/block/$lp/loop/backing_file" 2>/dev/null)', partitions $(ls -d /sys/block/$lp/${lp}p* 2>/dev/null | wc -l), discard_max_bytes $(cat "/sys/block/$lp/queue/discard_max_bytes" 2>/dev/null)"
+	else
+		echo "carrier: not found"
+	fi
 	"$DMSETUP" ls 2>/dev/null | while read -r x _; do case "$x" in "$PFX"*) ;; *) continue ;; esac
 		dn=$("$DMSETUP" info -c --noheadings -o blkdevname "$x" 2>/dev/null)
 		echo "$x ($dn): $("$DMSETUP" table "$x" 2>/dev/null); discard_max_bytes $(cat "/sys/block/$dn/queue/discard_max_bytes" 2>/dev/null); read_ahead_kb $(cat "/sys/block/$dn/queue/read_ahead_kb" 2>/dev/null); mounted on: $(findmnt -n -o TARGET -S "/dev/$dn" 2>/dev/null | tr '\n' ' ')$([ -e "$RUND/$x.noudev" ] && echo ' (made before udev)')"
 	done
 	exit 0 ;;
-*) echo "usage: iceland-dmmap table|verify|map CARRIER LABEL | unmap LABEL | status" >&2; exit 2 ;;
+*) echo "usage: iceland-dmmap table|map CARRIER LABEL | verify [CARRIER LABEL] | unmap LABEL | status" >&2; exit 2 ;;
 esac

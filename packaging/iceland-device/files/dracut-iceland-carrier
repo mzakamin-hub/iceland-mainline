@@ -85,10 +85,24 @@ if [ "$sig" != "EFI PART" ]; then
 	warn "$carrier holds no Fedora disk (no GPT header in block 1 of 4096 bytes); nothing attached"
 	exit 1
 fi
+# 0.28-33: the carrier's device number, and a record of the carrier for the running system (/run survives the switch
+# to the root file system): iceland-dmmap verify / status and other tools read the carrier from it instead of a loop's
+# back-file string, which reads "/sda16" there (the kernel prints the path inside the initramfs's /dev mount)
+cmm=""; [ -b "$carrier" ] && cmm=$(stat -L -c '%t %T' "$carrier" 2>/dev/null) && cmm="$((16#${cmm% *})):$((16#${cmm#* }))"
+record() { # record MODE
+	mkdir -p "$R/run/iceland" 2>/dev/null && printf 'CARRIER=%s\nLABEL=%s\nDEV=%s\nMODE=%s\n' "${carrier#"$R"}" "${label:-rehearsal}" "$cmm" "$1" > "$R/run/iceland/carrier" 2>/dev/null
+	return 0
+}
+# a loop already attached over the carrier: matched by the backing device's number (0.28-33), the path as before
 for b in "$R"/sys/block/loop*/loop/backing_file; do
 	[ -e "$b" ] || continue
-	if [ "$(cat "$b")" = "$carrier" ]; then
-		l=${b%/loop/backing_file}; log "already attached: ${l##*/}"; exit 0
+	bf=$(cat "$b"); bmm=""
+	if [ -n "$cmm" ]; then
+		if [ -b "$bf" ]; then bmm=$(stat -L -c '%t %T' "$bf" 2>/dev/null) && bmm="$((16#${bmm% *})):$((16#${bmm#* }))"
+		elif [ ! -e "$bf" ] && [ -r "$R/sys/class/block/${bf##*/}/dev" ]; then bmm=$(cat "$R/sys/class/block/${bf##*/}/dev"); fi
+	fi
+	if [ "$bf" = "$carrier" ] || { [ -n "$cmm" ] && [ "$bmm" = "$cmm" ]; }; then
+		l=${b%/loop/backing_file}; log "already attached: ${l##*/}"; record loop; exit 0
 	fi
 done
 # 0.28-32 (C1, TRIM): with iceland.carrier.map=dm the partitions become device-mapper linear maps over the carrier
@@ -99,12 +113,13 @@ if [ -z "${reh:-}" ] && [ "$(getarg iceland.carrier.map)" = dm ]; then
 	"$R/usr/libexec/iceland/iceland-dmmap" map "$carrier" "$label"; rc=$?
 	if [ "$rc" = 0 ]; then
 		log "$carrier: partitions mapped with device-mapper (iceland.carrier.map=dm): $(ls "$R"/dev/mapper/iceland-"$label"p* 2>/dev/null | tr '\n' ' ')"
-		exit 0
+		record dm; exit 0
 	fi
 	warn "iceland.carrier.map=dm: the device-mapper maps failed (rc $rc); trying the loop device"
 	"$R/usr/libexec/iceland/iceland-dmmap" unmap "$label" > /dev/null 2>&1 || warn "leftover device-mapper maps of $label could not be removed"
 fi
 loop=$(losetup --find --show --partscan --direct-io=on "$carrier") || { warn "losetup failed on $carrier"; exit 1; }
 n=${loop##*/}
-log "$carrier -> $loop: block size $(blockdev --getss "$loop" 2>/dev/null), direct I/O $(cat "$R/sys/block/$n/loop/dio" 2>/dev/null), partitions $(ls -d "$R/sys/block/$n/$n"p* 2>/dev/null | wc -l)"
+log "$carrier -> $loop: block size $(blockdev --getss "$loop" 2>/dev/null), direct I/O $(cat "$R/sys/block/$n/loop/dio" 2>/dev/null), partitions $(ls -d "$R/sys/block/$n/$n"p* 2>/dev/null | wc -l)${cmm:+, carrier device $cmm}"
+record loop
 exit 0

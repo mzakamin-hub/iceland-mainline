@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        32%{?dist}
+Release:        33%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -222,6 +222,8 @@ Source200:      iceland-dmmap
 Source201:      80-iceland-memlat-nopoll.rules
 Source202:      60-iceland-storage-tune.rules
 Source203:      iceland_irqbalance.cil
+# 0.28-33: one summary line per boot instead of a line per read-only UFS device
+Source204:      iceland-storage-summary.service
 
 Requires:       kernel-iceland
 # 0.28-19: stock's GPU GMU / SQE pair (/usr/lib/firmware/iceland-gpu-stock, GPU_FW=stock); 0.28-20: the vendor pair
@@ -469,6 +471,8 @@ install -Dm0644 %{SOURCE53} %{buildroot}/usr/lib/systemd/logind.conf.d/60-icelan
 
 install -Dm0644 %{SOURCE62} %{buildroot}/usr/lib/udev/rules.d/59-iceland-storage-ro.rules
 install -Dm0755 %{SOURCE63} %{buildroot}/usr/libexec/iceland/iceland-storage-ro
+install -Dm0644 %{SOURCE204} %{buildroot}/usr/lib/systemd/system/iceland-storage-summary.service
+ln -s ../iceland-storage-summary.service %{buildroot}/usr/lib/systemd/system/multi-user.target.wants/iceland-storage-summary.service
 install -Dm0755 %{SOURCE64} %{buildroot}/usr/lib/dracut/modules.d/90iceland/module-setup.sh
 install -Dm0755 %{SOURCE65} %{buildroot}/usr/lib/dracut/modules.d/90iceland/iceland-carrier
 install -Dm0755 %{SOURCE66} %{buildroot}/usr/lib/dracut/modules.d/90iceland/iceland-rehearsal
@@ -493,6 +497,8 @@ install -Dm0644 %{SOURCE83} %{buildroot}/usr/lib/systemd/user/iceland-charge-ale
 install -Dm0755 %{SOURCE198} %{buildroot}/usr/libexec/iceland/iceland-ambient-default
 install -Dm0644 %{SOURCE199} %{buildroot}/usr/lib/systemd/user/iceland-ambient-default.service
 install -Dm0755 %{SOURCE200} %{buildroot}/usr/libexec/iceland/iceland-dmmap
+# 0.28-33: on PATH (iceland-dmmap status / verify)
+install -d %{buildroot}/usr/bin && ln -s ../libexec/iceland/iceland-dmmap %{buildroot}/usr/bin/iceland-dmmap
 install -Dm0644 %{SOURCE201} %{buildroot}/usr/lib/udev/rules.d/80-iceland-memlat-nopoll.rules
 install -Dm0644 %{SOURCE202} %{buildroot}/usr/lib/udev/rules.d/60-iceland-storage-tune.rules
 install -Dm0644 %{SOURCE203} %{buildroot}/usr/share/selinux/packages/iceland/iceland_irqbalance.cil
@@ -619,17 +625,10 @@ grep -v '^#' /usr/share/iceland/machine-info | while IFS= read -r kv; do
 	grep -q "^$k=" "$mi" 2>/dev/null || echo "$kv" >> "$mi"
 done
 chmod 644 "$mi" 2>/dev/null; restorecon "$mi" >/dev/null 2>&1 || :
-# 0.28-30: USB-C controller runtime PM OFF by default until the kernel's display MX vote (q90c) is verified:
-# the off switch is created once per system and is not a package file, so
-# deleting it re-enables runtime PM from the next boot and an update does not bring it back
-if [ ! -e /var/lib/iceland/.usb-pm-off-0.28-30 ]; then
-	if [ ! -e /etc/iceland/usb-pm-off ]; then
-		mkdir -p /etc/iceland
-		echo '# iceland-device 0.28-30: USB-C controller runtime PM is off while this file exists (iceland-usb-pm skips).' > /etc/iceland/usb-pm-off
-		echo '# Delete it to let the controller runtime-suspend again from the next boot.' >> /etc/iceland/usb-pm-off
-	fi
-	mkdir -p /var/lib/iceland && touch /var/lib/iceland/.usb-pm-off-0.28-30
-fi
+# 0.28-33: USB-C controller runtime PM is ON on new systems again (0.28-30 created /etc/iceland/usb-pm-off once per
+# system; kernel q90d and later keep the controller's interconnect votes across runtime suspend, which fixed the display
+# flicker). Nothing is done here any more: an existing /etc/iceland/usb-pm-off is left as it is (the switch keeps working;
+# delete it to let the controller runtime-suspend from the next boot)
 # 0.28-9 (2): the USB-C controller's runtime PM now (iceland-usb-pm applies its guards; the rule covers every boot)
 if [ -d /run/systemd/system ]; then udevadm control --reload >/dev/null 2>&1 || :; /usr/libexec/iceland/iceland-usb-pm apply >/dev/null 2>&1 || :; fi
 # 0.28-9 (3): the services without a job on this tablet (50-iceland-unused.preset, 50-iceland-abrt.preset) are
@@ -840,7 +839,10 @@ if [ "$1" -eq 0 ] && [ -e /var/lib/iceland/.irqbalance-cil-0.28-32 ]; then semod
 %dir /var/lib/iceland/trial
 /usr/lib/udev/rules.d/59-iceland-storage-ro.rules
 /usr/libexec/iceland/iceland-storage-ro
+/usr/lib/systemd/system/iceland-storage-summary.service
+/usr/lib/systemd/system/multi-user.target.wants/iceland-storage-summary.service
 /usr/libexec/iceland/iceland-dmmap
+/usr/bin/iceland-dmmap
 /usr/lib/udev/rules.d/80-iceland-memlat-nopoll.rules
 /usr/lib/udev/rules.d/60-iceland-storage-tune.rules
 /usr/share/selinux/packages/iceland/iceland_irqbalance.cil
@@ -880,6 +882,26 @@ if [ "$1" -eq 0 ] && [ -e /var/lib/iceland/.irqbalance-cil-0.28-32 ]; then semod
 /usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
 
 %changelog
+* Thu Oct 22 2026 mzak <mzak.amin@gmail.com> - 0.28-33
+- USB-C controller runtime PM is on again on new systems: %posttrans no longer creates /etc/iceland/usb-pm-off
+  (0.28-30). Kernel q90d and later keep the controller's interconnect votes across runtime suspend, which fixed the
+  display flicker. Existing systems are unchanged: an existing /etc/iceland/usb-pm-off is not deleted and still
+  switches runtime PM off (iceland-usb-pm unchanged); delete it to let the controller runtime-suspend from the next boot
+- iceland-dmmap: a loop device is matched to the carrier by the number of the block device behind it, not by its
+  back-file string (a loop attached in the initramfs reads "/sda16" once the root runs: verify failed on that);
+  verify also checks the device-mapper maps when no loop is attached; verify / status without arguments find the
+  carrier (/run/iceland/carrier, else iceland.carrier= / fedora / userdata); installed on PATH as /usr/bin/iceland-dmmap
+- dracut-iceland-carrier records the carrier for the running system in /run/iceland/carrier (CARRIER=/dev/<name>,
+  LABEL, DEV=major:minor, MODE=loop|dm) and finds an already attached loop by the device number as well
+- 60-iceland-storage-tune.rules: the carrier loop's 1 MiB read-ahead also matches the back-file string "/sdXN"
+- iceland-storage-ro logs no line per device any more (326 info lines per boot, 9 % of the journal): the new
+  iceland-storage-summary.service (multi-user.target, after udev has settled) logs ONE line per boot with the number
+  of read-only internal UFS devices, the carrier and the writable devices, and a warning naming any device that
+  should be read-only and is not; a device that cannot be made read-only still warns at once. The read-only
+  protection (59-iceland-storage-ro.rules, the decisions, BLKROSET) is unchanged
+- irqbalance drop-in: LogLevelMax=notice (about 308 "IRQ n guessed as class 0" info lines at every start)
+- carries 0.28-32 unchanged otherwise
+
 * Thu Oct 22 2026 mzak <mzak.amin@gmail.com> - 0.28-32
 - TRIM for the root (optimization scan C1): new iceland-dmmap; with iceland.carrier.map=dm on the kernel command
   line the dracut module maps the Fedora disk's partitions as device-mapper linear maps over the carrier partition

@@ -10,6 +10,19 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) ·
 [iceland-u-boot](https://github.com/mzakamin-hub/iceland-u-boot) (all public).
 
+## 2026-10-22 - iceland-device 0.28-33; releases of kernel q90i, iceland-device 0.28-33, iceland-coexist 1.0-6, upower
+
+- 0.28-33: USB-C controller runtime PM is on again on new systems. 0.28-30 to 0.28-32 created
+  `/etc/iceland/usb-pm-off` once per system; kernel q90d and later fix the display flicker it guarded against. An
+  update never deletes an existing file (the switch still works; delete it to let the controller runtime-suspend).
+- 0.28-33: `iceland-dmmap` is on `PATH`; `verify` / `status` find the carrier themselves (the initramfs records it in
+  `/run/iceland/carrier`), match a loop device by the carrier's device number (a loop attached in the initramfs shows
+  the back-file "/sda16" on the running system) and check the device-mapper maps when no loop is attached.
+- 0.28-33: the read-only storage rule logs one summary line per boot instead of one line per partition (about 330
+  lines); the protection is unchanged. irqbalance logs only notices and above (no ~300 "guessed as class" lines).
+- Releases with RPMs and source RPMs: [kernel q90i](https://github.com/mzakamin-hub/iceland-linux/releases/tag/q90i),
+  [iceland-device 0.28-33 with iceland-coexist 1.0-6 and upower 1.91.5-1.fc44.iceland1](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-33).
+
 ## 2026-10-22 - feature matrix r173: 98 working features
 
 - Confirmed working by the owner on 22 Oct 2026: charging, pen charging, USB host / OTG and hubs, DisplayPort over

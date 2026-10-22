@@ -311,9 +311,9 @@ Everything below is a published release with a `SHA256SUMS` file. Check your dow
 
 | What | Version | Release page | Files |
 |---|---|---|---|
-| Kernel (`kernel-iceland`, Fedora 44 aarch64) | q89w, kernel `7.3.0-rc7-iceland-00519` (the current queue q90i, `7.3.0-next-20261020-iceland-00463`, is published as source: [tag q90i](https://github.com/mzakamin-hub/iceland-linux/tree/q90i)) | [iceland-linux q89w](https://github.com/mzakamin-hub/iceland-linux/releases/tag/q89w) | RPM, source RPM, build config, `SHA256SUMS` |
+| Kernel (`kernel-iceland`, Fedora 44 aarch64) | q90i, kernel `7.3.0-next-20261020-iceland-00463` (the patch queue on linux-next `next-20261020`) | [iceland-linux q90i](https://github.com/mzakamin-hub/iceland-linux/releases/tag/q90i) | RPM, source RPM, build config, `SHA256SUMS` |
 | U-Boot, install build | v7 (2026-10-17) | [iceland-u-boot v7-2026-10-17](https://github.com/mzakamin-hub/iceland-u-boot/releases/tag/v7-2026-10-17) | plain image (RAM test), footered image (`boot_b`), `SHA256SUMS` |
-| `iceland-device` (the tablet's settings) | 0.28-29 (0.28-32 is published as source: [packaging/iceland-device](packaging/iceland-device/)) | [iceland-device-0.28-29](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-29) | noarch RPM, source RPMs, `SHA256SUMS` |
+| `iceland-device` (the tablet's settings), `iceland-coexist` (kernel-install for a shared `/boot`), `upower` (time to full to the charge limit) | iceland-device 0.28-33, iceland-coexist 1.0-6, upower 1.91.5-1.fc44.iceland1 | [iceland-device-0.28-33](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-33) | noarch / aarch64 RPMs, source RPMs, `SHA256SUMS` |
 | `iceland-firmware` (generic firmware) | 11.A.38-6 | [iceland-firmware 11.A.38-6](https://github.com/mzakamin-hub/iceland-firmware/releases/tag/11.A.38-6) | noarch RPM, source RPM, `SHA256SUMS` |
 | Windows installer (blocked for writes) | in iceland-device 0.28-16 | [iceland-device-0.28-16](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-16) | `Install-Pad4Linux.ps1`, `README-INSTALLER.md`, `SHA256SUMS` |
 

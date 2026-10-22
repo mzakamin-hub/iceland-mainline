@@ -2,8 +2,10 @@
 # - the UFS LUNs (multi-queue, fast): no I/O scheduler (bfq is the costliest per I/O)
 # - the loop device over the Fedora carrier: 1 MiB read-ahead (the loop default 128 KiB; the device-mapper maps of
 #   iceland.carrier.map=dm get 1 MiB from iceland-dmmap)
+# 0.28-33: the back-file pattern also matches "/sda16", the string a loop attached in the initramfs shows once the root
+#   file system runs (a later "change" event keeps the 1 MiB)
 ACTION!="add|change", GOTO="iceland_tune_end"
 SUBSYSTEM!="block", GOTO="iceland_tune_end"
 KERNEL=="sd[a-z]", DEVPATH=="*/1d84000.ufs/*", ATTR{queue/scheduler}="none"
-KERNEL=="loop[0-9]*", ENV{DEVTYPE}=="disk", ATTR{loop/backing_file}=="/dev/sd*", ATTR{queue/read_ahead_kb}="1024"
+KERNEL=="loop[0-9]*", ENV{DEVTYPE}=="disk", ATTR{loop/backing_file}=="/dev/sd*|/sd[a-z]*", ATTR{queue/read_ahead_kb}="1024"
 LABEL="iceland_tune_end"
