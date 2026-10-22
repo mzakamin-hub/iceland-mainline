@@ -12,7 +12,7 @@ and the guide set in [docs/guide/](docs/guide/).
 
 ## Current state (19 Oct 2026)
 
-What works on the installed tablet (the full list, feature by feature: [docs/FEATURES.md](docs/FEATURES.md), 86
+What works on the installed tablet (the full list, feature by feature: [docs/FEATURES.md](docs/FEATURES.md), 98
 working features):
 
 | Stage | State |
@@ -21,12 +21,13 @@ working features):
 | U-Boot on the tablet: display, USB fastboot, UFS, EFI, power-on boot menu | works; the install build v7 is the boot path in `boot_b` |
 | Linux (patch queue on linux-next `next-20261020`, the 7.4 base) through U-Boot EFI (kernel q90i, `7.3.0-next-20261020-iceland-00463`) | works; the default kernel, updated with dnf |
 | Display: native 3392 x 2400, dual DSI with DSC, 30 to 144 Hz, backlight with automatic brightness | works |
-| Touch, pen, auto-rotate (tablet mode), lid and power keys | works |
+| Touch, pen, auto-rotate (tablet mode), lid and power keys, the pogo keyboard cover | works |
 | Wi-Fi 2.4 GHz (WCN7860, ath12k), Bluetooth with pairing | works |
-| Battery and USB-C over pmic-glink; charge limits; bypass charging; battery safety guard | works |
+| Battery and USB-C over pmic-glink; charging, pen charging, charge limits, bypass charging; battery safety guard | works |
+| USB host / OTG and hubs, DisplayPort over USB-C, USB-C headsets | works |
 | GPU (Adreno 840, Mesa 26.3; GPU hang recovery, CLX); hardware video decode and encode | works |
 | Audio: six speakers with the protection chain, microphones with echo cancellation | works |
-| Sleep (s2idle) and resume; deep sleep overnight | works on the installed system |
+| Sleep (s2idle) and resume (wake by power key, alarm, cover, keyboard, charger); deep sleep overnight | works on the installed system |
 | Sensors and gyroscope (through the ADSP sensor hub; iio-sensor-proxy 3.9-11.iceland1) | works |
 | Cameras: both sensors stream through libcamera; GNOME Camera | works |
 | Install on the tablet: Fedora 44 GNOME in `userdata`, U-Boot in `boot_b` | works ([docs/INSTALL-GUIDE.md](docs/INSTALL-GUIDE.md)) |

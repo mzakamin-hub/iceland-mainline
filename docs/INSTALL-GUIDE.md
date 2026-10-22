@@ -216,8 +216,9 @@ that time.
 - **Brightness and heat:** when the tablet gets warm, the thermal service lowers the backlight to stock's level through
   the kernel; GNOME's slider keeps your value. The skin-temperature policy (stock's 60 / 61 / 70 C for CPU, GPU and
   charging) is active.
-- **Display idle refresh:** the kernel has an idle refresh mode for this panel, but it is off (it measured 74.8 Hz
-  instead of 60 Hz). Do not add `msm.dpu_idle_refresh_ms` to the command line.
+- **Display idle refresh:** since iceland-device 0.28-32 a static screen drops to 30 Hz after 1 s
+  (`IDLE_RR=30` in `/etc/iceland/boot.conf`, applied by `iceland-cmdline`; `IDLE_RR=0` turns it off). With an older
+  package do not add `msm.dpu_idle_refresh_ms` by hand.
 - **Charging:** the tablet does not fast-charge (SuperVOOC is not supported); the stock temperature and current limits
   are enforced by the kernel and the battery guard.
 - **Updates:** GNOME Software or `dnf upgrade`, as on any Fedora. Updates can only change files inside `userdata`. A

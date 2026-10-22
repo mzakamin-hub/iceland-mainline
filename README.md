@@ -53,19 +53,21 @@ are still being worked on are not listed. Anything that is not in the list is no
 
 | Area | What works |
 |---|---|
-| Display and input | The panel at its native 3392 x 2400 over dual DSI with DSC; refresh 30 to 144 Hz; backlight with GNOME's slider and automatic brightness (off by default); touch; pen; lid; power and volume keys; auto-rotate in tablet mode. |
+| Display and input | The panel at its native 3392 x 2400 over dual DSI with DSC; refresh 30 to 144 Hz; backlight with GNOME's slider and automatic brightness (on by default); touch; pen; lid; power and volume keys; auto-rotate in tablet mode; the keyboard cover on the pogo pins; smooth window moves under load. |
 | Graphics | The Adreno 840 GPU: OpenGL 4.6 and OpenGL ES 3.2 (Mesa), Vulkan 1.4 through turnip. Hardware video decode (H.264, HEVC, VP9, AV1) and encode (H.264, HEVC). |
-| Audio | The sound card from the audio DSP; all six speakers in stereo behind a speaker-protection filter; both microphones, with echo cancellation on the default input. |
-| Connectivity | Wi-Fi on 2.4 GHz and 5 GHz (6 GHz is not tested yet); Bluetooth with pairing in GNOME; USB device mode and a USB network link. |
-| Power and charging | Battery level, health and time estimate in GNOME; the charge limit at 80 / 85 % ("Preserve Battery Health"); bypass charging; the battery safety guard at stock's limits; low-battery current limits. |
+| Audio | The sound card from the audio DSP; all six speakers in stereo behind a speaker-protection filter, as loud as stock; both microphones, with echo cancellation on the default input; headsets on the USB-C port. |
+| Connectivity | Wi-Fi on 2.4 GHz and 5 GHz (6 GHz is not tested yet); Bluetooth with pairing in GNOME; USB device mode and a USB network link; USB host mode (keyboards, mice, sticks, hubs); an external monitor over USB-C DisplayPort. |
+| Power and charging | Charging with stock's limits per charger type; pen charging; battery level, health and time estimate in GNOME; the charge limit at 80 / 85 % ("Preserve Battery Health"); bypass charging; the battery safety guard at stock's limits; low-battery current limits. |
 | Thermal | CPU, GPU and skin-temperature limits from stock's values. |
-| Sleep | Suspend (s2idle) and resume; the power key and the alarm wake the tablet; Wi-Fi comes back after a wake. Overnight drain of about 0.35 % per hour, measured on one tablet. |
+| Sleep | Suspend (s2idle) and resume; the power key, the alarm, the cover, the keyboard and the charger wake the tablet; Wi-Fi comes back after a wake. Overnight drain of about 0.35 % per hour, measured on one tablet. |
 | Sensors and camera | Accelerometer, compass, light, proximity and gyroscope through the sensor hub; the 13 MP rear and 8 MP front cameras stream through libcamera; GNOME Camera works with both; the rear flash works as a torch. |
-| System and boot | Boot from U-Boot through EFI into Fedora 44; kernel updates with dnf (a new kernel boots once as a trial); the dual-boot menu (Fedora / BlissROM v20.1). |
+| System and boot | Boot from U-Boot through EFI into Fedora 44; kernel updates with dnf (a new kernel boots once as a trial); Fedora marks the boot slot successful; the dual-boot menu (Fedora / BlissROM v20.1); Fedora 44 Workstation's GNOME apps. |
 
 Known limits, from the guides: the tablet does not fast-charge (SuperVOOC is not supported). Without the dual boot,
-Android does not start after the Fedora install. The display's idle refresh mode is off; do not add
-`msm.dpu_idle_refresh_ms` to the kernel command line ([INSTALL-GUIDE section 7](docs/INSTALL-GUIDE.md#7-after-the-install)).
+Android does not start after the Fedora install. The display's idle refresh (30 Hz after 1 s on a static screen)
+is set by iceland-device 0.28-32 (`IDLE_RR` in `/etc/iceland/boot.conf`); do not add the option by hand with older
+packages ([INSTALL-GUIDE section 7](docs/INSTALL-GUIDE.md#7-after-the-install)). Not yet: SuperVOOC fast charging,
+general-purpose virtual machines, camera autofocus and the amplifiers' own DSP protection.
 
 ## Before you start
 

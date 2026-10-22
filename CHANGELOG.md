@@ -10,6 +10,15 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) ·
 [iceland-u-boot](https://github.com/mzakamin-hub/iceland-u-boot) (all public).
 
+## 2026-10-22 - feature matrix r173: 98 working features
+
+- Confirmed working by the owner on 22 Oct 2026: charging, pen charging, USB host / OTG and hubs, DisplayPort over
+  USB-C, headsets over USB-C, the pogo keyboard cover, wake by cover / keyboard / charger, the speaker level at stock,
+  Fedora's boot-slot marking, the CPU firmware after a cold start, smooth window moves under load and the GNOME app set.
+- Still not done: SuperVOOC fast charging, general-purpose virtual machines, camera autofocus, the amplifiers' own DSP
+  protection.
+- Feature matrix r173: 98 working, 3 in progress, 1 not started, 2 not planned ([docs/FEATURES.md](docs/FEATURES.md)).
+
 ## 2026-10-22 - kernel q90i (7.3.0-next-20261020-iceland-00463, the 7.4 base); feature matrix r172
 
 - Kernel q90i (iceland-linux `iceland-7.3-rc7-next`, tag `q90i`) is the current kernel of the installed tablet. Since

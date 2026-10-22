@@ -64,12 +64,10 @@ should carry 0.28-8 or newer (see the install guide, section 6).
 
 ## 4. Known limits
 
-- DisplayPort over USB-C: hot-plug and EDID work and GNOME enables the output, but there is no picture yet.
 - The camera into the hardware H.264 encoder (`pipewiresrc` -> `v4l2h264enc`) does not negotiate; screen recording on
   the hardware encoder works.
 - Chromium / Electron apps do not use the GPU path yet.
-- Short visual glitches in animations while auto-rotate is on in tablet mode (the accelerometer streams); rotation
-  lock avoids them.
-- The display's idle refresh mode is in the kernel but off: it measured 74.8 Hz instead of 60 Hz. Do not switch it on.
-- No fast charging (SuperVOOC is not supported).
+- No fast charging (SuperVOOC is not supported); USB-PD charging and the normal charger types work.
+- No general-purpose virtual machines (only Gunyah's protected VMs run a Linux guest), no camera autofocus, no DSP
+  protection inside the amplifiers (a PipeWire speaker-protection chain is used).
 - Fedora 45 stays blocked until it has been tested on the tablet.

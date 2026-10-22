@@ -272,7 +272,7 @@ it from the user's own device or OTA.
   (OnePlusOSS 16.0.6.103 has hfp 34 at 144 Hz; the stock 11.A.38 value is 32.) Mainline prunes 144 Hz as `CLOCK_HIGH` (~1261 MHz) — the
   per-rate porches above are what stock uses; reference implementation: LineageOS sm8850-modules commit
   "qcom: display: Support per refresh rate H/V porch DFPS". (14 Oct: 144 Hz works on the installed system, with
-  30 to 144 Hz live switching; the idle refresh is still off.)
+  30 to 144 Hz live switching; idle refresh at 30 Hz since 22 Oct 2026.)
 - **Supplies** [measured]/[source]: vddio `pmh0101_l12` **1.9 V** (the shared canoe regulator dtsi caps L12B at 1.8 V → must be raised), DSI
   `vdda-1p2` `pmh0110_d_l1`, DSI PHY `vdda-0p9` `pmh0110_d_l3`. Rails for scanout: MMCX + MX (+ MXC) at TURBO while ABL's 650 MHz MDP runs;
   hold **both** MDSS GDSCs (`MDSS_CORE`, `MDSS_CORE_INT2`).
@@ -367,7 +367,7 @@ it from the user's own device or OTA.
   device-mode register **0x57 = 0x03**); QMP combo PHY (USB3 + DP); role switch / orientation via SoCCP UCSI (`typec` `port0`) [measured]/[source].
 - Mainline: NCM gadget works; UCSI registration resets the bus once (harmless) [measured].
 - 14 Oct: USB device mode works (USB 2 speed). DisplayPort over USB-C: hot plug and EDID work with a bus-powered 4K
-  monitor; there is no picture yet.
+  monitor; a picture confirmed on 22 Oct 2026.
 
 ### 6.9 Wi-Fi and Bluetooth (WCN7860 "peach")
 - 14 Oct: Wi-Fi 2.4 GHz works on the installed system (about 390 Mbit/s down in a speed test to a nearby server); the 5 GHz networks are

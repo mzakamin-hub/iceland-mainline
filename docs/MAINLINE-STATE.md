@@ -22,7 +22,7 @@ This page is the state of the two upstream-facing ports: the kernel and U-Boot. 
   settings, the GMU keep-alive, upstream display, Wi-Fi and USB-C fixes, the battery energy), q89n to q89w (16-19 Oct:
   display stall, RTC and GPU preemption fixes, the DPU slave teardown after both timing engines stop, the in-place
   120 / 60 Hz change, the SMP2P sleep-state notifier, upstream fixes, the IOMMU in lazy mode, and DisplayPort over
-  USB-C sized to the Type-C lanes, not yet tested with a monitor), q89x to q89z (20 Oct: display-timing switches),
+  USB-C sized to the Type-C lanes, confirmed working on 22 Oct), q89x to q89z (20 Oct: display-timing switches),
   q90b to q90i (21-22 Oct: the 7.4 base with Qualcomm's split CPU cluster power domains and the rpmhpd fix that lets
   the GPU's CLX start; the display clock controller's own MX vote; dwc3-qcom keeping its interconnect votes across
   runtime suspend, which fixes the display glitches while the sensor hub streams; the A8xx crash-state capture made
@@ -35,8 +35,7 @@ This page is the state of the two upstream-facing ports: the kernel and U-Boot. 
 - **Not sent upstream:** the iris colorimetry patch 0292 is carried in the kernel but is not sent upstream (the
   project's decision). The kernel requires an `Assisted-by` line on such patches.
 - **Re-check at each rebase:** patches merged upstream are removed at the next rebase (v7.3 final, then 7.4).
-- **Open kernel work:** the rebase onto 7.4-rc1; DP over USB-C (a picture on a monitor; the link is sized to the
-  lanes of the Type-C pin assignment, not yet tested; see the feature matrix); camera into the hardware encoder (the
+- **Open kernel work:** the rebase onto 7.4-rc1; camera into the hardware encoder (the
   pipeline does not negotiate); Chromium / Electron GPU path; binder (needs Rust in the build); the K4 battery guard and
   the kernel layer of the thermal guard are not in q90i (whether they are still planned is unverified). The idle
   refresh is on since 22 Oct (30 Hz after 1 s on a static screen, set on the command line by iceland-device 0.28-32).
