@@ -1,0 +1,17 @@
+# dracut module "iceland-oneshot" (iceland-coexist 1.0-4): a one-shot boot entry (iceland.oneshot=NAME) clears GRUB's
+# next_entry here, BEFORE systemd-udevd and before any module is loaded (the display / GPU bind needs udev-loaded
+# modules, so it always comes after). Other boots: the condition fails at once and nothing waits.
+[Unit]
+Description=OnePlus Pad 4: clear the one-shot boot entry before udev starts (iceland-oneshot)
+DefaultDependencies=no
+ConditionKernelCommandLine=iceland.oneshot
+ConditionPathExists=/etc/initrd-release
+After=systemd-journald.socket
+Before=systemd-udevd.service systemd-udev-trigger.service systemd-modules-load.service iceland-carrier.service sysinit.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/iceland-oneshot clear-initrd
+StandardOutput=journal+console
+TimeoutStartSec=90

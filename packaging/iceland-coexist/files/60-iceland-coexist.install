@@ -1,0 +1,113 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# kernel-install plugin (iceland-coexist; 1.0-4: removes one-shot entries of a removed kernel; 1.0-6: reuses the default
+# kernel's DTB_VARIANT tree when a new kernel has none and the two kernels' own trees are identical): Fedora 44 NEXT TO Arch Linux ARM in ONE shared /boot (ext4) on the OnePlus Pad 4.
+#
+# Layout (Fedora's /etc/fstab, written by the fedback kit):
+#   the whole shared ext4            -> /bootfs            (Arch mounts it at /boot; Arch's files are its TOP level)
+#   /bootfs/fedora44                 -> /boot   (bind)     Fedora's own kernels, initramfs, trees: nothing at the top level
+#   /bootfs/loader                   -> /boot/loader (bind) the shared BLS entries GRUB 2.16 (Arch's) reads
+#   /bootfs/grub2                    -> /boot/grub2  (bind) the shared grubenv (saved_entry / next_entry / iceland_args)
+# So Fedora's stock tools (50-dracut.install, dracut -f, iceland-gpu-initramfs) write /boot/... = /bootfs/fedora44/... and
+# can never overwrite Arch's /bootfs/vmlinuz-K or /bootfs/initramfs-K.img, even for the SAME kernel version.
+#
+# This plugin runs after 50-depmod / 50-dracut (which wrote /boot/initramfs-K.img) and replaces the masked 20-grub.install /
+# 90-loaderentry / 10-devicetree / 95-set-boot-entry / 96-iceland-trial / 90-iceland-dtb (see /etc/kernel/install.d):
+#   add K      /boot/vmlinuz-K, config-K, System.map-K, dtb-K/qcom/<DT> (= DTB_VARIANT's tree when the variant file exists),
+#              and the entry /boot/loader/entries/fedora-K-f44.conf (paths /fedora44/..., options = /etc/kernel/cmdline).
+#              The default (saved_entry) is NOT changed: Arch stays the default until the owner says (kit --make-default).
+#   remove K   those files and the entry; a saved_entry / next_entry naming it is moved to the newest other Fedora entry
+#              or, if none, back to the Arch entry recorded by the kit (/etc/iceland/coexist.conf ARCH_DEFAULT).
+# Entry id fedora-K-f44: it does NOT end in "-K", so Arch's 96-iceland-trial "remove" (deletes *-K.conf of other tokens)
+# and iceland-trial's running-entry lookup (*-K.conf) never pick it up.
+# Settings: /etc/iceland/coexist.conf (DTB_VARIANT, SUBDIR, ARCH_DEFAULT). Test hooks: ICELAND_ROOT, ICELAND_EDITENV.
+COMMAND="$1"; KVER="$2"; IMAGE="${3:-}"
+case "$KVER" in *-iceland*) ;; *) exit 0 ;; esac
+R=${ICELAND_ROOT:-}
+EDITENV=${ICELAND_EDITENV:-grub2-editenv}
+DTB_VARIANT=glitchfix-rails; SUBDIR=fedora44; ARCH_DEFAULT=""
+[ -r "$R/etc/iceland/coexist.conf" ] && . "$R/etc/iceland/coexist.conf"
+B=$R/boot; E=$B/loader/entries; GENV=$B/grub2/grubenv
+DT=qcom/kaanapali-oneplus-iceland.dtb
+ID=fedora-$KVER-f44
+log() { echo "60-iceland-coexist: $*"; logger -t iceland-coexist "$*" 2>/dev/null || :; }
+die() { log "STOP: $*"; exit 1; }
+genv() { $EDITENV "$GENV" list 2>/dev/null | sed -n "s/^$1=//p"; }
+# the guard: /boot must be the Fedora subdirectory (its marker), and /boot/loader the shared entries (not inside it)
+[ -f "$B/.iceland-coexist-$SUBDIR" ] || die "/boot is not the shared ext4's $SUBDIR/ (no marker .iceland-coexist-$SUBDIR): refusing to write"
+[ -d "$E" ] || die "no $E"
+[ -e "$B/loader/.iceland-coexist-subdir" ] && die "/boot/loader is the Fedora subdirectory's own loader/, not the shared one (bind mount missing)"
+M=$R/usr/lib/modules/$KVER
+case "$COMMAND" in
+add)
+	[ -n "$IMAGE" ] && [ -f "$R$IMAGE" ] || IMAGE=/usr/lib/modules/$KVER/vmlinuz
+	[ -f "$R$IMAGE" ] || die "no kernel image $IMAGE"
+	cmp -s "$R$IMAGE" "$B/vmlinuz-$KVER" || { install -m 0755 "$R$IMAGE" "$B/vmlinuz-$KVER.new" && mv -f "$B/vmlinuz-$KVER.new" "$B/vmlinuz-$KVER"; } || die "vmlinuz"
+	[ -f "$M/config" ] && install -m 0644 "$M/config" "$B/config-$KVER"
+	[ -f "$M/System.map" ] && install -m 0644 "$M/System.map" "$B/System.map-$KVER"
+	src=$M/dtb/$DT; var=""
+	for c in "$R/usr/lib/iceland/dtb/$KVER/kaanapali-oneplus-iceland-$DTB_VARIANT.dtb" "$M/dtb/qcom/kaanapali-oneplus-iceland-$DTB_VARIANT.dtb"; do
+		case "$DTB_VARIANT" in ''|standard) break ;; esac
+		[ -f "$c" ] && { src=$c; var=$DTB_VARIANT; break; }
+	done
+	# 1.0-6: no variant tree of this kernel: the DEFAULT kernel's (saved_entry fedora-KD-f44) variant tree, when this
+	# kernel's own tree is byte-identical to KD's own tree (no device-tree change between the two kernels); else the
+	# kernel's own tree, as before. The source is logged either way.
+	if [ -z "$var" ] && [ -n "$DTB_VARIANT" ] && [ "$DTB_VARIANT" != standard ]; then
+		kd=$(genv saved_entry); kd=${kd#fedora-}; kd=${kd%-f44}
+		dsrc=""; why=""
+		if [ -z "$kd" ] || [ "$kd" = "$KVER" ] || [ "fedora-$kd-f44" != "$(genv saved_entry)" ]; then why="the default entry '$(genv saved_entry)' is not another Fedora kernel"
+		else
+			for c in "$R/usr/lib/iceland/dtb/$kd/kaanapali-oneplus-iceland-$DTB_VARIANT.dtb" "$R/usr/lib/modules/$kd/dtb/qcom/kaanapali-oneplus-iceland-$DTB_VARIANT.dtb"; do
+				[ -f "$c" ] && { dsrc=$c; break; }; done
+			kdown=$R/usr/lib/modules/$kd/dtb/$DT; [ -f "$kdown" ] || kdown=$B/dtb-$kd/qcom/kaanapali-oneplus-iceland-standard.dtb
+			if [ -z "$dsrc" ]; then why="the default kernel $kd has no $DTB_VARIANT tree either"
+			elif ! [ -f "$kdown" ] || ! cmp -s "$M/dtb/$DT" "$kdown"; then why="the kernel's own tree differs from $kd's (a device-tree change): $kd's $DTB_VARIANT tree is not reused"; dsrc=""
+			fi
+		fi
+		if [ -n "$dsrc" ]; then src=$dsrc; var="$DTB_VARIANT (the default kernel $kd's, ${dsrc#$R})"
+			log "$KVER: no $DTB_VARIANT tree of its own: using the default kernel $kd's (${dsrc#$R}); the two kernels' own trees are identical"
+		else log "WARNING $KVER: no $DTB_VARIANT tree for this kernel ($why): the kernel's own tree is the entry's"; fi
+	fi
+	[ -f "$src" ] || die "no device tree $src"
+	mkdir -p "$B/dtb-$KVER/qcom"
+	install -m 0644 "$M/dtb/$DT" "$B/dtb-$KVER/qcom/kaanapali-oneplus-iceland-standard.dtb" 2>/dev/null || :
+	install -m 0644 "$src" "$B/dtb-$KVER/$DT.new" && mv -f "$B/dtb-$KVER/$DT.new" "$B/dtb-$KVER/$DT" || die "device tree"
+	[ -f "$B/initramfs-$KVER.img" ] || die "no /boot/initramfs-$KVER.img (50-dracut.install must run first)"
+	opts=$(head -n 1 "$R/etc/kernel/cmdline" 2>/dev/null)
+	case " $opts " in *" root="*) ;; *) die "/etc/kernel/cmdline has no root=: no entry written" ;; esac
+	{
+		echo "title Fedora Linux 44 ($KVER)"
+		echo "version $KVER"
+		echo "linux /$SUBDIR/vmlinuz-$KVER"
+		echo "initrd /$SUBDIR/initramfs-$KVER.img"
+		echo "options $opts"
+		echo "grub_users \$grub_users"
+		echo "grub_arg --unrestricted"
+		echo "grub_class fedora"
+		echo "devicetree /$SUBDIR/dtb-$KVER/$DT"
+	} > "$E/$ID.conf.new" && chmod 0644 "$E/$ID.conf.new" && sync && mv -f "$E/$ID.conf.new" "$E/$ID.conf" || die "entry"
+	log "$KVER: /$SUBDIR files + entry $ID.conf written (tree: ${var:-the kernel own tree}); default unchanged: $(genv saved_entry)"
+	;;
+remove)
+	rm -f "$B/vmlinuz-$KVER" "$B/initramfs-$KVER.img" "$B/config-$KVER" "$B/System.map-$KVER" "$E/$ID.conf"
+	rm -rf "$B/dtb-$KVER"
+	new=$(ls -1 "$E"/fedora-*-f44.conf 2>/dev/null | sed 's|.*/||; s|\.conf$||' | sort -V | tail -n 1)
+	[ -n "$new" ] || new=$ARCH_DEFAULT
+	[ "$(genv next_entry)" = "$ID" ] && $EDITENV "$GENV" unset next_entry
+	# 1.0-4: one-shot entries (iceland-oneshot) of this kernel go with it
+	for o in "$E"/iceland-oneshot-*.conf; do
+		[ -f "$o" ] || continue
+		grep -q "^linux[[:space:]].*/vmlinuz-$KVER\$" "$o" || continue
+		oid=${o##*/}; oid=${oid%.conf}
+		[ "$(genv next_entry)" = "$oid" ] && $EDITENV "$GENV" unset next_entry
+		rm -f "$o"; log "one-shot entry $oid.conf removed with $KVER"
+	done
+	if [ "$(genv saved_entry)" = "$ID" ]; then
+		if [ -n "$new" ] && [ -f "$E/$new.conf" ]; then $EDITENV "$GENV" set "saved_entry=$new"; log "saved_entry was $ID: now $new"
+		else log "WARNING: saved_entry was $ID and no other entry is known: GRUB takes its first entry"; fi
+	fi
+	log "$KVER: /$SUBDIR files + entry $ID.conf removed"
+	;;
+esac
+exit 0

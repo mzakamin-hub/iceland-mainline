@@ -1,0 +1,20 @@
+#!/usr/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# kernel-install plugin (iceland-coexist 1.0-3): put /boot/vmlinuz-K in place BEFORE 50-dracut.install.
+# 50-dracut.install calls dracut without an output file name; dracut then picks its output from what exists: with
+# /boot/vmlinuz-K it writes /boot/initramfs-K.img (Fedora's subdirectory, see 60-iceland-coexist.install), but for a
+# NEW kernel that file does not exist yet and, with the ESP mounted at /boot/efi, dracut targets
+# /boot/efi/<machine-id>/K/initrd - the read-only ESP - and the install fails (q90f, 22 Oct 2026).
+# 60-iceland-coexist.install copies the same image again (cmp -s: a no-op) and writes the entry.
+COMMAND="$1"; KVER="$2"; IMAGE="${4:-}"
+case "$KVER" in *-iceland*) ;; *) exit 0 ;; esac
+[ "$COMMAND" = add ] || exit 0
+R=${ICELAND_ROOT:-}
+SUBDIR=fedora44
+[ -r "$R/etc/iceland/coexist.conf" ] && . "$R/etc/iceland/coexist.conf"
+B=$R/boot
+[ -f "$B/.iceland-coexist-$SUBDIR" ] || exit 0
+[ -n "$IMAGE" ] && [ -f "$R$IMAGE" ] || IMAGE=/usr/lib/modules/$KVER/vmlinuz
+[ -f "$R$IMAGE" ] || exit 0
+cmp -s "$R$IMAGE" "$B/vmlinuz-$KVER" || { install -m 0755 "$R$IMAGE" "$B/vmlinuz-$KVER.new" && mv -f "$B/vmlinuz-$KVER.new" "$B/vmlinuz-$KVER"; } || { echo "45-iceland-vmlinuz-first: cannot write $B/vmlinuz-$KVER" >&2; exit 1; }
+exit 0

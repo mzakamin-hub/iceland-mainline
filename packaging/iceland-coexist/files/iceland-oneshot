@@ -1,0 +1,253 @@
+#!/usr/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-oneshot (iceland-coexist 1.0-4; 1.0-6: device-mapper partitions too): boot a test entry exactly ONCE on the
+# OnePlus Pad 4.
+#
+# Why: GRUB (2.16, BLS) boots next_entry once and clears it with save_env - but on this tablet /boot is an ext4 INSIDE
+# the disk image in the UFS partition 'fedora' (loop0p2 under Linux), and GRUB cannot write through to it: save_env
+# fails silently and next_entry stays set, so a "one-shot" entry would be booted again at every start until Linux
+# clears it (seen 21 Oct on Arch and 22 Oct on Fedora). This tool makes Linux clear it, as early as possible:
+#
+#   1. INITRAMFS (iceland-oneshot-clear.service, dracut module 91iceland-oneshot): only when the kernel command line
+#      has iceland.oneshot=NAME (only the entries this tool writes have it). It runs BEFORE systemd-udevd starts, so
+#      before any module is loaded: the display / GPU bind (and with it the GPU's GMU start, CLX, preemption) needs
+#      modules udev loads (the backlight ktz8869 is the panel's supplier), so it always comes AFTER this clear (boot
+#      logs: udev ~0.9 s, DSI / GPU bound 1.3-1.5 s). It attaches the Fedora disk (iceland-carrier, idempotent),
+#      mounts the boot ext4 (UUID from iceland.oneshot.env=) read-write for a moment, unsets next_entry if it names
+#      THIS one-shot, unmounts. Result in /run/iceland/oneshot.state and the kernel log.
+#   2. ROOT FALLBACK (iceland-oneshot-consume.service, every boot, right after the local file systems): any
+#      next_entry still set is consumed - a boot that got this far was started by GRUB already, so the value is
+#      spent (covers an initramfs without the module, a one-shot the owner skipped in the GRUB menu, any other tool's
+#      next_entry). It also removes the entry file of the one-shot that was just booted (a copy stays in
+#      /var/lib/iceland/oneshot/entries/).
+#   3. The way out by hand: GRUB shows its menu for 3 s at every start; Volume Up / Down moves to the normal
+#      "Fedora Linux 44 (...)" entry, Power boots it; that boot's step 2 clears next_entry.
+# What can still repeat: a one-shot whose own options break the kernel BEFORE the initramfs runs (the first ~0.9 s).
+# The tool's users only arm options that act later (msm.*) or that are the kernel's own defaults (cpuidle.governor=
+# menu, lazy RCU off); for anything else the GRUB menu is the way out.
+#
+#   iceland-oneshot arm NAME [--args "OPTS"] [--drop "WORDS"] [--entry ID] [--initrd FILE] [--force] [--no-initrd-check]
+#        write /boot/loader/entries/iceland-oneshot-NAME.conf = a copy of the default entry (or --entry ID) with
+#        WORDS removed from its options and OPTS + iceland.oneshot=NAME iceland.oneshot.env=<boot fs UUID> added
+#        (before $iceland_args, which stays last); --initrd FILE (in the same directory as the entry's initramfs) boots
+#        another initramfs; then next_entry = that entry. The default (saved_entry) is never changed.
+#   iceland-oneshot status | disarm | clean | log
+#   iceland-oneshot initramfs [--kver K] (--side | --promote | --undo | --check FILE)
+#        --side: dracut a NEW initramfs (with this module) to /boot/initramfs-K.img.oneshot-new, nothing else changes;
+#        --promote: the old one kept as initramfs-K.img.pre-oneshot, the side one becomes initramfs-K.img;
+#        --undo: back to the kept one; --check FILE: does FILE carry the module and every firmware file of the current
+#   iceland-oneshot clear-initrd   (the initramfs unit)        iceland-oneshot consume   (the root unit)
+# ICELAND_ROOT / ICELAND_EDITENV / ICELAND_CMDLINE / ICELAND_CARRIER / ICELAND_SCAN / ICELAND_LSINITRD /
+# ICELAND_DRACUT: test hooks (the PC self-test); empty on the tablet.
+set -u -o pipefail
+R=${ICELAND_ROOT:-}
+EDITENV=${ICELAND_EDITENV:-grub2-editenv}
+LSINITRD=${ICELAND_LSINITRD:-lsinitrd}
+DRACUT=${ICELAND_DRACUT:-dracut}
+CMDLINE=${ICELAND_CMDLINE:-$(cat /proc/cmdline 2>/dev/null)}
+B=$R/boot
+E=$B/loader/entries
+GENV=$B/grub2/grubenv
+ST=$R/var/lib/iceland/oneshot
+RS=$R/run/iceland
+PFX=iceland-oneshot-
+ENVREL=/grub2/grubenv
+UNIT=usr/lib/systemd/system/iceland-oneshot-clear.service
+say() { echo "iceland-oneshot: $*"; }
+die() { echo "iceland-oneshot: STOP: $*" >&2; exit 1; }
+klog() { echo "<${2:-6}>iceland-oneshot: $1" > "$R/dev/kmsg" 2>/dev/null; echo "iceland-oneshot: $1"; }
+log() { mkdir -p "$ST" 2>/dev/null && echo "$(date -u +%FT%TZ) $*" >> "$ST/log"; echo "iceland-oneshot: $*"; }
+getarg() { local a; for a in $CMDLINE; do case $a in "$1="*) echo "${a#*=}"; return 0 ;; "$1") echo 1; return 0 ;; esac; done; return 1; }
+env_get() { $EDITENV "$1" list 2>/dev/null | sed -n "s/^$2=//p" | head -n 1; }
+# env_edit FILE set K=V | unset K: the change is made on a copy with grub2-editenv and written back over the SAME
+# 1024 bytes (same inode, same SELinux label; GRUB reads it by its block list) - grub2-editenv alone would write a new
+# file and rename it.
+env_edit() {
+	local f=$1 t rc; shift
+	[ -f "$f" ] || { echo "no $f" >&2; return 1; }
+	[ "$(stat -L -c %s "$f")" = 1024 ] || { echo "$f is not 1024 bytes: refused" >&2; return 1; }
+	[ "$(head -n 1 "$f")" = "# GRUB Environment Block" ] || { echo "$f is not a GRUB environment block: refused" >&2; return 1; }
+	mkdir -p "$RS" || return 1
+	t=$RS/grubenv.edit.$$
+	cp "$f" "$t" && $EDITENV "$t" "$@" && [ "$(stat -L -c %s "$t")" = 1024 ] && [ "$(head -n 1 "$t")" = "# GRUB Environment Block" ] \
+		&& dd if="$t" of="$f" bs=1024 count=1 conv=notrunc,fsync status=none && cmp -s "$t" "$f"
+	rc=$?; rm -f "$t" "$t.new"; return $rc
+}
+okname() { case "$1" in ''|-*|*[!a-z0-9-]*) return 1 ;; esac; [ ${#1} -le 24 ]; }
+key() { sed -n "s/^$2[[:space:]]\{1,\}//p" "$1" 2>/dev/null | head -n 1; }
+# bpath GRUBPATH -> the local file: GRUB's root is the shared boot ext4 (Fedora: /bootfs, its fedora44/ is /boot)
+bpath() { if [ -d "$R/bootfs" ] && [ -f "$R/bootfs/grub2/grubenv" ]; then echo "$R/bootfs$1"; else echo "$B$1"; fi; }
+nodev() { [ -z "$R" ] || return 1; }
+rootcheck() {
+	[ -n "$R" ] && return 0
+	[ "$(id -u)" = 0 ] || die "run with sudo"
+	tr '\0' '\n' < /sys/firmware/devicetree/base/compatible 2>/dev/null | grep -qx 'oneplus,iceland' || die "this is not the OnePlus Pad 4"
+	getarg iceland.rehearsal > /dev/null && die "this is a rehearsal boot (RAM): one-shots are for the installed system"
+	[ -e /etc/initrd-release ] && die "not in the initramfs"
+	return 0
+}
+has_module() { local n; n=$("$LSINITRD" "$1" 2>/dev/null | grep -c "$UNIT"); [ "${n:-0}" -gt 0 ]; }
+fwlist() { "$LSINITRD" "$1" 2>/dev/null | awk '{ print $NF }' | grep '^usr/lib/firmware/.' | sort -u; }
+
+cmd=${1:-}; [ $# -gt 0 ] && shift
+case "$cmd" in
+arm)
+	rootcheck
+	NAME=${1:-}; [ $# -gt 0 ] && shift
+	okname "$NAME" || die "NAME: 1-24 characters a-z 0-9 - (not '$NAME')"
+	ARGS=""; DROP=""; BASE=""; INITRD=""; FORCE=0; NOCHK=0
+	while [ $# -gt 0 ]; do case "$1" in
+		--args) ARGS=${2:-}; shift 2 ;; --drop) DROP=${2:-}; shift 2 ;; --entry) BASE=${2:-}; shift 2 ;;
+		--initrd) INITRD=${2:-}; shift 2 ;; --force) FORCE=1; shift ;; --no-initrd-check) NOCHK=1; shift ;;
+		*) die "unknown option $1" ;; esac; done
+	case " $ARGS " in *" iceland.oneshot"*|*'$'*) die "--args must not carry iceland.oneshot* or \$ variables" ;; esac
+	[ -d "$E" ] && [ -f "$GENV" ] || die "no $E or $GENV"
+	ID=$PFX$NAME
+	cur=$(env_get "$GENV" next_entry)
+	[ -z "$cur" ] || [ "$FORCE" = 1 ] || die "next_entry is already set ($cur): boot it, or 'iceland-oneshot disarm' first"
+	[ -n "$BASE" ] || BASE=$(env_get "$GENV" saved_entry)
+	case "$BASE" in ''|"$PFX"*) die "base entry '$BASE' (the default) is empty or itself a one-shot" ;; esac
+	bf=$E/$BASE.conf; [ -f "$bf" ] || die "no entry $BASE.conf"
+	lin=$(key "$bf" linux); ini=$(key "$bf" initrd); dtb=$(key "$bf" devicetree); opts=$(key "$bf" options)
+	[ -n "$lin" ] && [ -n "$ini" ] && [ -n "$opts" ] || die "$BASE.conf lacks linux / initrd / options"
+	case " $opts " in *" root="*) ;; *) die "$BASE.conf options have no root=" ;; esac
+	if [ -n "$INITRD" ]; then
+		[ -f "$INITRD" ] || die "no $INITRD"
+		# the same directory by device + inode: /boot is a bind mount of /bootfs/fedora44 on the tablet (pwd -P differs)
+		[ "$(stat -L -c %d:%i "$(dirname "$INITRD")" 2>/dev/null)" = "$(stat -L -c %d:%i "$(dirname "$(bpath "$ini")")" 2>/dev/null)" ] || die "--initrd must lie next to $(bpath "$ini")"
+		ini=$(dirname "$ini")/$(basename "$INITRD")
+	fi
+	for p in "$lin" "$ini" ${dtb:+"$dtb"}; do [ -f "$(bpath "$p")" ] || die "the entry's file $p ($(bpath "$p")) is missing"; done
+	if [ "$NOCHK" = 0 ]; then
+		has_module "$(bpath "$ini")" || die "$(bpath "$ini") has no iceland-oneshot initramfs unit: the one-shot would only be cleared from the root (run 'iceland-oneshot initramfs --side' and arm with --initrd, or --no-initrd-check)"
+	fi
+	if [ -n "$R" ]; then uuid=${ICELAND_BOOTUUID:?test: ICELAND_BOOTUUID}
+	else
+		uuid=$(findmnt -n -o UUID -T "$GENV" 2>/dev/null | head -n 1)
+		fr=$(findmnt -n -o FSROOT -T "$(dirname "$GENV")" 2>/dev/null | head -n 1)
+		[ "${fr%/}/grubenv" = "$ENVREL" ] || [ "$fr" = / ] || die "grubenv is not at $ENVREL of its file system (FSROOT $fr)"
+	fi
+	[ -n "$uuid" ] || die "no UUID for the file system of $GENV"
+	new=""; set -f
+	for w in $opts; do
+		[ "$w" = '$iceland_args' ] && continue
+		skip=0; for d in $DROP; do case "$d" in *'=*') [ "${w%%=*}" = "${d%=\*}" ] && skip=1 ;; *) [ "$w" = "$d" ] && skip=1 ;; esac; done
+		[ $skip = 1 ] || new="$new $w"
+	done
+	set +f
+	new="${new# }${ARGS:+ $ARGS} iceland.oneshot=$NAME iceland.oneshot.env=$uuid"
+	case " $opts " in *' $iceland_args '*) new="$new \$iceland_args" ;; esac
+	t=$E/$ID.conf.tmp
+	awk -v o="options $new" -v n="$NAME" -v i="initrd $ini" '
+		/^title[[:space:]]/ { sub(/^title[[:space:]]+/, ""); print "title One-shot " n " (boots once): " $0; next }
+		/^options[[:space:]]/ { print o; next } /^initrd[[:space:]]/ { print i; next } { print }' "$bf" > "$t" \
+		&& chmod 0644 "$t" && sync && mv -f "$t" "$E/$ID.conf" || die "cannot write $ID.conf"
+	env_edit "$GENV" set "next_entry=$ID" || die "cannot set next_entry"
+	[ "$(env_get "$GENV" next_entry)" = "$ID" ] || die "next_entry did not stick"
+	mkdir -p "$ST/entries" && printf 'name=%s\nentry=%s\nbase=%s\narmed=%s\n' "$NAME" "$ID" "$BASE" "$(date -u +%FT%TZ)" > "$ST/armed"
+	log "armed $ID (base $BASE; dropped: ${DROP:-none}; added: ${ARGS:-none}${INITRD:+; initramfs $(basename "$INITRD")})"
+	sed 's/^/     /' "$E/$ID.conf"
+	say "the NEXT start boots $ID once; the default stays $(env_get "$GENV" saved_entry)."
+	say "way out by hand: in the GRUB menu (3 s) Volume Up / Down to the normal 'Fedora Linux 44 (...)' entry, then Power."
+	exit 0 ;;
+status)
+	echo "saved_entry=$(env_get "$GENV" saved_entry)"
+	echo "next_entry=$(env_get "$GENV" next_entry)"
+	echo "armed=$(sed -n 's/^name=//p' "$ST/armed" 2>/dev/null || true)"
+	[ -s "$ST/armed" ] || echo "armed=none"
+	b=$(getarg iceland.oneshot) && echo "booted=$b" || echo "booted=none"
+	[ -f "$RS/oneshot.state" ] && echo "initramfs: $(cat "$RS/oneshot.state")"
+	echo "one-shot entries: $(ls "$E" 2>/dev/null | grep "^$PFX" | tr '\n' ' ')"
+	tail -n 5 "$ST/log" 2>/dev/null | sed 's/^/  log: /'
+	exit 0 ;;
+log) cat "$ST/log" 2>/dev/null; exit 0 ;;
+disarm)
+	rootcheck
+	cur=$(env_get "$GENV" next_entry)
+	case "$cur" in "") say "nothing armed" ;; "$PFX"*) env_edit "$GENV" unset next_entry && log "disarmed $cur" || die "cannot unset next_entry" ;;
+		*) [ "${1:-}" = --any ] && { env_edit "$GENV" unset next_entry && log "disarmed $cur (not a one-shot of this tool)"; } || die "next_entry=$cur is not a one-shot of this tool (--any clears it)" ;; esac
+	rm -f "$ST/armed"; exit 0 ;;
+clean)
+	rootcheck
+	cur=$(env_get "$GENV" next_entry); n=0
+	for f in "$E"/"$PFX"*.conf; do [ -f "$f" ] || continue; id=${f##*/}; id=${id%.conf}
+		[ "$id" = "$cur" ] && { say "kept $id (armed)"; continue; }
+		mkdir -p "$ST/entries" && cp -f "$f" "$ST/entries/" && rm -f "$f" && n=$((n + 1)); done
+	say "$n one-shot entries removed (copies in $ST/entries/)"; exit 0 ;;
+clear-initrd)
+	name=$(getarg iceland.oneshot) || exit 0
+	mkdir -p "$RS"
+	st() { echo "$*" > "$RS/oneshot.state"; klog "$*" "${LV:-6}"; }
+	getarg iceland.rehearsal > /dev/null && { st "rehearsal boot: one-shot $name not handled"; exit 0; }
+	okname "$name" || { LV=4 st "bad one-shot name '$name'"; exit 0; }
+	uuid=$(getarg iceland.oneshot.env) || { LV=4 st "one-shot $name: no iceland.oneshot.env= (boot fs UUID): next_entry left to the root fallback"; exit 0; }
+	want=$PFX$name
+	C=${ICELAND_CARRIER:-/usr/libexec/iceland/iceland-carrier}
+	[ -x "$C" ] && { timeout 45 "$C" > /dev/null 2>&1 || klog "carrier returned $? (continuing)" 4; }
+	dev=""; i=0
+	while [ $i -lt 100 ] && [ -z "$dev" ]; do
+		# 1.0-6: also the device-mapper partitions of iceland-device 0.28-32 (iceland.carrier.map=dm, made before udev)
+		for d in ${ICELAND_SCAN:-$R/dev/loop*p* $R/dev/mapper/iceland-*}; do
+			[ -b "$d" ] || [ -n "$R" -a -f "$d" ] || continue
+			[ "$(blkid -o value -s UUID "$d" 2>/dev/null)" = "$uuid" ] && { dev=$d; break; }
+		done
+		[ -n "$dev" ] || { i=$((i + 1)); sleep 0.1; }
+	done
+	[ -n "$dev" ] || { LV=4 st "one-shot $name: boot fs $uuid not found: next_entry left to the root fallback"; exit 0; }
+	m=$RS/oneshot-mnt; mkdir -p "$m"
+	if [ -n "${ICELAND_MOUNT:-}" ]; then $ICELAND_MOUNT "$dev" "$m" || { LV=4 st "one-shot $name: test mount failed"; exit 0; }
+	else mount -t ext4 -o rw,nosuid,nodev,noexec,noatime "$dev" "$m" || { LV=4 st "one-shot $name: cannot mount $dev: next_entry left to the root fallback"; exit 0; }; fi
+	f=$m$ENVREL; cur=$(env_get "$f" next_entry)
+	if [ "$cur" = "$want" ]; then
+		if env_edit "$f" unset next_entry && [ -z "$(env_get "$f" next_entry)" ]; then st "one-shot $name: next_entry cleared in the initramfs, before udev (no module loaded yet)"
+		else LV=4 st "one-shot $name: FAILED to clear next_entry (the root fallback tries again)"; fi
+	elif [ -z "$cur" ]; then st "one-shot $name: next_entry already empty (entry chosen in the menu, or cleared before)"
+	else LV=4 st "one-shot $name: next_entry is '$cur', not $want: left alone"; fi
+	sync
+	if [ -n "${ICELAND_UMOUNT:-}" ]; then $ICELAND_UMOUNT "$m"; else umount "$m" || klog "umount $m failed" 4; fi
+	exit 0 ;;
+consume)
+	[ -f "$GENV" ] || exit 0
+	getarg iceland.rehearsal > /dev/null && { echo "iceland-oneshot: rehearsal boot: nothing consumed"; exit 0; }
+	cur=$(env_get "$GENV" next_entry); b=$(getarg iceland.oneshot || true)
+	ist=$(cat "$RS/oneshot.state" 2>/dev/null || true)
+	[ -n "$b" ] && log "this boot is the one-shot '$b' (initramfs: ${ist:-no record})"
+	if [ -n "$cur" ]; then
+		if env_edit "$GENV" unset next_entry; then log "next_entry=$cur consumed by this boot (root fallback$([ -n "$b" ] && echo ", one-shot $b" || echo ", the boot came up on $(uname -r 2>/dev/null) without a one-shot: it was skipped in the menu or not a one-shot"))"
+		else log "FAILED to consume next_entry=$cur"; exit 1; fi
+	fi
+	if [ -s "$ST/armed" ]; then
+		a=$(sed -n 's/^name=//p' "$ST/armed")
+		if [ "$a" = "$b" ]; then mv -f "$ST/armed" "$ST/last-booted"; log "one-shot $a booted"
+		else mv -f "$ST/armed" "$ST/last-skipped"; log "one-shot $a was NOT booted (this boot: ${b:-the default})"; fi
+	fi
+	if [ -n "$b" ] && [ -f "$E/$PFX$b.conf" ]; then mkdir -p "$ST/entries" && cp -f "$E/$PFX$b.conf" "$ST/entries/" && rm -f "$E/$PFX$b.conf" && log "entry $PFX$b.conf removed (used)"; fi
+	exit 0 ;;
+initramfs)
+	rootcheck
+	K=$(uname -r); MODE=""; CF=""
+	while [ $# -gt 0 ]; do case "$1" in --kver) K=$2; shift 2 ;; --side|--promote|--undo) MODE=${1#--}; shift ;;
+		--check) MODE=check; CF=$2; shift 2 ;; *) die "unknown option $1" ;; esac; done
+	cur=$B/initramfs-$K.img; side=$cur.oneshot-new; keep=$cur.pre-oneshot
+	chk() { # chk FILE: the module + every firmware file of the current initramfs
+		local miss; has_module "$1" || { echo "no iceland-oneshot unit in $1"; return 1; }
+		miss=$(comm -23 <(fwlist "$cur") <(fwlist "$1") | grep -c . || true)
+		echo "$(fwlist "$1" | grep -c .) firmware files ($(fwlist "$1" | grep -c gen80200) GPU), missing vs the current: $miss"
+		[ "$miss" = 0 ] && fwlist "$1" | grep -q gen80200; }
+	case "$MODE" in
+	side) [ -f "$cur" ] || die "no $cur"
+		[ -d "$R/usr/lib/dracut/modules.d/91iceland-oneshot" ] || die "the dracut module 91iceland-oneshot is not installed"
+		rm -f "$side"; $DRACUT -f --kver "$K" "$side" || die "dracut failed"
+		x=$(chk "$side") || die "the new initramfs: $x"; say "side initramfs $side: $x" ;;
+	promote) [ -f "$side" ] || die "no $side (run --side first)"
+		x=$(chk "$side") || die "$x"
+		[ -f "$keep" ] || cp -a "$cur" "$keep" || die "cannot keep $cur"
+		cp -f "$side" "$cur.tmp" && sync && mv -f "$cur.tmp" "$cur" && rm -f "$side" || die "promote failed"
+		log "initramfs-$K.img now carries the one-shot module (old one kept: $(basename "$keep"))" ;;
+	undo) [ -f "$keep" ] || die "no $keep"; cp -f "$keep" "$cur.tmp" && sync && mv -f "$cur.tmp" "$cur" && log "initramfs-$K.img restored from $(basename "$keep")" ;;
+	check) x=$(chk "$CF") && { say "PASS $CF: $x"; exit 0; } || { say "FAIL $CF: $x"; exit 1; } ;;
+	*) die "initramfs --side | --promote | --undo | --check FILE" ;;
+	esac
+	exit 0 ;;
+*) sed -n '3,40p' "$0"; exit 2 ;;
+esac

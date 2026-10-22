@@ -1,0 +1,17 @@
+# iceland-coexist: packages that must not come from Fedora while Fedora shares the tablet with Arch Linux ARM.
+# The union of 50-iceland-fedora-hold.repo's list and ours (correct whether libdnf5 appends or replaces the option).
+#  - mesa: our 26.3 build with the A840 fixes 9001-9007 (.iceland1); Fedora's 26.3.0 would replace it untested
+#  - gstreamer1-plugins-good: 1.28.8 .iceland1 with the V4L2 colorimetry fix (GStreamer !12699)
+#  - libcamera: 0.7.1 (the owner's choice; Fedora pulled 0.7.2 for a flicker regression)
+#  - grub2-*, shim-*: the EFI partition and /boot/grub2 belong to Arch's GRUB 2.16 (EFI/fedora/shimaa64.efi IS that GRUB;
+#    a shim-aa64 / grub2-efi-aa64 update would overwrite it, grub2-tools scriptlets could rewrite grub.cfg)
+# An update blocked by this is skipped (best=False, skip_broken=True in 80-iceland-kernel.conf); our builds come from
+# iceland-local only after a rehearsal.
+[fedora]
+excludepkgs=iio-sensor-proxy*,hexagonrpc*,libssc*,alsa-ucm,kernel-iceland*,iceland-*,mesa-dri-drivers,mesa-filesystem,mesa-libEGL*,mesa-libGL,mesa-libGL-devel,mesa-libgbm*,mesa-vulkan-drivers,mesa-libOpenCL*,mesa-libTeflon,mesa-dxil-devel,mesa-va-drivers,mesa-vdpau-drivers,mesa-libxatracker,mesa-libd3d*,mesa-libOSMesa*,gstreamer1-plugins-good*,libcamera*,grub2-*,shim-*
+
+[updates]
+excludepkgs=iio-sensor-proxy*,hexagonrpc*,libssc*,alsa-ucm,kernel-iceland*,iceland-*,mesa-dri-drivers,mesa-filesystem,mesa-libEGL*,mesa-libGL,mesa-libGL-devel,mesa-libgbm*,mesa-vulkan-drivers,mesa-libOpenCL*,mesa-libTeflon,mesa-dxil-devel,mesa-va-drivers,mesa-vdpau-drivers,mesa-libxatracker,mesa-libd3d*,mesa-libOSMesa*,gstreamer1-plugins-good*,libcamera*,grub2-*,shim-*
+
+[updates-testing]
+excludepkgs=iio-sensor-proxy*,hexagonrpc*,libssc*,alsa-ucm,kernel-iceland*,iceland-*,mesa-dri-drivers,mesa-filesystem,mesa-libEGL*,mesa-libGL,mesa-libGL-devel,mesa-libgbm*,mesa-vulkan-drivers,mesa-libOpenCL*,mesa-libTeflon,mesa-dxil-devel,mesa-va-drivers,mesa-vdpau-drivers,mesa-libxatracker,mesa-libd3d*,mesa-libOSMesa*,gstreamer1-plugins-good*,libcamera*,grub2-*,shim-*

@@ -10,6 +10,16 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) ·
 [iceland-u-boot](https://github.com/mzakamin-hub/iceland-u-boot) (all public).
 
+## 2026-10-22 - iceland-coexist 1.0-6: kernels in a shared /boot, one-shot boot entries
+
+- New package [`packaging/iceland-coexist`](packaging/iceland-coexist/): kernel-install for a Fedora 44 kept in a
+  subdirectory (`fedora44/`) of a shared ext4 `/boot`, as on the reference tablet; Fedora's own boot-entry writers are
+  masked and the default entry is never changed by a kernel install.
+- `iceland-oneshot`: one-shot boot entries that Linux clears (in the initramfs, before udev starts), because GRUB
+  cannot write `grubenv` on this tablet.
+- A new kernel is installed even when the EFI partition is mounted read-only (`/boot/vmlinuz` before dracut), and gets
+  the default kernel's device-tree variant when its own trees are the same.
+
 ## 2026-10-22 - iceland-device 0.28-32 (0.28-30 to 0.28-32): TRIM through device-mapper, automatic brightness, idle refresh
 
 - 0.28-32: `iceland.carrier.map=dm` maps the Fedora disk's partitions with device-mapper linear maps instead of a
