@@ -1,0 +1,107 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: mzak <mzak.amin@gmail.com>
+Date: Thu, 22 Oct 2026 15:58:54 +0300
+Subject: [PATCH] up-device-battery: Count the time to full to the charge end
+ threshold
+
+While the charge threshold is enabled, charging stops at the end threshold,
+not at energy_full: the time to full was the time to 100 % (twice the real
+time when charging from 70 % to an 85 % limit). Count it to the end
+threshold (a percentage of the reported charge level), and give no time
+once the threshold is reached. The DisplayDevice keeps a single charging
+battery's own time to full instead of recomputing it to energy_full.
+
+This resolves the "FIXME: Use charge-stop-threshold here".
+
+Signed-off-by: mzak <mzak.amin@gmail.com>
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/up-daemon.c         |  7 ++++++-
+ src/up-device-battery.c | 30 +++++++++++++++++++++++++++---
+ 2 files changed, 33 insertions(+), 4 deletions(-)
+
+diff --git a/src/up-daemon.c b/src/up-daemon.c
+index 746dae7..f951af4 100644
+--- a/src/up-daemon.c
++++ b/src/up-daemon.c
+@@ -157,6 +157,7 @@ up_daemon_update_display_battery (UpDaemon *daemon)
+ 	gboolean is_present_total = FALSE;
+ 	gboolean charge_threshold_enabled_total = FALSE;
+ 	guint num_batteries = 0;
++	guint num_charging = 0;
+ 
+ 	gboolean state_all_discharging = TRUE;
+ 	gboolean state_any_discharging = FALSE;
+@@ -267,6 +268,8 @@ up_daemon_update_display_battery (UpDaemon *daemon)
+ 		/* Will be recalculated for multiple batteries, no worries */
+ 		percentage_total += percentage;
+ 		num_batteries++;
++		if (state == UP_DEVICE_STATE_CHARGING)
++			num_charging++;
+ 	}
+ 
+ 	/* Handle multiple batteries */
+@@ -314,7 +317,9 @@ out:
+ 	if (energy_rate_total > 0) {
+ 		if (state_total == UP_DEVICE_STATE_DISCHARGING)
+ 			time_to_empty_total = SECONDS_PER_HOUR * (energy_total / energy_rate_total);
+-		else if (state_total == UP_DEVICE_STATE_CHARGING)
++		else if (state_total == UP_DEVICE_STATE_CHARGING &&
++			 !(num_batteries == 1 && num_charging == 1))
++			/* a single charging battery's own estimate counts to its charge end threshold */
+ 			time_to_full_total = SECONDS_PER_HOUR * ((energy_full_total - energy_total) / energy_rate_total);
+ 	}
+ 
+diff --git a/src/up-device-battery.c b/src/up-device-battery.c
+index 8da7fb5..5b5b42d 100644
+--- a/src/up-device-battery.c
++++ b/src/up-device-battery.c
+@@ -228,6 +228,30 @@ up_device_battery_update_poll_frequency (UpDeviceBattery *self,
+ 	}
+ }
+ 
++/* The energy charging stops at: the charge end threshold while it is
++ * enabled (a percentage of the reported charge level; once it is reached
++ * charging is about to stop and no time is given), else energy_full. */
++static gdouble
++up_device_battery_charge_target (UpDeviceBattery *self, UpBatteryValues *values)
++{
++	UpDeviceBatteryPrivate *priv = up_device_battery_get_instance_private (self);
++	gboolean enabled = FALSE;
++	guint end = 100;
++
++	g_object_get (self,
++		      "charge-threshold-enabled", &enabled,
++		      "charge-end-threshold", &end,
++		      NULL);
++
++	if (enabled && end > 0 && end < 100) {
++		if (values->percentage >= end)
++			return values->energy.cur;
++		return values->energy.cur + priv->energy_full * (end - values->percentage) / 100.0;
++	}
++
++	return priv->energy_full;
++}
++
+ static gdouble
+ up_device_battery_calc_capacity (gdouble energy_full, gdouble energy_design)
+ {
+@@ -369,11 +393,11 @@ up_device_battery_report (UpDeviceBattery *self,
+ 	if (values->energy.rate > 0.01) {
+ 		/* Calculate time to full/empty
+ 		 *
+-		 * Here we could factor in collected data about charge rates
+-		 * FIXME: Use charge-stop-threshold here
++		 * Here we could factor in collected data about charge rates.
++		 * Charging ends at the charge end threshold if it is enabled.
+ 		 */
+ 		if (values->state == UP_DEVICE_STATE_CHARGING)
+-			time_to_full = 3600 * (priv->energy_full - values->energy.cur) / values->energy.rate;
++			time_to_full = 3600 * (up_device_battery_charge_target (self, values) - values->energy.cur) / values->energy.rate;
+ 		else
+ 			time_to_empty = 3600 * values->energy.cur / values->energy.rate;
+ 	} else {
+-- 
+2.43.0
+

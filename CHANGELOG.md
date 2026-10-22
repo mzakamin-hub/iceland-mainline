@@ -10,6 +10,13 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) ·
 [iceland-u-boot](https://github.com/mzakamin-hub/iceland-u-boot) (all public).
 
+## 2026-10-22 - battery time estimates: kernel q90i + upower 1.91.5-1.fc44.iceland1
+
+- [`packaging/upower`](packaging/upower/): Fedora 44's upower 1.91.5 with one patch: the time to full counts to the
+  charge end threshold (85 %), not to 100 %. GNOME showed about twice the real time while charging to the limit.
+- The kernel reports the battery power at the nominal voltage of its energy values, so GNOME's time remaining equals
+  charge / current (it was 5-12 % short at high charge).
+
 ## 2026-10-22 - iceland-coexist 1.0-6: kernels in a shared /boot, one-shot boot entries
 
 - New package [`packaging/iceland-coexist`](packaging/iceland-coexist/): kernel-install for a Fedora 44 kept in a
