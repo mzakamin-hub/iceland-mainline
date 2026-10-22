@@ -10,6 +10,21 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) ·
 [iceland-u-boot](https://github.com/mzakamin-hub/iceland-u-boot) (all public).
 
+## 2026-10-22 - kernel q90i (7.3.0-next-20261020-iceland-00463, the 7.4 base); feature matrix r172
+
+- Kernel q90i (iceland-linux `iceland-7.3-rc7-next`, tag `q90i`) is the current kernel of the installed tablet. Since
+  q90b the patch queue applies onto linux-next `next-20261020` (Linux 7.3 plus the trees queued for 7.4); 107 patches
+  were dropped as upstream there.
+- q90b to q90i add Qualcomm's split CPU cluster power domains, the rpmhpd fix that lets the GPU's current limiter (CLX)
+  start (now on), the display clock controller's own MX vote, dwc3-qcom keeping the USB-C controller's interconnect
+  votes across runtime suspend (fixes the display glitches while the sensor hub streams, e.g. with auto-rotate), the
+  A8xx crash-state capture made opt-in (a GPU hang recovers instead of hanging the system), the Kaanapali CP protect
+  table on the A840, no submit replay on a GPU that was not reset, the battery power at the nominal voltage, the memlat
+  read-back poll off by default and a config round (VA_BITS 48, HZ 250, PREEMPT_DYNAMIC, CoreSight / STM off).
+- `scripts/build.sh` now merges the release config fragments and gives the package's config exactly.
+- The q90 kernels have no binder (the 7.4 base removed the C driver; the Rust one needs Rust in the build).
+- Feature matrix r172: 86 working features ([docs/FEATURES.md](docs/FEATURES.md)).
+
 ## 2026-10-22 - battery time estimates: kernel q90i + upower 1.91.5-1.fc44.iceland1
 
 - [`packaging/upower`](packaging/upower/): Fedora 44's upower 1.91.5 with one patch: the time to full counts to the

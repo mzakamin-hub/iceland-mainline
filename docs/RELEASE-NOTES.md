@@ -3,17 +3,18 @@
 The working features, one by one, are listed in [FEATURES.md](FEATURES.md); the install is described in
 [INSTALL-GUIDE.md](INSTALL-GUIDE.md). The dated history is in [../CHANGELOG.md](../CHANGELOG.md).
 
-## 1. Current versions (19 Oct 2026)
+## 1. Current versions (22 Oct 2026)
 
 | Piece | Version |
 |---|---|
-| Kernel | `7.3.0-rc7-iceland-00519` (queue q89w): Linux v7.3-rc7 plus the Pad 4 patch queue, iceland-linux branch `iceland-7.3-rc7-next`; package `kernel-iceland`, updated with dnf |
-| Device package | `iceland-device` 0.28-29 |
+| Kernel | `7.3.0-next-20261020-iceland-00463` (queue q90i): linux-next `next-20261020` (Linux 7.3 plus the trees queued for 7.4) plus the Pad 4 patch queue, iceland-linux branch `iceland-7.3-rc7-next`, tag `q90i`; package `kernel-iceland`, updated with dnf |
+| Device package | `iceland-device` 0.28-32; `iceland-coexist` 1.0-6 (kernel-install for the shared `/boot`, one-shot boot entries) |
+| Power service | `upower` 1.91.5-1.fc44.iceland1 (time to full to the charge limit) |
 | Sensor programs | `iio-sensor-proxy` 3.9-11.iceland1, `hexagonrpc`, `libssc` |
 | Firmware | `iceland-firmware` 11.A.38-6 (the generic stock firmware, sha256-pinned, with the decoded thermal model, the sensor hub registry and two GPU firmware pairs: stock's and the vendor's) |
 | libcamera | Fedora's 0.7.1-2 |
 | U-Boot | install build v7 (patches 0001-0015), with the power-on boot menu (BlissROM as well on the dual-boot layout); written to `boot_b` with an AVB footer |
-| Fedora | release 44 with the stable updates; GNOME Shell 50.5; Mesa 26.2.4 |
+| Fedora | release 44 with the stable updates; GNOME Shell 50; Mesa 26.3 (a build for the tablet) |
 
 ## 2. The install image (13 Oct 2026)
 
@@ -54,6 +55,12 @@ should carry 0.28-8 or newer (see the install guide, section 6).
   GPU preemption; the dual boot BlissROM + Fedora (U-Boot v7); the own Bluetooth address at every start; a change
   between 120 and 60 Hz without a modeset and a screen off without an underrun; suspend-to-idle as the kernel's
   default; the refresh switch acting only on real power changes; the memory-latency governor loaded at boot.
+- **Since 20 Oct** (kernels q89x to q90i, `iceland-device` 0.28-30 to 0.28-32; details in
+  [../CHANGELOG.md](../CHANGELOG.md)): the patch queue on the 7.4 base (linux-next `next-20261020`); no display
+  glitches with auto-rotate on; a GPU hang recovers without hanging the system; the GPU's current limiter (CLX) on;
+  idle refresh at 30 Hz on a static screen; automatic brightness on by default; TRIM through device-mapper; right
+  battery time estimates (kernel power at the nominal voltage, upower's time to full to the charge limit); the memlat
+  poll off; a kernel config round (VA_BITS 48, HZ 250, PREEMPT_DYNAMIC).
 
 ## 4. Known limits
 
