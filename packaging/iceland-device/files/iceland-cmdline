@@ -40,10 +40,20 @@
 #       MEM_SLEEP=kernel: the option is removed (the kernel's own choice).
 #     Every entry gets it: the kernels' own entries (also a trial kernel's: 97-iceland-cmdline.install) and the
 #     "Roll back to ..." entries (iceland-snapshot takes /etc/kernel/cmdline).
+#  5. 0.28-32, the display / GPU settings the owner chose on 22 Oct 2026 (until then hand edits of the entries), each
+#     with a switch in /etc/iceland/boot.conf; the defaults are the owner's values:
+#       IDLE_RR=30 (default): msm.dpu_idle_refresh_ms=1000 msm.dpu_idle_refresh_hz=30 - a static screen drops to
+#                 30 Hz after 1 s (kernel q90g+); IDLE_RR=0: both options removed (the kernel's default: off)
+#       BW_FLOOR=0 (default): msm.dpu_bw_floor_pct=0 - no display bus-bandwidth floor (the glitch-hunt floor of
+#                 20 Oct off since the glitch cause was fixed); BW_FLOOR=100: msm.dpu_bw_floor_pct=100
+#       CLX=1 (default): msm.enable_clx=1 - the GPU's current-limit (CLX) table, proven with the vendor533 GPU
+#                 firmware only (q90f / q90g, 22 Oct), so it is set only when that pair is in use; CLX=0: removed
+#     A switch set to keep leaves every value of its options as it is (not managed).
 # ICELAND_ROOT (tests only): the root to work on.
 R=${ICELAND_ROOT:-}
 ARGS="clk_ignore_unused pd_ignore_unused regulator_ignore_unused"
 IDLE_GOV=teo; RCU_LAZY=1; GPU_FW=vendor533; GPU_PREEMPT=auto; MEM_SLEEP=s2idle
+IDLE_RR=30; BW_FLOOR=0; CLX=1
 FW=/usr/lib/firmware
 if [ -r "$R/etc/iceland/boot.conf" ]; then
 	v=$(sed -n 's/^IDLE_GOV=\([a-z]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); [ "$v" = menu ] && IDLE_GOV=menu
@@ -53,6 +63,9 @@ if [ -r "$R/etc/iceland/boot.conf" ]; then
 	v=$(sed -n 's/^GPU_PREEMPT=\([a-z0-9]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1)
 	case "$v" in auto|0|1) GPU_PREEMPT=$v ;; esac
 	v=$(sed -n 's/^MEM_SLEEP=\([a-z0-9]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); [ "$v" = kernel ] && MEM_SLEEP=kernel
+	v=$(sed -n 's/^IDLE_RR=\([a-z0-9]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); case "$v" in 30|0|keep) IDLE_RR=$v ;; esac
+	v=$(sed -n 's/^BW_FLOOR=\([a-z0-9]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); case "$v" in 0|100|keep) BW_FLOOR=$v ;; esac
+	v=$(sed -n 's/^CLX=\([a-z0-9]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); case "$v" in 1|0|keep) CLX=$v ;; esac
 fi
 pair() { [ -f "$R$FW/iceland-gpu-$1/qcom/gen80200_gmu.bin" ] && [ -f "$R$FW/iceland-gpu-$1/qcom/gen80200_sqe.fw" ]; }
 GPU=$GPU_FW
@@ -64,7 +77,7 @@ auto) [ "$GPU" = vendor533 ] && PRE=1 ;;
 1) if [ "$GPU" = vendor533 ]; then PRE=1
    else echo "iceland-cmdline: GPU_PREEMPT=1 refused with the $GPU GPU firmware (early-boot reset): preemption stays off" >&2; fi ;;
 esac
-ON=""; OFF=""; DROP=""
+ON=""; OFF=""; DROP=""; DROPN=""
 if [ "$IDLE_GOV" = teo ]; then ON="$ON cpuidle.governor=teo"; else OFF="$OFF cpuidle.governor=teo"; fi
 if [ "$RCU_LAZY" = 1 ]; then ON="$ON rcu_nocbs=all rcutree.enable_rcu_lazy=1"; else OFF="$OFF rcu_nocbs=all rcutree.enable_rcu_lazy=1"; fi
 case "$GPU" in
@@ -73,11 +86,20 @@ vendor533|stock) ON="$ON firmware_class.path=$FW/iceland-gpu-$GPU" ;;
 esac
 if [ $PRE = 1 ]; then ON="$ON msm.enable_preemption=1"; else DROP=msm.enable_preemption; fi
 if [ "$MEM_SLEEP" = s2idle ]; then ON="$ON mem_sleep_default=s2idle"; else OFF="$OFF mem_sleep_default=s2idle"; fi
+# 0.28-32: DROPN = option names removed whatever their value
+case "$IDLE_RR" in 30) ON="$ON msm.dpu_idle_refresh_ms=1000 msm.dpu_idle_refresh_hz=30" ;; 0) DROPN="$DROPN msm.dpu_idle_refresh_ms msm.dpu_idle_refresh_hz" ;; esac
+case "$BW_FLOOR" in 0|100) ON="$ON msm.dpu_bw_floor_pct=$BW_FLOOR" ;; esac
+case "$CLX" in
+1) if [ "$GPU" = vendor533 ]; then ON="$ON msm.enable_clx=1"
+   else DROPN="$DROPN msm.enable_clx"; echo "iceland-cmdline: CLX=1 needs the vendor533 GPU firmware (proven only there): CLX stays off with $GPU" >&2; fi ;;
+0) DROPN="$DROPN msm.enable_clx" ;;
+esac
 fix() { # stdin: one options line -> the managed line (single spaces)
 	out=""; tail=""; set -f
 	for w in $(cat); do
 		case " $ARGS $OFF " in *" $w "*) continue ;; esac
 		[ -n "$DROP" ] && [ "${w%%=*}" = "$DROP" ] && [ "$w" != "$DROP=0" ] && continue
+		case " $DROPN " in *" ${w%%=*} "*) continue ;; esac
 		keep=1
 		for o in $ON; do [ "${w%%=*}" = "${o%%=*}" ] && keep=0; done
 		[ $keep = 1 ] || continue
@@ -88,6 +110,8 @@ fix() { # stdin: one options line -> the managed line (single spaces)
 }
 for e in "$R"/boot/loader/entries/*.conf; do
 	[ -f "$e" ] || continue
+	# 0.28-31: a one-shot test entry (iceland-coexist's iceland-oneshot) keeps the options it was armed with
+	case "${e##*/}" in iceland-oneshot-*) continue ;; esac
 	grep -q '^options ' "$e" || continue
 	old=$(sed -n 's/^options //p' "$e" | head -n 1)
 	new=$(printf '%s\n' "$old" | fix)

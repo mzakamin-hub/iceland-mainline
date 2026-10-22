@@ -1,0 +1,6 @@
+; iceland-device 0.28-32 (optimization scan A2 / B3, 22 Oct 2026): irqbalance runs its policy script
+; /usr/libexec/iceland/iceland-irqbalance-policy (bin_t, a bash script: shell_exec_t) for every interrupt; Fedora's
+; policy denied the execute (187 AVCs per boot), so the MDSS / GPU ban of 0.28-29 never took effect.
+(allow irqbalance_t shell_exec_t (file (read open getattr map execute execute_no_trans)))
+(allow irqbalance_t bin_t (file (read open getattr map execute execute_no_trans)))
+(allow irqbalance_t bin_t (lnk_file (read getattr)))

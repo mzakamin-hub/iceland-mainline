@@ -1,0 +1,13 @@
+# iceland-device 0.28-31 (B1): automatic brightness on by default - an old ambient-enabled=false is reset ONCE per
+# account (marker in ~/.local/state/iceland/); the user's later choice is kept. See /usr/libexec/iceland/iceland-ambient-default
+[Unit]
+Description=OnePlus Pad 4: automatic screen brightness on (once per account)
+ConditionUser=!gdm
+ConditionPathExists=!%S/iceland/ambient-default-0.28-31
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/iceland/iceland-ambient-default
+
+[Install]
+WantedBy=default.target

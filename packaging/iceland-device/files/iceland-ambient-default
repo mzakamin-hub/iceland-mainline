@@ -1,0 +1,17 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-device 0.28-31 (B1): automatic brightness ON by default, as stock Android and GNOME do. It was switched
+# off in 0.28-15 because of the auto-brightness flicker, which kernel q89k fixed (WORKLOG 15 Oct 2026); the login
+# screen no longer holds the light sensor (0.28-18). An account whose dconf still says ambient-enabled=false (a
+# value from that time, which cannot be told apart from a choice) is reset ONCE to the default (true): the user
+# unit iceland-ambient-default.service runs this at the first login after the update and leaves a marker; a later
+# choice in Settings > Power ("Automatic Screen Brightness") is kept from then on. Owner's decision, 22 Oct 2026.
+M=${XDG_STATE_HOME:-$HOME/.local/state}/iceland/ambient-default-0.28-31
+[ -e "$M" ] && exit 0
+[ "$(id -un)" = gdm ] && exit 0
+S=org.gnome.settings-daemon.plugins.power
+gsettings writable $S ambient-enabled > /dev/null 2>&1 || exit 0
+u=$(dconf read /org/gnome/settings-daemon/plugins/power/ambient-enabled 2>/dev/null)
+if [ "$u" = false ]; then gsettings reset $S ambient-enabled || exit 1; fi
+mkdir -p "${M%/*}" && echo "$(date -u +%FT%TZ) user value '${u:-none}' -> ambient-enabled $(gsettings get $S ambient-enabled)" > "$M"
+echo "iceland-ambient-default: user value '${u:-none}' -> ambient-enabled $(gsettings get $S ambient-enabled)"

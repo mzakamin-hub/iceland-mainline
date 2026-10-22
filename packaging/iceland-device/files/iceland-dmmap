@@ -1,0 +1,159 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-dmmap (iceland-device 0.28-32): the Fedora disk's partitions as device-mapper LINEAR maps over the carrier
+# partition (the UFS partition "fedora" / "userdata" that holds the whole Fedora disk image), instead of a partitioned
+# loop device. Why: loop over a block device passes discards only as far as the backing device has WRITE ZEROES
+# (loop turns a discard into fallocate(PUNCH_HOLE), which a block device serves with write-zeroes), and the UFS has
+# none, so loop0 reports discard_max_bytes 0 and fstrim / btrfs never reach the flash. dm-linear passes REQ_OP_DISCARD
+# straight to the UFS partition (UNMAP). Same bytes, same UUIDs, one block layer less.
+#
+# Nothing is ever written to the carrier: the inner GPT is only READ (sfdisk --dump, which checks the header and entry
+# CRCs), and the maps cover exactly the inner partitions, each inside the carrier (checked).
+#
+#   iceland-dmmap table CARRIER LABEL    print the maps it would create (read-only): N START LEN PARTUUID NAME (512 B)
+#   iceland-dmmap verify CARRIER LABEL   read-only: the computed maps against the partitions of a loop device that
+#                                        is attached over CARRIER now (the running system's loop0p1..3)
+#   iceland-dmmap map CARRIER LABEL      create iceland-LABELpN for every inner partition (initramfs, dracut module
+#                                        "iceland", only with iceland.carrier.map=dm on the kernel command line)
+#   iceland-dmmap unmap LABEL            remove the unused maps iceland-LABELp* (tests; a mounted map stays)
+#   iceland-dmmap status                 the maps, their tables, discard limits and mounts
+# Before udev runs (iceland-oneshot clears its one-shot then) the maps are made without udev (--noudevsync, libdm
+# makes the /dev/mapper nodes, marker /run/iceland/dmmap/NAME.noudev); the next "map" with udev running removes and
+# re-creates them with udev synchronisation, so that udev records them as device-mapper activations (10-dm.rules:
+# a later coldplug "add" keeps the /dev/disk/by-uuid links only for devices activated with a udev cookie).
+# Test hooks (PC tests only): ICELAND_DMSETUP ICELAND_SFDISK ICELAND_DM_UDEV (1/0) ICELAND_DM_RUN ICELAND_DM_PREFIX
+# ICELAND_SETTLE (udevadm settle timeout, 0 = no settle) ICELAND_KMSG.
+set -u
+DMSETUP=${ICELAND_DMSETUP:-dmsetup}
+SFDISK=${ICELAND_SFDISK:-sfdisk}
+PFX=${ICELAND_DM_PREFIX:-iceland-}
+RUND=${ICELAND_DM_RUN:-/run/iceland/dmmap}
+KMSG=${ICELAND_KMSG:-/dev/kmsg}
+RA=2048   # read-ahead in 512-byte sectors = 1 MiB (what 60-iceland-storage-tune.rules gave loop0)
+logl() { local l=$1; shift; echo "<$l>iceland-dmmap: $*" > "$KMSG" 2>/dev/null; echo "iceland-dmmap: $*" >&2; }
+log() { logl 6 "$@"; }
+warn() { logl 4 "$@"; }
+# udev "on" = a udevd PROCESS runs. Not the control socket: in the initramfs systemd opens it (socket activation) before
+# systemd-udevd starts, and iceland-oneshot's clear runs in that gap; a udev-synchronised dmsetup would wait there for
+# a udevd that is ordered after it.
+udev_on() {
+	local p
+	case "${ICELAND_DM_UDEV:-}" in 1) return 0 ;; 0) return 1 ;; esac
+	for p in /proc/[0-9]*/comm; do case "$(cat "$p" 2>/dev/null)" in systemd-udevd|udevd) return 0 ;; esac; done
+	return 1
+}
+
+# table CARRIER LABEL -> lines "N START LEN PARTUUID NAME" (512-byte sectors), rc 1 with a reason on stderr
+table() {
+	local c=$1 ss sz dump line dev n st ln u nm prev_end=0 cnt=0 out=""
+	[ -b "$c" ] || { echo "carrier $c is not a block device" >&2; return 1; }
+	ss=$(blockdev --getss "$c" 2>/dev/null) && sz=$(blockdev --getsz "$c" 2>/dev/null) || { echo "blockdev failed on $c" >&2; return 1; }
+	case "$ss" in 512|1024|2048|4096) ;; *) echo "odd logical block size $ss" >&2; return 1 ;; esac
+	dump=$(LC_ALL=C "$SFDISK" --dump "$c" 2>/dev/null) || { echo "sfdisk --dump found no valid partition table in $c" >&2; return 1; }
+	echo "$dump" | grep -qx 'label: gpt' || { echo "the table in $c is not GPT" >&2; return 1; }
+	echo "$dump" | grep -qx 'unit: sectors' || { echo "sfdisk does not report sectors" >&2; return 1; }
+	if echo "$dump" | grep -q '^sector-size: '; then
+		[ "$(echo "$dump" | sed -n 's/^sector-size: *//p')" = "$ss" ] || { echo "sfdisk sector size differs from the device's ($ss)" >&2; return 1; }
+	fi
+	while IFS= read -r line; do
+		case "$line" in "$c"*" : start="*) ;; *) continue ;; esac
+		dev=${line%% :*}; n=${dev#"$c"}; n=${n#p}
+		case "$n" in ''|*[!0-9]*) echo "cannot read the partition number of '$dev'" >&2; return 1 ;; esac
+		st=$(echo "$line" | sed -nE 's/.* start= *([0-9]+).*/\1/p'); ln=$(echo "$line" | sed -nE 's/.* size= *([0-9]+).*/\1/p')
+		u=$(echo "$line" | sed -nE 's/.* uuid=([0-9A-Fa-f-]{36}).*/\1/p'); nm=$(echo "$line" | sed -nE 's/.* name="([^"]*)".*/\1/p')
+		[ -n "$st" ] && [ -n "$ln" ] && [ -n "$u" ] && [ "$ln" -gt 0 ] && [ "$st" -gt 0 ] || { echo "partition $n: no start / size / uuid" >&2; return 1; }
+		st=$((st * ss / 512)); ln=$((ln * ss / 512))
+		[ $((st + ln)) -le "$sz" ] || { echo "partition $n (sectors $st + $ln) ends beyond the carrier ($sz sectors)" >&2; return 1; }
+		[ "$st" -ge "$prev_end" ] || { echo "partition $n overlaps the previous one" >&2; return 1; }
+		prev_end=$((st + ln)); cnt=$((cnt + 1))
+		out="$out$n $st $ln ${u,,} ${nm// /_}"$'\n'
+	done <<< "$dump"
+	[ "$cnt" -ge 1 ] && [ "$cnt" -le 16 ] || { echo "$cnt partitions in $c" >&2; return 1; }
+	printf '%s' "$out"
+}
+majmin() { local h; h=$(stat -L -c '%t %T' "$1" 2>/dev/null) || return 1; set -- $h; echo "$((16#$1)):$((16#$2))"; }
+
+cmd=${1:-}; shift || true
+case "$cmd" in
+table)
+	[ $# = 2 ] || { echo "usage: iceland-dmmap table CARRIER LABEL" >&2; exit 2; }
+	t=$(table "$1") || exit 1
+	echo "$t" | while read -r n st ln u nm; do echo "$PFX${2}p$n $st $ln linear $1 $st partuuid=$u name=$nm"; done
+	exit 0 ;;
+verify)
+	[ $# = 2 ] || { echo "usage: iceland-dmmap verify CARRIER LABEL" >&2; exit 2; }
+	t=$(table "$1") || { echo "FAIL table: see above"; exit 1; }
+	lp=""; for b in /sys/block/loop*/loop/backing_file; do [ -e "$b" ] || continue
+		[ "$(readlink -f "$(cat "$b")")" = "$(readlink -f "$1")" ] && { lp=${b%/loop/backing_file}; lp=${lp##*/}; break; }; done
+	[ -n "$lp" ] || { echo "FAIL no loop device is attached over $1"; exit 1; }
+	f=0; k=0
+	while read -r n st ln u nm; do
+		k=$((k + 1)); p=/sys/block/$lp/${lp}p$n
+		if [ -e "$p/start" ] && [ "$(cat "$p/start")" = "$st" ] && [ "$(cat "$p/size")" = "$ln" ]; then echo "PASS p$n: start $st size $ln = ${lp}p$n ($nm)"
+		else echo "FAIL p$n: computed start $st size $ln, ${lp}p$n has $(cat "$p/start" 2>/dev/null || echo -) / $(cat "$p/size" 2>/dev/null || echo -)"; f=$((f + 1)); fi
+	done <<< "$t"
+	np=$(ls -d /sys/block/$lp/${lp}p* 2>/dev/null | wc -l)
+	[ "$np" = "$k" ] && echo "PASS partition count $k = $lp's $np" || { echo "FAIL partition count: computed $k, $lp has $np"; f=$((f + 1)); }
+	echo "verify: $f failure(s)"; [ "$f" = 0 ]; exit $? ;;
+map)
+	[ $# = 2 ] || { echo "usage: iceland-dmmap map CARRIER LABEL" >&2; exit 2; }
+	c=$1; lab=$2
+	case "$lab" in ''|*[!a-z0-9_]*) warn "bad label '$lab'"; exit 2 ;; esac
+	mkdir -p "$RUND" || { warn "cannot create $RUND"; exit 1; }
+	t=$(table "$c" 2>"$RUND/table.err") || { warn "no maps: $(cat "$RUND/table.err" 2>/dev/null)"; exit 1; }
+	mm=$(majmin "$c") || { warn "cannot stat $c"; exit 1; }
+	[ -e /dev/mapper/control ] || modprobe dm_mod 2>/dev/null || true
+	"$DMSETUP" version > /dev/null 2>&1 || { warn "device-mapper is not usable ($DMSETUP version failed)"; exit 1; }
+	if udev_on; then mode=udev; else mode=noudev; fi
+	made=""
+	undo() { local x; for x in $made; do "$DMSETUP" remove --retry $([ $mode = noudev ] && echo --noudevsync) "$x" > /dev/null 2>&1 || true; done; }
+	create() { # create NAME UUID TABLE
+		if [ $mode = udev ]; then "$DMSETUP" create "$1" --uuid "$2" --readahead "$RA" --table "$3"
+		else DM_DISABLE_UDEV=1 "$DMSETUP" create "$1" --uuid "$2" --readahead "$RA" --noudevsync --table "$3" && : > "$RUND/$1.noudev"; fi
+	}
+	while read -r n st ln u nm; do
+		name=$PFX${lab}p$n; uuid=ICELAND-$lab-p$n-$u; want="0 $ln linear $mm $st"
+		if have=$("$DMSETUP" table "$name" 2>/dev/null); then
+			if [ "$have" != "$want" ]; then warn "$name exists with another table ('$have', wanted '$want'): left alone"; undo; exit 3; fi
+			if [ $mode = udev ] && [ -e "$RUND/$name.noudev" ]; then
+				# made before udev ran: again with udev synchronisation (see the header)
+				if "$DMSETUP" remove --retry "$name" > /dev/null 2>&1; then
+					rm -f "$RUND/$name.noudev"
+					# libdm's own node of the udev-less create (udev makes a symlink there now)
+					[ -L "/dev/mapper/$name" ] || rm -f "/dev/mapper/$name"
+					create "$name" "$uuid" "$want" > /dev/null 2>&1 || { warn "re-create of $name failed"; undo; exit 1; }
+					made="$made $name"; log "$name re-created with udev (made before udev)"
+				elif "$DMSETUP" suspend "$name" > /dev/null 2>&1 && "$DMSETUP" resume "$name" > /dev/null 2>&1; then
+					rm -f "$RUND/$name.noudev"; warn "$name busy: suspended / resumed with udev instead of re-created"
+				else warn "$name could not be handed to udev"; exit 1; fi
+			else
+				log "$name already mapped"
+			fi
+			continue
+		fi
+		create "$name" "$uuid" "$want" > /dev/null 2>&1 || { warn "dmsetup create $name failed"; undo; exit 1; }
+		made="$made $name"
+	done <<< "$t"
+	if [ $mode = udev ] && [ "${ICELAND_SETTLE:-30}" != 0 ]; then udevadm settle --timeout="${ICELAND_SETTLE:-30}" > /dev/null 2>&1 || warn "udevadm settle timed out"; fi
+	while read -r n st ln u nm; do
+		name=$PFX${lab}p$n; d=$(readlink -f "/dev/mapper/$name" 2>/dev/null); dn=$("$DMSETUP" info -c --noheadings -o blkdevname "$name" 2>/dev/null)
+		log "$name = $c sectors $st + $ln ($nm, $mode): ${dn:-?}, discard_max_bytes $(cat "/sys/block/$dn/queue/discard_max_bytes" 2>/dev/null || echo ?)"
+	done <<< "$t"
+	exit 0 ;;
+unmap)
+	[ $# = 1 ] || { echo "usage: iceland-dmmap unmap LABEL" >&2; exit 2; }
+	f=0
+	for x in $("$DMSETUP" ls 2>/dev/null | while read -r x _; do case "$x" in "$PFX$1p"*) echo "$x" ;; esac; done); do
+		if udev_on; then "$DMSETUP" remove --retry "$x" > /dev/null 2>&1 || { echo "iceland-dmmap: $x busy" >&2; f=1; continue; }
+		else "$DMSETUP" remove --retry --noudevsync "$x" > /dev/null 2>&1 || { echo "iceland-dmmap: $x busy" >&2; f=1; continue; }; fi
+		rm -f "$RUND/$x.noudev"; echo "iceland-dmmap: removed $x"
+	done
+	exit $f ;;
+status)
+	"$DMSETUP" ls 2>/dev/null | while read -r x _; do case "$x" in "$PFX"*) ;; *) continue ;; esac
+		dn=$("$DMSETUP" info -c --noheadings -o blkdevname "$x" 2>/dev/null)
+		echo "$x ($dn): $("$DMSETUP" table "$x" 2>/dev/null); discard_max_bytes $(cat "/sys/block/$dn/queue/discard_max_bytes" 2>/dev/null); read_ahead_kb $(cat "/sys/block/$dn/queue/read_ahead_kb" 2>/dev/null); mounted on: $(findmnt -n -o TARGET -S "/dev/$dn" 2>/dev/null | tr '\n' ' ')$([ -e "$RUND/$x.noudev" ] && echo ' (made before udev)')"
+	done
+	exit 0 ;;
+*) echo "usage: iceland-dmmap table|verify|map CARRIER LABEL | unmap LABEL | status" >&2; exit 2 ;;
+esac

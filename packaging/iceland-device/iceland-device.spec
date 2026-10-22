@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        29%{?dist}
+Release:        32%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -214,6 +214,14 @@ Source180:      50-iceland-greeter-ambient
 # 0.28-19: stock's GPU pair (0.28-20: and the vendor pair) into every kernel-iceland initramfs that lacks it (once,
 # %posttrans)
 Source181:      iceland-gpu-initramfs
+Source198:      iceland-ambient-default
+Source199:      iceland-ambient-default.service
+# 0.28-32 (C1): the Fedora disk's partitions as device-mapper linear maps (iceland.carrier.map=dm): discards reach the UFS
+Source200:      iceland-dmmap
+# 0.28-32: the 22 Oct live tweaks (optimization scan A1 / A2 / A7) as package files
+Source201:      80-iceland-memlat-nopoll.rules
+Source202:      60-iceland-storage-tune.rules
+Source203:      iceland_irqbalance.cil
 
 Requires:       kernel-iceland
 # 0.28-19: stock's GPU GMU / SQE pair (/usr/lib/firmware/iceland-gpu-stock, GPU_FW=stock); 0.28-20: the vendor pair
@@ -252,6 +260,8 @@ Requires:       btrfs-progs
 Requires:       libdnf5-plugin-actions
 Requires:       grub2-tools
 Requires:       util-linux
+# 0.28-32: dmsetup and the device-mapper udev rules (iceland-dmmap, dracut module "dm")
+Requires:       device-mapper
 Requires:       nbd
 Requires:       busybox
 Recommends:     snapshot
@@ -480,6 +490,12 @@ install -Dm0644 %{SOURCE80} %{buildroot}/etc/dnf/protected.d/iceland-device.conf
 install -Dm0755 %{SOURCE81} %{buildroot}/usr/libexec/iceland/iceland-fwupd-guard
 install -Dm0755 %{SOURCE82} %{buildroot}/usr/libexec/iceland/iceland-charge-alert
 install -Dm0644 %{SOURCE83} %{buildroot}/usr/lib/systemd/user/iceland-charge-alert.service
+install -Dm0755 %{SOURCE198} %{buildroot}/usr/libexec/iceland/iceland-ambient-default
+install -Dm0644 %{SOURCE199} %{buildroot}/usr/lib/systemd/user/iceland-ambient-default.service
+install -Dm0755 %{SOURCE200} %{buildroot}/usr/libexec/iceland/iceland-dmmap
+install -Dm0644 %{SOURCE201} %{buildroot}/usr/lib/udev/rules.d/80-iceland-memlat-nopoll.rules
+install -Dm0644 %{SOURCE202} %{buildroot}/usr/lib/udev/rules.d/60-iceland-storage-tune.rules
+install -Dm0644 %{SOURCE203} %{buildroot}/usr/share/selinux/packages/iceland/iceland_irqbalance.cil
 install -Dm0755 %{SOURCE112} %{buildroot}/usr/libexec/iceland/iceland-bypassd
 install -Dm0644 %{SOURCE113} %{buildroot}/usr/lib/systemd/system/iceland-bypass.service
 install -Dm0644 %{SOURCE114} %{buildroot}/usr/share/dbus-1/system-services/org.iceland.Bypass.service
@@ -555,6 +571,15 @@ systemctl enable iceland-launchboost.service >/dev/null 2>&1 || :
 # the sensors' SELinux module: into the policy store; loaded at once on a booted system, else at the next boot
 if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/enforce ]; then semodule -i /usr/share/selinux/packages/iceland/iceland_sensors.pp >/dev/null 2>&1 || :
 else semodule -n -i /usr/share/selinux/packages/iceland/iceland_sensors.pp >/dev/null 2>&1 || :; fi
+# 0.28-32: the irqbalance policy script may run (SELinux CIL module iceland_irqbalance). A module of that name that
+# is already in the store (the hand-made one of 22 Oct) is left as it is; only a module this package installed
+# (marker /var/lib/iceland/.irqbalance-cil-0.28-32) is updated and removed with the package
+if ! semodule -l 2>/dev/null | grep -qx iceland_irqbalance || [ -e /var/lib/iceland/.irqbalance-cil-0.28-32 ]; then
+	if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/enforce ]; then semodule -i /usr/share/selinux/packages/iceland/iceland_irqbalance.cil >/dev/null 2>&1 && mkdir -p /var/lib/iceland && touch /var/lib/iceland/.irqbalance-cil-0.28-32 || :
+	else semodule -n -i /usr/share/selinux/packages/iceland/iceland_irqbalance.cil >/dev/null 2>&1 && mkdir -p /var/lib/iceland && touch /var/lib/iceland/.irqbalance-cil-0.28-32 || :; fi
+fi
+# 0.28-32: the udev rules of the 22 Oct tweaks act at once (the memlat poll, the UFS scheduler, the loop read-ahead)
+if [ -d /run/systemd/system ]; then udevadm control --reload >/dev/null 2>&1 || :; udevadm trigger --action=change -s devfreq -s block >/dev/null 2>&1 || :; fi
 # the persistent clock: enabled here (no Fedora preset names it); the stamp is saved once now if the clock is trusted
 systemctl enable iceland-clock.service iceland-clock.timer >/dev/null 2>&1 || :
 [ -d /run/systemd/system ] && /usr/libexec/iceland/iceland-clock save >/dev/null 2>&1 || :
@@ -575,7 +600,7 @@ if [ -d /run/systemd/system ]; then systemctl daemon-reload >/dev/null 2>&1 || :
 # 0.28-16: the sensor watch runs from now on (its timer is linked into timers.target.wants); 0.28-27: the timer
 # is one check 90 s after its start (armed again by every stop / failure of the proxy): arm it once now
 [ -d /run/systemd/system ] && systemctl start iceland-ssc-watch.timer >/dev/null 2>&1 || :
-systemctl --global enable iceland-refresh.service iceland-charge-alert.service iceland-speaker-default.service >/dev/null 2>&1 || :
+systemctl --global enable iceland-refresh.service iceland-charge-alert.service iceland-speaker-default.service iceland-ambient-default.service >/dev/null 2>&1 || :
 # bypass charging: the bus reads the D-Bus policy of iceland-bypassd again (the service starts on demand); a running
 # one takes the new version. polkit sees the new action by itself; the GSettings override is compiled by glib2's
 # file trigger; GNOME Shell loads the extension at the next login.
@@ -594,6 +619,17 @@ grep -v '^#' /usr/share/iceland/machine-info | while IFS= read -r kv; do
 	grep -q "^$k=" "$mi" 2>/dev/null || echo "$kv" >> "$mi"
 done
 chmod 644 "$mi" 2>/dev/null; restorecon "$mi" >/dev/null 2>&1 || :
+# 0.28-30: USB-C controller runtime PM OFF by default until the kernel's display MX vote (q90c) is verified:
+# the off switch is created once per system and is not a package file, so
+# deleting it re-enables runtime PM from the next boot and an update does not bring it back
+if [ ! -e /var/lib/iceland/.usb-pm-off-0.28-30 ]; then
+	if [ ! -e /etc/iceland/usb-pm-off ]; then
+		mkdir -p /etc/iceland
+		echo '# iceland-device 0.28-30: USB-C controller runtime PM is off while this file exists (iceland-usb-pm skips).' > /etc/iceland/usb-pm-off
+		echo '# Delete it to let the controller runtime-suspend again from the next boot.' >> /etc/iceland/usb-pm-off
+	fi
+	mkdir -p /var/lib/iceland && touch /var/lib/iceland/.usb-pm-off-0.28-30
+fi
 # 0.28-9 (2): the USB-C controller's runtime PM now (iceland-usb-pm applies its guards; the rule covers every boot)
 if [ -d /run/systemd/system ]; then udevadm control --reload >/dev/null 2>&1 || :; /usr/libexec/iceland/iceland-usb-pm apply >/dev/null 2>&1 || :; fi
 # 0.28-9 (3): the services without a job on this tablet (50-iceland-unused.preset, 50-iceland-abrt.preset) are
@@ -654,12 +690,13 @@ fi
 %preun
 [ "$1" -eq 0 ] && systemctl disable iceland-trial-early.service iceland-boot-confirm.service >/dev/null 2>&1 || :
 [ "$1" -eq 0 ] && systemctl disable iceland-slot-mark.service >/dev/null 2>&1 || :
-[ "$1" -eq 0 ] && systemctl --global disable iceland-refresh.service iceland-charge-alert.service iceland-speaker-default.service >/dev/null 2>&1; [ "$1" -eq 0 ] && systemctl disable iceland-ssc-resume.service iceland-wifi-country.service iceland-npu-off.service iceland-battery-guard.service iceland-bdaddr.service >/dev/null 2>&1 || :
+[ "$1" -eq 0 ] && systemctl --global disable iceland-refresh.service iceland-charge-alert.service iceland-speaker-default.service iceland-ambient-default.service >/dev/null 2>&1; [ "$1" -eq 0 ] && systemctl disable iceland-ssc-resume.service iceland-wifi-country.service iceland-npu-off.service iceland-battery-guard.service iceland-bdaddr.service >/dev/null 2>&1 || :
 # the thermal policy hands its limits back when it stops
 [ "$1" -eq 0 ] && systemctl disable --now iceland-thermal.service >/dev/null 2>&1 || :
 # the launch boost hands every clamp back when it stops
 [ "$1" -eq 0 ] && systemctl disable --now iceland-launchboost.service >/dev/null 2>&1 || :
 if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/enforce ]; then semodule -r iceland_sensors >/dev/null 2>&1 || :; else semodule -n -r iceland_sensors >/dev/null 2>&1 || :; fi; fi
+if [ "$1" -eq 0 ] && [ -e /var/lib/iceland/.irqbalance-cil-0.28-32 ]; then semodule -r iceland_irqbalance >/dev/null 2>&1 || :; rm -f /var/lib/iceland/.irqbalance-cil-0.28-32; fi
 [ "$1" -eq 0 ] && systemctl disable --now iceland-clock.timer iceland-clock.service >/dev/null 2>&1 || :
 [ "$1" -eq 0 ] && /usr/bin/iceland-power-profiles reset >/dev/null 2>&1 || :
 # bypass charging ends with the package (the running guard gives charging back at its next step)
@@ -803,6 +840,10 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 %dir /var/lib/iceland/trial
 /usr/lib/udev/rules.d/59-iceland-storage-ro.rules
 /usr/libexec/iceland/iceland-storage-ro
+/usr/libexec/iceland/iceland-dmmap
+/usr/lib/udev/rules.d/80-iceland-memlat-nopoll.rules
+/usr/lib/udev/rules.d/60-iceland-storage-tune.rules
+/usr/share/selinux/packages/iceland/iceland_irqbalance.cil
 /usr/lib/dracut/modules.d/90iceland/module-setup.sh
 /usr/lib/dracut/modules.d/90iceland/iceland-carrier
 /usr/lib/dracut/modules.d/90iceland/iceland-rehearsal
@@ -824,6 +865,8 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/libexec/iceland/iceland-fwupd-guard
 /usr/libexec/iceland/iceland-charge-alert
 /usr/lib/systemd/user/iceland-charge-alert.service
+/usr/lib/systemd/user/iceland-ambient-default.service
+/usr/libexec/iceland/iceland-ambient-default
 /usr/libexec/iceland/iceland-bypassd
 /usr/lib/systemd/system/iceland-bypass.service
 /usr/share/dbus-1/system-services/org.iceland.Bypass.service
@@ -837,6 +880,40 @@ if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/en
 /usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
 
 %changelog
+* Thu Oct 22 2026 mzak <mzak.amin@gmail.com> - 0.28-32
+- TRIM for the root (optimization scan C1): new iceland-dmmap; with iceland.carrier.map=dm on the kernel command
+  line the dracut module maps the Fedora disk's partitions as device-mapper linear maps over the carrier partition
+  (/dev/mapper/iceland-<label>p1..3, the same file-system UUIDs) instead of a partitioned loop device. loop0 reports
+  discard_max_bytes 0 (loop passes discards only as write-zeroes, which the UFS lacks), so fstrim never reached the
+  flash; dm-linear passes them. The inner GPT is only read (sfdisk --dump, CRC-checked), every map lies inside the
+  carrier, nothing is written to any partition table. Default unchanged (the loop); any failure falls back to it;
+  rehearsals always use the loop. iceland-dmmap table / verify are read-only checks for the running system
+- dracut module iceland depends on dracut's dm module; Requires device-mapper
+- the 22 Oct live tweaks as package files: 80-iceland-memlat-nopoll.rules (memlat devfreq not polled; kernels
+  before q90i), 60-iceland-storage-tune.rules (UFS LUNs scheduler none, carrier loop read-ahead 1 MiB), the SELinux
+  CIL module iceland_irqbalance (the irqbalance policy script may run; an existing hand-made module is kept) and
+  IRQBALANCE_BANNED_CPULIST=6-7 in the irqbalance drop-in
+- iceland-cmdline / boot.conf: IDLE_RR (30: msm.dpu_idle_refresh_ms=1000 msm.dpu_idle_refresh_hz=30), BW_FLOOR (0:
+  msm.dpu_bw_floor_pct=0) and CLX (1: msm.enable_clx=1, only with the vendor533 GPU pair) with the owner's 22 Oct
+  values as defaults; keep = not managed
+- carries 0.28-31 unchanged otherwise
+
+* Thu Oct 22 2026 mzak <mzak.amin@gmail.com> - 0.28-31
+- automatic screen brightness on by default (B1, owner 22 Oct): gschema override ambient-enabled=true, and the
+  user unit iceland-ambient-default.service resets an old ambient-enabled=false ONCE per account (marker
+  ~/.local/state/iceland/ambient-default-0.28-31); a later choice in Settings is kept. The login screen stays off
+- iceland-cmdline leaves one-shot test entries (iceland-oneshot-*.conf, iceland-coexist 1.0-4) as they were armed
+- carries 0.28-30 unchanged otherwise (its once-per-system usb-pm-off block is a no-op where its marker exists)
+
+* Wed Oct 21 2026 mzak <mzak.amin@gmail.com> - 0.28-30
+- USB-C controller runtime PM (0.28-9) OFF by default: %posttrans creates the off switch /etc/iceland/usb-pm-off
+  once per system (marker /var/lib/iceland/.usb-pm-off-0.28-30). With runtime PM on, the controller's suspend
+  dropped its CX vote, the only vote that held MX for the display PLLs: flicker / ghost frames while the sensor
+  hub streams (auto-rotate). Kernel q90c gives the display clock controller its own MX vote; until the owner
+  has verified it, runtime PM stays off. The switch is not a package file: deleting it re-enables runtime PM
+  from the next boot and later updates leave it deleted. iceland-usb-pm itself is unchanged
+- carries 0.28-29 unchanged otherwise (0.28-23's 50-iceland-greeter-ambient included)
+
 * Mon Oct 19 2026 mzak <mzak.amin@gmail.com> - 0.28-29
 - iceland-refresh (P-1): DISCHARGING_IS_BATTERY=1 counts a battery that discharges on a weak USB source as
   battery (after DISCHARGING_DELAY_S); off by default until the kernel switches 120 <-> 60 Hz in place (q89v D-1)

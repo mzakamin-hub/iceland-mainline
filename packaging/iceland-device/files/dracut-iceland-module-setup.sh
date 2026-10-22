@@ -10,8 +10,10 @@
 # Rehearsal (only with iceland.rehearsal= on the kernel command line, which only the RAM-only rehearsal head
 # sets): the carrier is a network block device served by the PC over the USB link; see iceland-rehearsal.
 # Rollback (only with iceland.rollback=SNAPSHOT, from a "Roll back to ..." boot entry): see iceland-rollback.
+# 0.28-32: with iceland.carrier.map=dm the partitions are device-mapper linear maps instead (iceland-dmmap; dracut's
+# "dm" module brings dmsetup and the dm udev rules, sfdisk reads the inner GPT).
 check() { return 0; }
-depends() { echo systemd btrfs; return 0; }
+depends() { echo systemd btrfs dm; return 0; }
 installkernel() {
 	# loop, btrfs, vfat are built into kernel-iceland; nbd (rehearsal) and the watchdog are modules
 	hostonly='' instmods nbd qcom_wdt
@@ -20,6 +22,8 @@ install() {
 	inst_multiple losetup blockdev sed grep cat sleep timeout ip mkdir ln readlink basename dd od tr head \
 		mount umount mountpoint btrfs date modprobe seq cut touch chmod wc ls mv
 	inst_multiple -o nbd-client busybox sha256sum
+	inst_multiple sfdisk dmsetup stat
+	inst_script /usr/libexec/iceland/iceland-dmmap /usr/libexec/iceland/iceland-dmmap
 	inst_script "$moddir/iceland-carrier" /usr/libexec/iceland/iceland-carrier
 	inst_script "$moddir/iceland-rehearsal" /usr/libexec/iceland/iceland-rehearsal
 	inst_script "$moddir/iceland-rollback" /usr/libexec/iceland/iceland-rollback

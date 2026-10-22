@@ -1,0 +1,5 @@
+# iceland-device 0.28-32 (optimization scan A1, 22 Oct 2026): the SCMI memlat devfreq devices (ddr, ddr-qos, llcc;
+# governor remote: the CPU control processor votes by itself) are not polled. The 2 ms read-back poll cost ~3300
+# mailbox IRQs/s + ~3200 IPIs/s at idle (7592 -> 183 IRQ/s with 0). Kernel q90i+ has 0 as its default; this rule
+# covers older kernels. cur_freq is still read on demand; write a period to polling_interval for trans_stat.
+ACTION=="add", SUBSYSTEM=="devfreq", KERNEL=="ddr|ddr-qos|llcc", ATTR{polling_interval}="0"

@@ -7,6 +7,8 @@
 #             PARTNAME (sysfs), the node is /dev/<kernel name> (devtmpfs) - since 0.28-25 no udev link is used;
 #             in a rehearsal (iceland.rehearsal= on the command line) the network disk from iceland-rehearsal.
 # It only reads the carrier here (the GPT check); the loop device is what Fedora then reads and writes.
+# 0.28-32: iceland.carrier.map=dm on the command line maps the partitions with device-mapper instead (iceland-dmmap,
+# discards reach the UFS); the loop stays the default and the fallback.
 # ICELAND_ROOT / ICELAND_CMDLINE: test hooks for the PC unit tests (empty on the tablet).
 R=${ICELAND_ROOT:-}
 cmdline=${ICELAND_CMDLINE:-$(cat /proc/cmdline)}
@@ -89,6 +91,19 @@ for b in "$R"/sys/block/loop*/loop/backing_file; do
 		l=${b%/loop/backing_file}; log "already attached: ${l##*/}"; exit 0
 	fi
 done
+# 0.28-32 (C1, TRIM): with iceland.carrier.map=dm the partitions become device-mapper linear maps over the carrier
+# (iceland-dmmap: /dev/mapper/iceland-<label>p1..3, same UUIDs), which pass discards to the UFS; loop0 cannot (its
+# discard limit comes from the carrier's write-zeroes limit, 0 on the UFS). Never in a rehearsal (the NBD disk keeps
+# the loop). Any failure falls back to the loop device below, as before 0.28-32. Without the option: the loop.
+if [ -z "${reh:-}" ] && [ "$(getarg iceland.carrier.map)" = dm ]; then
+	"$R/usr/libexec/iceland/iceland-dmmap" map "$carrier" "$label"; rc=$?
+	if [ "$rc" = 0 ]; then
+		log "$carrier: partitions mapped with device-mapper (iceland.carrier.map=dm): $(ls "$R"/dev/mapper/iceland-"$label"p* 2>/dev/null | tr '\n' ' ')"
+		exit 0
+	fi
+	warn "iceland.carrier.map=dm: the device-mapper maps failed (rc $rc); trying the loop device"
+	"$R/usr/libexec/iceland/iceland-dmmap" unmap "$label" > /dev/null 2>&1 || warn "leftover device-mapper maps of $label could not be removed"
+fi
 loop=$(losetup --find --show --partscan --direct-io=on "$carrier") || { warn "losetup failed on $carrier"; exit 1; }
 n=${loop##*/}
 log "$carrier -> $loop: block size $(blockdev --getss "$loop" 2>/dev/null), direct I/O $(cat "$R/sys/block/$n/loop/dio" 2>/dev/null), partitions $(ls -d "$R/sys/block/$n/$n"p* 2>/dev/null | wc -l)"

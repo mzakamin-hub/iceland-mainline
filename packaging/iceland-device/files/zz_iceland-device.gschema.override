@@ -20,3 +20,7 @@ power-button-action='nothing'
 # switches on at its low-battery level. Defaults only: a value set in GNOME Settings wins.
 sleep-inactive-battery-timeout=360
 power-saver-profile-on-low-battery=true
+# 0.28-31 (B1): automatic screen brightness ON (stock's and GNOME's default, written out here because the 0.28-15
+# era left accounts with an explicit false; iceland-ambient-default resets that once per account). The login screen
+# keeps its own off value (/etc/dconf/db/gdm.d/50-iceland-greeter-ambient, 0.28-18).
+ambient-enabled=true

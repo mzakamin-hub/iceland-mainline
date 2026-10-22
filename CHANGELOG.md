@@ -10,6 +10,23 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) ·
 [iceland-u-boot](https://github.com/mzakamin-hub/iceland-u-boot) (all public).
 
+## 2026-10-22 - iceland-device 0.28-32 (0.28-30 to 0.28-32): TRIM through device-mapper, automatic brightness, idle refresh
+
+- 0.28-32: `iceland.carrier.map=dm` maps the Fedora disk's partitions with device-mapper linear maps instead of a
+  loop device, so `fstrim` and btrfs `discard=async` reach the UFS (new `iceland-dmmap`; the loop stays the default and
+  the fallback). On the reference tablet the first `fstrim` released 113 GiB of the root and 1.6 GiB of `/boot`.
+- 0.28-32: new switches in `/etc/iceland/boot.conf`, applied by `iceland-cmdline`: `IDLE_RR=30` (a static screen drops
+  to 30 Hz after 1 s), `BW_FLOOR=0` (no display bandwidth floor) and `CLX=1` (the GPU's current limiter, with the
+  vendor GPU firmware pair).
+- 0.28-32: the memlat devfreq devices are no longer polled every 2 ms (about 7600 -> 180 interrupts a second at idle),
+  the UFS LUNs use the `none` scheduler, the carrier loop reads ahead 1 MiB, irqbalance keeps device interrupts off the
+  prime cores (CPUs 6-7) and may run its policy script under SELinux (module `iceland_irqbalance`).
+- 0.28-31: automatic screen brightness is on by default (an older explicit `false` is reset once per account).
+- 0.28-30: USB-C controller runtime PM is off by default (`/etc/iceland/usb-pm-off`, created once per system). Kernel
+  q90d and later fix the display flicker that runtime PM caused (the controller keeps its interconnect votes while it
+  is suspended); with such a kernel, delete the file to let the controller runtime-suspend again (the reference tablet
+  runs that way).
+
 ## 2026-10-19 - kernel q89w (7.3.0-rc7-iceland-00519); feature matrix r171
 
 - Kernel q89w (iceland-linux `iceland-7.3-rc7-next`, tag `q89w`) is the current kernel of the installed tablet: a
