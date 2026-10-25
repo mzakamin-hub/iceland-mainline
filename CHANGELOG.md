@@ -8,7 +8,24 @@ rewritten on 13 and 14 Oct to remove test material. Use the dates and the tags.
 
 Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) ·
-[iceland-u-boot](https://github.com/mzakamin-hub/iceland-u-boot) (all public).
+[iceland-u-boot](https://github.com/mzakamin-hub/iceland-u-boot) ·
+[iceland-gvm](https://github.com/mzakamin-hub/iceland-gvm) ·
+[iceland-vms](https://github.com/mzakamin-hub/iceland-vms) (all public).
+
+## 2026-10-25 - kernel q90r; virtual machines published (iceland-gvm, iceland-vms); KDE Plasma; DroidLoom
+
+- Kernel q90r (`7.3.0-next-20261020-iceland-00529`) is the default; q90m stays as the fallback. The queues q90j to
+  q90r are on iceland-linux `iceland-7.3-rc7-next` (tag `q90r`), and `scripts/build.sh` gives the shipped q90r config.
+  New since q90i: the diagnostics-only patches removed (q90j), KGSL's A840 values as switches, PSCI vendor reboot
+  modes, the Gunyah VM manager in the tree, the C binder driver back, lockup detectors, the board's command line as
+  built-in defaults, and upstream fixes (drm/msm October fixes, qmp, remoteproc, geni, dwc3, ucsi, smmu, fastrpc,
+  q6apm, qrtr, mac80211, UFS).
+- Virtual machines: protected Gunyah VMs with crosvm, 3D in the guest (OpenGL through virgl, Vulkan through venus)
+  with GPU-composited desktops drawn in the VM window, and the Virtual Machines app. Sources of iceland-gvm 0.3-27
+  and iceland-vms 0.2-5 in their new repositories. Windows guests and ISO installs are not supported yet.
+- KDE Plasma 6 on Wayland is the desktop of the project's tablet since 24 Oct (the install image still sets up
+  GNOME). Android apps run through DroidLoom (Android 17 in a container), each in its own window.
+- Feature list (matrix r174): 101 working features.
 
 ## 2026-10-22 - iceland-device 0.28-33; releases of kernel q90i, iceland-device 0.28-33, iceland-coexist 1.0-6, upower
 

@@ -1,20 +1,20 @@
-# Kernel and U-Boot state, 22 Oct 2026
+# Kernel and U-Boot state, 25 Oct 2026
 
 This page is the state of the two upstream-facing ports: the kernel and U-Boot. The dated history is in
 [../CHANGELOG.md](../CHANGELOG.md), the current versions in [RELEASE-NOTES.md](RELEASE-NOTES.md).
 
 ## Kernel (iceland-linux)
 
-- **Build in use:** `7.3.0-next-20261020-iceland-00463-g9948599f2a47`, queue head **q90i**, branch
-  `iceland-7.3-rc7-next` (tag `q90i`). It runs on the installed tablet, installed with dnf. The kernel package is
-  `kernel-iceland 7.3.0.next.20261020.iceland.00463`; the build has no compiler warnings; `scripts/build.sh` gives
-  the package's config exactly (configs `q90b`, `q90i`, `q90i-shipped`). The first install image (golden B149)
+- **Build in use:** `7.3.0-next-20261020-iceland-00529-gb04181fcf88f`, queue head **q90r**, branch
+  `iceland-7.3-rc7-next` (tag `q90r`). It runs on the installed tablet as the default kernel, installed with dnf;
+  q90m (`00485`) is kept as the fallback entry. `scripts/build.sh` gives the package's config exactly (configs
+  `q90b`, `q90i`, `q90i-shipped`, `q90m` to `q90r`). The newest kernel release download is q90i. The first install image (golden B149)
   carries q89g (`7.3.0-rc7-iceland-00426`, tag `q89g`).
 - **Base:** linux-next `next-20261020` (`UPSTREAM_COMMIT` 8f7df005a756; Linux 7.3 plus the trees queued for 7.4)
-  with 463 patch files: 110 in `0001-infiniti` (the infiniti-mainline base for SM8850), 305 in `0002-iceland` (the
-  Pad 4 series) and 48 in the series `0003-glitchfix` (display-timing switches and diagnostics) and `0004-q90b` to
-  `0011-q90i`. The rebase dropped 107 patches that are upstream in that base. The q90 kernels have no binder: the
-  base removed the C driver, and the Rust one needs a Rust toolchain in the build.
+  with 529 patch files: 110 in `0001-infiniti` (the infiniti-mainline base for SM8850), 304 in `0002-iceland` (the
+  Pad 4 series) and 115 in the series `0003-glitchfix` (display-timing switches) and `0004-q90b` to `0019-q90r`.
+  The rebase dropped 107 patches that are upstream in that base. Binder is back since q90m: the base removed the C
+  driver and q90m restores it as an option (binderfs only), for Android containers.
 - **Queue history:** q89 (rc4) -> q89b (rc6 rebase, 10 Oct) -> q89c-tb (tb323fu patches) -> q89d8 and q89d9 (rc6,
   goldens B143 and B145) -> q89e (rc7 rebase, 11-12 Oct; golden B147) -> q89f and q89g (13 Oct; golden B149). The
   rc6 -> rc7 rebase dropped three patches that upstream had merged. Since the install the queue grows on
@@ -27,7 +27,11 @@ This page is the state of the two upstream-facing ports: the kernel and U-Boot. 
   the GPU's CLX start; the display clock controller's own MX vote; dwc3-qcom keeping its interconnect votes across
   runtime suspend, which fixes the display glitches while the sensor hub streams; the A8xx crash-state capture made
   opt-in, so a GPU hang recovers; the Kaanapali CP protect table; the battery power at the nominal voltage; the memlat
-  poll off; a config round: VA_BITS 48, HZ 250, PREEMPT_DYNAMIC, CoreSight / STM off).
+  poll off; a config round: VA_BITS 48, HZ 250, PREEMPT_DYNAMIC, CoreSight / STM off), q90j to q90r (22-24 Oct:
+  the diagnostics-only patches removed; KGSL's A840 values and the GMU battery current limiter as switches; PSCI
+  vendor reboot modes; the Gunyah VM manager in the tree as modules, used by iceland-gvm; the C binder driver back;
+  lockup detectors; the board's command line as built-in defaults; upstream qmp, remoteproc, geni, dwc3, ucsi,
+  smmu, fastrpc, q6apm and drm/msm fixes; qrtr re-announce; mac80211 MLO multicast dedup; UFS link recovery).
 - **Upstream candidates:** the patches that are not in q90i are held: the q6apm RFC (0202-0205; the read-done payload
   size was wrong), the GPU CLX series (0244-0245; superseded: the 7.4 base's rpmhpd fix makes CLX start), the DW9800K update (0253; a chip-ID
   mismatch), the wcd939x port switches (0254), and two old candidates (the SoundWire IRQ and the hci_qca sleep reset),
@@ -36,8 +40,8 @@ This page is the state of the two upstream-facing ports: the kernel and U-Boot. 
   project's decision). The kernel requires an `Assisted-by` line on such patches.
 - **Re-check at each rebase:** patches merged upstream are removed at the next rebase (v7.3 final, then 7.4).
 - **Open kernel work:** the rebase onto 7.4-rc1; camera into the hardware encoder (the
-  pipeline does not negotiate); Chromium / Electron GPU path; binder (needs Rust in the build); the K4 battery guard and
-  the kernel layer of the thermal guard are not in q90i (whether they are still planned is unverified). The idle
+  pipeline does not negotiate); Chromium / Electron GPU path; the K4 battery guard and
+  the kernel layer of the thermal guard are not in q90r (whether they are still planned is unverified). The idle
   refresh is on since 22 Oct (30 Hz after 1 s on a static screen, set on the command line by iceland-device 0.28-32).
 
 ## U-Boot (iceland-u-boot)

@@ -1,7 +1,7 @@
 # iceland-mainline
 
-Mainline Linux for the OnePlus Pad 4 (`iceland`, model OPD2514, Qualcomm SM8850P). The tablet runs **Fedora 44 with
-GNOME** on a mainline kernel. The tablet's own boot loader (ABL) stays in place. Our U-Boot, in the `boot_b` partition,
+Mainline Linux for the OnePlus Pad 4 (`iceland`, model OPD2514, Qualcomm SM8850P). The tablet runs **Fedora 44** on a
+mainline kernel, with **GNOME** (the desktop the install sets up) or **KDE Plasma 6**. The tablet's own boot loader (ABL) stays in place. Our U-Boot, in the `boot_b` partition,
 shows a short boot menu and starts Fedora from a disk image in `userdata`. The menu can also start **BlissROM**, an
 Android custom ROM, on the same tablet (dual boot).
 
@@ -61,13 +61,16 @@ are still being worked on are not listed. Anything that is not in the list is no
 | Thermal | CPU, GPU and skin-temperature limits from stock's values. |
 | Sleep | Suspend (s2idle) and resume; the power key, the alarm, the cover, the keyboard and the charger wake the tablet; Wi-Fi comes back after a wake. Overnight drain of about 0.35 % per hour, measured on one tablet. |
 | Sensors and camera | Accelerometer, compass, light, proximity and gyroscope through the sensor hub; the 13 MP rear and 8 MP front cameras stream through libcamera; GNOME Camera works with both; the rear flash works as a torch. |
+| Desktop | GNOME 50 with Fedora 44 Workstation's apps; KDE Plasma 6 on Wayland with auto-rotate, automatic brightness, the charge limit in its power settings, suspend and Discover. |
+| Virtual machines | Protected VMs on the Gunyah hypervisor with crosvm and the Virtual Machines app ([iceland-gvm](https://github.com/mzakamin-hub/iceland-gvm), [iceland-vms](https://github.com/mzakamin-hub/iceland-vms)): Linux guests from cloud images with NAT networking and a serial console, and 3D in the guest (OpenGL through virgl, Vulkan through venus) with GPU-composited desktops in the VM window. Windows guests and ISO installs are not supported yet. |
+| Android apps | DroidLoom: Android 17 in a container (binder is in the kernel since q90m), each app in its own window with Close and a left-edge swipe for Back, an AndroidVM menu folder. |
 | System and boot | Boot from U-Boot through EFI into Fedora 44; kernel updates with dnf (a new kernel boots once as a trial); Fedora marks the boot slot successful; the dual-boot menu (Fedora / BlissROM v20.1); Fedora 44 Workstation's GNOME apps. |
 
 Known limits, from the guides: the tablet does not fast-charge (SuperVOOC is not supported). Without the dual boot,
 Android does not start after the Fedora install. The display's idle refresh (30 Hz after 1 s on a static screen)
 is set by iceland-device 0.28-32 (`IDLE_RR` in `/etc/iceland/boot.conf`); do not add the option by hand with older
 packages ([INSTALL-GUIDE section 7](docs/INSTALL-GUIDE.md#7-after-the-install)). Not yet: SuperVOOC fast charging,
-general-purpose virtual machines, camera autofocus and the amplifiers' own DSP protection.
+Windows guests in a virtual machine, camera autofocus and the amplifiers' own DSP protection.
 
 ## Before you start
 
@@ -317,6 +320,10 @@ Everything below is a published release with a `SHA256SUMS` file. Check your dow
 | `iceland-firmware` (generic firmware) | 11.A.38-6 | [iceland-firmware 11.A.38-6](https://github.com/mzakamin-hub/iceland-firmware/releases/tag/11.A.38-6) | noarch RPM, source RPM, `SHA256SUMS` |
 | Windows installer (blocked for writes) | in iceland-device 0.28-16 | [iceland-device-0.28-16](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-16) | `Install-Pad4Linux.ps1`, `README-INSTALLER.md`, `SHA256SUMS` |
 
+The current kernel, q90r (`7.3.0-next-20261020-iceland-00529`), is built from the iceland-linux branch
+`iceland-7.3-rc7-next` (tag `q90r`). The virtual machine packages iceland-gvm 0.3-27 and iceland-vms 0.2-5 are
+published as sources in [iceland-gvm](https://github.com/mzakamin-hub/iceland-gvm) and [iceland-vms](https://github.com/mzakamin-hub/iceland-vms), with their build steps.
+
 The Fedora disk image and the install image are **not** published. [Guide 04](docs/guide/04-BUILD-YOUR-OWN.md) covers
 building the kernel, U-Boot and the packages, and [INSTALL-GUIDE section 2](docs/INSTALL-GUIDE.md#2-what-you-need) says
 what the disk image must contain. The guides give no complete recipe for the disk image. Older releases are on each
@@ -330,7 +337,9 @@ All repositories are public under the GitHub user `mzakamin-hub`. The guide set 
 | Repository | Default branch | What it holds |
 |---|---|---|
 | [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) (this one) | `main` | The guides, the feature list, the device package (`packaging/iceland-device`), the dual-boot tools (`tools/dualboot`) and the installer (`tools/installer`). |
-| [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) | `main`; current work on `iceland-7.3-rc7-next` | The kernel: a patch queue on Linux v7.3-rc7, the build scripts and the `kernel-iceland` package. |
+| [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) | `main`; current work on `iceland-7.3-rc7-next` | The kernel: a patch queue on linux-next `next-20261020` (the 7.4 base), the build scripts and the `kernel-iceland` package. |
+| [iceland-gvm](https://github.com/mzakamin-hub/iceland-gvm) | `main` | The virtual machine stack: crosvm patches for Gunyah, the guest kernel config and patches, `gvm.sh`, the guest tools and the `iceland-gvm` package. |
+| [iceland-vms](https://github.com/mzakamin-hub/iceland-vms) | `main` | The Virtual Machines app (GTK4 / libadwaita, Python) and the `iceland-vms` package. |
 | [iceland-u-boot](https://github.com/mzakamin-hub/iceland-u-boot) | `main` | U-Boot v2026.10-rc5 for the tablet, with the install build and its boot menu, and the build scripts. |
 | [iceland-firmware](https://github.com/mzakamin-hub/iceland-firmware) | `main` | The generic firmware of stock 11.A.38 as one RPM, with its manifest, the exclusion list and the vendor notices. |
 | [android_device_oneplus_iceland](https://github.com/mzakamin-hub/android_device_oneplus_iceland) | `lineage-24.0` | The LineageOS 24.0 device tree for the tablet (the Android side). |
