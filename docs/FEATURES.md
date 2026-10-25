@@ -1,8 +1,8 @@
 # OnePlus Pad 4 mainline: what works
 
-Status 22 Oct 2026. Fedora 44 with GNOME 50 is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel). Current versions: kernel 7.3.0-next-20261020-iceland-00463 (q90i, the patch queue on linux-next next-20261020; iceland-linux branch iceland-7.3-rc7-next), iceland-device 0.28-32, iceland-coexist 1.0-6, upower 1.91.5-1.fc44.iceland1, iio-sensor-proxy 3.9-11.iceland1, iceland-firmware 11.A.38-6, U-Boot install build v7.
+Status 25 Oct 2026. Fedora 44 is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel); the project's tablet runs KDE Plasma 6, the install image sets up GNOME 50. Current versions: kernel 7.3.0-next-20261020-iceland-00529 (q90r, the patch queue on linux-next next-20261020; iceland-linux branch iceland-7.3-rc7-next), iceland-firmware 11.A.38-6, U-Boot install build v7, iceland-gvm 0.3-27 and iceland-vms 0.2-5 (virtual machines). The newest iceland-device release is 0.28-33.
 
-This list shows the 98 features that work today, sorted by functionality. Features that are still being worked on are not listed.
+This list shows the 101 features that work today, sorted by functionality. Features that are still being worked on are not listed.
 
 ## Boot & platform
 
@@ -10,7 +10,7 @@ This list shows the 98 features that work today, sorted by functionality. Featur
 |---|---|
 | U-Boot (install build and RAM boot) | The stock boot loader (ABL) starts U-Boot from boot_b, and U-Boot starts Fedora through EFI. The install build (v7 since 17 Oct 2026) shows a power-on boot menu on the keys (Fedora, BlissROM on the dual-boot layout, or the boot loader's fastboot), boots Fedora by default and never resets or powers off by itself. A RAM-boot build gives display, USB fastboot, UFS read and EFI, with fastboot flashing compiled out. |
 | U-Boot boot setting for single or dual boot | Boots a “fedora” partition if there is one, else the Fedora image in userdata. |
-| Linux (7.4 base) | Linux with the Pad 4 patch queue on linux-next next-20261020 (Linux 7.3 plus the trees queued for 7.4; current kernel 7.3.0-next-20261020-iceland-00463, iceland-linux branch iceland-7.3-rc7-next, tag q90i) boots through U-Boot's EFI, Fedora's shim and GRUB. |
+| Linux (7.4 base) | Linux with the Pad 4 patch queue on linux-next next-20261020 (Linux 7.3 plus the trees queued for 7.4; current kernel 7.3.0-next-20261020-iceland-00529, q90r, iceland-linux branch iceland-7.3-rc7-next) boots through U-Boot's EFI, Fedora's shim and GRUB. |
 | Internal storage (UFS 4) | UFS 4 with 4 KiB blocks in MCQ mode (9 hardware queues per LUN), about 2.3 GB/s direct read. The installed root is btrfs (zstd compression) in userdata; with iceland-device 0.28-32's device-mapper option (iceland.carrier.map=dm) TRIM reaches the flash (fstrim, btrfs discard=async). The LUNs use the none I/O scheduler. |
 | Hardware watchdog | qcom_wdt with a 30 s timeout, fed by systemd: a hung system reboots by itself. |
 | System cache (LLCC) and memory error counters | The system cache driver (qcom-llcc) binds, and EDAC reports the memory error counters (no errors recorded). |
@@ -23,12 +23,14 @@ This list shows the 98 features that work today, sorted by functionality. Featur
 | Wall clock (RTC offset in SDAM2) | The clock is right at boot, also offline: the PMIC's RTC belongs to the secure world, so the kernel keeps a UTC offset in the PMIC's SDAM (SuperTurtleDev's fix). NTP keeps the clock in sync. |
 | Fedora 44 from RAM / the PC's disk | For testing, the Fedora image boots from RAM or from a PC's disk over USB, with nothing written to the tablet. |
 | GNOME Shell 50 | GNOME 50.5 on Fedora 44; a new install starts with GNOME's first-boot setup. |
+| KDE Plasma 6 desktop | KDE Plasma 6 on Wayland: auto-rotate, automatic brightness, the charge limit in Plasma's power settings, suspend and Discover, with KWallet as the secrets provider. |
 | Stable USB sessions | Long sessions over the USB link to a PC run stable: the freezes during fast USB transfers are fixed (queue 0063). |
 | Firmware extractor (tablet's own partitions, read-only) | iceland-fw-extract copies the GPU, video, Wi-Fi, Bluetooth, sound, touch and sensor-hub firmware read-only from the tablet's own partitions; the files match the checksum record. |
 | Firmware package (iceland-firmware) | iceland-firmware 11.A.38-6: the generic stock 11.A.38 firmware (with stock's decoded thermal model and the sensor hub registry) as an RPM, each file sha256-pinned to our own extraction, plus two GPU firmware pairs in their own directories: stock's v5.3.39 and the vendor v5.3.33 (a third-party copy, byte-identical in the other ports' repositories). In the public repo mzakamin-hub/iceland-firmware. Unit-specific data is never included. |
 | Fedora installed on the tablet | Fedora 44 installs with two partition writes: the system image into userdata and U-Boot into boot_b; nothing else is written. The tablet then boots Fedora on its own, the root is btrfs on a loop device in userdata, and Fedora marks the boot slot successful. |
 | Boot slot marked good from Fedora | Fedora marks the A/B boot slot successful after a good boot, so the boot loader keeps booting it. Confirmed working by the owner on 22 Oct 2026. |
 | Dual boot BlissROM + Fedora | A power-on menu (U-Boot v7) starts Fedora or BlissROM v20.1: Volume Up / Down move, Power selects, Fedora after 5 s. Fedora runs from its own fedora partition and BlissROM keeps its encrypted data in a smaller userdata, both on slot b; BlissROM's kernel comes from boot_a and starts with the ramdisk and device tree that the stock boot loader prepared. Guide and tools: docs/DUAL-BOOT.md, tools/dualboot. |
+| Virtual machines (Gunyah) | Protected virtual machines on Qualcomm's Gunyah hypervisor with crosvm, managed by the Virtual Machines app (iceland-gvm 0.3-27 and iceland-vms 0.2-5 on kernel q90r): Linux guests from cloud images with NAT networking, a serial console and a clean shutdown, and 3D in the guest (OpenGL through virgl, Vulkan through venus) with GPU-composited desktops drawn in the VM window. Windows guests and ISO installs are not supported yet. |
 
 ## Display & input
 
@@ -146,6 +148,7 @@ This list shows the 98 features that work today, sorted by functionality. Featur
 | Device package (iceland-device) | iceland-device 0.28-32 carries the tablet's settings: the battery guard, the thermal policy, the sound chain, the sensor and Bluetooth address services, the power-key handling, the GPU firmware choice, the refresh-rate switch and the power-saving boot options (suspend-to-idle as the kernel's default, idle refresh, CLX, the display and GPU interrupts kept on CPU 0, device interrupts off the prime cores), automatic brightness by default and the device-mapper option that lets TRIM reach the flash. |
 | Update policy and minimal package holds | Fedora 44 updates normally, with a read-only snapshot before each transaction and a GRUB rollback entry. Kernels and the project's packages come only from the local repository, and the release is pinned to 44. |
 | Full GNOME app set | Fedora 44 Workstation's default GNOME apps, the on-screen keyboard and GNOME Software with Flathub. Confirmed working by the owner on 22 Oct 2026. |
+| Android apps (DroidLoom) | Android apps through DroidLoom (Android 17 in a container): each app in its own window with a title bar and Close, a left-edge swipe for Back, an AndroidVM menu folder and the androidvm manager. Confirmed working by the owner on 24 Oct 2026. |
 | Stock-values audit | 1,249 values compared with stock: nothing above stock in the battery, charger, thermal, CPU or GPU tables, and all six amplifiers at stock. |
 | GNOME About page (model, processor) | Shows “OnePlus Pad 4” and “Qualcomm Oryon × 8”. |
 | Automated test runs | Every test run boots from the PC and runs alone: a test user, loopback sound, camera, sensor and clock checks; every generated script passes a gate first. |

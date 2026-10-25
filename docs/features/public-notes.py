@@ -7,11 +7,11 @@
 # A working row without an entry here is listed with its internal note, cleaned of run ids; build.py warns about it.
 # Keep the entries in sync when a matrix-*.py script adds, renames or re-words a working row.
 
-PUBLIC_STATUS = ("Fedora 44 with GNOME 50 is installed on the tablet and boots on its own (ABL -> U-Boot -> "
-                 "GRUB -> kernel). Current versions: kernel 7.3.0-next-20261020-iceland-00463 (q90i, the "
-                 "patch queue on linux-next next-20261020; iceland-linux branch iceland-7.3-rc7-next), "
-                 "iceland-device 0.28-32, iceland-coexist 1.0-6, upower 1.91.5-1.fc44.iceland1, "
-                 "iio-sensor-proxy 3.9-11.iceland1, iceland-firmware 11.A.38-6, U-Boot install build v7.")
+PUBLIC_STATUS = ("Fedora 44 is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel); the "
+                 "project's tablet runs KDE Plasma 6, the install image sets up GNOME 50. Current versions: kernel "
+                 "7.3.0-next-20261020-iceland-00529 (q90r, the patch queue on linux-next next-20261020; iceland-linux "
+                 "branch iceland-7.3-rc7-next), iceland-firmware 11.A.38-6, U-Boot install build v7, iceland-gvm "
+                 "0.3-27 and iceland-vms 0.2-5 (virtual machines). The newest iceland-device release is 0.28-33.")
 
 PUBLIC = {
 # Boot & platform
@@ -24,11 +24,9 @@ PUBLIC = {
     "read and EFI, with fastboot flashing compiled out."),
 "U-Boot boot setting for single or dual boot":
     "Boots a “fedora” partition if there is one, else the Fedora image in userdata.",
-"Linux 7.4 base (linux-next) through EFI":(
+"Linux 7.4 base (linux-next) through EFI": (
     "Linux (7.4 base)",
-    "Linux with the Pad 4 patch queue on linux-next next-20261020 (Linux 7.3 plus the trees queued for "
-    "7.4; current kernel 7.3.0-next-20261020-iceland-00463, iceland-linux branch iceland-7.3-rc7-next, tag "
-    "q90i) boots through U-Boot's EFI, Fedora's shim and GRUB."),
+    "Linux with the Pad 4 patch queue on linux-next next-20261020 (Linux 7.3 plus the trees queued for 7.4; current kernel 7.3.0-next-20261020-iceland-00529, q90r, iceland-linux branch iceland-7.3-rc7-next) boots through U-Boot's EFI, Fedora's shim and GRUB."),
 "Internal storage (UFS 4)":
     "UFS 4 with 4 KiB blocks in MCQ mode (9 hardware queues per LUN), about 2.3 GB/s direct read. The installed "
     "root is btrfs (zstd compression) in userdata; with iceland-device 0.28-32's device-mapper option "
@@ -317,4 +315,12 @@ PUBLIC = {
     "Opening the cover, the keyboard and plugging or unplugging a charger wake the tablet from sleep. Confirmed working by the owner on 22 Oct 2026.",
 "Full GNOME app set":
     "Fedora 44 Workstation's default GNOME apps, the on-screen keyboard and GNOME Software with Flathub. Confirmed working by the owner on 22 Oct 2026.",
+# 25 Oct 2026 (matrix r174)
+"Virtual machines (Gunyah)": (
+    "Virtual machines (Gunyah)",
+    "Protected virtual machines on Qualcomm's Gunyah hypervisor with crosvm, managed by the Virtual Machines app (iceland-gvm 0.3-27 and iceland-vms 0.2-5 on kernel q90r): Linux guests from cloud images with NAT networking, a serial console and a clean shutdown, and 3D in the guest (OpenGL through virgl, Vulkan through venus) with GPU-composited desktops drawn in the VM window. Windows guests and ISO installs are not supported yet."),
+"KDE Plasma 6 desktop":
+    "KDE Plasma 6 on Wayland: auto-rotate, automatic brightness, the charge limit in Plasma's power settings, suspend and Discover, with KWallet as the secrets provider.",
+"Android apps (DroidLoom)":
+    "Android apps through DroidLoom (Android 17 in a container): each app in its own window with a title bar and Close, a left-edge swipe for Back, an AndroidVM menu folder and the androidvm manager. Confirmed working by the owner on 24 Oct 2026.",
 }
