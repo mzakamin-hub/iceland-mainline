@@ -8,7 +8,7 @@ This page is the state of the two upstream-facing ports: the kernel and U-Boot. 
 - **Build in use:** `7.3.0-next-20261020-iceland-00529-gb04181fcf88f`, queue head **q90r**, branch
   `iceland-7.3-rc7-next` (tag `q90r`). It runs on the installed tablet as the default kernel, installed with dnf;
   q90m (`00485`) is kept as the fallback entry. `scripts/build.sh` gives the package's config exactly (configs
-  `q90b`, `q90i`, `q90i-shipped`, `q90m` to `q90r`). The newest kernel release download is q90i. The first install image (golden B149)
+  `q90b`, `q90i`, `q90i-shipped`, `q90m` to `q90r`). The newest kernel release download is q90r. The first install image (golden B149)
   carries q89g (`7.3.0-rc7-iceland-00426`, tag `q89g`).
 - **Base:** linux-next `next-20261020` (`UPSTREAM_COMMIT` 8f7df005a756; Linux 7.3 plus the trees queued for 7.4)
   with 529 patch files: 110 in `0001-infiniti` (the infiniti-mainline base for SM8850), 304 in `0002-iceland` (the

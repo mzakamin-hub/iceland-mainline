@@ -314,14 +314,13 @@ Everything below is a published release with a `SHA256SUMS` file. Check your dow
 
 | What | Version | Release page | Files |
 |---|---|---|---|
-| Kernel (`kernel-iceland`, Fedora 44 aarch64) | q90i, kernel `7.3.0-next-20261020-iceland-00463` (the patch queue on linux-next `next-20261020`) | [iceland-linux q90i](https://github.com/mzakamin-hub/iceland-linux/releases/tag/q90i) | RPM, source RPM, build config, `SHA256SUMS` |
+| Kernel (`kernel-iceland`, Fedora 44 aarch64) | q90r, kernel `7.3.0-next-20261020-iceland-00529` (the patch queue on linux-next `next-20261020`) | [iceland-linux q90r](https://github.com/mzakamin-hub/iceland-linux/releases/tag/q90r) | RPM, source RPM, `SHA256SUMS` |
 | U-Boot, install build | v7 (2026-10-17) | [iceland-u-boot v7-2026-10-17](https://github.com/mzakamin-hub/iceland-u-boot/releases/tag/v7-2026-10-17) | plain image (RAM test), footered image (`boot_b`), `SHA256SUMS` |
 | `iceland-device` (the tablet's settings), `iceland-coexist` (kernel-install for a shared `/boot`), `upower` (time to full to the charge limit) | iceland-device 0.28-33, iceland-coexist 1.0-6, upower 1.91.5-1.fc44.iceland1 | [iceland-device-0.28-33](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-33) | noarch / aarch64 RPMs, source RPMs, `SHA256SUMS` |
 | `iceland-firmware` (generic firmware) | 11.A.38-6 | [iceland-firmware 11.A.38-6](https://github.com/mzakamin-hub/iceland-firmware/releases/tag/11.A.38-6) | noarch RPM, source RPM, `SHA256SUMS` |
 | Windows installer (blocked for writes) | in iceland-device 0.28-16 | [iceland-device-0.28-16](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-16) | `Install-Pad4Linux.ps1`, `README-INSTALLER.md`, `SHA256SUMS` |
 
-The current kernel, q90r (`7.3.0-next-20261020-iceland-00529`), is built from the iceland-linux branch
-`iceland-7.3-rc7-next` (tag `q90r`). The virtual machine packages iceland-gvm 0.3-27 and iceland-vms 0.2-5 are
+The current kernel is q90r (`7.3.0-next-20261020-iceland-00529`, iceland-linux tag `q90r`). The virtual machine packages iceland-gvm 0.3-27 and iceland-vms 0.2-5 are
 published as sources in [iceland-gvm](https://github.com/mzakamin-hub/iceland-gvm) and [iceland-vms](https://github.com/mzakamin-hub/iceland-vms), with their build steps.
 
 The Fedora disk image and the install image are **not** published. [Guide 04](docs/guide/04-BUILD-YOUR-OWN.md) covers

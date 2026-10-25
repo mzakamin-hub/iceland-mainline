@@ -7,7 +7,7 @@ The working features, one by one, are listed in [FEATURES.md](FEATURES.md); the 
 
 | Piece | Version |
 |---|---|
-| Kernel | `7.3.0-next-20261020-iceland-00529` (queue q90r): linux-next `next-20261020` (Linux 7.3 plus the trees queued for 7.4) plus the Pad 4 patch queue, iceland-linux branch `iceland-7.3-rc7-next`, tag `q90r`; package `kernel-iceland`, updated with dnf (the newest release download is q90i) |
+| Kernel | `7.3.0-next-20261020-iceland-00529` (queue q90r): linux-next `next-20261020` (Linux 7.3 plus the trees queued for 7.4) plus the Pad 4 patch queue, iceland-linux branch `iceland-7.3-rc7-next`, tag `q90r`; package `kernel-iceland`, updated with dnf (release download: q90r) |
 | Device package | `iceland-device` 0.28-33 (the newest release); `iceland-coexist` 1.0-6 (kernel-install for the shared `/boot`, one-shot boot entries) |
 | Virtual machines | `iceland-gvm` 0.3-27 (crosvm for Gunyah, the guest kernel, `gvm.sh`) and `iceland-vms` 0.2-5 (the Virtual Machines app); sources in [iceland-gvm](https://github.com/mzakamin-hub/iceland-gvm) and [iceland-vms](https://github.com/mzakamin-hub/iceland-vms) |
 | Android apps | DroidLoom (Android 17 in a container): host packages 0.1.0-23.git9789467.iceland3, image iceland4, `iceland-droidloom` 1.0-3 |
