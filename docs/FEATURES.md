@@ -1,6 +1,6 @@
 # OnePlus Pad 4 mainline: what works
 
-Status 26 Oct 2026. Fedora 44 is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel); the project's tablet runs KDE Plasma 6, the install image sets up GNOME 50. Current versions: kernel 7.3.0-next-20261020-iceland-00549 (q90v, the patch queue on linux-next next-20261020; iceland-linux branch iceland-7.3-rc7-next, release q90v), iceland-firmware 11.A.38-6, U-Boot install build v7, iceland-gvm 0.3-55, iceland-vms 0.2-20 and iceland-qemu-gunyah 10.0.2-1 (virtual machines). The newest iceland-device release is 0.28-33.
+Status 26 Oct 2026. Fedora 44 is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel); the project's tablet runs KDE Plasma 6, the install image sets up GNOME 50. Current versions: kernel 7.3.0-next-20261020-iceland-00554 (q90w2, the patch queue on linux-next next-20261020; iceland-linux branch iceland-7.3-rc7-next, release q90w2), iceland-firmware 11.A.38-6, U-Boot install build v7, iceland-gvm 0.3-55, iceland-vms 0.2-20 and iceland-qemu-gunyah 10.0.2-1 (virtual machines). The newest iceland-device release is 0.28-33.
 
 This list shows the 108 features that work today, sorted by functionality. Features that are still being worked on are not listed.
 
@@ -10,7 +10,7 @@ This list shows the 108 features that work today, sorted by functionality. Featu
 |---|---|
 | U-Boot (install build and RAM boot) | The stock boot loader (ABL) starts U-Boot from boot_b, and U-Boot starts Fedora through EFI. The install build (v7 since 17 Oct 2026) shows a power-on boot menu on the keys (Fedora, BlissROM on the dual-boot layout, or the boot loader's fastboot), boots Fedora by default and never resets or powers off by itself. A RAM-boot build gives display, USB fastboot, UFS read and EFI, with fastboot flashing compiled out. |
 | U-Boot boot setting for single or dual boot | Boots a “fedora” partition if there is one, else the Fedora image in userdata. |
-| Linux (7.4 base) | Linux with the Pad 4 patch queue on linux-next next-20261020 (Linux 7.3 plus the trees queued for 7.4; current kernel 7.3.0-next-20261020-iceland-00549, q90v, iceland-linux branch iceland-7.3-rc7-next and its q90v release) boots through U-Boot's EFI, Fedora's shim and GRUB. |
+| Linux (7.4 base) | Linux with the Pad 4 patch queue on linux-next next-20261020 (Linux 7.3 plus the trees queued for 7.4; current kernel 7.3.0-next-20261020-iceland-00554, q90w2, iceland-linux branch iceland-7.3-rc7-next and its q90w2 release) boots through U-Boot's EFI, Fedora's shim and GRUB. |
 | Internal storage (UFS 4) | UFS 4 with 4 KiB blocks in MCQ mode (9 hardware queues per LUN), about 2.3 GB/s direct read. The installed root is btrfs (zstd compression) in userdata; with iceland-device 0.28-32's device-mapper option (iceland.carrier.map=dm) TRIM reaches the flash (fstrim, btrfs discard=async). The LUNs use the none I/O scheduler. |
 | Hardware watchdog | qcom_wdt with a 30 s timeout, fed by systemd: a hung system reboots by itself. |
 | System cache (LLCC) and memory error counters | The system cache driver (qcom-llcc) binds, and EDAC reports the memory error counters (no errors recorded). |
@@ -64,7 +64,7 @@ This list shows the 108 features that work today, sorted by functionality. Featu
 | GNOME and Wayland drawn by the GPU | GNOME and Wayland are drawn by the GPU; buffers from other devices (video, shared memory) show correctly. |
 | GPU correctness, WebGL, stress | dEQP: Vulkan 34,650 cases with 2 failures, GLES 34,950 cases with 53 failures, 0 crashes; 193 of 196 WebGL test pages pass; a 90 s stress run had 0 GPU faults. Firefox renders normally; Chromium WebGL ran 180 s without a GPU-process crash with GPU preemption on. A GPU hang is recovered: the GPU is reset and the desktop keeps running (kernel q90e and later). |
 | Vulkan | Vulkan 1.4 through turnip on Mesa 26.2.4; vkcube and vkmark run (vkmark about 22,000-23,600 headless). |
-| Hardware video decoding | H.264, HEVC up to 4K, VP9 (also 10-bit) and AV1 decode in hardware, bit-exact against Android's reference vectors. GNOME's video player uses it (1080p H.264 at 3 % CPU instead of 47 %); SD BT.601 colour is right with Fedora's GStreamer. |
+| Hardware video decoding | H.264, HEVC up to 4K, VP9 (also 10-bit) and AV1 decode in hardware, bit-exact against Android's reference vectors. GNOME's video player uses it (1080p H.264 at 3 % CPU instead of 47 %); SD BT.601 colour is right with Fedora's GStreamer. VA-API through the iris-vaapi package: vainfo lists H.264, HEVC Main / Main10 and VP9 profile 0 / 2, ffmpeg decodes VP9 through VA-API, and Fedora's chromium decodes H.264 and VP9 in hardware with iris-vaapi-chromium installed. |
 | Hardware video encoding | H.264 and HEVC encode in hardware (decoded back 30 of 30 frames, PSNR about 50 dB). GNOME's screen recording works on the hardware encoder with a V4L2 pipeline. |
 | NPU (Hexagon on the CDSP) | The CDSP runs the tablet's own firmware; FastRPC programs run in an unsigned process and the NPU runtime library loads. Idle, it sleeps without blocking deep sleep. |
 
@@ -80,7 +80,7 @@ This list shows the 108 features that work today, sorted by functionality. Featu
 | Speaker level | The speakers play as loud as on stock, with the amplifiers at stock's settings. Confirmed working by the owner on 22 Oct 2026. |
 | Speaker protection (PipeWire chain) | A protective PipeWire filter chain (150 Hz high-pass, compressor, limiter) runs in front of the six amplifiers and leaves no clipped samples. |
 | GNOME volume bar and input slider | Both follow GNOME's curve within about 1 dB. |
-| Headset over USB-C | Headsets on the USB-C port. Confirmed working by the owner on 22 Oct 2026. |
+| Headset over USB-C | Headsets on the USB-C port. Confirmed working by the owner on 22 Oct 2026. The codec is detected as WCD939x v2.0 and gets the vendor's bandgap setting (kernel q90w2). |
 
 ## Connectivity
 

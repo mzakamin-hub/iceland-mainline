@@ -9,8 +9,8 @@
 
 PUBLIC_STATUS = ("Fedora 44 is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel); the "
                  "project's tablet runs KDE Plasma 6, the install image sets up GNOME 50. Current versions: kernel "
-                 "7.3.0-next-20261020-iceland-00549 (q90v, the patch queue on linux-next next-20261020; "
-                 "iceland-linux branch iceland-7.3-rc7-next, release q90v), iceland-firmware 11.A.38-6, U-Boot "
+                 "7.3.0-next-20261020-iceland-00554 (q90w2, the patch queue on linux-next next-20261020; "
+                 "iceland-linux branch iceland-7.3-rc7-next, release q90w2), iceland-firmware 11.A.38-6, U-Boot "
                  "install build v7, iceland-gvm 0.3-55, iceland-vms 0.2-20 and iceland-qemu-gunyah 10.0.2-1 (virtual "
                  "machines). The newest iceland-device release is 0.28-33.")
 
@@ -27,7 +27,7 @@ PUBLIC = {
     "Boots a “fedora” partition if there is one, else the Fedora image in userdata.",
 "Linux 7.4 base (linux-next) through EFI": (
     "Linux (7.4 base)",
-    "Linux with the Pad 4 patch queue on linux-next next-20261020 (Linux 7.3 plus the trees queued for 7.4; current kernel 7.3.0-next-20261020-iceland-00549, q90v, iceland-linux branch iceland-7.3-rc7-next and its q90v release) boots through U-Boot's EFI, Fedora's shim and GRUB."),
+    "Linux with the Pad 4 patch queue on linux-next next-20261020 (Linux 7.3 plus the trees queued for 7.4; current kernel 7.3.0-next-20261020-iceland-00554, q90w2, iceland-linux branch iceland-7.3-rc7-next and its q90w2 release) boots through U-Boot's EFI, Fedora's shim and GRUB."),
 "Internal storage (UFS 4)":
     "UFS 4 with 4 KiB blocks in MCQ mode (9 hardware queues per LUN), about 2.3 GB/s direct read. The installed "
     "root is btrfs (zstd compression) in userdata; with iceland-device 0.28-32's device-mapper option "
@@ -132,7 +132,9 @@ PUBLIC = {
 "Hardware video decoding":
     "H.264, HEVC up to 4K, VP9 (also 10-bit) and AV1 decode in hardware, bit-exact against Android's reference "
     "vectors. GNOME's video player uses it (1080p H.264 at 3 % CPU instead of 47 %); SD BT.601 colour is right with "
-    "Fedora's GStreamer.",
+    "Fedora's GStreamer. VA-API through the iris-vaapi package: vainfo lists H.264, HEVC Main / Main10 and VP9 "
+    "profile 0 / 2, ffmpeg decodes VP9 through VA-API, and Fedora's chromium decodes H.264 and VP9 in hardware "
+    "with iris-vaapi-chromium installed.",
 "Hardware video encoding":
     "H.264 and HEVC encode in hardware (decoded back 30 of 30 frames, PSNR about 50 dB). GNOME's screen recording "
     "works on the hardware encoder with a V4L2 pipeline.",
@@ -302,7 +304,7 @@ PUBLIC = {
     "Speaker level",
     "The speakers play as loud as on stock, with the amplifiers at stock's settings. Confirmed working by the owner on 22 Oct 2026."),
 "Headset over USB-C":
-    "Headsets on the USB-C port. Confirmed working by the owner on 22 Oct 2026.",
+    "Headsets on the USB-C port. Confirmed working by the owner on 22 Oct 2026. The codec is detected as WCD939x v2.0 and gets the vendor's bandgap setting (kernel q90w2).",
 "USB host / OTG, PD hub": (
     "USB host / OTG and hubs",
     "USB host mode on the USB-C port: keyboards, mice, USB sticks and hubs. Confirmed working by the owner on 22 Oct 2026."),
