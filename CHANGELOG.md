@@ -13,6 +13,19 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 [iceland-vms](https://github.com/mzakamin-hub/iceland-vms) ·
 [iceland-droidloom](https://github.com/mzakamin-hub/iceland-droidloom) (all public).
 
+## 2026-10-26 - kernel q90w2; iris-vaapi (VA-API hardware video decode)
+
+- Kernel q90w2 (`7.3.0-next-20261020-iceland-00554`) is the default and the newest release
+  ([q90w2](https://github.com/mzakamin-hub/iceland-linux/releases/tag/q90w2): kernel RPM, source RPM, `SHA256SUMS`).
+  q90v plus five patches: USB 2 host resume terminations on Kaanapali (Peter Chen); the WCD939x headset switch's
+  MG2_MISC register; class-H IQ forced only while the flyback has no user; the WCD939x codec version read after its
+  SoundWire device attached (v2.0 on the Pad 4); the vendor bandgap fine adjust on v1.1 and later.
+- [iris-vaapi 0.2.0](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iris-vaapi-0.2.0-1.iceland1) (upstream CFM880/iris-vaapi + two fixes re-implemented
+  after TheMojoMan's notes; packaging in `packaging/iris-vaapi`): VA-API decode of H.264, HEVC and VP9 on the Iris
+  decoder; ffmpeg decodes VP9 through VA-API; `iris-vaapi-chromium` lets Fedora's chromium decode H.264 and VP9 in
+  hardware.
+- Feature list (matrix r180): video decoding, headset and kernel rows updated; 108 working features.
+
 ## 2026-10-26 - kernel q90v; iceland-vms 0.2-20 with the QEMU-Gunyah backend
 
 - Kernel q90v (`7.3.0-next-20261020-iceland-00549`) is the default and the newest release
