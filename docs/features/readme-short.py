@@ -48,7 +48,7 @@ SHORT = {
 "Smooth window moves under load": "Window moves stay smooth, also under load.",
 "Touchscreen": "Works, also after the screen turns off and after sleep.",
 "Pen": "The pen works.",
-"Lid switch": "The cover turns the screen off and on; on battery a closed cover suspends.",
+"Lid switch": "Closing a keyboard cover locks (sleeps on battery), opening shows the lock screen; also for non-hall covers.",
 "Power and volume keys": "The power key wakes and suspends the tablet, as on stock; the volume keys work.",
 "Pogo keyboard": "The keyboard cover works: keys, touchpad, lamps and backlight.",
 "Auto-rotate": "The screen rotates in tablet mode and stays put while a keyboard is connected.",

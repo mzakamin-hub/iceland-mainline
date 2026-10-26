@@ -12,7 +12,7 @@ PUBLIC_STATUS = ("Fedora 44 is installed on the tablet and boots on its own (ABL
                  "7.3.0-next-20261020-iceland-00554 (q90w2, the patch queue on linux-next next-20261020; "
                  "iceland-linux branch iceland-7.3-rc7-next, release q90w2), iceland-firmware 11.A.38-6, U-Boot "
                  "install build v7, iceland-gvm 0.3-59, iceland-vms 0.2-23 and iceland-qemu-gunyah 10.0.2-1 (virtual "
-                 "machines). The newest iceland-device release is 0.28-33.")
+                 "machines). The newest iceland-device release is 0.28-43.")
 
 PUBLIC = {
 # Boot & platform
@@ -104,7 +104,7 @@ PUBLIC = {
 "Pen":
     "Works (checked on the tablet).",
 "Lid switch":
-    "The cover turns the screen off and on. On battery a closed cover suspends, on a charger it locks.",
+    "Closing a keyboard cover locks the tablet and turns the screen off (on battery it sleeps); opening it shows the lock screen. This also works for magnet covers the hall sensor cannot see, recognised from the magnetometer and the proximity sensor. Waking the tablet from sleep when the cover opens needs the power key.",
 "Power and volume keys":
     "The power key wakes the tablet from sleep. Without a charger a press suspends; with a charger in it locks and "
     "turns the screen off, as stock does.",
