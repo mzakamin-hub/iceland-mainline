@@ -10,7 +10,16 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) ·
 [iceland-u-boot](https://github.com/mzakamin-hub/iceland-u-boot) ·
 [iceland-gvm](https://github.com/mzakamin-hub/iceland-gvm) ·
-[iceland-vms](https://github.com/mzakamin-hub/iceland-vms) (all public).
+[iceland-vms](https://github.com/mzakamin-hub/iceland-vms) ·
+[iceland-droidloom](https://github.com/mzakamin-hub/iceland-droidloom) (all public).
+
+## 2026-10-26 - iceland-device 0.28-40, the remaining package sources, iceland-droidloom
+
+- [iceland-device 0.28-40](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-40) with iceland-device-kde (KDE Plasma integration: KWallet as the secrets
+  provider, the charge-limit rule, Plasma defaults) and iceland-coexist 1.0-7; iio-sensor-proxy 3.9-12.iceland1.
+- Specs and patches of Mesa 26.3 for the A840 (seven open merge requests), libcamera autofocus, ffmpeg-free V4L2
+  decoding and gst-plugins-good's V4L2 colorimetry fix in `packaging/`.
+- DroidLoom packaging in the new repository [iceland-droidloom](https://github.com/mzakamin-hub/iceland-droidloom).
 
 ## 2026-10-26 - virtual machines released: iceland-gvm 0.3-49, iceland-vms 0.2-17
 

@@ -8,9 +8,10 @@ The working features, one by one, are listed in [FEATURES.md](FEATURES.md); the 
 | Piece | Version |
 |---|---|
 | Kernel | `7.3.0-next-20261020-iceland-00548` (queue q90u): linux-next `next-20261020` (Linux 7.3 plus the trees queued for 7.4) plus the Pad 4 patch queue, iceland-linux branch `iceland-7.3-rc7-next`, tag `q90u`; package `kernel-iceland`, updated with dnf (release download: q90u) |
-| Device package | `iceland-device` 0.28-33 (the newest release); `iceland-coexist` 1.0-6 (kernel-install for the shared `/boot`, one-shot boot entries) |
+| Device package | `iceland-device` 0.28-40 with `iceland-device-kde` (KDE Plasma integration); `iceland-coexist` 1.0-7 (kernel-install for the shared `/boot`, one-shot boot entries) |
+| Multimedia and GPU builds | Mesa 26.3.0-rc1 snapshot with seven A840 patches; libcamera 0.7.1 with autofocus; ffmpeg-free 8.1.3 with V4L2 decoding; gst-plugins-good 1.28.8 with the V4L2 colorimetry fix (specs and patches in `packaging/`) |
 | Virtual machines | `iceland-gvm` 0.3-49 (crosvm for Gunyah, the guest kernel, `gvm.sh`) and `iceland-vms` 0.2-17 (the Virtual Machines app), released with RPMs; sources in [iceland-gvm](https://github.com/mzakamin-hub/iceland-gvm) and [iceland-vms](https://github.com/mzakamin-hub/iceland-vms) |
-| Android apps | DroidLoom (Android 17 in a container): host packages 0.1.0-23.git9789467.iceland3, image iceland4, `iceland-droidloom` 1.0-3 |
+| Android apps | DroidLoom (Android 17 in a container): host packages 0.1.0-23.git9789467.iceland3, image iceland4, `iceland-droidloom` 1.0-3 (packaging in [iceland-droidloom](https://github.com/mzakamin-hub/iceland-droidloom)) |
 | Power service | `upower` 1.91.5-1.fc44.iceland1 (time to full to the charge limit) |
 | Sensor programs | `iio-sensor-proxy` 3.9-11.iceland1, `hexagonrpc`, `libssc` |
 | Firmware | `iceland-firmware` 11.A.38-6 (the generic stock firmware, sha256-pinned, with the decoded thermal model, the sensor hub registry and two GPU firmware pairs: stock's and the vendor's) |
