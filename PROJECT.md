@@ -34,7 +34,7 @@ working features):
 | Virtual machines: protected Gunyah VMs with crosvm, 3D in the guest (virgl / venus), the Virtual Machines app (iceland-gvm 0.3-59, iceland-vms 0.2-23, iceland-qemu-gunyah 10.0.2-1): Linux and Windows 11 ARM guests (with a clean Shut Down from the app), touch modes, VNC, vhost-net, the shared-memory mode with 3D OpenGL and Vulkan, keyboard shortcuts in the VM window (Super included), the opt-in msm native GPU context, an optional QEMU-Gunyah backend with 3D OpenGL | works |
 | Android apps: DroidLoom (Android 17 in a container; binder in the kernel since q90m) | works |
 | Install on the tablet: Fedora 44 GNOME in `userdata`, U-Boot in `boot_b` | works ([docs/INSTALL-GUIDE.md](docs/INSTALL-GUIDE.md)) |
-| Packages: `kernel-iceland` 00554 (q90w2), `iris-vaapi` 0.2.0, `iceland-firmware` 11.A.38-6, `iceland-gvm` 0.3-59 with `virglrenderer` 1.3.0-1.iceland1, `iceland-vms` 0.2-23 with `iceland-vms-guest-mesa` 26.2.5-1.iceland1, `iceland-qemu-gunyah` 10.0.2-1; `iceland-device` 0.28-40 with `iceland-device-kde`, `iceland-coexist` 1.0-7, `upower` 1.91.5-1.fc44.iceland1 | installed |
+| Packages: `kernel-iceland` 00554 (q90w2), `iris-vaapi` 0.2.0, `iceland-firmware` 11.A.38-6, `iceland-gvm` 0.3-59 with `virglrenderer` 1.3.0-1.iceland1, `iceland-vms` 0.2-23 with `iceland-vms-guest-mesa` 26.2.5-1.iceland1, `iceland-qemu-gunyah` 10.0.2-1; `iceland-device` 0.28-43 with `iceland-device-kde`, `iceland-coexist` 1.0-7, `upower` 1.91.5-1.fc44.iceland2, `libssc` 0.4.4^8.git54dd13e-2.iceland1 | installed |
 
 ## Our repositories (public, GitHub user `mzakamin-hub`)
 

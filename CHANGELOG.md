@@ -13,6 +13,14 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 [iceland-vms](https://github.com/mzakamin-hub/iceland-vms) ·
 [iceland-droidloom](https://github.com/mzakamin-hub/iceland-droidloom) (all public).
 
+## 2026-10-27 - iceland-device 0.28-43: keyboard cover detection
+
+- Release [iceland-device-0.28-43](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-43) with libssc 2.iceland1 and upower iceland2.
+- Closing a keyboard cover locks the tablet and turns the screen off (on battery it sleeps); opening it shows the
+  lock screen. This also works for magnet covers the hall sensor cannot see (recognised from the magnetometer and
+  the proximity sensor). Waking the tablet from sleep when the cover opens needs the power key.
+- The refresh rate follows stock's thermal policy (90 Hz, then 60 Hz as the tablet gets hot).
+
 ## 2026-10-27 - iceland-gvm 0.3-59 / iceland-vms 0.2-23: native GPU context, Super in the VM
 
 - Releases [iceland-gvm 0.3-59](https://github.com/mzakamin-hub/iceland-gvm/releases/tag/0.3-59) and
