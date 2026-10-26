@@ -4,8 +4,9 @@
 #   iceland-trial early    (iceland-trial-early.service, as soon as /boot is mounted) clear GRUB's next_entry
 #                          from Linux too: GRUB clears it itself when it can write /boot; this covers a GRUB
 #                          that could not, so a failing trial kernel is never booted twice.
-#   iceland-trial confirm  (iceland-boot-confirm.service) wait until the desktop has been up for 30 s (GNOME Shell
-#                          running: the login screen, first-boot setup or a session), then:
+#   iceland-trial confirm  (iceland-boot-confirm.service) wait until the desktop has been up for 30 s (GNOME Shell,
+#                          KWin or Plasma's shell running, or a logind graphical session: the login screen,
+#                          first-boot setup or a session; 0.28-36: any desktop), then:
 #                          running kernel = the trial one -> it becomes the default (saved_entry) and the
 #                          device tree U-Boot loads from the EFI partition is that kernel's;
 #                          running kernel != the trial one -> the trial failed: logged, default unchanged.
@@ -24,12 +25,22 @@ running=${running##*/}; running=${running%.conf}; running=${running:-unknown-$kv
 pending=$(cat "$S/pending" 2>/dev/null)
 confirmed=$(cat "$S/confirmed" 2>/dev/null)
 
-desktop_up() { # gnome-shell running for at least 30 s and graphical.target reached
+desktop_up() { # a desktop up for at least 30 s and graphical.target reached (0.28-36: any desktop)
+	# A compositor / shell process of a known desktop (GNOME Shell, KWin, Plasma's shell; ICELAND_DESKTOPS replaces the list of
+	# names), or a logind graphical session (Type wayland / x11, class user or greeter) active for 30 s: the login
+	# screen, first-boot setup or a session, whatever desktop runs it.
 	[ -n "${ICELAND_DESKTOP:-}" ] && return "$ICELAND_DESKTOP"
 	systemctl -q is-active graphical.target || return 1
-	local p
-	for p in $(pgrep -x gnome-shell); do
+	local p s
+	for p in $(pgrep -x "${ICELAND_DESKTOPS:-gnome-shell|kwin_wayland|plasmashell}"); do
 		[ "$(ps -o etimes= -p "$p" | tr -d ' ')" -ge 30 ] 2>/dev/null && return 0
+	done
+	for s in $(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}'); do
+		loginctl show-session "$s" -p Type -p Class -p State -p TimestampMonotonic 2>/dev/null | awk -F= -v up="$(cut -d' ' -f1 /proc/uptime)" '
+			{ v[$1] = $2 }
+			END { ok = (v["Type"] == "wayland" || v["Type"] == "x11") && (v["Class"] == "user" || v["Class"] == "greeter") &&
+			           v["State"] == "active" && v["TimestampMonotonic"] > 0 && up - v["TimestampMonotonic"] / 1e6 >= 30
+			      exit !ok }' && return 0
 	done
 	return 1
 }

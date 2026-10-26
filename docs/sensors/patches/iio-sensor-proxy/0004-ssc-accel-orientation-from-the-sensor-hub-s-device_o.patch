@@ -1,0 +1,285 @@
+From cb874e0ebb6cce03e751c6922042c5108b424683 Mon Sep 17 00:00:00 2001
+From: mzak <mzak.amin@gmail.com>
+Date: Fri, 23 Oct 2026 04:58:24 +0300
+Subject: [PATCH] ssc-accel: orientation from the sensor hub's device_orient
+ sensor
+
+A claim of the accelerometer opened the SSC accelerometer stream at the
+rate the sensor hub advertises and passed every sample on. On the
+OnePlus Pad 4 that is 25 Hz for as long as GNOME has auto-rotate on and
+the screen is on: about 17 wake-ups per second in iio-sensor-proxy, the
+largest user-space waker of an idle desktop, plus the QRTR / GLINK
+interrupts behind each sample.
+
+The hub has its own orientation sensor, "device_orient" (Android's
+TYPE_DEVICE_ORIENTATION, on-change, vendor oplus on the Pad 4). It runs
+on the hub and reports only a change of state: 0 natural orientation
+(+Y up), 1 +X up, 2 -Y up, 3 -X up, and 4 when the device lies flat.
+When the hub has it, a claim now opens it instead of the accelerometer
+stream, and each state is passed on as the accelerometer vector it
+stands for in the hub's frame, so the mount matrix, the orientation and
+the tilt code stay as they are (a flat vector keeps the orientation).
+The events have the layout of every standard SSC sensor event, the same
+as the light sensor's, so the sensor is read through libssc's light
+class with the data type "device_orient" (no libssc change).
+
+When the hub has no such sensor, when it cannot be opened, or with
+SSC_ACCEL_ORIENT=0 in the daemon's environment, the accelerometer
+stream is used as before.
+
+Measured on the Pad 4 (sensor hub only, lying flat): the sensor is
+found (on-change, available) and reports one event, 4, about 1 s after
+it is opened, then nothing while the tablet does not move; the
+accelerometer stream gives 25 events per second in the same position.
+
+Signed-off-by: mzak <mzak.amin@gmail.com>
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/drv-ssc-accel.c  | 125 +++++++++++++++++++++++++++++++++++++++++++
+ src/ssc-orient-map.h |  62 +++++++++++++++++++++
+ 2 files changed, 187 insertions(+)
+ create mode 100755 src/ssc-orient-map.h
+
+diff --git a/src/drv-ssc-accel.c b/src/drv-ssc-accel.c
+index 4130657..e72a1ba 100644
+--- a/src/drv-ssc-accel.c
++++ b/src/drv-ssc-accel.c
+@@ -18,9 +18,26 @@
+ #include <gio/gio.h>
+ #include <libssc-sensor.h>
+ #include <libssc-sensor-accelerometer.h>
++#include <libssc-sensor-light.h>
++
++#include "ssc-orient-map.h"
++
++/*
++ * Orientation from the sensor hub: when the hub has a "device_orient" sensor,
++ * a claim opens that one instead of the accelerometer stream. It computes the
++ * orientation on the hub and reports only changes (on-change), so the
++ * application processor is not woken for every accelerometer sample (25 Hz on
++ * the OnePlus Pad 4). Its events have the layout of every standard SSC sensor
++ * event (repeated float data, accuracy), the same as the light sensor's, so it
++ * is read through libssc's light sensor class with another data type.
++ * SSC_ACCEL_ORIENT=0 in the daemon's environment keeps the accelerometer stream.
++ */
++#define SSC_ORIENT_DATA_TYPE "device_orient"
+ 
+ typedef struct DrvData {
+ 	SSCSensorAccelerometer *sensor;
++	SSCSensorLight *orient;
++	gboolean orient_open;
+ 	gulong measurement_id;
+ 	AccelVec3 *mount_matrix;
+ 	AccelLocation location;
+@@ -71,6 +88,70 @@ measurement_cb (SSCSensorAccelerometer *sensor, gfloat accel_x, gfloat accel_y,
+ 	sensor_device->callback_func (sensor_device, (gpointer) &readings, sensor_device->user_data);
+ }
+ 
++static void
++orient_cb (SSCSensorLight *sensor, gfloat value, gpointer user_data)
++{
++	gfloat x, y, z;
++
++	if (!ssc_orient_to_accel (value, &x, &y, &z)) {
++		g_debug ("SSC device orientation %f ignored", value);
++		return;
++	}
++
++	g_debug ("SSC device orientation %.0f -> accelerometer (%.2f, %.2f, %.2f)", value, x, y, z);
++	measurement_cb (NULL, x, y, z, user_data);
++}
++
++static void
++orient_new_ready (GObject *source, GAsyncResult *result, gpointer user_data)
++{
++	GAsyncResult **out = user_data;
++
++	*out = g_object_ref (result);
++}
++
++/* the hub's device orientation sensor, or NULL when it has none (or it is turned off) */
++static SSCSensorLight *
++orient_new_sync (void)
++{
++	g_autoptr(GError) error = NULL;
++	g_autoptr(GObject) source = NULL;
++	g_autofree gchar *name = NULL;
++	GAsyncResult *result = NULL;
++	GObject *object;
++
++	if (g_strcmp0 (g_getenv ("SSC_ACCEL_ORIENT"), "0") == 0) {
++		g_debug ("SSC device orientation turned off (SSC_ACCEL_ORIENT=0)");
++		return NULL;
++	}
++
++	/* as libssc's own *_new_sync(): run the default main context until the result is there */
++	g_async_initable_new_async (SSC_TYPE_SENSOR_LIGHT, G_PRIORITY_DEFAULT, NULL,
++				    orient_new_ready, &result,
++				    SSC_SENSOR_DATA_TYPE, SSC_ORIENT_DATA_TYPE,
++				    NULL);
++	while (!result)
++		g_main_context_iteration (g_main_context_default (), TRUE);
++
++	source = g_async_result_get_source_object (result);
++	object = g_async_initable_new_finish (G_ASYNC_INITABLE (source), result, &error);
++	g_object_unref (result);
++	if (!object) {
++		g_debug ("No SSC device orientation sensor%s%s", error ? ": " : "", error ? error->message : "");
++		return NULL;
++	}
++
++	g_object_get (object, SSC_SENSOR_NAME, &name, NULL);
++	if (!name) {
++		g_debug ("SSC device orientation sensor without attributes, not used");
++		g_object_unref (object);
++		return NULL;
++	}
++
++	g_debug ("Found SSC device orientation sensor '%s'", name);
++	return SSC_SENSOR_LIGHT (object);
++}
++
+ static SensorDevice *
+ ssc_accelerometer_open (GUdevDevice *device)
+ {
+@@ -90,6 +171,8 @@ ssc_accelerometer_open (GUdevDevice *device)
+ 		              SSC_SENSOR_NAME, &sensor_device->name,
+ 		              NULL);
+ 
++	drv_data->orient = orient_new_sync ();
++
+ 	/* Setup accel attributes */
+ 	drv_data->mount_matrix = setup_mount_matrix (device);
+ 	drv_data->location = setup_accel_location (device);
+@@ -98,11 +181,52 @@ ssc_accelerometer_open (GUdevDevice *device)
+ 	return sensor_device;
+ }
+ 
++static gboolean
++orient_set_polling (SensorDevice *sensor_device, gboolean state)
++{
++	DrvData *drv_data = (DrvData *) sensor_device->priv;
++	g_autoptr(GError) error = NULL;
++
++	if (state) {
++		drv_data->measurement_id = g_signal_connect (drv_data->orient,
++							     "measurement",
++							     G_CALLBACK (orient_cb),
++							     sensor_device);
++		if (ssc_sensor_light_open_sync (drv_data->orient, NULL, &error)) {
++			drv_data->orient_open = TRUE;
++			g_debug ("SSC accelerometer: orientation from the sensor hub (on-change)");
++			return TRUE;
++		}
++
++		/* the accelerometer stream from now on */
++		g_warning ("Opening the SSC device orientation sensor failed, using the accelerometer stream: %s",
++			   error->message);
++		g_clear_signal_handler (&drv_data->measurement_id, drv_data->orient);
++		g_clear_object (&drv_data->orient);
++		return FALSE;
++	}
++
++	g_clear_signal_handler (&drv_data->measurement_id, drv_data->orient);
++	drv_data->orient_open = FALSE;
++	if (!ssc_sensor_light_close_sync (drv_data->orient, NULL, &error))
++		g_warning ("Closing SSC device orientation sensor failed: %s", error->message);
++	return TRUE;
++}
++
+ static void
+ ssc_accelerometer_set_polling (SensorDevice *sensor_device, gboolean state)
+ {
+ 	DrvData *drv_data = (DrvData *) sensor_device->priv;
+ 	g_autoptr(GError) error = NULL;
++
++	if (drv_data->orient) {
++		if (state == drv_data->orient_open)
++			return;
++		if (orient_set_polling (sensor_device, state))
++			return;
++		/* the device orientation sensor could not be opened: the accelerometer below */
++	}
++
+ 	if (state) {
+ 		if (drv_data->measurement_id)
+ 			return;
+@@ -136,6 +260,7 @@ ssc_accelerometer_close (SensorDevice *sensor_device)
+ 	g_autoptr(GError) error = NULL;
+ 	DrvData *drv_data = (DrvData *) sensor_device->priv;
+ 
++	g_clear_object (&drv_data->orient);
+ 	g_clear_object (&drv_data->sensor);
+ 	g_clear_pointer (&drv_data->mount_matrix, g_free);
+ 	g_clear_pointer (&sensor_device->priv, g_free);
+diff --git a/src/ssc-orient-map.h b/src/ssc-orient-map.h
+new file mode 100755
+index 0000000..a9e79ae
+--- /dev/null
++++ b/src/ssc-orient-map.h
+@@ -0,0 +1,62 @@
++/*
++ * Copyright (c) 2026 mzak
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 3 as published by
++ * the Free Software Foundation.
++ *
++ * The SSC's "device_orient" sensor (Android's TYPE_DEVICE_ORIENTATION, computed
++ * on the sensor hub) as the accelerometer vector it stands for.
++ *
++ * The hub reports a state, and only when it changes:
++ *   0  natural orientation, +Y points up
++ *   1  turned 90 degrees counter-clockwise, +X points up
++ *   2  upside down, -Y points up
++ *   3  turned 90 degrees clockwise, -X points up
++ *   4  lying flat (seen on the OnePlus Pad 4 lying face up)
++ * Each state becomes the vector the accelerometer reports in that pose, in the
++ * hub's own frame (gravity's reaction: +g on the axis that points up), so the
++ * mount matrix, orientation_calc() and tilt_calc() are used unchanged. A flat
++ * vector leaves the orientation as it was (orientation_calc() keeps the
++ * previous one when neither axis passes its threshold). Unknown states are
++ * ignored.
++ *
++ * Plain C, so it can be checked without the daemon.
++ */
++
++#pragma once
++
++#include <math.h>
++
++#define SSC_ORIENT_GRAVITY 9.80665f
++
++/* returns 1 and fills x, y, z for a known state, 0 for one to ignore */
++static inline int
++ssc_orient_to_accel (float value, float *x, float *y, float *z)
++{
++	long state;
++
++	if (!(value >= -0.5f && value < 4.5f))	/* also NaN */
++		return 0;
++	state = lroundf (value);
++	*x = *y = *z = 0.0f;
++	switch (state) {
++	case 0:
++		*y = SSC_ORIENT_GRAVITY;
++		return 1;
++	case 1:
++		*x = SSC_ORIENT_GRAVITY;
++		return 1;
++	case 2:
++		*y = -SSC_ORIENT_GRAVITY;
++		return 1;
++	case 3:
++		*x = -SSC_ORIENT_GRAVITY;
++		return 1;
++	case 4:
++		*z = SSC_ORIENT_GRAVITY;
++		return 1;
++	default:
++		return 0;
++	}
++}
+-- 
+2.43.0
+

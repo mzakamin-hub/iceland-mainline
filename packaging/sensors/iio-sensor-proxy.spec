@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
-# iio-sensor-proxy for the OnePlus Pad 4: 3.9 built with SSC support (the sensors behind the ADSP) and two local
+# iio-sensor-proxy for the OnePlus Pad 4: 3.9 built with SSC support (the sensors behind the ADSP) and four local
 # patches (docs/sensors/patches/iio-sensor-proxy). Fedora 44 ships 3.8 without SSC support; this build replaces it
 # (the release number stays above Fedora's, and the local repository has the higher dnf priority).
 
 Name:           iio-sensor-proxy
 Version:        3.9
-Release:        11.iceland1%{?dist}
+Release:        12.iceland1%{?dist}
 Summary:        IIO accelerometer sensor to input device proxy
 License:        GPL-3.0-or-later
 URL:            https://gitlab.freedesktop.org/hadess/iio-sensor-proxy
@@ -19,6 +19,9 @@ Patch2:         0002-main-hold-back-HasAccelerometer-until-a-client-has-c.patch
 # the SSC light sensor streams at 10 Hz with +-2 % noise: a level is passed on only at a 5 % / 1 lux step, at most
 # every 500 ms (SSC_LIGHT_FILTER=0 in the environment: every sample, as before)
 Patch3:         0003-ssc-light-rate-limit-and-hysteresis-for-the-ambient-.patch
+# auto-rotate from the sensor hub's on-change device_orient sensor instead of the 25 Hz accelerometer stream
+# (SSC_ACCEL_ORIENT=0 in the environment, or a hub without it: the accelerometer stream, as before)
+Patch4:         0004-ssc-accel-orientation-from-the-sensor-hub-s-device_o.patch
 
 BuildRequires:  gcc
 BuildRequires:  meson
@@ -70,6 +73,13 @@ This build reads the sensors of Qualcomm's sensor hub (SSC) through libssc.
 %{_datadir}/polkit-1/actions/net.hadess.SensorProxy.policy
 
 %changelog
+* Fri Oct 23 2026 mzak <mzak.amin@gmail.com> - 3.9-12.iceland1
+- auto-rotate from the sensor hub's own orientation sensor (local patch 0004): a claim of the accelerometer
+  opens the SSC "device_orient" sensor (on-change, computed on the hub) instead of the accelerometer stream,
+  and passes each state on as the accelerometer vector it stands for. On the Pad 4 the stream ran at 25 Hz
+  while auto-rotate was on (about 17 wake-ups per second in this daemon); the orientation sensor reports only
+  changes. A hub without it, a failed open or SSC_ACCEL_ORIENT=0 in the daemon's environment: the
+  accelerometer stream, as before
 * Thu Oct 15 2026 mzak <mzak.amin@gmail.com> - 3.9-11.iceland1
 - the SSC ambient light level is passed on only when it changed by 5 % or 1 lux (the larger), at most every
   500 ms; a change that comes too soon is passed on when the 500 ms are over (local patch 0003). On the Pad 4 the

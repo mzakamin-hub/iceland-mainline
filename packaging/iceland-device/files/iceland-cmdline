@@ -49,12 +49,49 @@
 #       CLX=1 (default): msm.enable_clx=1 - the GPU's current-limit (CLX) table, proven with the vendor533 GPU
 #                 firmware only (q90f / q90g, 22 Oct), so it is set only when that pair is in use; CLX=0: removed
 #     A switch set to keep leaves every value of its options as it is (not managed).
+#  6. 0.28-34, the boot splash: SPLASH=keep (default): rhgb not managed; SPLASH=0: rhgb removed (no Plymouth
+#       splash); SPLASH=1: rhgb added.
+#  7. 0.28-35, CLX_TZ=1 (default): msm.a8xx_clx_tz_flag=1 - the kernel (q90k+) adds GPU_CLX_EN_REQ to its TZ GPU init
+#       request, as Qualcomm's KGSL does; only while CLX is on (CLX=1 with the vendor533 pair), otherwise the option is
+#       removed. Owner's decision of 24 Oct 2026 (q90l rows L1-L3: TZ accepted it; GPU burst current mean 3.59 ->
+#       3.25 A). CLX_TZ=0: removed; CLX_TZ=keep, or CLX=keep: not managed. Older kernels ignore the option.
+#  8. 0.28-38, PSEUDO_NMI=1: irqchip.gicv3_pseudo_nmi=1 - GIC priority masking as NMI (kernel q90n+ has
+#       CONFIG_ARM64_PSEUDO_NMI): the lockup detectors and RCU stall reports get the stuck CPU's backtrace.
+#       PSEUDO_NMI=0 (default): the option is removed; keep: not managed. 0.28-40: UNSUPPORTED, 1 is refused (below).
+#  9. 0.28-40, kernel q90p+ (built-in defaults). A kernel whose config (/usr/lib/modules/<version>/config, the
+#     kernel-iceland rpm ships it) has the defaults below already starts with the values the options used to set, so
+#     its boot entry no longer carries them; an entry of an older kernel (a fallback, a "Roll back to ..." entry) gets
+#     every option as before. Each boot entry is handled for its own kernel (its "linux /vmlinuz-<version>" line);
+#     /etc/kernel/cmdline (the template for the next kernel) for the newest installed kernel. An entry whose kernel
+#     cannot be found counts as an older one. The defaults, and the option that a switch off writes instead:
+#       CONFIG_DRM_MSM_ICELAND_DEFAULTS=y: msm.dpu_dsc_once=1, msm.dpu_idle_refresh_ms=1000 msm.dpu_idle_refresh_hz=30,
+#         panel_novatek_nt36536.stock_power_timing=1 / .bl_after_video=1, and - only when the GPU firmware the kernel
+#         finds is the vendor533 pair - msm.enable_preemption=1 msm.enable_clx=1. Off switches write the value:
+#         IDLE_RR=0 -> msm.dpu_idle_refresh_ms=0; GPU_PREEMPT=0 or a stock / linux-firmware pair ->
+#         msm.enable_preemption=0; CLX=0 or no vendor533 pair -> msm.enable_clx=0; CLX_TZ=0 -> msm.a8xx_clx_tz_flag=0
+#       CONFIG_CPU_IDLE_GOV_DEFAULT="teo": cpuidle.governor=teo; IDLE_GOV=menu -> cpuidle.governor=menu
+#       CONFIG_RCU_NOCB_CPU_DEFAULT_ALL=y + lazy RCU on by default: rcu_nocbs=all rcutree.enable_rcu_lazy=1;
+#         RCU_LAZY=0 -> "rcu_nocbs=" (an empty list: no offloaded CPU) rcutree.enable_rcu_lazy=0
+#       CONFIG_PM_SLEEP_DEFAULT_S2IDLE=y: mem_sleep_default=s2idle; MEM_SLEEP=kernel -> mem_sleep_default=deep
+#     GLITCH=1 (default; new key): the display options of the glitch hunt (/etc/iceland/glitchfix.conf, 20-22 Oct; until
+#       now hand edits, not managed) are managed: an older kernel's entry gets all of them, a q90p+ entry loses the
+#       ones whose value is now the kernel's default (and the iceland.glitchfix=1 marker); GLITCH=keep: not managed.
+#     firmware_class.path stays an option (GPU_FW); msm.dpu_bw_floor_pct=0 is the default of every kernel since q90g
+#     (written for older kernels only).
+#     PSEUDO_NMI=1 is refused (pseudo-NMI hangs the boot under Gunyah, q90o-run stage C, 24 Oct 2026): it counts as 0.
 # ICELAND_ROOT (tests only): the root to work on.
 R=${ICELAND_ROOT:-}
 ARGS="clk_ignore_unused pd_ignore_unused regulator_ignore_unused"
 IDLE_GOV=teo; RCU_LAZY=1; GPU_FW=vendor533; GPU_PREEMPT=auto; MEM_SLEEP=s2idle
-IDLE_RR=30; BW_FLOOR=0; CLX=1
+IDLE_RR=30; BW_FLOOR=0; CLX=1; CLX_TZ=1; SPLASH=keep; PSEUDO_NMI=0; GLITCH=1
 FW=/usr/lib/firmware
+# 0.28-40: the glitch-hunt display options (their values = the q90p+ kernel defaults)
+GLITCH_OPTS="msm.dpu_vid_idle_irq_off=0 msm.dpu_dsc_once=1 msm.dpu_pending_flush_clear=1 msm.dpu_vfp_inplace=1
+msm.dpu_vfp_window=1 msm.dpu_irq_cpu_latency_us=500 msm.dsi_slave_pll_restore=0 msm.dsi_phy_muxes_first=1
+msm.dpu_frame_pending_early=1 msm.dpu_fd_timer_irq_delete=1 msm.dpu_vid_slave_late_cleanup=1 msm.dpu_scanout_frame_vtotal=1
+msm.fb_unpin_after_vblank=1 msm.dpu_clk_inefficiency=-1 msm.disable_ifpc=0 panel_novatek_nt36536.stock_power_timing=1
+panel_novatek_nt36536.bl_after_video=1 iceland.glitchfix=1"
+GLITCH_OPTS=$(echo $GLITCH_OPTS)
 if [ -r "$R/etc/iceland/boot.conf" ]; then
 	v=$(sed -n 's/^IDLE_GOV=\([a-z]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); [ "$v" = menu ] && IDLE_GOV=menu
 	v=$(sed -n 's/^RCU_LAZY=\([0-9]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); [ "$v" = 0 ] && RCU_LAZY=0
@@ -66,6 +103,14 @@ if [ -r "$R/etc/iceland/boot.conf" ]; then
 	v=$(sed -n 's/^IDLE_RR=\([a-z0-9]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); case "$v" in 30|0|keep) IDLE_RR=$v ;; esac
 	v=$(sed -n 's/^BW_FLOOR=\([a-z0-9]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); case "$v" in 0|100|keep) BW_FLOOR=$v ;; esac
 	v=$(sed -n 's/^CLX=\([a-z0-9]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); case "$v" in 1|0|keep) CLX=$v ;; esac
+	v=$(sed -n 's/^SPLASH=\([a-z0-9]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); case "$v" in 1|0|keep) SPLASH=$v ;; esac
+	v=$(sed -n 's/^CLX_TZ=\([a-z0-9]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); case "$v" in 1|0|keep) CLX_TZ=$v ;; esac
+	v=$(sed -n 's/^PSEUDO_NMI=\([a-z0-9]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); case "$v" in 1|0|keep) PSEUDO_NMI=$v ;; esac
+	v=$(sed -n 's/^GLITCH=\([a-z0-9]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); case "$v" in 1|keep) GLITCH=$v ;; esac
+fi
+if [ "$PSEUDO_NMI" = 1 ]; then
+	echo "iceland-cmdline: PSEUDO_NMI=1 refused: GIC pseudo-NMI hangs the boot under the Gunyah hypervisor (unsupported on the OnePlus Pad 4); the option is removed" >&2
+	PSEUDO_NMI=0
 fi
 pair() { [ -f "$R$FW/iceland-gpu-$1/qcom/gen80200_gmu.bin" ] && [ -f "$R$FW/iceland-gpu-$1/qcom/gen80200_sqe.fw" ]; }
 GPU=$GPU_FW
@@ -77,23 +122,74 @@ auto) [ "$GPU" = vendor533 ] && PRE=1 ;;
 1) if [ "$GPU" = vendor533 ]; then PRE=1
    else echo "iceland-cmdline: GPU_PREEMPT=1 refused with the $GPU GPU firmware (early-boot reset): preemption stays off" >&2; fi ;;
 esac
-ON=""; OFF=""; DROP=""; DROPN=""
-if [ "$IDLE_GOV" = teo ]; then ON="$ON cpuidle.governor=teo"; else OFF="$OFF cpuidle.governor=teo"; fi
-if [ "$RCU_LAZY" = 1 ]; then ON="$ON rcu_nocbs=all rcutree.enable_rcu_lazy=1"; else OFF="$OFF rcu_nocbs=all rcutree.enable_rcu_lazy=1"; fi
-case "$GPU" in
-vendor533|stock) ON="$ON firmware_class.path=$FW/iceland-gpu-$GPU" ;;
-*) OFF="$OFF firmware_class.path=$FW/iceland-gpu-vendor533 firmware_class.path=$FW/iceland-gpu-stock" ;;
-esac
-if [ $PRE = 1 ]; then ON="$ON msm.enable_preemption=1"; else DROP=msm.enable_preemption; fi
-if [ "$MEM_SLEEP" = s2idle ]; then ON="$ON mem_sleep_default=s2idle"; else OFF="$OFF mem_sleep_default=s2idle"; fi
-# 0.28-32: DROPN = option names removed whatever their value
-case "$IDLE_RR" in 30) ON="$ON msm.dpu_idle_refresh_ms=1000 msm.dpu_idle_refresh_hz=30" ;; 0) DROPN="$DROPN msm.dpu_idle_refresh_ms msm.dpu_idle_refresh_hz" ;; esac
-case "$BW_FLOOR" in 0|100) ON="$ON msm.dpu_bw_floor_pct=$BW_FLOOR" ;; esac
-case "$CLX" in
-1) if [ "$GPU" = vendor533 ]; then ON="$ON msm.enable_clx=1"
-   else DROPN="$DROPN msm.enable_clx"; echo "iceland-cmdline: CLX=1 needs the vendor533 GPU firmware (proven only there): CLX stays off with $GPU" >&2; fi ;;
-0) DROPN="$DROPN msm.enable_clx" ;;
-esac
+[ "$CLX" = 1 ] && [ "$GPU" != vendor533 ] && echo "iceland-cmdline: CLX=1 needs the vendor533 GPU firmware (proven only there): CLX stays off with $GPU" >&2
+# kernel features (0.28-40): kconf VERSION -> D_MSM D_GOV D_NOCB D_S2I (1 / 0) from that kernel's config
+kconf() {
+	c=$R/usr/lib/modules/$1/config; [ -f "$c" ] || c=$R/boot/config-$1
+	D_MSM=0; D_GOV=0; D_NOCB=0; D_S2I=0
+	[ -n "$1" ] && [ -f "$c" ] || return 0
+	grep -qx 'CONFIG_DRM_MSM_ICELAND_DEFAULTS=y' "$c" && D_MSM=1
+	grep -qx 'CONFIG_CPU_IDLE_GOV_DEFAULT="teo"' "$c" && D_GOV=1
+	grep -qx 'CONFIG_RCU_NOCB_CPU_DEFAULT_ALL=y' "$c" && grep -qx 'CONFIG_RCU_LAZY=y' "$c" && ! grep -qx 'CONFIG_RCU_LAZY_DEFAULT_OFF=y' "$c" && D_NOCB=1
+	grep -qx 'CONFIG_PM_SLEEP_DEFAULT_S2IDLE=y' "$c" && D_S2I=1
+	return 0
+}
+# sets VERSION -> ON OFF DROP DROPN for a kernel (kconf first)
+sets() {
+	ON=""; OFF=""; DROP=""; DROPN=""
+	if [ $D_GOV = 1 ]; then
+		if [ "$IDLE_GOV" = teo ]; then OFF="$OFF cpuidle.governor=teo"; else ON="$ON cpuidle.governor=menu"; fi
+	elif [ "$IDLE_GOV" = teo ]; then ON="$ON cpuidle.governor=teo"; else OFF="$OFF cpuidle.governor=teo"; fi
+	if [ $D_NOCB = 1 ]; then
+		if [ "$RCU_LAZY" = 1 ]; then OFF="$OFF rcu_nocbs=all rcutree.enable_rcu_lazy=1 rcu_nocbs= rcutree.enable_rcu_lazy=0"
+		else ON="$ON rcu_nocbs= rcutree.enable_rcu_lazy=0"; fi
+	elif [ "$RCU_LAZY" = 1 ]; then ON="$ON rcu_nocbs=all rcutree.enable_rcu_lazy=1"
+	else OFF="$OFF rcu_nocbs=all rcutree.enable_rcu_lazy=1 rcu_nocbs= rcutree.enable_rcu_lazy=0"; fi
+	case "$GPU" in
+	vendor533|stock) ON="$ON firmware_class.path=$FW/iceland-gpu-$GPU" ;;
+	*) OFF="$OFF firmware_class.path=$FW/iceland-gpu-vendor533 firmware_class.path=$FW/iceland-gpu-stock" ;;
+	esac
+	if [ $D_MSM = 1 ]; then
+		if [ $PRE = 1 ]; then DROPN="$DROPN msm.enable_preemption"; else ON="$ON msm.enable_preemption=0"; fi
+	elif [ $PRE = 1 ]; then ON="$ON msm.enable_preemption=1"; else DROP=msm.enable_preemption; fi
+	if [ $D_S2I = 1 ]; then
+		if [ "$MEM_SLEEP" = s2idle ]; then OFF="$OFF mem_sleep_default=s2idle"; else ON="$ON mem_sleep_default=deep"; fi
+	elif [ "$MEM_SLEEP" = s2idle ]; then ON="$ON mem_sleep_default=s2idle"; else OFF="$OFF mem_sleep_default=s2idle"; fi
+	# 0.28-32: DROPN = option names removed whatever their value
+	if [ $D_MSM = 1 ]; then
+		case "$IDLE_RR" in 30) DROPN="$DROPN msm.dpu_idle_refresh_ms msm.dpu_idle_refresh_hz" ;; 0) ON="$ON msm.dpu_idle_refresh_ms=0"; DROPN="$DROPN msm.dpu_idle_refresh_hz" ;; esac
+		case "$BW_FLOOR" in 0) OFF="$OFF msm.dpu_bw_floor_pct=0" ;; 100) ON="$ON msm.dpu_bw_floor_pct=100" ;; esac
+	else
+		case "$IDLE_RR" in 30) ON="$ON msm.dpu_idle_refresh_ms=1000 msm.dpu_idle_refresh_hz=30" ;; 0) DROPN="$DROPN msm.dpu_idle_refresh_ms msm.dpu_idle_refresh_hz" ;; esac
+		case "$BW_FLOOR" in 0|100) ON="$ON msm.dpu_bw_floor_pct=$BW_FLOOR" ;; esac
+	fi
+	case "$CLX" in
+	1) if [ "$GPU" = vendor533 ]; then
+		if [ $D_MSM = 1 ]; then DROPN="$DROPN msm.enable_clx"; else ON="$ON msm.enable_clx=1"; fi
+	   elif [ $D_MSM = 1 ]; then ON="$ON msm.enable_clx=0"
+	   else DROPN="$DROPN msm.enable_clx"; fi ;;
+	0) if [ $D_MSM = 1 ]; then ON="$ON msm.enable_clx=0"; else DROPN="$DROPN msm.enable_clx"; fi ;;
+	esac
+	# 0.28-35: the TZ flag follows CLX (on only while CLX=1 is in effect; CLX=keep leaves it unmanaged too); the
+	# kernel's default is 1 since q90m, so a q90p+ entry carries only an explicit 0
+	if [ $D_MSM = 1 ]; then
+		case "$CLX_TZ" in 1) [ "$CLX" != keep ] && DROPN="$DROPN msm.a8xx_clx_tz_flag" ;; 0) ON="$ON msm.a8xx_clx_tz_flag=0" ;; esac
+	else
+		case "$CLX_TZ" in
+		1) if [ "$CLX" = 1 ] && [ "$GPU" = vendor533 ]; then ON="$ON msm.a8xx_clx_tz_flag=1"
+		   elif [ "$CLX" != keep ]; then DROPN="$DROPN msm.a8xx_clx_tz_flag"; fi ;;
+		0) DROPN="$DROPN msm.a8xx_clx_tz_flag" ;;
+		esac
+	fi
+	# 0.28-38 / 0.28-40: GIC pseudo-NMI (1 is refused above)
+	case "$PSEUDO_NMI" in 0) DROPN="$DROPN irqchip.gicv3_pseudo_nmi" ;; esac
+	# 0.28-40: the glitch-hunt display options
+	if [ "$GLITCH" = 1 ]; then
+		if [ $D_MSM = 1 ]; then OFF="$OFF $GLITCH_OPTS"; else ON="$ON $GLITCH_OPTS"; fi
+	fi
+	case "$SPLASH" in 1) ON="$ON rhgb" ;; 0) OFF="$OFF rhgb" ;; esac
+	return 0
+}
 fix() { # stdin: one options line -> the managed line (single spaces)
 	out=""; tail=""; set -f
 	for w in $(cat); do
@@ -108,11 +204,18 @@ fix() { # stdin: one options line -> the managed line (single spaces)
 	set +f
 	printf '%s\n' "${out# }$ON$tail" | sed 's/^ //'
 }
+# the kernel version of an entry: its linux line (/vmlinuz-VERSION), else its version line
+ever() {
+	v=$(sed -n 's|^linux[[:space:]]\{1,\}.*/vmlinuz-\([^[:space:]]*\).*$|\1|p' "$1" | head -n 1)
+	[ -n "$v" ] || v=$(sed -n 's/^version[[:space:]]\{1,\}\([^[:space:]]*\).*$/\1/p' "$1" | head -n 1)
+	echo "$v"
+}
 for e in "$R"/boot/loader/entries/*.conf; do
 	[ -f "$e" ] || continue
 	# 0.28-31: a one-shot test entry (iceland-coexist's iceland-oneshot) keeps the options it was armed with
 	case "${e##*/}" in iceland-oneshot-*) continue ;; esac
 	grep -q '^options ' "$e" || continue
+	kconf "$(ever "$e")"; sets
 	old=$(sed -n 's/^options //p' "$e" | head -n 1)
 	new=$(printf '%s\n' "$old" | fix)
 	[ "$new" = "$old" ] && [ "$(grep -c '^options ' "$e")" = 1 ] && continue
@@ -120,6 +223,9 @@ for e in "$R"/boot/loader/entries/*.conf; do
 done
 f=$R/etc/kernel/cmdline
 [ -f "$f" ] || exit 0
+# the template for the next kernel: the newest installed kernel's features
+newest=$(ls "$R/usr/lib/modules" 2>/dev/null | sort -V | tail -n 1)
+kconf "$newest"; sets
 old=$(head -n 1 "$f")
 new=$(printf '%s\n' "$old" | fix)
 [ "$new" = "$old" ] && exit 0

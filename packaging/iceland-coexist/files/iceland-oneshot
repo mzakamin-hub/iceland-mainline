@@ -22,11 +22,16 @@
 #      /var/lib/iceland/oneshot/entries/).
 #   3. The way out by hand: GRUB shows its menu for 3 s at every start; Volume Up / Down moves to the normal
 #      "Fedora Linux 44 (...)" entry, Power boots it; that boot's step 2 clears next_entry.
-# What can still repeat: a one-shot whose own options break the kernel BEFORE the initramfs runs (the first ~0.9 s).
-# The tool's users only arm options that act later (msm.*) or that are the kernel's own defaults (cpuidle.governor=
-# menu, lazy RCU off); for anything else the GRUB menu is the way out.
+# What can still repeat: a one-shot whose own options break the kernel BEFORE the initramfs runs (the first ~0.9 s;
+# 24 Oct 2026: irqchip.gicv3_pseudo_nmi=1 hung the kernel before any output, and every restart booted the one-shot
+# again until the owner chose the normal entry in the menu). GRUB cannot write anything on this tablet, so nothing can
+# count the attempt. 1.0-7: 'arm' therefore refuses options that act before the initramfs (irqchip.*, early memory /
+# CPU / console / security options, see EARLY below) unless --allow-early is given; for those the GRUB menu stays the
+# way out. 1.0-7: every boot also removes one-shot entries that next_entry no longer names (a stale entry could be
+# picked in the menu, or by GRUB if next_entry pointed at it again).
 #
 #   iceland-oneshot arm NAME [--args "OPTS"] [--drop "WORDS"] [--entry ID] [--initrd FILE] [--force] [--no-initrd-check]
+#                      [--allow-early]
 #        write /boot/loader/entries/iceland-oneshot-NAME.conf = a copy of the default entry (or --entry ID) with
 #        WORDS removed from its options and OPTS + iceland.oneshot=NAME iceland.oneshot.env=<boot fs UUID> added
 #        (before $iceland_args, which stays last); --initrd FILE (in the same directory as the entry's initramfs) boots
@@ -74,6 +79,12 @@ env_edit() {
 	rc=$?; rm -f "$t" "$t.new"; return $rc
 }
 okname() { case "$1" in ''|-*|*[!a-z0-9-]*) return 1 ;; esac; [ ${#1} -le 24 ]; }
+# 1.0-7: options the kernel acts on before the initramfs runs (a failure there repeats the one-shot at every start)
+EARLY='irqchip.* earlycon earlycon=* earlyprintk earlyprintk=* mem=* memmap=* maxcpus=* nr_cpus=* nosmp possible_cpus=*
+arm64.* kpti=* rodata=* nokaslr kaslr* cma=* swiotlb=* iommu.* kvm-arm.* id_aa64* efi=* noefi init=* rdinit=*
+acpi=* nohz_full=* isolcpus=* irqaffinity=* cgroup_disable=* transparent_hugepage=* numa=* page_alloc.* slub_* init_on_*
+mitigations=* nospectre* spectre* ssbd=* nopti pti=* lockdown=* module.sig_enforce* panic=* hardened_usercopy=*'
+isearly() { local p; set -f; for p in $EARLY; do case "$1" in $p) set +f; return 0 ;; esac; done; set +f; return 1; }
 key() { sed -n "s/^$2[[:space:]]\{1,\}//p" "$1" 2>/dev/null | head -n 1; }
 # bpath GRUBPATH -> the local file: GRUB's root is the shared boot ext4 (Fedora: /bootfs, its fedora44/ is /boot)
 bpath() { if [ -d "$R/bootfs" ] && [ -f "$R/bootfs/grub2/grubenv" ]; then echo "$R/bootfs$1"; else echo "$B$1"; fi; }
@@ -95,12 +106,18 @@ arm)
 	rootcheck
 	NAME=${1:-}; [ $# -gt 0 ] && shift
 	okname "$NAME" || die "NAME: 1-24 characters a-z 0-9 - (not '$NAME')"
-	ARGS=""; DROP=""; BASE=""; INITRD=""; FORCE=0; NOCHK=0
+	ARGS=""; DROP=""; BASE=""; INITRD=""; FORCE=0; NOCHK=0; EARLYOK=0
 	while [ $# -gt 0 ]; do case "$1" in
 		--args) ARGS=${2:-}; shift 2 ;; --drop) DROP=${2:-}; shift 2 ;; --entry) BASE=${2:-}; shift 2 ;;
 		--initrd) INITRD=${2:-}; shift 2 ;; --force) FORCE=1; shift ;; --no-initrd-check) NOCHK=1; shift ;;
+		--allow-early) EARLYOK=1; shift ;;
 		*) die "unknown option $1" ;; esac; done
 	case " $ARGS " in *" iceland.oneshot"*|*'$'*) die "--args must not carry iceland.oneshot* or \$ variables" ;; esac
+	ew=""; set -f; for w in $ARGS; do isearly "$w" && ew="$ew $w"; done; set +f
+	if [ -n "$ew" ]; then
+		[ "$EARLYOK" = 1 ] || die "--args has option(s) the kernel acts on before the initramfs:$ew - if they break the boot, GRUB boots this one-shot again at every start (GRUB cannot clear next_entry here); the way out is then only the GRUB menu by hand. Add --allow-early to arm it anyway"
+		say "WARNING: --allow-early:$ew act before the initramfs; a failure there repeats until the normal entry is chosen in the GRUB menu"
+	fi
 	[ -d "$E" ] && [ -f "$GENV" ] || die "no $E or $GENV"
 	ID=$PFX$NAME
 	cur=$(env_get "$GENV" next_entry)
@@ -222,6 +239,13 @@ consume)
 		else mv -f "$ST/armed" "$ST/last-skipped"; log "one-shot $a was NOT booted (this boot: ${b:-the default})"; fi
 	fi
 	if [ -n "$b" ] && [ -f "$E/$PFX$b.conf" ]; then mkdir -p "$ST/entries" && cp -f "$E/$PFX$b.conf" "$ST/entries/" && rm -f "$E/$PFX$b.conf" && log "entry $PFX$b.conf removed (used)"; fi
+	# 1.0-7: every other one-shot entry that next_entry does not name is stale (its one-shot was skipped, hung or
+	# already consumed): removed, a copy stays in $ST/entries/
+	nx=$(env_get "$GENV" next_entry)
+	for f in "$E"/"$PFX"*.conf; do [ -f "$f" ] || continue; id=${f##*/}; id=${id%.conf}
+		[ -n "$nx" ] && [ "$id" = "$nx" ] && continue
+		mkdir -p "$ST/entries" && cp -f "$f" "$ST/entries/" && rm -f "$f" && log "stale entry $id.conf removed (next_entry: ${nx:-none})"
+	done
 	exit 0 ;;
 initramfs)
 	rootcheck

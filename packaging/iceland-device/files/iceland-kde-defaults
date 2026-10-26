@@ -1,0 +1,58 @@
+#!/usr/bin/python3 -I
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-device-kde 0.28-36: the Pad 4's per-account defaults in a KDE Plasma session, ONCE per account (the user unit
+# iceland-kde-defaults.service; marker ~/.local/state/iceland/kde-defaults-0.28-36). A later choice in System Settings
+# is kept from then on. Plasma keeps these per account in ~/.config/kwinoutputconfig.json, so a system-wide default
+# file cannot set them:
+#   - automatic brightness ON for the built-in panel (KWin's ambient-light control through iio-sensor-proxy; the KDE
+#     form of iceland-device 0.28-31's GNOME default, owner's decision 22 Oct 2026): kscreen-doctor
+#     output.NAME.autoBrightness.enable (libkscreen >= 6.7). An output without the capability: logged, nothing done.
+# Log: the journal (user unit) and the marker file. Delete the marker to run it again.
+import json, os, shutil, subprocess, sys, time
+
+MARK = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "iceland",
+                    "kde-defaults-0.28-36")
+
+
+def log(msg):
+    print("iceland-kde-defaults: " + msg, flush=True)
+
+
+def panel():
+    r = subprocess.run(["kscreen-doctor", "-j"], capture_output=True, text=True, timeout=15)
+    outs = [o for o in json.loads(r.stdout or "{}").get("outputs", []) if o.get("connected", True)]
+    o = next((o for o in outs if str(o.get("name", "")).startswith(("DSI", "eDP"))), None)
+    return o.get("name") if o else None
+
+
+def main():
+    if os.path.exists(MARK):
+        return 0
+    if "KDE" not in os.environ.get("XDG_CURRENT_DESKTOP", "") or not shutil.which("kscreen-doctor"):
+        return 0
+    name = None
+    for _ in range(30):            # KWin / kscreen settle after the login
+        try:
+            name = panel()
+        except (OSError, subprocess.SubprocessError, ValueError):
+            name = None
+        if name:
+            break
+        time.sleep(2)
+    if not name:
+        log("no built-in panel (DSI-* / eDP-*) in kscreen-doctor's list: nothing done, again at the next login")
+        return 1
+    r = subprocess.run(["kscreen-doctor", "output.%s.autoBrightness.enable" % name], capture_output=True, text=True,
+                       timeout=30)
+    res = "automatic brightness on for %s" % name if r.returncode == 0 else \
+        "automatic brightness not set for %s (kscreen-doctor exit %d: %s)" % (name, r.returncode,
+                                                                            (r.stderr or r.stdout).strip()[:160])
+    log(res)
+    os.makedirs(os.path.dirname(MARK), exist_ok=True)
+    with open(MARK, "w") as f:
+        f.write("%s %s\n" % (time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), res))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

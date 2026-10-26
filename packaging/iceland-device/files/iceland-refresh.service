@@ -1,5 +1,5 @@
 [Unit]
-Description=OnePlus Pad 4: 60 Hz on battery, 120 Hz on AC
+Description=OnePlus Pad 4: 60 Hz on battery, 120 Hz on AC (GNOME or KDE Plasma)
 PartOf=graphical-session.target
 After=graphical-session.target
 

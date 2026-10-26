@@ -7,6 +7,7 @@
 #   iceland-storage-ro --summary     ONE kernel-log line for the boot (iceland-storage-summary.service, after udev has
 #                                    settled): how many internal UFS devices are read-only, the carrier and its LUN,
 #                                    and a warning naming any device that should be read-only and is not; reads only
+# 0.28-34: --summary is one pass with shell built-ins (0.28-33's took 3.5 s CPU / 164 MB at every boot).
 # 0.28-33: the per-device lines are gone (326 info lines per boot, 9 % of the journal); a device that could NOT be
 # made read-only still logs its own warning at once. The protection itself is unchanged.
 # 0.28-19 (wf/dualboot3, dual boot): Fedora's "carrier" is chosen as dracut-iceland-carrier chooses it:
@@ -80,17 +81,43 @@ if [ "$dev" = --explain ]; then
 	exit 0
 fi
 if [ "$dev" = --summary ]; then
+	# 0.28-34: one pass over the devices with shell built-ins only (cd -P for the device path, read for PARTNAME and
+	# the ro flag) and the carrier looked up once. 0.28-33 called carrier() - a loop over every device - and sed /
+	# cat / readlink for each of the ~157 devices: 3.5 s CPU and 164 MB peak at every boot. Same decisions, same line.
 	[ -z "$R" ] && command -v udevadm > /dev/null 2>&1 && udevadm settle --timeout=60 > /dev/null 2>&1
-	c=$(carrier); nro=0; nrw=0; wr=""; bad=""
+	c=$(carrier); nro=0; wr=""; bad=""; recs=""; cdisks=" "; cl=""
+	if [ -n "$c" ]; then cl=$(readlink -f "$R/dev/disk/by-partlabel/$c" 2>/dev/null); cl=${cl##*/}; fi
+	nl='
+'
 	for b in "$R"/sys/class/block/sd*; do
-		n=${b##*/}
-		ufs "$n" || continue
-		if [ -e "$b/partition" ]; then t=partition; else t=disk; fi
-		p=$(partname "$n"); w=$(why "$n" "$t" "$p"); ro=$(cat "$b/ro" 2>/dev/null) || ro="?"
-		if [ -z "$w" ]; then nrw=$((nrw + 1)); wr="$wr $n${p:+ ($p)}"
+		cd -P "$b" 2> /dev/null || continue
+		case "$PWD" in */1d84000.ufs/*) ;; *) continue ;; esac
+		n=${b##*/}; p=""; ro="?"
+		{ while IFS= read -r l; do case "$l" in PARTNAME=*) p=${l#PARTNAME=} ;; esac; done < "$b/uevent"; } 2> /dev/null
+		{ read -r ro < "$b/ro"; } 2> /dev/null || ro="?"
+		if [ -e "$b/partition" ]; then
+			t=partition
+			# the LUN holding the carrier (by name, or as udev's by-partlabel link names it) stays writable
+			if [ -n "$c" ] && { [ "$p" = "$c" ] || [ "$n" = "$cl" ]; }; then d=${PWD%/*}; cdisks="$cdisks${d##*/} "; fi
+		else
+			t=disk
+		fi
+		recs="$recs$n $t $ro $p$nl"
+	done
+	cd /
+	while read -r n t ro p; do
+		[ -n "$n" ] || continue
+		w=1   # 1 = should be read-only
+		if [ -n "$c" ]; then
+			if [ "$t" = partition ]; then [ "$p" = "$c" ] && w=0
+			else case "$cdisks" in *" $n "*) w=0 ;; esac; fi
+		fi
+		if [ $w = 0 ]; then wr="$wr $n${p:+ ($p)}"
 		elif [ "$ro" = 1 ]; then nro=$((nro + 1))
 		else bad="$bad $n${p:+ ($p)}"; fi
-	done
+	done <<EOT
+$recs
+EOT
 	if [ -n "$bad" ]; then
 		warn "$nro internal UFS devices read-only, carrier ${c:-none (a rehearsal boot)}, writable:${wr:- none}; NOT read-only although they should be:$bad"
 		exit 1

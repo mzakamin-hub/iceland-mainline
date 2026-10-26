@@ -1,0 +1,58 @@
+# /etc/xdg/powerdevilrc (iceland-device-kde 0.28-36): Plasma's power defaults for the OnePlus Pad 4, the KDE form of
+# iceland-device's GNOME override (zz_iceland-device.gschema.override) and logind-iceland.conf. KConfig reads this file
+# as the system default; a value the user sets in System Settings > Power Management wins (~/.config/powerdevilrc).
+# Enum values (powerdevil 6.x): 0 nothing, 1 sleep, 8 shut down, 16 ask, 32 lock screen, 64 turn off screen.
+#  - power key: NOTHING in every profile. iceland-battery-guard stays the key's only handler (charger in: lock +
+#    blank; no charger: suspend), as with GNOME's power-button-action='nothing'. powerdevil holds logind's power-key
+#    inhibitor while it runs, so logind does nothing either; the guard reads the key itself (read only).
+#  - cover (lid): battery -> sleep; charger -> lock only (the guard must keep watching the charge, as logind's
+#    HandleLidSwitchExternalPower=lock); an external monitor -> nothing (HandleLidSwitchDocked=ignore).
+#    powerdevil holds logind's lid inhibitor while it runs, so these lines decide, not logind.
+#  - idle on battery: screen off at 5 min, sleep at 6 min (iceland-device 0.28-27, GNOME 300 / 360 s).
+#    On the charger: screen off at 5 min, no sleep (the guard's KEEP_AWAKE holds a sleep block anyway).
+#  - a locked screen turns off after 10 s (the guard's power-key lock; Plasma's own lock).
+#  - low battery: the power-saver profile (GNOME's power-saver-profile-on-low-battery=true; tuned-ppd serves it).
+# The charge limit is NOT set here: UPower owns it (see /usr/share/polkit-1/rules.d/49-iceland-kde-charge-limit.rules).
+[AC][Display]
+DimDisplayWhenIdle=true
+DimDisplayIdleTimeoutSec=240
+TurnOffDisplayWhenIdle=true
+TurnOffDisplayIdleTimeoutSec=300
+TurnOffDisplayIdleTimeoutWhenLockedSec=10
+
+[AC][SuspendAndShutdown]
+AutoSuspendAction=0
+PowerButtonAction=0
+LidAction=32
+InhibitLidActionWhenExternalMonitorPresent=true
+
+[Battery][Display]
+DimDisplayWhenIdle=true
+DimDisplayIdleTimeoutSec=240
+TurnOffDisplayWhenIdle=true
+TurnOffDisplayIdleTimeoutSec=300
+TurnOffDisplayIdleTimeoutWhenLockedSec=10
+
+[Battery][SuspendAndShutdown]
+AutoSuspendAction=1
+AutoSuspendIdleTimeoutSec=360
+PowerButtonAction=0
+LidAction=1
+InhibitLidActionWhenExternalMonitorPresent=true
+
+[LowBattery][Display]
+DimDisplayWhenIdle=true
+DimDisplayIdleTimeoutSec=120
+TurnOffDisplayWhenIdle=true
+TurnOffDisplayIdleTimeoutSec=180
+TurnOffDisplayIdleTimeoutWhenLockedSec=10
+
+[LowBattery][SuspendAndShutdown]
+AutoSuspendAction=1
+AutoSuspendIdleTimeoutSec=300
+PowerButtonAction=0
+LidAction=1
+InhibitLidActionWhenExternalMonitorPresent=true
+
+[LowBattery][Performance]
+PowerProfile=power-saver

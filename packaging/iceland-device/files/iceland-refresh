@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
-# iceland-refresh (GNOME user service): lower the panel refresh rate on battery, raise it on the charger.
+# iceland-refresh (user service, GNOME and KDE Plasma): lower the panel refresh rate on battery, raise it on the charger.
 # The Pad 4 panel runs 30/60/90/120/144 Hz; the refresh rate is one of the biggest screen-on power costs.
 # Defaults: 60 Hz on battery, 120 Hz on AC. Override in /etc/iceland/refresh.conf or ~/.config/iceland/refresh.conf:
 #   BATTERY_HZ=60
@@ -25,7 +25,13 @@
 # change of the built-in panel - ours or the user's in GNOME Settings - the display is switched off and on once
 # through mutter's PowerSaveMode, which brings the picture and touch back; it runs even with ENABLED=0. 0058
 # (area-display-7: 11 of 11 live changes keep the picture) makes it unnecessary.
-import os, sys
+# 0.28-36: one service for both desktops. At start it looks for the compositor on the session bus: GNOME's mutter
+# (org.gnome.Mutter.DisplayConfig, the code path below, unchanged) or KDE's KWin (org.kde.KWin) with kscreen-doctor
+# (libkscreen): the KScreen backend sets the built-in panel's mode with `kscreen-doctor output.NAME.mode.ID`. Unlike
+# mutter's temporary configuration KWin STORES the mode (~/.config/kwinoutputconfig.json); harmless, the next plug /
+# unplug sets it again. RELIGHT and DISCHARGING_IS_BATTERY are GNOME-path only (both off by default). Neither
+# compositor within 60 s (another desktop): the service ends without an error.
+import json, os, shutil, subprocess, sys, time
 from gi.repository import Gio, GLib
 
 def conf():
@@ -184,10 +190,97 @@ class Refresh:
         except GLib.Error as e:
             print("iceland-refresh: " + e.message, file=sys.stderr, flush=True)
 
+class KScreenRefresh:
+    """0.28-36: the KDE Plasma backend (KWin through kscreen-doctor); same files and switches as the GNOME one"""
+    def __init__(self):
+        self.sysbus = Gio.bus_get_sync(Gio.BusType.SYSTEM)
+        self.up = Gio.DBusProxy.new_sync(self.sysbus, 0, None, "org.freedesktop.UPower",
+                                         "/org/freedesktop/UPower", "org.freedesktop.UPower", None)
+        self.last_ob = None
+        self.up.connect("g-properties-changed", lambda *a: self.apply())
+
+    @staticmethod
+    def panel():
+        """the built-in panel from `kscreen-doctor -j`: (name, w, h, hz, [(id, w, h, hz)]) or None. The panel = a
+        connected, enabled output named DSI-* / eDP-* (else the first connected one)"""
+        r = subprocess.run(["kscreen-doctor", "-j"], capture_output=True, text=True, timeout=15)
+        j = json.loads(r.stdout or "{}")
+        outs = [o for o in j.get("outputs", []) if o.get("connected", True) and o.get("enabled", True)]
+        o = next((o for o in outs if str(o.get("name", "")).startswith(("DSI", "eDP"))), outs[0] if outs else None)
+        if o is None:
+            return None
+        modes = [(str(m.get("id")), m.get("size", {}).get("width"), m.get("size", {}).get("height"),
+                  float(m.get("refreshRate", 0))) for m in o.get("modes", [])]
+        cur = next((m for m in modes if m[0] == str(o.get("currentModeId"))), None)
+        if cur is None:
+            return None
+        return o.get("name"), cur[1], cur[2], cur[3], modes
+
+    def apply(self):
+        c = conf()
+        if c.get("ENABLED", "1") != "1":
+            return
+        v = self.up.get_cached_property("OnBattery")
+        on_battery = bool(v.unpack()) if v is not None else False
+        if on_battery == self.last_ob:
+            return
+        try:
+            p = self.panel()
+        except (OSError, subprocess.SubprocessError, ValueError) as e:
+            print("iceland-refresh: kscreen-doctor: %s" % e, file=sys.stderr, flush=True)
+            return
+        if not p:
+            print("iceland-refresh: no built-in panel in kscreen-doctor's list", file=sys.stderr, flush=True)
+            return
+        self.last_ob = on_battery
+        name, w, h, hz, modes = p
+        target = float(c["BATTERY_HZ"] if on_battery else c["AC_HZ"])
+        same = [m for m in modes if m[1] == w and m[2] == h]
+        if not same:
+            return
+        best = min(same, key=lambda m: abs(m[3] - target))
+        if abs(best[3] - hz) < 0.5:
+            return
+        r = subprocess.run(["kscreen-doctor", "output.%s.mode.%s" % (name, best[0])], capture_output=True, text=True,
+                           timeout=30)
+        if r.returncode == 0:
+            print("iceland-refresh: %s -> %.0f Hz (KWin, %s)" % ("battery" if on_battery else "AC", best[3], name),
+                  flush=True)
+        else:
+            self.last_ob = None        # try again at the next UPower change
+            print("iceland-refresh: kscreen-doctor failed: " + r.stderr.strip()[:200], file=sys.stderr, flush=True)
+
+def backend(wait_s=60):
+    """0.28-36: "gnome" (mutter's DisplayConfig on the session bus), "kde" (KWin + kscreen-doctor) or None"""
+    bus = Gio.bus_get_sync(Gio.BusType.SESSION)
+    def owned(name):
+        try:
+            return bus.call_sync("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                 "NameHasOwner", GLib.Variant("(s)", (name,)), None, 0, -1, None).unpack()[0]
+        except GLib.Error:
+            return False
+    end = time.monotonic() + wait_s
+    while True:
+        if owned("org.gnome.Mutter.DisplayConfig"):
+            return "gnome"
+        if owned("org.kde.KWin") and shutil.which("kscreen-doctor"):
+            return "kde"
+        if time.monotonic() > end:
+            return None
+        time.sleep(2)
+
 def main():
-    r = Refresh()
-    r.apply()
+    b = backend()
+    if b is None:
+        print("iceland-refresh: neither mutter nor KWin on the session bus: nothing to do in this session", flush=True)
+        return 0
+    if b == "kde":
+        r = KScreenRefresh()
+        GLib.timeout_add_seconds(3, lambda: r.apply() and False)   # KWin / kscreen settle after the login
+    else:
+        r = Refresh()
+        r.apply()
     GLib.MainLoop().run()
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

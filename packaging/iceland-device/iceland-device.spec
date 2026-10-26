@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        33%{?dist}
+Release:        40%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -224,6 +224,22 @@ Source202:      60-iceland-storage-tune.rules
 Source203:      iceland_irqbalance.cil
 # 0.28-33: one summary line per boot instead of a line per read-only UFS device
 Source204:      iceland-storage-summary.service
+# 0.28-36: iceland-device-kde (the KDE Plasma forms of the GNOME pieces; see %%description kde)
+Source205:      kde-powerdevilrc
+Source207:      49-iceland-kde-charge-limit.rules
+Source208:      bypass-plasmoid-metadata.json
+Source209:      bypass-plasmoid-main.qml
+Source210:      iceland-kde-defaults
+Source211:      iceland-kde-defaults.service
+# 0.28-37: tools for automated checks: a screenshot of the Plasma session from SSH, simulated touch / keyboard (uinput)
+Source212:      iceland-shot
+Source213:      iceland-input
+# 0.28-39: KWallet is the session's secrets provider (org.freedesktop.secrets -> ksecretd ahead of gnome-keyring's
+# activation file), its defaults (no first-run wizard), and the copy of gnome-keyring's login items into it
+Source214:      50-iceland-kde-secrets.conf
+Source215:      kde-secrets.service
+Source216:      kde-kwalletrc
+Source217:      iceland-secrets-migrate
 
 Requires:       kernel-iceland
 # 0.28-19: stock's GPU GMU / SQE pair (/usr/lib/firmware/iceland-gpu-stock, GPU_FW=stock); 0.28-20: the vendor pair
@@ -256,7 +272,10 @@ Requires:       wireplumber >= 0.5.18
 Requires:       ladspa-swh-plugins
 # iceland-speaker-default (0.28-3): pw-cli / pw-metadata
 Requires:       pipewire-utils
-Requires:       xdg-desktop-portal-gnome
+# 0.28-37: the desktop parts are subpackages; each comes with its desktop (rich dependencies), so an update of this
+# package on a GNOME system brings iceland-device-gnome along, and removing GNOME lets it go
+Requires:       (iceland-device-gnome = %{version}-%{release} if gnome-shell)
+Requires:       (iceland-device-kde = %{version}-%{release} if plasma-workspace)
 Requires:       fuse3
 Requires:       btrfs-progs
 Requires:       libdnf5-plugin-actions
@@ -280,9 +299,6 @@ Recommends:     mesa-libOpenCL
 Requires:       pipewire-gstreamer >= 1.6.8
 Requires:       pipewire-libs >= 1.6.8
 Requires(posttrans): grubby
-# 0.28-18: dconf update compiles GDM's system database (/etc/dconf/db/gdm.d -> /etc/dconf/db/gdm)
-Requires(posttrans): dconf
-Requires(postun): dconf
 
 %description
 Settings that make Fedora 44 work safely on the OnePlus Pad 4 with the kernel-iceland package:
@@ -354,6 +370,60 @@ Settings that make Fedora 44 work safely on the OnePlus Pad 4 with the kernel-ic
   iceland-battery-guard; it ends at unplug, at a charger-input safety stop and 5 minutes after the toggle stops
   renewing it (screen locked), and every charging limit still applies (iceland-bypassd, polkit
   org.iceland.bypass.set: the user at the tablet).
+
+%package kde
+Summary:        OnePlus Pad 4 (iceland) device settings for a KDE Plasma session
+Requires:       iceland-device = %{version}-%{release}
+# kscreen-doctor (libkscreen): the 60 / 120 Hz switch (iceland-refresh's KWin backend) and the per-account defaults
+Requires:       /usr/bin/kscreen-doctor
+Requires:       powerdevil
+Requires:       plasma-workspace
+# the Bypass Charging item: busctl (systemd), upower (the charge-limit switch), the Plasma 5 support data engines
+Requires:       upower
+Requires:       qt6qml(org.kde.plasma.plasma5support)
+# the portal backend of a Plasma session (file chooser, camera permission, screen cast)
+Requires:       xdg-desktop-portal-kde
+# iceland-shot: Spectacle's background capture (KWin authorizes ScreenShot2 for it)
+Requires:       spectacle
+# 0.28-39: KWallet's secret service (ksecretd) answers org.freedesktop.secrets (gnome-keyring stays a dependency of the
+# apps that want it; iceland-secrets-migrate uses it when it is there)
+Requires:       kf6-kwallet
+Recommends:     kwallet-pam
+Supplements:    (iceland-device and plasma-workspace)
+
+%description kde
+The KDE Plasma forms of iceland-device's GNOME pieces; a GNOME session is not affected (GDM, GNOME and their files
+stay as they are). The desktop-agnostic parts are in iceland-device itself: the 60 / 120 Hz switch (iceland-refresh
+picks mutter or KWin), the kernel trial confirmation (any desktop), the battery guard's power-key lock + blank (GNOME's
+screen saver, else the freedesktop one + Plasma's "Turn Off Screen"). This package adds:
+- /etc/xdg/powerdevilrc: Plasma's power defaults = the GNOME override's: the power key does nothing in Plasma
+  (iceland-battery-guard is its only handler), the cover sleeps on battery and only locks with a charger in, the
+  screen turns off at 5 min, sleep at 6 min on battery and never on the charger, power saver on low battery;
+- 49-iceland-kde-charge-limit.rules: UPower is the only writer of the kernel's charge-limit thresholds (80 / 85 %);
+  Plasma's own charge-limit setting is refused (it would be overwritten at every UPower start);
+- the "Bypass Charging" system-tray item (plasmoid org.iceland.bypass): bypass charging through iceland-bypassd, and
+  the charge-limit switch (UPower's EnableChargeThreshold, = GNOME Settings' "Preserve Battery Health");
+- iceland-kde-defaults (user unit, once per account): KWin's automatic brightness (ambient light) on for the panel;
+- iceland-shot / iceland-input: a screenshot of the session from SSH and simulated touch / keyboard (checks);
+- KWallet as the secrets provider: org.freedesktop.secrets is activated as ksecretd ahead of gnome-keyring's file
+  (/usr/lib/environment.d/50-iceland-kde-secrets.conf + /usr/share/iceland/session-first), /etc/xdg/kwalletrc (on,
+  no first-run wizard: a plain Blowfish "kdewallet"), iceland-secrets-migrate (gnome-keyring's login items into it);
+
+%package gnome
+Summary:        OnePlus Pad 4 (iceland) device settings for a GNOME session
+Requires:       iceland-device = %{version}-%{release}
+# the desktop's way to the cameras: the portal that asks for the camera permission (GNOME backend)
+Requires:       xdg-desktop-portal-gnome
+# dconf update compiles GDM's system database (/etc/dconf/db/gdm.d -> /etc/dconf/db/gdm)
+Requires(posttrans): dconf
+Requires(postun): dconf
+
+%description gnome
+The GNOME forms of iceland-device's desktop settings (0.28-37: split out of the main package; until 0.28-36 they were
+part of it): the GSettings override (the power key left to iceland-battery-guard, sleep after 6 min on battery, power
+saver on low battery, automatic brightness on, the Bypass Charging extension enabled), the "Bypass Charging" Quick
+Settings toggle (GNOME Shell extension iceland-bypass@oneplus-pad4), iceland-ambient-default (an old
+ambient-enabled=false reset once per account) and the login screen's default (GDM does not claim the light sensor).
 
 %prep
 %setup -q -c -T
@@ -472,7 +542,6 @@ install -Dm0644 %{SOURCE53} %{buildroot}/usr/lib/systemd/logind.conf.d/60-icelan
 install -Dm0644 %{SOURCE62} %{buildroot}/usr/lib/udev/rules.d/59-iceland-storage-ro.rules
 install -Dm0755 %{SOURCE63} %{buildroot}/usr/libexec/iceland/iceland-storage-ro
 install -Dm0644 %{SOURCE204} %{buildroot}/usr/lib/systemd/system/iceland-storage-summary.service
-ln -s ../iceland-storage-summary.service %{buildroot}/usr/lib/systemd/system/multi-user.target.wants/iceland-storage-summary.service
 install -Dm0755 %{SOURCE64} %{buildroot}/usr/lib/dracut/modules.d/90iceland/module-setup.sh
 install -Dm0755 %{SOURCE65} %{buildroot}/usr/lib/dracut/modules.d/90iceland/iceland-carrier
 install -Dm0755 %{SOURCE66} %{buildroot}/usr/lib/dracut/modules.d/90iceland/iceland-rehearsal
@@ -536,6 +605,19 @@ install -Dm0644 %{SOURCE157} %{buildroot}/usr/lib/sysctl.d/60-iceland-vm.conf
 install -Dm0644 %{SOURCE158} %{buildroot}/usr/lib/tmpfiles.d/iceland-thp.conf
 install -Dm0644 %{SOURCE159} %{buildroot}/usr/share/polkit-1/rules.d/49-iceland-no-sleep-override.rules
 install -d %{buildroot}/var/lib/iceland/trial
+# 0.28-36: iceland-device-kde
+install -Dm0644 %{SOURCE205} %{buildroot}/etc/xdg/powerdevilrc
+install -Dm0644 %{SOURCE207} %{buildroot}/usr/share/polkit-1/rules.d/49-iceland-kde-charge-limit.rules
+install -Dm0644 %{SOURCE208} %{buildroot}/usr/share/plasma/plasmoids/org.iceland.bypass/metadata.json
+install -Dm0644 %{SOURCE209} %{buildroot}/usr/share/plasma/plasmoids/org.iceland.bypass/contents/ui/main.qml
+install -Dm0755 %{SOURCE210} %{buildroot}/usr/libexec/iceland/iceland-kde-defaults
+install -Dm0644 %{SOURCE211} %{buildroot}/usr/lib/systemd/user/iceland-kde-defaults.service
+install -Dm0755 %{SOURCE212} %{buildroot}/usr/bin/iceland-shot
+install -Dm0755 %{SOURCE213} %{buildroot}/usr/bin/iceland-input
+install -Dm0644 %{SOURCE214} %{buildroot}/usr/lib/environment.d/50-iceland-kde-secrets.conf
+install -Dm0644 %{SOURCE215} %{buildroot}/usr/share/iceland/session-first/dbus-1/services/org.freedesktop.secrets.service
+install -Dm0644 %{SOURCE216} %{buildroot}/etc/xdg/kwalletrc
+install -Dm0755 %{SOURCE217} %{buildroot}/usr/bin/iceland-secrets-migrate
 
 %posttrans
 # install plan: GRUB settings (per-kernel device tree, visible menu, $iceland_args), trial-boot units, udev
@@ -606,7 +688,7 @@ if [ -d /run/systemd/system ]; then systemctl daemon-reload >/dev/null 2>&1 || :
 # 0.28-16: the sensor watch runs from now on (its timer is linked into timers.target.wants); 0.28-27: the timer
 # is one check 90 s after its start (armed again by every stop / failure of the proxy): arm it once now
 [ -d /run/systemd/system ] && systemctl start iceland-ssc-watch.timer >/dev/null 2>&1 || :
-systemctl --global enable iceland-refresh.service iceland-charge-alert.service iceland-speaker-default.service iceland-ambient-default.service >/dev/null 2>&1 || :
+systemctl --global enable iceland-refresh.service iceland-charge-alert.service iceland-speaker-default.service >/dev/null 2>&1 || :
 # bypass charging: the bus reads the D-Bus policy of iceland-bypassd again (the service starts on demand); a running
 # one takes the new version. polkit sees the new action by itself; the GSettings override is compiled by glib2's
 # file trigger; GNOME Shell loads the extension at the next login.
@@ -664,10 +746,25 @@ if [ -d /run/systemd/system ]; then
 	systemctl daemon-reload >/dev/null 2>&1 || :
 	systemctl try-restart irqbalance.service >/dev/null 2>&1 || :
 fi
+# 0.28-34: a unit added by an update is enabled on systems that already had the package. Presets run only at a
+# first installation (and a new image's preset-all), never at an update, so up to 0.28-33 a new unit stayed off on
+# an updated system (iceland-storage-summary in 0.28-33). Once per unit and system (marker
+# /var/lib/iceland/.new-unit-UNIT): the unit's line in 50-iceland.preset decides, and a unit the owner disables
+# afterwards stays disabled. Every unit a release adds goes into this list.
+for u in iceland-storage-summary.service; do
+	[ -e "/var/lib/iceland/.new-unit-$u" ] && continue
+	systemctl preset "$u" >/dev/null 2>&1 || systemctl enable "$u" >/dev/null 2>&1 || :
+	mkdir -p /var/lib/iceland && touch "/var/lib/iceland/.new-unit-$u"
+done
 # 0.28-9 (4): sysctl.d / tmpfiles.d take effect through systemd's file triggers at once and at every boot
-# 0.28-18: GDM's dconf database with the greeter default (ambient-enabled=false); the greeter reads it at its next
-# start (the next login screen), user sessions are not touched
-dconf update >/dev/null 2>&1 || :
+# 0.28-37: GDM's dconf database (the greeter default) is compiled by iceland-device-gnome
+
+%post kde
+# the per-account Plasma defaults run at each account's next Plasma login (the unit itself checks the desktop)
+systemctl --global enable iceland-kde-defaults.service >/dev/null 2>&1 || :
+
+%preun kde
+[ "$1" -eq 0 ] && systemctl --global disable iceland-kde-defaults.service >/dev/null 2>&1 || :
 
 %triggerin -- fwupd
 /usr/libexec/iceland/iceland-fwupd-guard || :
@@ -689,7 +786,7 @@ fi
 %preun
 [ "$1" -eq 0 ] && systemctl disable iceland-trial-early.service iceland-boot-confirm.service >/dev/null 2>&1 || :
 [ "$1" -eq 0 ] && systemctl disable iceland-slot-mark.service >/dev/null 2>&1 || :
-[ "$1" -eq 0 ] && systemctl --global disable iceland-refresh.service iceland-charge-alert.service iceland-speaker-default.service iceland-ambient-default.service >/dev/null 2>&1; [ "$1" -eq 0 ] && systemctl disable iceland-ssc-resume.service iceland-wifi-country.service iceland-npu-off.service iceland-battery-guard.service iceland-bdaddr.service >/dev/null 2>&1 || :
+[ "$1" -eq 0 ] && systemctl --global disable iceland-refresh.service iceland-charge-alert.service iceland-speaker-default.service >/dev/null 2>&1; [ "$1" -eq 0 ] && systemctl disable iceland-ssc-resume.service iceland-wifi-country.service iceland-npu-off.service iceland-battery-guard.service iceland-bdaddr.service >/dev/null 2>&1 || :
 # the thermal policy hands its limits back when it stops
 [ "$1" -eq 0 ] && systemctl disable --now iceland-thermal.service >/dev/null 2>&1 || :
 # the launch boost hands every clamp back when it stops
@@ -697,13 +794,24 @@ fi
 if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/enforce ]; then semodule -r iceland_sensors >/dev/null 2>&1 || :; else semodule -n -r iceland_sensors >/dev/null 2>&1 || :; fi; fi
 if [ "$1" -eq 0 ] && [ -e /var/lib/iceland/.irqbalance-cil-0.28-32 ]; then semodule -r iceland_irqbalance >/dev/null 2>&1 || :; rm -f /var/lib/iceland/.irqbalance-cil-0.28-32; fi
 [ "$1" -eq 0 ] && systemctl disable --now iceland-clock.timer iceland-clock.service >/dev/null 2>&1 || :
+[ "$1" -eq 0 ] && { systemctl disable iceland-storage-summary.service >/dev/null 2>&1; rm -f /var/lib/iceland/.new-unit-*; } || :
 [ "$1" -eq 0 ] && /usr/bin/iceland-power-profiles reset >/dev/null 2>&1 || :
 # bypass charging ends with the package (the running guard gives charging back at its next step)
 [ "$1" -eq 0 ] && { systemctl stop iceland-bypass.service >/dev/null 2>&1; rm -f /run/iceland/bypass-request; } || :
 
-%postun
-# 0.28-18: on removal GDM's dconf database is compiled again without the greeter default (an upgrade does it in
-# %posttrans)
+%post gnome
+systemctl --global enable iceland-ambient-default.service >/dev/null 2>&1 || :
+
+%posttrans gnome
+# 0.28-18: GDM's dconf database with the greeter default (ambient-enabled=false); the greeter reads it at its next
+# start (the next login screen), user sessions are not touched
+dconf update >/dev/null 2>&1 || :
+
+%preun gnome
+[ "$1" -eq 0 ] && systemctl --global disable iceland-ambient-default.service >/dev/null 2>&1 || :
+
+%postun gnome
+# on removal GDM's dconf database is compiled again without the greeter default (an upgrade does it in %%posttrans)
 [ "$1" -eq 0 ] && { dconf update >/dev/null 2>&1 || :; } || :
 
 %files
@@ -819,8 +927,6 @@ if [ "$1" -eq 0 ] && [ -e /var/lib/iceland/.irqbalance-cil-0.28-32 ]; then semod
 /usr/libexec/iceland/iceland-grow
 /usr/lib/systemd/system/iceland-grow.service
 /usr/lib/systemd/system/multi-user.target.wants/iceland-grow.service
-%dir /etc/dconf/db/gdm.d
-%config(noreplace) /etc/dconf/db/gdm.d/50-iceland-greeter-ambient
 /usr/lib/systemd/system-preset/50-iceland.preset
 %dir /usr/share/selinux/packages/iceland
 /usr/share/selinux/packages/iceland/iceland_sensors.pp
@@ -840,7 +946,6 @@ if [ "$1" -eq 0 ] && [ -e /var/lib/iceland/.irqbalance-cil-0.28-32 ]; then semod
 /usr/lib/udev/rules.d/59-iceland-storage-ro.rules
 /usr/libexec/iceland/iceland-storage-ro
 /usr/lib/systemd/system/iceland-storage-summary.service
-/usr/lib/systemd/system/multi-user.target.wants/iceland-storage-summary.service
 /usr/libexec/iceland/iceland-dmmap
 /usr/bin/iceland-dmmap
 /usr/lib/udev/rules.d/80-iceland-memlat-nopoll.rules
@@ -867,21 +972,131 @@ if [ "$1" -eq 0 ] && [ -e /var/lib/iceland/.irqbalance-cil-0.28-32 ]; then semod
 /usr/libexec/iceland/iceland-fwupd-guard
 /usr/libexec/iceland/iceland-charge-alert
 /usr/lib/systemd/user/iceland-charge-alert.service
-/usr/lib/systemd/user/iceland-ambient-default.service
-/usr/libexec/iceland/iceland-ambient-default
 /usr/libexec/iceland/iceland-bypassd
 /usr/lib/systemd/system/iceland-bypass.service
 /usr/share/dbus-1/system-services/org.iceland.Bypass.service
 /usr/share/dbus-1/system.d/org.iceland.Bypass.conf
 /usr/share/polkit-1/actions/org.iceland.bypass.policy
+/usr/share/pipewire/pipewire.conf.d/60-iceland-mic-processing.conf
+/usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
+
+%files gnome
+%dir /etc/dconf/db/gdm.d
+%config(noreplace) /etc/dconf/db/gdm.d/50-iceland-greeter-ambient
+/usr/lib/systemd/user/iceland-ambient-default.service
+/usr/libexec/iceland/iceland-ambient-default
 %dir /usr/share/gnome-shell/extensions/iceland-bypass@oneplus-pad4
 /usr/share/gnome-shell/extensions/iceland-bypass@oneplus-pad4/extension.js
 /usr/share/gnome-shell/extensions/iceland-bypass@oneplus-pad4/metadata.json
 /usr/share/glib-2.0/schemas/zz_iceland-device.gschema.override
-/usr/share/pipewire/pipewire.conf.d/60-iceland-mic-processing.conf
-/usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
+
+%files kde
+%config(noreplace) /etc/xdg/powerdevilrc
+/usr/share/polkit-1/rules.d/49-iceland-kde-charge-limit.rules
+%dir /usr/share/plasma/plasmoids/org.iceland.bypass
+%dir /usr/share/plasma/plasmoids/org.iceland.bypass/contents
+%dir /usr/share/plasma/plasmoids/org.iceland.bypass/contents/ui
+/usr/share/plasma/plasmoids/org.iceland.bypass/metadata.json
+/usr/share/plasma/plasmoids/org.iceland.bypass/contents/ui/main.qml
+/usr/libexec/iceland/iceland-kde-defaults
+/usr/lib/systemd/user/iceland-kde-defaults.service
+/usr/bin/iceland-shot
+/usr/bin/iceland-input
+/usr/lib/environment.d/50-iceland-kde-secrets.conf
+%dir /usr/share/iceland/session-first
+%dir /usr/share/iceland/session-first/dbus-1
+%dir /usr/share/iceland/session-first/dbus-1/services
+/usr/share/iceland/session-first/dbus-1/services/org.freedesktop.secrets.service
+%config(noreplace) /etc/xdg/kwalletrc
+/usr/bin/iceland-secrets-migrate
 
 %changelog
+* Sat Oct 24 2026 mzak <mzak.amin@gmail.com> - 0.28-40
+- iceland-cmdline for kernel q90p+: each boot entry is written for its own kernel (its config in
+  /usr/lib/modules/<version>/config). A kernel with the built-in defaults (CONFIG_DRM_MSM_ICELAND_DEFAULTS,
+  CPU_IDLE_GOV_DEFAULT="teo", RCU_NOCB_CPU_DEFAULT_ALL + lazy RCU, PM_SLEEP_DEFAULT_S2IDLE) no longer gets the options
+  those defaults replace (cpuidle.governor=teo, rcu_nocbs=all, rcutree.enable_rcu_lazy=1, mem_sleep_default=s2idle,
+  the idle refresh, preemption, CLX and CLX TZ options, msm.dpu_bw_floor_pct=0); a switch set away from its default
+  writes the explicit value instead (cpuidle.governor=menu, "rcu_nocbs=" rcutree.enable_rcu_lazy=0,
+  mem_sleep_default=deep, msm.dpu_idle_refresh_ms=0, msm.enable_preemption=0, msm.enable_clx=0,
+  msm.a8xx_clx_tz_flag=0). Older kernels (fallbacks, roll-back entries) keep every option; /etc/kernel/cmdline
+  follows the newest installed kernel. firmware_class.path stays.
+- boot.conf GLITCH=1 (new): the glitch-hunt display options (until now hand edits) are managed: all of them for an
+  older kernel, none for q90p+ (they are its defaults; iceland.glitchfix=1 marker dropped); keep = not managed.
+- boot.conf PSEUDO_NMI: UNSUPPORTED (the kernel hangs before any output under Gunyah, q90o-run stage C); 1 is
+  refused with a message and counts as 0
+
+* Sun Oct 25 2026 mzak <mzak.amin@gmail.com> - 0.28-39
+- iceland-device-kde: KWallet is the session's secrets provider (owner, 25 Oct): both kf6-kwallet (ksecretd) and
+  gnome-keyring (kept: claude-desktop-extra requires it) declare org.freedesktop.secrets for D-Bus activation; the session
+  bus takes the first file on its search path, so /usr/lib/environment.d/50-iceland-kde-secrets.conf puts
+  /usr/share/iceland/session-first (one file: org.freedesktop.secrets -> /usr/bin/ksecretd) ahead of /usr/share in
+  XDG_DATA_DIRS for the systemd user manager, which starts the session bus
+- /etc/xdg/kwalletrc: Enabled=true, First Use=false (no first-run wizard, which offered GPG and failed without a GPG key:
+  the first request gets the plain "create the wallet" dialog, a classic Blowfish "kdewallet"), one default wallet
+- iceland-secrets-migrate list | migrate: gnome-keyring-daemon (on a private bus when dbus-run-session + dbus-daemon are
+  installed, else holding org.freedesktop.secrets for the seconds of the read) against a temporary copy of
+  ~/.local/share/keyrings, unlocked with the login password, its login items (label, attributes, secret) created in
+  KWallet's default wallet through the Secret Service API, existing ones skipped, each read back and compared; no
+  secret is logged or written to disk; "list" prints labels only
+- Requires kf6-kwallet; Recommends kwallet-pam
+- carries 0.28-38 (PSEUDO_NMI) unchanged otherwise
+
+* Sat Oct 24 2026 mzak <mzak.amin@gmail.com> - 0.28-38
+- boot.conf PSEUDO_NMI (iceland-cmdline): 1 = irqchip.gicv3_pseudo_nmi=1 (GIC priority masking as NMI; kernel q90n+
+  builds CONFIG_ARM64_PSEUDO_NMI), so the lockup detectors and RCU stall reports get a stuck CPU's backtrace;
+  0 (default until the q90n benchmark row passes) = removed; keep = not managed. Rebased onto 0.28-37 (the Plasma
+  agent's tree, subpackages -kde and -gnome unchanged); the PSEUDO_NMI-only 0.28-36 of the q90k agent is withdrawn
+
+* Sat Oct 24 2026 mzak <mzak.amin@gmail.com> - 0.28-37
+- split: new subpackage iceland-device-gnome with the GNOME-only files of the main package (the GSettings override,
+  the Bypass Charging Shell extension, iceland-ambient-default, the GDM greeter's dconf default) and their
+  requirements (xdg-desktop-portal-gnome, dconf); the main package requires it only while gnome-shell is installed
+  and iceland-device-kde only while plasma-workspace is (rich dependencies), so GNOME can be removed without touching
+  iceland-device (owner 24 Oct: full move to KDE Plasma)
+- iceland-device-kde: iceland-shot (a screenshot of the Plasma session from SSH: the whole screen or one window by
+  title, through Spectacle's background mode) and iceland-input (root: simulated touch tap / swipe and keyboard
+  through two short-lived uinput devices) for automated checks; requires xdg-desktop-portal-kde and spectacle; no /etc/xdg/kded6rc any more (with GNOME gone, GTK apps should
+  follow Plasma's look through kde-gtk-config)
+- otherwise as 0.28-36 (never installed)
+
+* Sat Oct 24 2026 mzak <mzak.amin@gmail.com> - 0.28-36
+- new subpackage iceland-device-kde (KDE Plasma 6.7 next to GNOME):
+  /etc/xdg/powerdevilrc (power key nothing, cover / idle / low-battery as the GNOME override and the logind drop-in),
+  a polkit rule that keeps UPower the only charge-limit writer (Plasma's KAuth setthreshold refused), the Bypass
+  Charging system-tray item org.iceland.bypass (+ the UPower charge-limit switch), iceland-kde-defaults (KWin's
+  automatic brightness on once per account)
+- iceland-refresh: one user service for both desktops: mutter's DisplayConfig (unchanged) or, when KWin owns the session
+  bus instead, kscreen-doctor (the built-in panel's mode at BATTERY_HZ / AC_HZ); neither within 60 s: ends without error
+- iceland-trial: desktop_up accepts gnome-shell, kwin_wayland or plasmashell, or any active logind graphical session
+  (user or greeter, wayland / x11) older than 30 s: a trial kernel is confirmed under Plasma too
+- iceland-battery-guard: the power-key lock + blank falls back from org.gnome.ScreenSaver to org.freedesktop.ScreenSaver
+  (KDE: SetActive locks) and then Plasma's "Turn Off Screen" (KGlobalAccel, powerdevil); the action's journal line
+  notes a power button action set in the user's ~/.config/powerdevilrc. GNOME path and its log lines unchanged
+- iceland-snapshot: the root subvolume is the one mounted at / (findmnt FSROOT: "root", or "fedora-root" on
+  iceland-coexist's shared-boot layout; SUBVOL= in snapshot.conf overrides); on the shared-boot layout no "Roll back"
+  boot entries are written (rollback by hand swaps the subvolume the normal entry mounts)
+
+* Sat Oct 24 2026 mzak <mzak.amin@gmail.com> - 0.28-35
+- boot.conf CLX_TZ (iceland-cmdline): 1 (default) = msm.a8xx_clx_tz_flag=1, the kernel (q90k+) adds GPU_CLX_EN_REQ to
+  its TZ GPU init request as KGSL does; set only while CLX is on (CLX=1 with GPU_FW=vendor533), otherwise removed;
+  0 = removed; keep = not managed. The owner's decision of 24 Oct after the CLX A/B on q90l (TZ accepted the request;
+  60 s GPU burst: GPU mean 1.19 -> 1.02 GHz, |battery current| mean 3.59 -> 3.25 A, max 3.77 -> 3.45 A). Older kernels
+  ignore the option.
+
+* Fri Oct 23 2026 mzak <mzak.amin@gmail.com> - 0.28-34
+- tuned profiles: schedutil rate_limit_us 1000 in Balanced, 2000 in Balanced on battery and in Power Saver (the
+  kernel's 45 us is 1.5 x the 30 us transition latency; 1000 us is its default for a driver without a latency;
+  stock's WALT decides once per 16 ms window); Performance keeps 45. UFS auto-hibern8 10 ms in Balanced, Balanced
+  on battery and Power Saver (the core's 150 ms in Performance): the link enters hibern8 after 10 ms idle instead
+  of 150 ms. Balanced on battery drops [video] panel_power_savings (an amdgpu setting)
+- iceland-storage-ro --summary: one pass with shell built-ins, the carrier looked up once (0.28-33's took 3.5 s CPU
+  and 164 MB at every boot); same decisions, same line. iceland-storage-summary.service runs at idle priority
+- a unit added by an update is now enabled on updated systems too, once (%posttrans; 50-iceland.preset decides);
+  iceland-storage-summary.service is enabled through the preset instead of a static wants link, so it can be
+  disabled
+- boot.conf SPLASH (iceland-cmdline): keep (default, unchanged), 0 = no boot splash (rhgb removed), 1 = rhgb
+
 * Thu Oct 22 2026 mzak <mzak.amin@gmail.com> - 0.28-33
 - USB-C controller runtime PM is on again on new systems: %posttrans no longer creates /etc/iceland/usb-pm-off
   (0.28-30). Kernel q90d and later keep the controller's interconnect votes across runtime suspend, which fixed the

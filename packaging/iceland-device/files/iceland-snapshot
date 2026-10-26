@@ -20,6 +20,18 @@ KEEP=3
 ENTRIES=$R/boot/loader/entries
 TOP=$R/run/iceland-snapshot/top
 log() { logger -t iceland-snapshot "$*" 2>/dev/null; echo "iceland-snapshot: $*"; }
+# 0.28-36: the root subvolume by its name in the top level ("root" on the image layout, "fedora-root" on the shared-boot
+# layout of iceland-coexist); ICELAND_SUBVOL / SUBVOL= in snapshot.conf override. A nested root subvolume is refused.
+SUBVOL=${ICELAND_SUBVOL:-${SUBVOL:-}}
+if [ -z "$SUBVOL" ]; then
+	if [ -n "$R" ]; then SUBVOL=root; else SUBVOL=$(findmnt -n -o FSROOT / 2>/dev/null | sed 's#^/##'); fi
+fi
+SUBVOL=${SUBVOL:-root}
+case "$SUBVOL" in */*|*[!A-Za-z0-9._-]*) log "the root subvolume '$SUBVOL' is nested or oddly named: no snapshots"; SUBVOL= ;; esac
+# 0.28-36: the shared-boot layout (iceland-coexist: /etc/iceland/coexist.conf) writes its own boot entries; no
+# "Roll back" entries there (their paths would be wrong): roll back by hand with "iceland-snapshot rollback NAME",
+# which swaps the subvolume the normal entry mounts
+COEXIST=0; [ -e "$R/etc/iceland/coexist.conf" ] && COEXIST=1
 
 top_mount() {
 	[ -n "$R" ] && { mkdir -p "$TOP/snapshots"; return 0; }   # test mode: TOP is a plain directory
@@ -47,12 +59,15 @@ create() {
 	local reason=${1:-manual} name
 	reason=$(echo "$reason" | tr -c 'A-Za-z0-9._-' '-' | cut -c1-24 | sed 's/-*$//')
 	name=root-$(date -u +%Y%m%d-%H%M%S)-${reason:-manual}
+	[ -n "$SUBVOL" ] || return 1
 	top_mount || return 1
-	snap_make "$TOP/root" "$TOP/snapshots/$name" || { log "snapshot failed"; top_umount; return 1; }
+	[ -n "$R" ] || [ -d "$TOP/$SUBVOL" ] || { log "no subvolume $SUBVOL in the top level"; top_umount; return 1; }
+	snap_make "$TOP/$SUBVOL" "$TOP/snapshots/$name" || { log "snapshot failed"; top_umount; return 1; }
 	{
 		echo "date=$(date -u +%FT%TZ)"
 		echo "reason=$reason"
 		echo "kernel=$(uname -r)"
+		echo "subvol=$SUBVOL"
 		echo "default=$(grub2-editenv - list 2>/dev/null | sed -n 's/^saved_entry=//p')"
 		echo "command=$(tr '\0' ' ' < /proc/$PPID/cmdline 2>/dev/null | cut -c1-200)"
 	} > "$TOP/snapshots/$name.info"
@@ -77,6 +92,10 @@ cmdline_opts() {
 }
 
 entries() {
+	if [ "$COEXIST" = 1 ]; then
+		log "shared-boot layout (iceland-coexist): no Roll back boot entries; roll back with: iceland-snapshot rollback NAME"
+		return 0
+	fi
 	mkdir -p "$ENTRIES"
 	rm -f "$ENTRIES"/iceland-rollback-*.conf
 	local s name ver v kv title opts dt
@@ -112,10 +131,11 @@ rollback_now() {
 	[ -d "$TOP/snapshots/$name" ] || { log "no snapshot $name"; top_umount; return 1; }
 	stamp=$(date -u +%Y%m%d-%H%M%S)
 	# the running root keeps running until the reboot; the next boot mounts subvol=root = the snapshot
-	mv "$TOP/root" "$TOP/root.before-rollback-$stamp" || { top_umount; return 1; }
-	if [ -n "$R" ]; then cp -a "$TOP/snapshots/$name" "$TOP/root"; else btrfs subvolume snapshot "$TOP/snapshots/$name" "$TOP/root" >/dev/null; fi || {
-		mv "$TOP/root.before-rollback-$stamp" "$TOP/root"; top_umount; return 1; }
-	log "rollback to $name at the next boot; the current root is kept as root.before-rollback-$stamp"
+	[ -n "$SUBVOL" ] && [ -d "$TOP/$SUBVOL" ] || { log "no subvolume ${SUBVOL:-?} in the top level"; top_umount; return 1; }
+	mv "$TOP/$SUBVOL" "$TOP/$SUBVOL.before-rollback-$stamp" || { top_umount; return 1; }
+	if [ -n "$R" ]; then cp -a "$TOP/snapshots/$name" "$TOP/$SUBVOL"; else btrfs subvolume snapshot "$TOP/snapshots/$name" "$TOP/$SUBVOL" >/dev/null; fi || {
+		mv "$TOP/$SUBVOL.before-rollback-$stamp" "$TOP/$SUBVOL"; top_umount; return 1; }
+	log "rollback to $name at the next boot; the current root is kept as $SUBVOL.before-rollback-$stamp"
 	top_umount
 }
 

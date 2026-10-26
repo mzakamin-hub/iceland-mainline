@@ -223,6 +223,11 @@ PWRKEY_SETTLE_S = 0.2                     # after the release: the compositor ha
 PWRKEY_GAP_S = 1.0                        # at most one action in this time (a bouncing key)
 PWRKEY_CMD_S = 3                          # time-out of each loginctl / gdbus call
 SS_DEST = ["--dest", "org.gnome.ScreenSaver", "--object-path", "/org/gnome/ScreenSaver"]
+# 0.28-36: desktops without GNOME's screen saver (KDE Plasma: ksmserver / kscreenlocker serve the freedesktop one;
+# SetActive(true) locks there) and Plasma's "Turn Off Screen" action (powerdevil, through KGlobalAccel) for the blank
+SS_FDO = ["--dest", "org.freedesktop.ScreenSaver", "--object-path", "/org/freedesktop/ScreenSaver"]
+KDE_OFF = ["--dest", "org.kde.kglobalaccel", "--object-path", "/component/org_kde_powerdevil", "--method",
+           "org.kde.kglobalaccel.Component.invokeShortcut", "Turn Off Screen"]
 # 0.28-14: the power key always (header "The power key always")
 DRM = os.environ.get("ICELAND_DRM", "/sys/class/drm")                    # read only: the DSI connector's dpms
 BACKLIGHT = os.environ.get("ICELAND_BACKLIGHT", "/sys/class/backlight")  # read only: bl_power
@@ -1290,6 +1295,9 @@ class PowerKey:
         or can't be read, else a note for the action's line: GNOME acts on the key as well"""
         if user is None:
             return ""
+        kde = self.kde_note(user)
+        if kde:
+            return kde
         rc, out = pk_cmd(["gsettings", "get"] + GSD_POWER, user)
         v = (out or "").strip().strip("'")
         if rc != 0 or not v or v == "nothing":
@@ -1297,21 +1305,42 @@ class PowerKey:
         return ("; NOTE: GNOME's power-button-action is '%s' for %s (set in Settings > Power), so GNOME acts on the "
                 "key as well (the package's default is 'nothing')" % (v[:20], user[2]))
 
+    def kde_note(self, user):
+        """0.28-36: a note when the user's own Plasma power settings (~/.config/powerdevilrc) give the power key an
+        action (iceland-device-kde's default in /etc/xdg/powerdevilrc is 0 = nothing), else """""
+        try:
+            with open(os.path.join(user[3], ".config", "powerdevilrc")) as f:
+                vals = [l.split("=", 1)[1].strip() for l in f if l.strip().startswith("PowerButtonAction=")]
+        except (OSError, IndexError):
+            return ""
+        acts = sorted(set(v for v in vals if v not in ("0", "")))
+        if not acts:
+            return ""
+        return ("; NOTE: Plasma's power button action is %s for %s (System Settings > Power Management), so Plasma acts "
+                "on the key as well (iceland-device-kde's default is 0 = nothing)" % ("/".join(a[:4] for a in acts), user[2]))
+
     def saver(self, user):
-        """GNOME's screen saver of the session: (True / False, None) or (None, why it can't be asked)"""
+        """the session's screen saver: GNOME's, else (0.28-36) the freedesktop one (KDE Plasma): (True / False, None)
+        or (None, why it can't be asked); self.ss says which one answered ("gnome" / "fdo" / None)"""
+        self.ss = None
         bus = "%s/%d/bus" % (USER_RUN, user[0])
         if not os.path.exists(bus):
             return None, "no session bus %s" % bus
-        rc, out = pk_cmd(self.gcall() + ["org.gnome.ScreenSaver.GetActive"], user)
-        out = (out or "").strip()
-        if rc == 0 and out.startswith("(true"):
-            return True, None
-        if rc == 0 and out.startswith("(false"):
-            return False, None
-        return None, "GetActive: %s" % ("no answer" if rc is None else "exit %d %s" % (rc, out[:40]))
+        why = []
+        for kind, dest, iface in (("gnome", SS_DEST, "org.gnome.ScreenSaver"), ("fdo", SS_FDO, "org.freedesktop.ScreenSaver")):
+            rc, out = pk_cmd(self.gcall(dest) + [iface + ".GetActive"], user)
+            out = (out or "").strip()
+            if rc == 0 and out.startswith("(true"):
+                self.ss = kind
+                return True, None
+            if rc == 0 and out.startswith("(false"):
+                self.ss = kind
+                return False, None
+            why.append("%s GetActive: %s" % (kind, "no answer" if rc is None else "exit %d %s" % (rc, out[:40])))
+        return None, "; ".join(why)
 
-    def gcall(self):
-        return ["gdbus", "call", "--session", "--timeout", str(max(1, PWRKEY_CMD_S - 1))] + SS_DEST + ["--method"]
+    def gcall(self, dest=None):
+        return ["gdbus", "call", "--session", "--timeout", str(max(1, PWRKEY_CMD_S - 1))] + (dest or SS_DEST) + ["--method"]
 
     def act(self, kind="blank", screen_off=False):
         """the action of a press: kind "blank" (lock + blank seat0's active graphical session) or "suspend"; one log
@@ -1356,7 +1385,19 @@ class PowerKey:
         if on:
             log(pre + "the screen saver of session %s is on already: left to GNOME%s" % (sid, note), syslog.LOG_INFO)
             return "active"
-        if on is False:
+        if on is False and getattr(self, "ss", None) == "fdo":
+            # 0.28-36 (KDE Plasma): lock through the freedesktop screen saver, then Plasma's "Turn Off Screen"
+            rc, out = pk_cmd(self.gcall(SS_FDO) + ["org.freedesktop.ScreenSaver.SetActive", "true"], user)
+            if rc == 0:
+                time.sleep(0.5)            # the lock screen is up before the panel goes off
+                rc2, _ = pk_cmd(["gdbus", "call", "--session", "--timeout", str(max(1, PWRKEY_CMD_S - 1))] + KDE_OFF, user)
+                log(pre + "session %s locked (org.freedesktop.ScreenSaver.SetActive)%s%s" % (sid,
+                    " and blanked (Plasma's Turn Off Screen)" if rc2 == 0 else
+                    "; Turn Off Screen not reachable (%s): the screen goes off by the desktop's own timer" %
+                    ("no answer" if rc2 is None else "exit %d" % rc2), note), syslog.LOG_NOTICE)
+                return "blanked" if rc2 == 0 else "locked"
+            gerr = "freedesktop SetActive: %s" % ("no answer" if rc is None else "exit %d" % rc)
+        elif on is False:
             rc, out = pk_cmd(self.gcall() + ["org.gnome.ScreenSaver.SetActive", "true"], user)
             if rc == 0:
                 log(pre + "session %s locked and blanked (org.gnome.ScreenSaver.SetActive)%s" % (sid, note), syslog.LOG_NOTICE)

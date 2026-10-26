@@ -1,6 +1,6 @@
 Name:           iceland-coexist
 Version:        1.0
-Release:        6%{?dist}
+Release:        7%{?dist}
 Summary:        OnePlus Pad 4: Fedora 44 next to Arch Linux ARM in one shared /boot
 License:        GPL-2.0-or-later
 BuildArch:      noarch
@@ -84,6 +84,14 @@ lsinitrd /boot/initramfs-$(uname -r).img 2>/dev/null | grep -q iceland-oneshot-c
 /etc/kernel/install.d/90-iceland-dtb.install
 
 %changelog
+* Sat Oct 24 2026 mzak <mzak.amin@gmail.com> - 1.0-7
+- iceland-oneshot consume (every boot): every one-shot entry that next_entry does not name is removed (a copy stays in
+  /var/lib/iceland/oneshot/entries/). After a one-shot that hung before the initramfs (q90o-run stage C, pseudo-NMI)
+  its entry stayed in /boot/loader/entries and kept being booted
+- iceland-oneshot arm refuses options the kernel acts on before the initramfs (irqchip.*, early memory / CPU / console
+  / security options): if they break the boot nothing can clear next_entry (GRUB cannot write here) and the one-shot
+  repeats at every start; --allow-early arms them anyway, with a warning
+
 * Thu Oct 22 2026 mzak <mzak.amin@gmail.com> - 1.0-6
 - iceland-oneshot clear-initrd: looks for the boot file system on /dev/mapper/iceland-* too (iceland-device 0.28-32
   maps the Fedora disk's partitions with device-mapper when iceland.carrier.map=dm is on the command line)

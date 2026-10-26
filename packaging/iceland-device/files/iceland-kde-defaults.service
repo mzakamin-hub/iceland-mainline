@@ -1,0 +1,17 @@
+# iceland-device-kde 0.28-36: the Pad 4's per-account Plasma defaults (automatic brightness on), ONCE per account
+# (marker ~/.local/state/iceland/kde-defaults-0.28-36); only in a Plasma session. See /usr/libexec/iceland/iceland-kde-defaults
+[Unit]
+Description=OnePlus Pad 4 (Plasma): automatic brightness on (once per account)
+PartOf=graphical-session.target
+After=graphical-session.target plasma-kwin_wayland.service
+ConditionUser=!gdm
+ConditionPathExists=!%S/iceland/kde-defaults-0.28-36
+
+[Service]
+Type=oneshot
+ExecCondition=/bin/sh -c 'case "$$XDG_CURRENT_DESKTOP" in *KDE*) exit 0;; esac; exit 1'
+ExecStart=/usr/libexec/iceland/iceland-kde-defaults
+TimeoutStartSec=3min
+
+[Install]
+WantedBy=graphical-session.target

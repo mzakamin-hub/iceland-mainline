@@ -1,6 +1,8 @@
 # iceland-device 0.28-33: one kernel-log line per boot about the read-only internal storage (59-iceland-storage-ro.rules
 # no longer logs a line per device): the count, the carrier and its LUN, and a warning for any device that should be
 # read-only and is not. Reads only; waits for udev in the background, nothing is ordered after it.
+# 0.28-34: enabled through 50-iceland.preset (a new system) or once by %posttrans (an update), no static wants
+# link, so systemctl disable works; idle CPU / IO priority (it is only a log line).
 [Unit]
 Description=OnePlus Pad 4: summary of the read-only internal storage
 After=systemd-udev-trigger.service local-fs.target
@@ -10,6 +12,8 @@ ConditionPathExists=!/etc/initrd-release
 Type=oneshot
 ExecStart=/usr/libexec/iceland/iceland-storage-ro --summary
 StandardOutput=journal
+Nice=19
+IOSchedulingClass=idle
 
 [Install]
 WantedBy=multi-user.target
