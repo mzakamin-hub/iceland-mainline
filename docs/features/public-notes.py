@@ -9,9 +9,10 @@
 
 PUBLIC_STATUS = ("Fedora 44 is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel); the "
                  "project's tablet runs KDE Plasma 6, the install image sets up GNOME 50. Current versions: kernel "
-                 "7.3.0-next-20261020-iceland-00529 (q90r, the patch queue on linux-next next-20261020; iceland-linux "
-                 "branch iceland-7.3-rc7-next), iceland-firmware 11.A.38-6, U-Boot install build v7, iceland-gvm "
-                 "0.3-27 and iceland-vms 0.2-5 (virtual machines). The newest iceland-device release is 0.28-33.")
+                 "7.3.0-next-20261020-iceland-00548 (q90u, the patch queue on linux-next next-20261020; iceland-linux "
+                 "branch iceland-7.3-rc7-next, release q90u), iceland-firmware 11.A.38-6, U-Boot install build v7, "
+                 "iceland-gvm 0.3-27 and iceland-vms 0.2-5 (virtual machines). The newest iceland-device release is "
+                 "0.28-33.")
 
 PUBLIC = {
 # Boot & platform
@@ -26,7 +27,7 @@ PUBLIC = {
     "Boots a “fedora” partition if there is one, else the Fedora image in userdata.",
 "Linux 7.4 base (linux-next) through EFI": (
     "Linux (7.4 base)",
-    "Linux with the Pad 4 patch queue on linux-next next-20261020 (Linux 7.3 plus the trees queued for 7.4; current kernel 7.3.0-next-20261020-iceland-00529, q90r, iceland-linux branch iceland-7.3-rc7-next) boots through U-Boot's EFI, Fedora's shim and GRUB."),
+    "Linux with the Pad 4 patch queue on linux-next next-20261020 (Linux 7.3 plus the trees queued for 7.4; current kernel 7.3.0-next-20261020-iceland-00548, q90u, iceland-linux branch iceland-7.3-rc7-next and its q90u release) boots through U-Boot's EFI, Fedora's shim and GRUB."),
 "Internal storage (UFS 4)":
     "UFS 4 with 4 KiB blocks in MCQ mode (9 hardware queues per LUN), about 2.3 GB/s direct read. The installed "
     "root is btrfs (zstd compression) in userdata; with iceland-device 0.28-32's device-mapper option "
@@ -318,9 +319,18 @@ PUBLIC = {
 # 25 Oct 2026 (matrix r174)
 "Virtual machines (Gunyah)": (
     "Virtual machines (Gunyah)",
-    "Protected virtual machines on Qualcomm's Gunyah hypervisor with crosvm, managed by the Virtual Machines app (iceland-gvm 0.3-27 and iceland-vms 0.2-5 on kernel q90r): Linux guests from cloud images with NAT networking, a serial console and a clean shutdown, and 3D in the guest (OpenGL through virgl, Vulkan through venus) with GPU-composited desktops drawn in the VM window. Windows guests and ISO installs are not supported yet."),
+    "Protected virtual machines on Qualcomm's Gunyah hypervisor with crosvm, managed by the Virtual Machines app (iceland-gvm 0.3-27 and iceland-vms 0.2-5): Linux guests from cloud images with NAT networking, a serial console and a clean shutdown, and 3D in the guest (OpenGL through virgl, Vulkan through venus) with GPU-composited desktops drawn in the VM window. Windows guests run through the gvm tool (next row); inside the app they and ISO installs are not supported yet."),
 "KDE Plasma 6 desktop":
     "KDE Plasma 6 on Wayland: auto-rotate, automatic brightness, the charge limit in Plasma's power settings, suspend and Discover, with KWallet as the secrets provider.",
 "Android apps (DroidLoom)":
     "Android apps through DroidLoom (Android 17 in a container): each app in its own window with a title bar and Close, a left-edge swipe for Back, an AndroidVM menu folder and the androidvm manager. Confirmed working by the owner on 24 Oct 2026.",
+# 26 Oct 2026 (matrix r175)
+"Windows 11 ARM guest VM (gvm tool)":
+    "Windows 11 ARM64 as a protected Gunyah VM started with the gvm tool: the desktop on the VM's screen, network with RDP, HTTPS, x86 apps through Windows' own emulation, a 30-minute soak and a clean shutdown. Comes with the next iceland-gvm release.",
+"VM window touch input modes":
+    "The VM window takes touch as a tablet (tap, drag, long press and two-finger tap for right click, two-finger scroll), as a touchpad or as a multi-finger touch screen, also fullscreen and in both rotations. Comes with the next iceland-gvm / iceland-vms release.",
+"VM VNC display":
+    "A running VM's screen can be exported over VNC. Comes with the next iceland-gvm / iceland-vms release.",
+"VM memory and disk speed (2 MiB lends, io_uring)":
+    "Guest memory is lent in 2 MiB blocks (a VM boots in about 11 s instead of 53 s) and guest disks use io_uring (about 3.3 GB/s read). Comes with the next iceland-gvm / iceland-vms release.",
 }

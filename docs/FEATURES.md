@@ -1,8 +1,8 @@
 # OnePlus Pad 4 mainline: what works
 
-Status 25 Oct 2026. Fedora 44 is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel); the project's tablet runs KDE Plasma 6, the install image sets up GNOME 50. Current versions: kernel 7.3.0-next-20261020-iceland-00529 (q90r, the patch queue on linux-next next-20261020; iceland-linux branch iceland-7.3-rc7-next), iceland-firmware 11.A.38-6, U-Boot install build v7, iceland-gvm 0.3-27 and iceland-vms 0.2-5 (virtual machines). The newest iceland-device release is 0.28-33.
+Status 26 Oct 2026. Fedora 44 is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel); the project's tablet runs KDE Plasma 6, the install image sets up GNOME 50. Current versions: kernel 7.3.0-next-20261020-iceland-00548 (q90u, the patch queue on linux-next next-20261020; iceland-linux branch iceland-7.3-rc7-next, release q90u), iceland-firmware 11.A.38-6, U-Boot install build v7, iceland-gvm 0.3-27 and iceland-vms 0.2-5 (virtual machines). The newest iceland-device release is 0.28-33.
 
-This list shows the 101 features that work today, sorted by functionality. Features that are still being worked on are not listed.
+This list shows the 105 features that work today, sorted by functionality. Features that are still being worked on are not listed.
 
 ## Boot & platform
 
@@ -10,7 +10,7 @@ This list shows the 101 features that work today, sorted by functionality. Featu
 |---|---|
 | U-Boot (install build and RAM boot) | The stock boot loader (ABL) starts U-Boot from boot_b, and U-Boot starts Fedora through EFI. The install build (v7 since 17 Oct 2026) shows a power-on boot menu on the keys (Fedora, BlissROM on the dual-boot layout, or the boot loader's fastboot), boots Fedora by default and never resets or powers off by itself. A RAM-boot build gives display, USB fastboot, UFS read and EFI, with fastboot flashing compiled out. |
 | U-Boot boot setting for single or dual boot | Boots a “fedora” partition if there is one, else the Fedora image in userdata. |
-| Linux (7.4 base) | Linux with the Pad 4 patch queue on linux-next next-20261020 (Linux 7.3 plus the trees queued for 7.4; current kernel 7.3.0-next-20261020-iceland-00529, q90r, iceland-linux branch iceland-7.3-rc7-next) boots through U-Boot's EFI, Fedora's shim and GRUB. |
+| Linux (7.4 base) | Linux with the Pad 4 patch queue on linux-next next-20261020 (Linux 7.3 plus the trees queued for 7.4; current kernel 7.3.0-next-20261020-iceland-00548, q90u, iceland-linux branch iceland-7.3-rc7-next and its q90u release) boots through U-Boot's EFI, Fedora's shim and GRUB. |
 | Internal storage (UFS 4) | UFS 4 with 4 KiB blocks in MCQ mode (9 hardware queues per LUN), about 2.3 GB/s direct read. The installed root is btrfs (zstd compression) in userdata; with iceland-device 0.28-32's device-mapper option (iceland.carrier.map=dm) TRIM reaches the flash (fstrim, btrfs discard=async). The LUNs use the none I/O scheduler. |
 | Hardware watchdog | qcom_wdt with a 30 s timeout, fed by systemd: a hung system reboots by itself. |
 | System cache (LLCC) and memory error counters | The system cache driver (qcom-llcc) binds, and EDAC reports the memory error counters (no errors recorded). |
@@ -30,7 +30,11 @@ This list shows the 101 features that work today, sorted by functionality. Featu
 | Fedora installed on the tablet | Fedora 44 installs with two partition writes: the system image into userdata and U-Boot into boot_b; nothing else is written. The tablet then boots Fedora on its own, the root is btrfs on a loop device in userdata, and Fedora marks the boot slot successful. |
 | Boot slot marked good from Fedora | Fedora marks the A/B boot slot successful after a good boot, so the boot loader keeps booting it. Confirmed working by the owner on 22 Oct 2026. |
 | Dual boot BlissROM + Fedora | A power-on menu (U-Boot v7) starts Fedora or BlissROM v20.1: Volume Up / Down move, Power selects, Fedora after 5 s. Fedora runs from its own fedora partition and BlissROM keeps its encrypted data in a smaller userdata, both on slot b; BlissROM's kernel comes from boot_a and starts with the ramdisk and device tree that the stock boot loader prepared. Guide and tools: docs/DUAL-BOOT.md, tools/dualboot. |
-| Virtual machines (Gunyah) | Protected virtual machines on Qualcomm's Gunyah hypervisor with crosvm, managed by the Virtual Machines app (iceland-gvm 0.3-27 and iceland-vms 0.2-5 on kernel q90r): Linux guests from cloud images with NAT networking, a serial console and a clean shutdown, and 3D in the guest (OpenGL through virgl, Vulkan through venus) with GPU-composited desktops drawn in the VM window. Windows guests and ISO installs are not supported yet. |
+| Virtual machines (Gunyah) | Protected virtual machines on Qualcomm's Gunyah hypervisor with crosvm, managed by the Virtual Machines app (iceland-gvm 0.3-27 and iceland-vms 0.2-5): Linux guests from cloud images with NAT networking, a serial console and a clean shutdown, and 3D in the guest (OpenGL through virgl, Vulkan through venus) with GPU-composited desktops drawn in the VM window. Windows guests run through the gvm tool (next row); inside the app they and ISO installs are not supported yet. |
+| Windows 11 ARM guest VM (gvm tool) | Windows 11 ARM64 as a protected Gunyah VM started with the gvm tool: the desktop on the VM's screen, network with RDP, HTTPS, x86 apps through Windows' own emulation, a 30-minute soak and a clean shutdown. Comes with the next iceland-gvm release. |
+| VM window touch input modes | The VM window takes touch as a tablet (tap, drag, long press and two-finger tap for right click, two-finger scroll), as a touchpad or as a multi-finger touch screen, also fullscreen and in both rotations. Comes with the next iceland-gvm / iceland-vms release. |
+| VM VNC display | A running VM's screen can be exported over VNC. Comes with the next iceland-gvm / iceland-vms release. |
+| VM memory and disk speed (2 MiB lends, io_uring) | Guest memory is lent in 2 MiB blocks (a VM boots in about 11 s instead of 53 s) and guest disks use io_uring (about 3.3 GB/s read). Comes with the next iceland-gvm / iceland-vms release. |
 
 ## Display & input
 
