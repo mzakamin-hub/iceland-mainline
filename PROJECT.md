@@ -19,7 +19,7 @@ working features):
 |---|---|
 | Boot loader: RAM boot of test images (`fastboot boot`) | works; used for every test kit and rehearsal |
 | U-Boot on the tablet: display, USB fastboot, UFS, EFI, power-on boot menu | works; the install build v7 is the boot path in `boot_b` |
-| Linux (patch queue on linux-next `next-20261020`, the 7.4 base) through U-Boot EFI (kernel q90u, `7.3.0-next-20261020-iceland-00548`) | works; the default kernel (q90s4 and q90t4 kept as fallbacks), updated with dnf |
+| Linux (patch queue on linux-next `next-20261020`, the 7.4 base) through U-Boot EFI (kernel q90v, `7.3.0-next-20261020-iceland-00549`) | works; the default kernel (q90u, q90t4 and q90s4 kept as fallbacks), updated with dnf |
 | Display: native 3392 x 2400, dual DSI with DSC, 30 to 144 Hz, backlight with automatic brightness | works |
 | Touch, pen, auto-rotate (tablet mode), lid and power keys, the pogo keyboard cover | works |
 | Wi-Fi 2.4 GHz (WCN7860, ath12k), Bluetooth with pairing | works |
@@ -31,17 +31,17 @@ working features):
 | Sensors and gyroscope (through the ADSP sensor hub; iio-sensor-proxy 3.9-11.iceland1) | works |
 | Cameras: both sensors stream through libcamera; GNOME Camera | works |
 | Desktop: KDE Plasma 6 on Wayland on the project's tablet (since 24 Oct); GNOME 50 from the install image | works |
-| Virtual machines: protected Gunyah VMs with crosvm, 3D in the guest (virgl / venus), the Virtual Machines app (iceland-gvm 0.3-55, iceland-vms 0.2-18): Linux and Windows 11 ARM guests, touch modes, VNC, vhost-net | works (Windows is shut down from inside Windows or with Force Off) |
+| Virtual machines: protected Gunyah VMs with crosvm, 3D in the guest (virgl / venus), the Virtual Machines app (iceland-gvm 0.3-55, iceland-vms 0.2-20, iceland-qemu-gunyah 10.0.2-1): Linux and Windows 11 ARM guests, touch modes, VNC, vhost-net, the shared-memory mode with 3D OpenGL, an optional QEMU-Gunyah backend with 3D OpenGL | works (Windows is shut down from inside Windows or with Force Off) |
 | Android apps: DroidLoom (Android 17 in a container; binder in the kernel since q90m) | works |
 | Install on the tablet: Fedora 44 GNOME in `userdata`, U-Boot in `boot_b` | works ([docs/INSTALL-GUIDE.md](docs/INSTALL-GUIDE.md)) |
-| Packages: `kernel-iceland` 00548 (q90u), `iceland-firmware` 11.A.38-6, `iceland-gvm` 0.3-55, `iceland-vms` 0.2-18; `iceland-device` 0.28-40 with `iceland-device-kde`, `iceland-coexist` 1.0-7, `upower` 1.91.5-1.fc44.iceland1 | installed |
+| Packages: `kernel-iceland` 00549 (q90v), `iceland-firmware` 11.A.38-6, `iceland-gvm` 0.3-55, `iceland-vms` 0.2-20, `iceland-qemu-gunyah` 10.0.2-1; `iceland-device` 0.28-40 with `iceland-device-kde`, `iceland-coexist` 1.0-7, `upower` 1.91.5-1.fc44.iceland1 | installed |
 
 ## Our repositories (public, GitHub user `mzakamin-hub`)
 
 | Repo | Contents | Licence |
 |---|---|---|
 | [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) (this repo) | status, install guide and design, device facts, the list of working features, `iceland-device`, `iceland-coexist` and `upower` packaging, firmware manifest and packaging text, sensor and audio notes | GPL-2.0-or-later (scripts) |
-| [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) | kernel patch queue: linux-next `next-20261020` + `0001-infiniti` + `0002-iceland` + the q89z and q90b-q90u series; configs; prepare and build scripts. Current branch `iceland-7.3-rc7-next` (kernel q90u, `7.3.0-next-20261020-iceland-00548`, tag `q90u`) | GPL-2.0 |
+| [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) | kernel patch queue: linux-next `next-20261020` + `0001-infiniti` + `0002-iceland` + the q89z and q90b-q90v series; configs; prepare and build scripts. Current branch `iceland-7.3-rc7-next` (kernel q90v, `7.3.0-next-20261020-iceland-00549`, tag `q90v`) | GPL-2.0 |
 | [iceland-gvm](https://github.com/mzakamin-hub/iceland-gvm) | the VM stack: 12 crosvm patches for Gunyah, the guest kernel config and two patches, `gvm.sh`, guest tools, the `iceland-gvm` spec | GPL-2.0 (scripts, guest kernel), BSD-3-Clause (crosvm), DroidVM's GPL-2.0-or-later files |
 | [iceland-vms](https://github.com/mzakamin-hub/iceland-vms) | the Virtual Machines app and the `iceland-vms` spec | GPL-2.0-only (edk2-gunyah firmware: BSD-2-Clause-Patent) |
 | [iceland-droidloom](https://github.com/mzakamin-hub/iceland-droidloom) | DroidLoom packaging: host spec and patches on denialwm/droidloom 9789467, the image recipe, `iceland-droidloom` | GPL-3.0-or-later |

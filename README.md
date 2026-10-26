@@ -62,7 +62,7 @@ are still being worked on are not listed. Anything that is not in the list is no
 | Sleep | Suspend (s2idle) and resume; the power key, the alarm, the cover, the keyboard and the charger wake the tablet; Wi-Fi comes back after a wake. Overnight drain of about 0.35 % per hour, measured on one tablet. |
 | Sensors and camera | Accelerometer, compass, light, proximity and gyroscope through the sensor hub; the 13 MP rear and 8 MP front cameras stream through libcamera; GNOME Camera works with both; the rear flash works as a torch. |
 | Desktop | GNOME 50 with Fedora 44 Workstation's apps; KDE Plasma 6 on Wayland with auto-rotate, automatic brightness, the charge limit in its power settings, suspend and Discover. |
-| Virtual machines | Protected VMs on the Gunyah hypervisor with crosvm and the Virtual Machines app ([iceland-gvm](https://github.com/mzakamin-hub/iceland-gvm), [iceland-vms](https://github.com/mzakamin-hub/iceland-vms)): Linux guests from cloud images with NAT networking (vhost-net), shared folders and a serial console; 3D in the guest (OpenGL through virgl, Vulkan through venus) with GPU-composited desktops in the VM window; touch input modes, fullscreen and a VNC display; an opt-in shared-memory mode (the tablet can read that VM's memory); Windows 11 ARM guests with Remote Desktop and ssh (shut down from inside Windows or with Force Off). ISO installs are not supported yet. |
+| Virtual machines | Protected VMs on the Gunyah hypervisor with crosvm and the Virtual Machines app ([iceland-gvm](https://github.com/mzakamin-hub/iceland-gvm), [iceland-vms](https://github.com/mzakamin-hub/iceland-vms)): Linux guests from cloud images with NAT networking (vhost-net), shared folders and a serial console; 3D in the guest (OpenGL through virgl, Vulkan through venus) with GPU-composited desktops in the VM window; touch input modes, fullscreen and a VNC display; an opt-in shared-memory mode (the tablet can read that VM's memory; 3D OpenGL works there); an optional QEMU-Gunyah backend with 3D OpenGL in QEMU's window or over VNC; Windows 11 ARM guests with Remote Desktop and ssh (shut down from inside Windows or with Force Off). ISO installs are not supported yet. |
 | Android apps | DroidLoom: Android 17 in a container (binder is in the kernel since q90m), each app in its own window with Close and a left-edge swipe for Back, an AndroidVM menu folder ([iceland-droidloom](https://github.com/mzakamin-hub/iceland-droidloom)). |
 | System and boot | Boot from U-Boot through EFI into Fedora 44; kernel updates with dnf (a new kernel boots once as a trial); Fedora marks the boot slot successful; the dual-boot menu (Fedora / BlissROM v20.1); Fedora 44 Workstation's GNOME apps. |
 
@@ -314,15 +314,15 @@ Everything below is a published release with a `SHA256SUMS` file. Check your dow
 
 | What | Version | Release page | Files |
 |---|---|---|---|
-| Kernel (`kernel-iceland`, Fedora 44 aarch64) | q90u, kernel `7.3.0-next-20261020-iceland-00548` (the patch queue on linux-next `next-20261020`) | [iceland-linux q90u](https://github.com/mzakamin-hub/iceland-linux/releases/tag/q90u) | RPM, source RPM, `SHA256SUMS` |
+| Kernel (`kernel-iceland`, Fedora 44 aarch64) | q90v, kernel `7.3.0-next-20261020-iceland-00549` (the patch queue on linux-next `next-20261020`) | [iceland-linux q90v](https://github.com/mzakamin-hub/iceland-linux/releases/tag/q90v) | RPM, source RPM, `SHA256SUMS` |
 | U-Boot, install build | v7 (2026-10-17) | [iceland-u-boot v7-2026-10-17](https://github.com/mzakamin-hub/iceland-u-boot/releases/tag/v7-2026-10-17) | plain image (RAM test), footered image (`boot_b`), `SHA256SUMS` |
 | `iceland-device` (the tablet's settings, with `iceland-device-kde` / `-gnome`), `iceland-coexist` (kernel-install for a shared `/boot`) | iceland-device 0.28-40, iceland-coexist 1.0-7 | [iceland-device-0.28-40](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-40) | noarch RPMs, source RPMs, `SHA256SUMS` |
 | `upower` (time to full to the charge limit) | 1.91.5-1.fc44.iceland1 | [iceland-device-0.28-33](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-33) | aarch64 RPMs, source RPM, `SHA256SUMS` |
 | `iceland-firmware` (generic firmware) | 11.A.38-6 | [iceland-firmware 11.A.38-6](https://github.com/mzakamin-hub/iceland-firmware/releases/tag/11.A.38-6) | noarch RPM, source RPM, `SHA256SUMS` |
 | Windows installer (blocked for writes) | in iceland-device 0.28-16 | [iceland-device-0.28-16](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-16) | `Install-Pad4Linux.ps1`, `README-INSTALLER.md`, `SHA256SUMS` |
 
-The current kernel is q90u (`7.3.0-next-20261020-iceland-00548`, iceland-linux tag `q90u`). The virtual machine packages are released as
-[iceland-gvm 0.3-55](https://github.com/mzakamin-hub/iceland-gvm/releases/tag/0.3-55) and [iceland-vms 0.2-18](https://github.com/mzakamin-hub/iceland-vms/releases/tag/0.2-18) (RPMs and `SHA256SUMS`;
+The current kernel is q90v (`7.3.0-next-20261020-iceland-00549`, iceland-linux tag `q90v`). The virtual machine packages are released as
+[iceland-gvm 0.3-55](https://github.com/mzakamin-hub/iceland-gvm/releases/tag/0.3-55) and [iceland-vms 0.2-20](https://github.com/mzakamin-hub/iceland-vms/releases/tag/0.2-20) (with iceland-qemu-gunyah 10.0.2-1; RPMs and `SHA256SUMS`;
 sources and build steps in each repository).
 
 The Fedora disk image and the install image are **not** published. [Guide 04](docs/guide/04-BUILD-YOUR-OWN.md) covers
@@ -340,7 +340,7 @@ All repositories are public under the GitHub user `mzakamin-hub`. The guide set 
 | [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) (this one) | `main` | The guides, the feature list, the device package (`packaging/iceland-device`), the dual-boot tools (`tools/dualboot`) and the installer (`tools/installer`). |
 | [iceland-linux](https://github.com/mzakamin-hub/iceland-linux) | `main`; current work on `iceland-7.3-rc7-next` | The kernel: a patch queue on linux-next `next-20261020` (the 7.4 base), the build scripts and the `kernel-iceland` package. |
 | [iceland-gvm](https://github.com/mzakamin-hub/iceland-gvm) | `main` | The virtual machine stack: crosvm patches for Gunyah, the guest kernel config and patches, `gvm.sh`, the guest tools and the `iceland-gvm` package. |
-| [iceland-vms](https://github.com/mzakamin-hub/iceland-vms) | `main` | The Virtual Machines app (GTK4 / libadwaita, Python) and the `iceland-vms` package. |
+| [iceland-vms](https://github.com/mzakamin-hub/iceland-vms) | `main` | The Virtual Machines app (GTK4 / libadwaita, Python) and the `iceland-vms` package; the sources of `iceland-qemu-gunyah` (QEMU with the Gunyah accelerator). |
 | [iceland-droidloom](https://github.com/mzakamin-hub/iceland-droidloom) | `main` | DroidLoom (Android apps) packaging: the host patches and spec, the image recipe and the `iceland-droidloom` integration package. |
 | [iceland-u-boot](https://github.com/mzakamin-hub/iceland-u-boot) | `main` | U-Boot v2026.10-rc5 for the tablet, with the install build and its boot menu, and the build scripts. |
 | [iceland-firmware](https://github.com/mzakamin-hub/iceland-firmware) | `main` | The generic firmware of stock 11.A.38 as one RPM, with its manifest, the exclusion list and the vendor notices. |

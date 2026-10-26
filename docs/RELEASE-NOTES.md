@@ -7,10 +7,10 @@ The working features, one by one, are listed in [FEATURES.md](FEATURES.md); the 
 
 | Piece | Version |
 |---|---|
-| Kernel | `7.3.0-next-20261020-iceland-00548` (queue q90u): linux-next `next-20261020` (Linux 7.3 plus the trees queued for 7.4) plus the Pad 4 patch queue, iceland-linux branch `iceland-7.3-rc7-next`, tag `q90u`; package `kernel-iceland`, updated with dnf (release download: q90u) |
+| Kernel | `7.3.0-next-20261020-iceland-00549` (queue q90v): linux-next `next-20261020` (Linux 7.3 plus the trees queued for 7.4) plus the Pad 4 patch queue, iceland-linux branch `iceland-7.3-rc7-next`, tag `q90v`; package `kernel-iceland`, updated with dnf (release download: q90v) |
 | Device package | `iceland-device` 0.28-40 with `iceland-device-kde` (KDE Plasma integration); `iceland-coexist` 1.0-7 (kernel-install for the shared `/boot`, one-shot boot entries) |
 | Multimedia and GPU builds | Mesa 26.3.0-rc1 snapshot with seven A840 patches; libcamera 0.7.1 with autofocus; ffmpeg-free 8.1.3 with V4L2 decoding; gst-plugins-good 1.28.8 with the V4L2 colorimetry fix (specs and patches in `packaging/`) |
-| Virtual machines | `iceland-gvm` 0.3-55 (crosvm for Gunyah, the guest kernel, `gvm.sh`) and `iceland-vms` 0.2-18 (the Virtual Machines app), released with RPMs; sources in [iceland-gvm](https://github.com/mzakamin-hub/iceland-gvm) and [iceland-vms](https://github.com/mzakamin-hub/iceland-vms) |
+| Virtual machines | `iceland-gvm` 0.3-55 (crosvm for Gunyah, the guest kernel, `gvm.sh`) and `iceland-vms` 0.2-20 (the Virtual Machines app) with `iceland-qemu-gunyah` 10.0.2-1 (QEMU with the Gunyah accelerator, an optional backend), released with RPMs; sources in [iceland-gvm](https://github.com/mzakamin-hub/iceland-gvm) and [iceland-vms](https://github.com/mzakamin-hub/iceland-vms) |
 | Android apps | DroidLoom (Android 17 in a container): host packages 0.1.0-23.git9789467.iceland3, image iceland4, `iceland-droidloom` 1.0-3 (packaging in [iceland-droidloom](https://github.com/mzakamin-hub/iceland-droidloom)) |
 | Power service | `upower` 1.91.5-1.fc44.iceland1 (time to full to the charge limit) |
 | Sensor programs | `iio-sensor-proxy` 3.9-11.iceland1, `hexagonrpc`, `libssc` |
@@ -68,12 +68,14 @@ should carry 0.28-8 or newer (see the install guide, section 6).
   Virtual Machines app (iceland-gvm 0.3-27, iceland-vms 0.2-5); Android apps through DroidLoom (the C binder driver
   is back in the kernel); KDE Plasma 6 as the desktop of the project's tablet; the board's command line as built-in
   kernel defaults; drm/msm's October fixes and other upstream fixes.
-- **Since 25 Oct** (kernels q90s to q90u): USB-C cable changes during sleep are seen on resume; Gunyah guest memory
+- **Since 25 Oct** (kernels q90s to q90v): USB-C cable changes during sleep are seen on resume; Gunyah guest memory
   is never freed while it may still be lent; UFS and inline-crypto runtime-PM fixes. The VM release iceland-gvm
   0.3-49 / iceland-vms 0.2-17: Windows 11 ARM guests in the app (Remote Desktop, ssh), touch input modes,
   fullscreen, a VNC display, vhost-net networking on by default, 2 MiB guest pages and io_uring disks.
   iceland-gvm 0.3-55 / iceland-vms 0.2-18 add an opt-in shared-memory mode per VM (software display or headless; the
-  tablet can read and change that VM's memory; not for 3D yet).
+  tablet can read and change that VM's memory). iceland-vms 0.2-20 adds 3D OpenGL (virgl) in that mode and the
+  optional QEMU-Gunyah backend (iceland-qemu-gunyah 10.0.2-1) with 3D OpenGL in QEMU's window or over VNC. Kernel
+  q90v refuses a protected VM whose shared memory is private anonymous memory cleanly at start.
 
 ## 4. Known limits
 

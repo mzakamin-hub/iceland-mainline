@@ -13,6 +13,19 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 [iceland-vms](https://github.com/mzakamin-hub/iceland-vms) ·
 [iceland-droidloom](https://github.com/mzakamin-hub/iceland-droidloom) (all public).
 
+## 2026-10-26 - kernel q90v; iceland-vms 0.2-20 with the QEMU-Gunyah backend
+
+- Kernel q90v (`7.3.0-next-20261020-iceland-00549`) is the default and the newest release
+  ([q90v](https://github.com/mzakamin-hub/iceland-linux/releases/tag/q90v): kernel RPM, source RPM, `SHA256SUMS`).
+  It is q90u plus one patch: a protected VM whose shared memory is private anonymous memory is refused cleanly at
+  start, with a clear kernel message, instead of faulting.
+- [iceland-vms 0.2-20](https://github.com/mzakamin-hub/iceland-vms/releases/tag/0.2-20) with the new package
+  iceland-qemu-gunyah 10.0.2-1 (QEMU 10.0.2 with the Gunyah accelerator; sources in iceland-vms `qemu-gunyah/`):
+  an optional QEMU-Gunyah backend in the Virtual Machines app (crosvm stays the default) with 3D OpenGL (virgl) in
+  QEMU's window or over VNC, glmark2 at 1280x800 about 1390-1410; the shared-memory mode now allows 3D OpenGL
+  (glmark2 1799). Vulkan stays with crosvm and the protected mode. iceland-gvm 0.3-55 is unchanged.
+- Feature list (matrix r179): 108 working features.
+
 ## 2026-10-26 - iceland-gvm 0.3-55 / iceland-vms 0.2-18: the shared-memory mode
 
 - Releases [iceland-gvm 0.3-55](https://github.com/mzakamin-hub/iceland-gvm/releases/tag/0.3-55) and
