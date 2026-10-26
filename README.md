@@ -62,7 +62,7 @@ are still being worked on are not listed. Anything that is not in the list is no
 | Sleep | Suspend (s2idle) and resume; the power key, the alarm, the cover, the keyboard and the charger wake the tablet; Wi-Fi comes back after a wake. Overnight drain of about 0.35 % per hour, measured on one tablet. |
 | Sensors and camera | Accelerometer, compass, light, proximity and gyroscope through the sensor hub; the 13 MP rear and 8 MP front cameras stream through libcamera; GNOME Camera works with both; the rear flash works as a torch. |
 | Desktop | GNOME 50 with Fedora 44 Workstation's apps; KDE Plasma 6 on Wayland with auto-rotate, automatic brightness, the charge limit in its power settings, suspend and Discover. |
-| Virtual machines | Protected VMs on the Gunyah hypervisor with crosvm and the Virtual Machines app ([iceland-gvm](https://github.com/mzakamin-hub/iceland-gvm), [iceland-vms](https://github.com/mzakamin-hub/iceland-vms)): Linux guests from cloud images with NAT networking and a serial console, and 3D in the guest (OpenGL through virgl, Vulkan through venus) with GPU-composited desktops in the VM window. Windows guests and ISO installs are not supported yet. |
+| Virtual machines | Protected VMs on the Gunyah hypervisor with crosvm and the Virtual Machines app ([iceland-gvm](https://github.com/mzakamin-hub/iceland-gvm), [iceland-vms](https://github.com/mzakamin-hub/iceland-vms)): Linux guests from cloud images with NAT networking and a serial console, and 3D in the guest (OpenGL through virgl, Vulkan through venus) with GPU-composited desktops in the VM window. Windows 11 ARM runs as a VM through the gvm tool (desktop, network with RDP, x86 apps, clean shutdown; in the next iceland-gvm release); Windows inside the app and ISO installs are not supported yet. |
 | Android apps | DroidLoom: Android 17 in a container (binder is in the kernel since q90m), each app in its own window with Close and a left-edge swipe for Back, an AndroidVM menu folder. |
 | System and boot | Boot from U-Boot through EFI into Fedora 44; kernel updates with dnf (a new kernel boots once as a trial); Fedora marks the boot slot successful; the dual-boot menu (Fedora / BlissROM v20.1); Fedora 44 Workstation's GNOME apps. |
 
@@ -70,7 +70,7 @@ Known limits, from the guides: the tablet does not fast-charge (SuperVOOC is not
 Android does not start after the Fedora install. The display's idle refresh (30 Hz after 1 s on a static screen)
 is set by iceland-device 0.28-32 (`IDLE_RR` in `/etc/iceland/boot.conf`); do not add the option by hand with older
 packages ([INSTALL-GUIDE section 7](docs/INSTALL-GUIDE.md#7-after-the-install)). Not yet: SuperVOOC fast charging,
-Windows guests in a virtual machine, camera autofocus and the amplifiers' own DSP protection.
+Windows inside the Virtual Machines app, camera autofocus and the amplifiers' own DSP protection.
 
 ## Before you start
 
@@ -314,13 +314,13 @@ Everything below is a published release with a `SHA256SUMS` file. Check your dow
 
 | What | Version | Release page | Files |
 |---|---|---|---|
-| Kernel (`kernel-iceland`, Fedora 44 aarch64) | q90r, kernel `7.3.0-next-20261020-iceland-00529` (the patch queue on linux-next `next-20261020`) | [iceland-linux q90r](https://github.com/mzakamin-hub/iceland-linux/releases/tag/q90r) | RPM, source RPM, `SHA256SUMS` |
+| Kernel (`kernel-iceland`, Fedora 44 aarch64) | q90u, kernel `7.3.0-next-20261020-iceland-00548` (the patch queue on linux-next `next-20261020`) | [iceland-linux q90u](https://github.com/mzakamin-hub/iceland-linux/releases/tag/q90u) | RPM, source RPM, `SHA256SUMS` |
 | U-Boot, install build | v7 (2026-10-17) | [iceland-u-boot v7-2026-10-17](https://github.com/mzakamin-hub/iceland-u-boot/releases/tag/v7-2026-10-17) | plain image (RAM test), footered image (`boot_b`), `SHA256SUMS` |
 | `iceland-device` (the tablet's settings), `iceland-coexist` (kernel-install for a shared `/boot`), `upower` (time to full to the charge limit) | iceland-device 0.28-33, iceland-coexist 1.0-6, upower 1.91.5-1.fc44.iceland1 | [iceland-device-0.28-33](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-33) | noarch / aarch64 RPMs, source RPMs, `SHA256SUMS` |
 | `iceland-firmware` (generic firmware) | 11.A.38-6 | [iceland-firmware 11.A.38-6](https://github.com/mzakamin-hub/iceland-firmware/releases/tag/11.A.38-6) | noarch RPM, source RPM, `SHA256SUMS` |
 | Windows installer (blocked for writes) | in iceland-device 0.28-16 | [iceland-device-0.28-16](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-16) | `Install-Pad4Linux.ps1`, `README-INSTALLER.md`, `SHA256SUMS` |
 
-The current kernel is q90r (`7.3.0-next-20261020-iceland-00529`, iceland-linux tag `q90r`). The virtual machine packages iceland-gvm 0.3-27 and iceland-vms 0.2-5 are
+The current kernel is q90u (`7.3.0-next-20261020-iceland-00548`, iceland-linux tag `q90u`). The virtual machine packages iceland-gvm 0.3-27 and iceland-vms 0.2-5 are
 published as sources in [iceland-gvm](https://github.com/mzakamin-hub/iceland-gvm) and [iceland-vms](https://github.com/mzakamin-hub/iceland-vms), with their build steps.
 
 The Fedora disk image and the install image are **not** published. [Guide 04](docs/guide/04-BUILD-YOUR-OWN.md) covers

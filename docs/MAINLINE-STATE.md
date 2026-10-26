@@ -5,14 +5,14 @@ This page is the state of the two upstream-facing ports: the kernel and U-Boot. 
 
 ## Kernel (iceland-linux)
 
-- **Build in use:** `7.3.0-next-20261020-iceland-00529-gb04181fcf88f`, queue head **q90r**, branch
-  `iceland-7.3-rc7-next` (tag `q90r`). It runs on the installed tablet as the default kernel, installed with dnf;
-  q90m (`00485`) is kept as the fallback entry. `scripts/build.sh` gives the package's config exactly (configs
-  `q90b`, `q90i`, `q90i-shipped`, `q90m` to `q90r`). The newest kernel release download is q90r. The first install image (golden B149)
+- **Build in use:** `7.3.0-next-20261020-iceland-00548-g18ffc096fcee`, queue head **q90u**, branch
+  `iceland-7.3-rc7-next` (tag `q90u`). It runs on the installed tablet as the default kernel, installed with dnf;
+  q90s4 and q90t4 are kept as fallback entries. `scripts/build.sh` gives the package's config exactly (configs
+  `q90b`, `q90i`, `q90i-shipped`, `q90m` to `q90r`). The newest kernel release download is q90u. The first install image (golden B149)
   carries q89g (`7.3.0-rc7-iceland-00426`, tag `q89g`).
 - **Base:** linux-next `next-20261020` (`UPSTREAM_COMMIT` 8f7df005a756; Linux 7.3 plus the trees queued for 7.4)
-  with 529 patch files: 110 in `0001-infiniti` (the infiniti-mainline base for SM8850), 304 in `0002-iceland` (the
-  Pad 4 series) and 115 in the series `0003-glitchfix` (display-timing switches) and `0004-q90b` to `0019-q90r`.
+  with 548 patch files: 110 in `0001-infiniti` (the infiniti-mainline base for SM8850), 304 in `0002-iceland` (the
+  Pad 4 series) and 134 in the series `0003-glitchfix` (display-timing switches) and `0004-q90b` to `0022-q90u`.
   The rebase dropped 107 patches that are upstream in that base. Binder is back since q90m: the base removed the C
   driver and q90m restores it as an option (binderfs only), for Android containers.
 - **Queue history:** q89 (rc4) -> q89b (rc6 rebase, 10 Oct) -> q89c-tb (tb323fu patches) -> q89d8 and q89d9 (rc6,
@@ -31,7 +31,10 @@ This page is the state of the two upstream-facing ports: the kernel and U-Boot. 
   the diagnostics-only patches removed; KGSL's A840 values and the GMU battery current limiter as switches; PSCI
   vendor reboot modes; the Gunyah VM manager in the tree as modules, used by iceland-gvm; the C binder driver back;
   lockup detectors; the board's command line as built-in defaults; upstream qmp, remoteproc, geni, dwc3, ucsi,
-  smmu, fastrpc, q6apm and drm/msm fixes; qrtr re-announce; mac80211 MLO multicast dedup; UFS link recovery).
+  smmu, fastrpc, q6apm and drm/msm fixes; qrtr re-announce; mac80211 MLO multicast dedup; UFS link recovery), q90s to
+  q90u (25-26 Oct: the gunyah-cma-mem binding fixed; ucsi_glink quiet across system sleep; Gunyah memory that may
+  still belong to a guest kept from the page allocator; UFS and inline-crypto runtime-PM fixes; ath12k debugfs
+  created once; vhost-net, writeback throttling and LZ4 zram in the config; optional tunables, all off by default).
 - **Upstream candidates:** the patches that are not in q90i are held: the q6apm RFC (0202-0205; the read-done payload
   size was wrong), the GPU CLX series (0244-0245; superseded: the 7.4 base's rpmhpd fix makes CLX start), the DW9800K update (0253; a chip-ID
   mismatch), the wcd939x port switches (0254), and two old candidates (the SoundWire IRQ and the hci_qca sleep reset),
@@ -41,7 +44,7 @@ This page is the state of the two upstream-facing ports: the kernel and U-Boot. 
 - **Re-check at each rebase:** patches merged upstream are removed at the next rebase (v7.3 final, then 7.4).
 - **Open kernel work:** the rebase onto 7.4-rc1; camera into the hardware encoder (the
   pipeline does not negotiate); Chromium / Electron GPU path; the K4 battery guard and
-  the kernel layer of the thermal guard are not in q90r (whether they are still planned is unverified). The idle
+  the kernel layer of the thermal guard are not in q90u (whether they are still planned is unverified). The idle
   refresh is on since 22 Oct (30 Hz after 1 s on a static screen, set on the command line by iceland-device 0.28-32).
 
 ## U-Boot (iceland-u-boot)

@@ -7,7 +7,7 @@ The working features, one by one, are listed in [FEATURES.md](FEATURES.md); the 
 
 | Piece | Version |
 |---|---|
-| Kernel | `7.3.0-next-20261020-iceland-00529` (queue q90r): linux-next `next-20261020` (Linux 7.3 plus the trees queued for 7.4) plus the Pad 4 patch queue, iceland-linux branch `iceland-7.3-rc7-next`, tag `q90r`; package `kernel-iceland`, updated with dnf (release download: q90r) |
+| Kernel | `7.3.0-next-20261020-iceland-00548` (queue q90u): linux-next `next-20261020` (Linux 7.3 plus the trees queued for 7.4) plus the Pad 4 patch queue, iceland-linux branch `iceland-7.3-rc7-next`, tag `q90u`; package `kernel-iceland`, updated with dnf (release download: q90u) |
 | Device package | `iceland-device` 0.28-33 (the newest release); `iceland-coexist` 1.0-6 (kernel-install for the shared `/boot`, one-shot boot entries) |
 | Virtual machines | `iceland-gvm` 0.3-27 (crosvm for Gunyah, the guest kernel, `gvm.sh`) and `iceland-vms` 0.2-5 (the Virtual Machines app); sources in [iceland-gvm](https://github.com/mzakamin-hub/iceland-gvm) and [iceland-vms](https://github.com/mzakamin-hub/iceland-vms) |
 | Android apps | DroidLoom (Android 17 in a container): host packages 0.1.0-23.git9789467.iceland3, image iceland4, `iceland-droidloom` 1.0-3 |
@@ -67,6 +67,10 @@ should carry 0.28-8 or newer (see the install guide, section 6).
   Virtual Machines app (iceland-gvm 0.3-27, iceland-vms 0.2-5); Android apps through DroidLoom (the C binder driver
   is back in the kernel); KDE Plasma 6 as the desktop of the project's tablet; the board's command line as built-in
   kernel defaults; drm/msm's October fixes and other upstream fixes.
+- **Since 25 Oct** (kernels q90s to q90u): USB-C cable changes during sleep are seen on resume; Gunyah guest memory
+  is never freed while it may still be lent; UFS and inline-crypto runtime-PM fixes; Windows 11 ARM runs as a VM
+  through the gvm tool, and the VM window gets touch modes, a VNC display and faster memory and disks (next
+  iceland-gvm / iceland-vms release).
 
 ## 4. Known limits
 
@@ -74,6 +78,7 @@ should carry 0.28-8 or newer (see the install guide, section 6).
   the hardware encoder works.
 - Chromium / Electron apps do not use the GPU path yet.
 - No fast charging (SuperVOOC is not supported); USB-PD charging and the normal charger types work.
-- Virtual machines run Linux guests only (Windows guests and ISO installs are not supported yet); no camera
+- Windows guests run through the gvm tool only (not yet inside the Virtual Machines app); ISO installs are not
+  supported yet; no camera
   autofocus, no DSP protection inside the amplifiers (a PipeWire speaker-protection chain is used).
 - Fedora 45 stays blocked until it has been tested on the tablet.

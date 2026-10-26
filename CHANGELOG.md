@@ -12,6 +12,20 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 [iceland-gvm](https://github.com/mzakamin-hub/iceland-gvm) ·
 [iceland-vms](https://github.com/mzakamin-hub/iceland-vms) (all public).
 
+## 2026-10-26 - kernel q90u released; Windows 11 ARM guest through the gvm tool
+
+- Kernel q90u (`7.3.0-next-20261020-iceland-00548`) is the default and the newest release
+  ([q90u](https://github.com/mzakamin-hub/iceland-linux/releases/tag/q90u): kernel RPM, source RPM, `SHA256SUMS`).
+  New since q90r: ucsi_glink quiet across system sleep, Gunyah guest memory never freed while it may still be
+  lent, UFS device-management timeouts and runtime-resume errors, the inline crypto engine under runtime PM,
+  ath12k debugfs created once, vhost-net / writeback throttling / LZ4 zram in the config, and optional tunables
+  that are all off by default.
+- Virtual machines (next iceland-gvm / iceland-vms release): Windows 11 ARM64 runs as a protected Gunyah VM
+  through the gvm tool (desktop, network with RDP, HTTPS, x86 apps, a 30-minute soak, clean shutdown); the VM
+  window gets touch input modes and a VNC display; guest memory is lent in 2 MiB blocks and disks use io_uring.
+  Windows inside the Virtual Machines app is not supported yet.
+- Feature list (matrix r175): 105 working features.
+
 ## 2026-10-25 - kernel q90r; virtual machines published (iceland-gvm, iceland-vms); KDE Plasma; DroidLoom
 
 - Kernel q90r (`7.3.0-next-20261020-iceland-00529`) is the default; q90m stays as the fallback. The queues q90j to
