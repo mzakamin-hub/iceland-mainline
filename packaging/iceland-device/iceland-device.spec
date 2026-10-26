@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        40%{?dist}
+Release:        43%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -240,6 +240,13 @@ Source214:      50-iceland-kde-secrets.conf
 Source215:      kde-secrets.service
 Source216:      kde-kwalletrc
 Source217:      iceland-secrets-migrate
+# 0.28-41: KWin's automatic brightness gets stock's light-to-brightness curve (once per account, before the DM)
+Source218:      iceland-kde-brightness-curve
+Source219:      iceland-kde-brightness-curve.service
+# 0.28-42: the cover detector
+Source220:      iceland-cover-detect
+Source221:      iceland-cover-detect.service
+Source222:      cover-detect.conf
 
 Requires:       kernel-iceland
 # 0.28-19: stock's GPU GMU / SQE pair (/usr/lib/firmware/iceland-gpu-stock, GPU_FW=stock); 0.28-20: the vendor pair
@@ -260,7 +267,9 @@ Requires:       alsa-utils
 Requires:       tuned-ppd
 # the sensor programs (packaging/sensors; not in Fedora 44, iio-sensor-proxy there has no SSC support)
 Requires:       hexagonrpc
-Requires:       libssc
+Requires:       libssc >= 0.4.4^8.git54dd13e-2.iceland1
+# the cover detector's lid switch next to gpio-keys' needs UPower to watch every lid switch (iceland2)
+Requires:       upower >= 1.91.5-1.fc44.iceland2
 Requires:       iio-sensor-proxy >= 3.9-10
 # the desktop's way to the cameras: libcamera's software ISP, PipeWire's libcamera plug-in, the portal that asks
 # for the camera permission (GNOME backend) and the document portal's FUSE helper
@@ -488,6 +497,9 @@ install -Dm0644 %{SOURCE28} %{buildroot}/usr/lib/systemd/system/hexagonrpcd-adsp
 install -Dm0644 %{SOURCE110} %{buildroot}/usr/lib/tmpfiles.d/iceland-dsp-tree.conf
 install -Dm0755 %{SOURCE29} %{buildroot}/usr/libexec/iceland/iceland-ssc-wait
 install -Dm0644 %{SOURCE30} %{buildroot}/usr/lib/systemd/system/iceland-ssc-resume.service
+install -Dm0755 %{SOURCE220} %{buildroot}/usr/libexec/iceland/iceland-cover-detect
+install -Dm0644 %{SOURCE221} %{buildroot}/usr/lib/systemd/system/iceland-cover-detect.service
+install -Dm0644 %{SOURCE222} %{buildroot}/etc/iceland/cover-detect.conf
 install -Dm0644 %{SOURCE31} %{buildroot}/usr/share/libcamera/ipa/simple/sc1320cs.yaml
 install -Dm0644 %{SOURCE34} %{buildroot}/usr/share/libcamera/ipa/simple/sc820cs.yaml
 install -Dm0644 %{SOURCE35} %{buildroot}/usr/share/wireplumber/wireplumber.conf.d/51-iceland-camera.conf
@@ -618,6 +630,9 @@ install -Dm0644 %{SOURCE214} %{buildroot}/usr/lib/environment.d/50-iceland-kde-s
 install -Dm0644 %{SOURCE215} %{buildroot}/usr/share/iceland/session-first/dbus-1/services/org.freedesktop.secrets.service
 install -Dm0644 %{SOURCE216} %{buildroot}/etc/xdg/kwalletrc
 install -Dm0755 %{SOURCE217} %{buildroot}/usr/bin/iceland-secrets-migrate
+install -Dm0755 %{SOURCE218} %{buildroot}/usr/libexec/iceland/iceland-kde-brightness-curve
+install -d -m0700 %{buildroot}/var/lib/iceland/kde-curve
+install -Dm0644 %{SOURCE219} %{buildroot}/usr/lib/systemd/system/iceland-kde-brightness-curve.service
 
 %posttrans
 # install plan: GRUB settings (per-kernel device tree, visible menu, $iceland_args), trial-boot units, udev
@@ -751,20 +766,30 @@ fi
 # an updated system (iceland-storage-summary in 0.28-33). Once per unit and system (marker
 # /var/lib/iceland/.new-unit-UNIT): the unit's line in 50-iceland.preset decides, and a unit the owner disables
 # afterwards stays disabled. Every unit a release adds goes into this list.
-for u in iceland-storage-summary.service; do
+for u in iceland-storage-summary.service iceland-cover-detect.service; do
 	[ -e "/var/lib/iceland/.new-unit-$u" ] && continue
 	systemctl preset "$u" >/dev/null 2>&1 || systemctl enable "$u" >/dev/null 2>&1 || :
 	mkdir -p /var/lib/iceland && touch "/var/lib/iceland/.new-unit-$u"
 done
+# 0.28-42: the cover detector runs at once when enabled (first install or the new-unit step above), an update
+# restarts a running one with the new code
+if [ -d /run/systemd/system ]; then
+	systemctl daemon-reload >/dev/null 2>&1 || :
+	if systemctl -q is-active iceland-cover-detect.service; then systemctl try-restart iceland-cover-detect.service >/dev/null 2>&1 || :
+	elif systemctl -q is-enabled iceland-cover-detect.service; then systemctl --no-block start iceland-cover-detect.service >/dev/null 2>&1 || :; fi
+fi
 # 0.28-9 (4): sysctl.d / tmpfiles.d take effect through systemd's file triggers at once and at every boot
 # 0.28-37: GDM's dconf database (the greeter default) is compiled by iceland-device-gnome
 
 %post kde
 # the per-account Plasma defaults run at each account's next Plasma login (the unit itself checks the desktop)
 systemctl --global enable iceland-kde-defaults.service >/dev/null 2>&1 || :
+# 0.28-41: stock's automatic-brightness curve for KWin, once per account, at the next boot (before the DM)
+systemctl enable iceland-kde-brightness-curve.service >/dev/null 2>&1 || :
 
 %preun kde
 [ "$1" -eq 0 ] && systemctl --global disable iceland-kde-defaults.service >/dev/null 2>&1 || :
+[ "$1" -eq 0 ] && systemctl disable iceland-kde-brightness-curve.service >/dev/null 2>&1 || :
 
 %triggerin -- fwupd
 /usr/libexec/iceland/iceland-fwupd-guard || :
@@ -794,6 +819,7 @@ fi
 if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/enforce ]; then semodule -r iceland_sensors >/dev/null 2>&1 || :; else semodule -n -r iceland_sensors >/dev/null 2>&1 || :; fi; fi
 if [ "$1" -eq 0 ] && [ -e /var/lib/iceland/.irqbalance-cil-0.28-32 ]; then semodule -r iceland_irqbalance >/dev/null 2>&1 || :; rm -f /var/lib/iceland/.irqbalance-cil-0.28-32; fi
 [ "$1" -eq 0 ] && systemctl disable --now iceland-clock.timer iceland-clock.service >/dev/null 2>&1 || :
+[ "$1" -eq 0 ] && systemctl disable --now iceland-cover-detect.service >/dev/null 2>&1 || :
 [ "$1" -eq 0 ] && { systemctl disable iceland-storage-summary.service >/dev/null 2>&1; rm -f /var/lib/iceland/.new-unit-*; } || :
 [ "$1" -eq 0 ] && /usr/bin/iceland-power-profiles reset >/dev/null 2>&1 || :
 # bypass charging ends with the package (the running guard gives charging back at its next step)
@@ -896,6 +922,9 @@ dconf update >/dev/null 2>&1 || :
 /usr/lib/tmpfiles.d/iceland-dsp-tree.conf
 /usr/libexec/iceland/iceland-ssc-wait
 /usr/lib/systemd/system/iceland-ssc-resume.service
+/usr/libexec/iceland/iceland-cover-detect
+/usr/lib/systemd/system/iceland-cover-detect.service
+%config(noreplace) /etc/iceland/cover-detect.conf
 /usr/share/libcamera/ipa/simple/sc1320cs.yaml
 /usr/share/libcamera/ipa/simple/sc820cs.yaml
 /usr/share/wireplumber/wireplumber.conf.d/51-iceland-camera.conf
@@ -1009,8 +1038,42 @@ dconf update >/dev/null 2>&1 || :
 /usr/share/iceland/session-first/dbus-1/services/org.freedesktop.secrets.service
 %config(noreplace) /etc/xdg/kwalletrc
 /usr/bin/iceland-secrets-migrate
+/usr/libexec/iceland/iceland-kde-brightness-curve
+/usr/lib/systemd/system/iceland-kde-brightness-curve.service
+%dir %attr(0700,root,root) /var/lib/iceland/kde-curve
 
 %changelog
+* Tue Oct 27 2026 mzak <mzak.amin@gmail.com> - 0.28-43
+- iceland-cover-detect: 0.28-42 shipped the script with CRLF line endings (the service could not start: 203/EXEC).
+- the cover is now seen by the proximity sensor first: NEAR held 1 s, confirmed by a magnetometer step of 10-50 uT
+  against the field before the proximity went NEAR (18-27 uT for the Bluetooth keyboard cover, also when closed
+  while held; 0.28-42 needed a steady tablet and rejected it). A hand over the sensor without a step, a
+  step with the sensor FAR, or a turn above 50 uT (67-82 uT seen) is no cover. Open: FAR 1 s with the field back,
+  or FAR 5 s (the screen-on FAR blip with the cover closed lasts 3.4 s). The proximity sensor stays on while awake.
+  DEBUG=yes logs field, step, proximity and state every 0.5 s. The hub hall stays the first source.
+
+* Tue Oct 27 2026 mzak <mzak.amin@gmail.com> - 0.28-42
+- iceland-cover-detect (new system service, on by default; /etc/iceland/cover-detect.conf): closing a cover locks
+  / sleeps the tablet also when the cover's magnet misses the hall sensor Linux had wired (a third-party
+  Bluetooth keyboard cover: no lid event at all). Two sources: the sensor hub's own hall sensor (ROHM BU52053NVX,
+  data type "hall", libssc 2.iceland1; the hub owns TLMM 98, so gpio-keys' lid never fires), and for covers
+  it does not see, a held step of the magnetometer field (25-27 uT, noise 1-2 uT) confirmed by the
+  proximity sensor (a turn of the tablet is no cover). Reported as SW_LID on the uinput device "iceland cover
+  detector": UPower (iceland2: every lid switch), powerdevil and logind apply their lid actions (battery: sleep,
+  charger: lock). The service never suspends or locks by itself: the charging guard's sleep block is unchanged.
+  The hub sessions close before a suspend (logind delay lock) and reopen after it; the lid state is kept.
+
+* Sun Oct 25 2026 mzak <mzak.amin@gmail.com> - 0.28-41
+- iceland-thermal: the refresh-rate cap of stock's thermal policy (optimization scan 25 Oct 2026, item 9; we were
+  less conservative than stock): 90 Hz at gears 8-9, 60 Hz from gear 10 (stock globalPolicy refreshRate from gear 10,
+  thermallevel_to_fps.xml 120 -> 90 -> 60), published in /run/iceland/thermal-refresh-hz; thermal.conf REFRESH=1.
+- iceland-refresh: applies that cap in GNOME and KDE Plasma (also with ENABLED=0): never above it, a rate picked by
+  hand is lowered again while it holds, the power-source rate back when it goes.
+- iceland-device-kde: iceland-kde-brightness-curve (system unit, before the display manager, once per account):
+  KWin's automatic brightness gets stock's lux -> nits curve (lux_table 52 + hbm_lux_table 52, panel P_D) instead
+  of KWin's one-point default (full brightness in any light until the slider is moved); backup of the file kept.
+  Off by default: the unit runs only when /etc/iceland/kde-brightness-curve.enable exists.
+
 * Sat Oct 24 2026 mzak <mzak.amin@gmail.com> - 0.28-40
 - iceland-cmdline for kernel q90p+: each boot entry is written for its own kernel (its config in
   /usr/lib/modules/<version>/config). A kernel with the built-in defaults (CONFIG_DRM_MSM_ICELAND_DEFAULTS,
@@ -1061,7 +1124,7 @@ dconf update >/dev/null 2>&1 || :
 - otherwise as 0.28-36 (never installed)
 
 * Sat Oct 24 2026 mzak <mzak.amin@gmail.com> - 0.28-36
-- new subpackage iceland-device-kde (KDE Plasma 6.7 next to GNOME):
+- new subpackage iceland-device-kde (KDE Plasma 6.7 next to GNOME; plan docs/PLASMA-INTEGRATION-PLAN-2026-10-24.md):
   /etc/xdg/powerdevilrc (power key nothing, cover / idle / low-battery as the GNOME override and the logind drop-in),
   a polkit rule that keeps UPower the only charge-limit writer (Plasma's KAuth setthreshold refused), the Bypass
   Charging system-tray item org.iceland.bypass (+ the UPower charge-limit switch), iceland-kde-defaults (KWin's

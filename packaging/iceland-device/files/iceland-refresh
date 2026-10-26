@@ -31,8 +31,49 @@
 # mutter's temporary configuration KWin STORES the mode (~/.config/kwinoutputconfig.json); harmless, the next plug /
 # unplug sets it again. RELIGHT and DISCHARGING_IS_BATTERY are GNOME-path only (both off by default). Neither
 # compositor within 60 s (another desktop): the service ends without an error.
+# 0.28-41 (optimization scan 25 Oct 2026, item 9): the THERMAL CAP. iceland-thermal publishes a refresh-rate cap in
+# /run/iceland/thermal-refresh-hz (Hz, 0 / missing = none; 90 Hz at gears 8-9, 60 Hz from gear 10, as stock lowers its
+# rate when hot). Both backends apply it, also with ENABLED=0 (a safety limit, not a power preference): the panel never
+# runs above the cap (the highest mode at or below it), a rate picked by hand above the cap is lowered again (GNOME: at
+# once on MonitorsChanged; KDE: within 10 s, a kscreen-doctor read every 10 s ONLY while a cap holds), and when the cap
+# goes the panel returns to the power-source rate (ENABLED=1) or to the rate it had before the cap (ENABLED=0). The file
+# is watched with a GFileMonitor (inotify): no polling while it is cool.
 import json, os, shutil, subprocess, sys, time
 from gi.repository import Gio, GLib
+
+CAP_FILE = os.environ.get("ICELAND_REFRESH_CAP", "/run/iceland/thermal-refresh-hz")
+
+def read_cap(path=None):
+    """the thermal refresh-rate cap in Hz (0 = none, also for a missing / unreadable / malformed file)"""
+    try:
+        with open(path or CAP_FILE) as f:
+            v = int(f.read().strip() or "0")
+    except (OSError, ValueError):
+        return 0
+    return v if v > 0 else 0
+
+def pick_rate(rates, target, cap):
+    """rates: [(key, hz)] of one resolution -> the key whose rate is closest to the target among the rates at or below
+    the cap (+0.5 Hz rounding); no such rate: the lowest one. cap 0 = no cap"""
+    if not rates:
+        return None
+    ok = [r for r in rates if not cap or r[1] <= cap + 0.5]
+    if not ok:
+        return min(rates, key=lambda r: r[1])[0]
+    t = min(target, cap) if cap else target
+    return min(ok, key=lambda r: abs(r[1] - t))[0]
+
+def watch_cap(callback):
+    """GFileMonitor on the cap file (it is replaced atomically by iceland-thermal); keep the returned object alive"""
+    try:
+        mon = Gio.File.new_for_path(CAP_FILE).monitor_file(Gio.FileMonitorFlags.WATCH_MOVES, None)
+    except GLib.Error as e:
+        print("iceland-refresh: no watch on %s (%s): the thermal cap is read every 10 s" % (CAP_FILE, e.message),
+              file=sys.stderr, flush=True)
+        GLib.timeout_add_seconds(10, lambda: callback() or True)
+        return None
+    mon.connect("changed", lambda *a: callback())
+    return mon
 
 def conf():
     c = {"BATTERY_HZ": "60", "AC_HZ": "120", "ENABLED": "1", "RELIGHT": "0", "RELIGHT_OFF_MS": "1000",
@@ -48,12 +89,12 @@ def conf():
             pass
     return c
 
-def pick_mode(modes, cur_w, cur_h, target):
-    """modes: [(id, w, h, refresh, ...)]; same resolution, refresh closest to the target"""
+def pick_mode(modes, cur_w, cur_h, target, cap=0):
+    """modes: [(id, w, h, refresh, ...)]; same resolution, refresh closest to the target (0.28-41: at or below the cap)"""
     same = [m for m in modes if m[1] == cur_w and m[2] == cur_h]
     if not same:
         return None
-    return min(same, key=lambda m: abs(m[3] - target))[0]
+    return pick_rate([(m[0], m[3]) for m in same], target, cap)
 
 def builtin_rate(monitors):
     """refresh rate of the built-in panel's current mode in GetCurrentState's monitor list, or None"""
@@ -88,9 +129,51 @@ class Refresh:
                                                "org.freedesktop.UPower.Device", None)
             self.disp.connect("g-properties-changed", lambda *a: self.apply())
         self.dc.connect("g-signal", lambda p, s, sig, a: sig == "MonitorsChanged" and self.changed())
+        # 0.28-41: the thermal cap
+        self.cap, self.cap_from, self.lowered = 0, None, False
+        self.capmon = watch_cap(self.cap_changed)
+        self.cap_changed()
+
+    def cap_changed(self):
+        new = read_cap()
+        if new == self.cap:
+            return
+        old, self.cap = self.cap, new
+        print("iceland-refresh: thermal cap %s -> %s" % ("%d Hz" % old if old else "none", "%d Hz" % new if new else "none"),
+              flush=True)
+        if new:
+            self.enforce()
+        elif self.lowered:
+            self.release()
+
+    def enforce(self):
+        """0.28-41: the panel above the thermal cap -> the highest mode at or below it"""
+        if self.cap:
+            rate = builtin_rate(self.dc.call_sync("GetCurrentState", None, 0, -1, None).unpack()[1])
+            if rate is not None and rate > self.cap + 0.5:
+                if self.cap_from is None:
+                    self.cap_from = rate
+                if self.set_target(float(self.cap)):
+                    self.lowered = True
+                    print("iceland-refresh: %.0f Hz -> at most %d Hz (thermal cap)" % (rate, self.cap), flush=True)
+        return False
+
+    def release(self):
+        """0.28-41: the cap is gone: the power-source rate (ENABLED=1) or the rate before the cap (ENABLED=0)"""
+        c = conf()
+        if c.get("ENABLED", "1") == "1":
+            on_battery = self.source(c)[0]
+            target = float(c["BATTERY_HZ"] if on_battery else c["AC_HZ"])
+        else:
+            target = self.cap_from
+        self.lowered, self.cap_from = False, None
+        if target and self.set_target(float(target)):
+            print("iceland-refresh: thermal cap gone -> %.0f Hz" % target, flush=True)
 
     def changed(self):
         rate = builtin_rate(self.dc.call_sync("GetCurrentState", None, 0, -1, None).unpack()[1])
+        if self.cap and rate is not None and rate > self.cap + 0.5:
+            GLib.timeout_add(500, self.enforce)       # 0.28-41: a rate above the thermal cap (e.g. picked by hand)
         if relight_needed(self.rate, rate, conf()):
             # one off/on for a burst of changes (e.g. the user's change and our own correction)
             if self.pending:
@@ -165,6 +248,14 @@ class Refresh:
         self.cancel_wait()
         self.last_ob = on_battery
         target = float(c["BATTERY_HZ"] if on_battery else c["AC_HZ"])
+        if self.set_target(target):
+            print("iceland-refresh: %s -> %.0f Hz%s%s" % ("battery" if on_battery else "AC", target,
+                  " (the battery discharges on a weak USB source)" if on_battery and by_dis else "",
+                  " (thermal cap %d Hz)" % self.cap if self.cap and self.cap < target else ""), flush=True)
+
+    def set_target(self, target):
+        """every monitor to the mode of its resolution closest to the target, the built-in panel at or below the
+        thermal cap (0.28-41); True when a new configuration was applied"""
         serial, monitors, logical, props = self.dc.call_sync("GetCurrentState", None, 0, -1, None).unpack()
         changed, new_logical = False, []
         for (x, y, scale, transform, primary, lmons, lprops) in logical:
@@ -174,21 +265,22 @@ class Refresh:
                 modes = mon[1]
                 cur = next((m for m in modes if m[6].get("is-current")), None)
                 if cur is None:
-                    return
-                mid = pick_mode(modes, cur[1], cur[2], target)
+                    return False
+                cap = self.cap if mon[2].get("is-builtin") else 0
+                mid = pick_mode(modes, cur[1], cur[2], target, cap)
                 if mid and mid != cur[0]:
                     changed = True
                 mons.append((spec[0], mid or cur[0], {}))
             new_logical.append((x, y, scale, transform, primary, mons))
         if not changed:
-            return
+            return False
         args = GLib.Variant("(uua(iiduba(ssa{sv}))a{sv})", (serial, 1, new_logical, {}))
         try:
             self.dc.call_sync("ApplyMonitorsConfig", args, 0, -1, None)
-            print("iceland-refresh: %s -> %.0f Hz%s" % ("battery" if on_battery else "AC", target,
-                  " (the battery discharges on a weak USB source)" if on_battery and by_dis else ""), flush=True)
+            return True
         except GLib.Error as e:
             print("iceland-refresh: " + e.message, file=sys.stderr, flush=True)
+            return False
 
 class KScreenRefresh:
     """0.28-36: the KDE Plasma backend (KWin through kscreen-doctor); same files and switches as the GNOME one"""
@@ -198,6 +290,84 @@ class KScreenRefresh:
                                          "/org/freedesktop/UPower", "org.freedesktop.UPower", None)
         self.last_ob = None
         self.up.connect("g-properties-changed", lambda *a: self.apply())
+        # 0.28-41: the thermal cap (KWin has no signal we follow: while a cap holds, the panel is re-read every 10 s)
+        self.cap, self.cap_from, self.lowered, self.cap_timer = 0, None, False, None
+        self.capmon = watch_cap(self.cap_changed)
+        self.cap_changed()
+
+    def cap_changed(self):
+        new = read_cap()
+        if new == self.cap:
+            return
+        old, self.cap = self.cap, new
+        print("iceland-refresh: thermal cap %s -> %s" % ("%d Hz" % old if old else "none", "%d Hz" % new if new else "none"),
+              flush=True)
+        if new:
+            self.enforce()
+            if self.cap_timer is None:
+                self.cap_timer = GLib.timeout_add_seconds(10, self.cap_tick)
+        else:
+            if self.cap_timer is not None:
+                GLib.source_remove(self.cap_timer)
+                self.cap_timer = None
+            if self.lowered:
+                self.release()
+
+    def cap_tick(self):
+        if not self.cap:
+            self.cap_timer = None
+            return False
+        self.enforce()
+        return True
+
+    def set_mode(self, p, target):
+        """the panel to the mode closest to the target at or below the cap; True when kscreen-doctor changed it"""
+        name, w, h, hz, modes = p
+        same = [(m[0], m[3]) for m in modes if m[1] == w and m[2] == h]
+        mid = pick_rate(same, target, self.cap)
+        best = next((r for r in same if r[0] == mid), None)
+        if best is None or abs(best[1] - hz) < 0.5:
+            return False
+        r = subprocess.run(["kscreen-doctor", "output.%s.mode.%s" % (name, best[0])], capture_output=True, text=True,
+                           timeout=30)
+        if r.returncode != 0:
+            print("iceland-refresh: kscreen-doctor failed: " + r.stderr.strip()[:200], file=sys.stderr, flush=True)
+            return False
+        return True
+
+    def enforce(self):
+        """0.28-41: the panel above the thermal cap -> the highest mode at or below it"""
+        if not self.cap:
+            return
+        try:
+            p = self.panel()
+        except (OSError, subprocess.SubprocessError, ValueError) as e:
+            print("iceland-refresh: kscreen-doctor: %s" % e, file=sys.stderr, flush=True)
+            return
+        if p and p[3] > self.cap + 0.5:
+            if self.cap_from is None:
+                self.cap_from = p[3]
+            if self.set_mode(p, float(self.cap)):
+                self.lowered = True
+                print("iceland-refresh: %.0f Hz -> at most %d Hz (thermal cap, KWin, %s)" % (p[3], self.cap, p[0]),
+                      flush=True)
+
+    def release(self):
+        """0.28-41: the cap is gone: the power-source rate (ENABLED=1) or the rate before the cap (ENABLED=0)"""
+        c = conf()
+        if c.get("ENABLED", "1") == "1":
+            v = self.up.get_cached_property("OnBattery")
+            target = float(c["BATTERY_HZ"] if v is not None and v.unpack() else c["AC_HZ"])
+        else:
+            target = self.cap_from
+        self.lowered, self.cap_from = False, None
+        try:
+            p = self.panel()
+        except (OSError, subprocess.SubprocessError, ValueError) as e:
+            print("iceland-refresh: kscreen-doctor: %s" % e, file=sys.stderr, flush=True)
+            return
+        if p and target and self.set_mode(p, float(target)):
+            print("iceland-refresh: thermal cap gone -> %.0f Hz (KWin, %s)" % (target, p[0]), flush=True)
 
     @staticmethod
     def panel():
@@ -235,17 +405,18 @@ class KScreenRefresh:
         self.last_ob = on_battery
         name, w, h, hz, modes = p
         target = float(c["BATTERY_HZ"] if on_battery else c["AC_HZ"])
-        same = [m for m in modes if m[1] == w and m[2] == h]
+        same = [(m[0], m[3]) for m in modes if m[1] == w and m[2] == h]
         if not same:
             return
-        best = min(same, key=lambda m: abs(m[3] - target))
-        if abs(best[3] - hz) < 0.5:
+        mid = pick_rate(same, target, self.cap)            # 0.28-41: at or below the thermal cap
+        best = next(r for r in same if r[0] == mid)
+        if abs(best[1] - hz) < 0.5:
             return
         r = subprocess.run(["kscreen-doctor", "output.%s.mode.%s" % (name, best[0])], capture_output=True, text=True,
                            timeout=30)
         if r.returncode == 0:
-            print("iceland-refresh: %s -> %.0f Hz (KWin, %s)" % ("battery" if on_battery else "AC", best[3], name),
-                  flush=True)
+            print("iceland-refresh: %s -> %.0f Hz (KWin, %s)%s" % ("battery" if on_battery else "AC", best[1], name,
+                  " (thermal cap %d Hz)" % self.cap if self.cap else ""), flush=True)
         else:
             self.last_ob = None        # try again at the next UPower change
             print("iceland-refresh: kscreen-doctor failed: " + r.stderr.strip()[:200], file=sys.stderr, flush=True)

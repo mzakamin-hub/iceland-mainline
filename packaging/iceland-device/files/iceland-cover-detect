@@ -1,0 +1,312 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-cover-detect: closing a cover locks / sleeps the tablet also when the cover's magnet misses the hall sensor
+# (third-party Bluetooth keyboard covers). Reports SW_LID on its own uinput device "iceland cover detector"; UPower
+# (iceland2: every lid switch is watched), powerdevil and logind apply their own lid actions (battery: sleep, charger:
+# lock). The daemon never suspends or locks anything itself: the charging guard's sleep block stays in charge.
+#
+# Sources, in this order:
+#  1 the sensor hub's hall sensor (ROHM BU52053NVX on TLMM 98, data type "hall", libssc 2.iceland1; the hub owns that
+#    pin's interrupt, so gpio-keys' lid never fires). Once it has reported a magnet, its edges alone decide.
+#  2 proximity + magnetometer (0.28-43): the main signal is the proximity sensor NEAR, held PROX_CLOSE_S; the field
+#    confirms it: the field now differs from the field before the proximity went NEAR (median of REF_FROM_S..REF_TO_S
+#    before) by at least CLOSE_UT (owner captures: 18-27 uT for this cover; noise 1-2 uT). A hand over the sensor
+#    without a field step, a step above CLOSE_MAX_UT (turns of the tablet: 67-82 uT seen) or a step with the sensor
+#    FAR is no cover; the step must hold PROX_CLOSE_S together with NEAR. No
+#    steadiness rule: the owner may close the cover while holding the tablet.
+#    Open: proximity FAR held PROX_OPEN_S and the field back to within max(OPEN_UT, half the step) of the field before
+#    the close, or proximity FAR held PROX_FAR_OPEN_S whatever the field says (opened while turned). The screen-on blip
+#    (proximity FAR 3.4 s with the cover still closed, owner capture) keeps the field stepped: no open.
+# The light sensor is not used (0 lux here). Sleep: a logind delay lock closes the hub sessions before the suspend
+# (before hexagonrpcd stops) and reopens them after it; the uinput device and the state stay, so a power-key wake
+# with the cover still closed is no new "close". DEBUG=yes (or --debug) logs field, step, proximity and state every
+# 0.5 s. /etc/iceland/cover-detect.conf (KEY=VALUE) overrides the defaults below; --dry-run: no uinput.
+import os, sys, time, math, json, fcntl, struct, signal, statistics
+import gi
+gi.require_version("SSC", "2"); gi.require_version("Gio", "2.0")
+from gi.repository import GLib, Gio, SSC
+
+CONF = "/etc/iceland/cover-detect.conf"
+STATE = "/run/iceland/cover-detect.state"
+DEF = {"ENABLE": "yes",
+       "SOURCE": "hall+mag",    # hall | mag | hall+mag  ("mag" = proximity + magnetometer)
+       "HALL_INVERT": "no",
+       "DEBUG": "no",
+       "CLOSE_UT": "10",        # field step that confirms a NEAR proximity as a cover (captures: 18-27 uT)
+       "CLOSE_MAX_UT": "50",    # a bigger step is a turn of the tablet, not this kind of cover (turns seen: 67-82 uT)
+       "OPEN_UT": "8",          # open: field back to within max(this, step / 2) of the field before the close
+       "PROX_CLOSE_S": "1.0",   # proximity NEAR held this long (with the step) = closed
+       "PROX_OPEN_S": "1.0",    # proximity FAR held this long + field back = open
+       "PROX_FAR_OPEN_S": "5",  # proximity FAR held this long = open whatever the field (screen-on blip: 3.4 s)
+       "REF_FROM_S": "6.0",     # the field before the close: median of 6.0 .. 2.5 s before the proximity went NEAR
+       "REF_TO_S": "2.5",
+       "STALL_S": "10"}         # no magnetometer sample this long while running: reopen the hub sessions
+WORDS = ("ENABLE", "SOURCE", "HALL_INVERT", "DEBUG")
+DRY = "--dry-run" in sys.argv
+
+
+def conf():
+    c = dict(DEF)
+    try:
+        for line in open(CONF):
+            line = line.split("#", 1)[0].strip()
+            if "=" in line:
+                k, v = (x.strip() for x in line.split("=", 1))
+                if k in DEF:
+                    c[k] = v.strip('"')
+    except OSError:
+        pass
+    return c
+
+
+C = conf()
+F = {k: float(v) for k, v in C.items() if k not in WORDS}
+USE_HALL, USE_MAG = "hall" in C["SOURCE"], "mag" in C["SOURCE"]
+DEBUG = C["DEBUG"] == "yes" or "--debug" in sys.argv
+
+
+def log(msg):
+    print(msg, flush=True)
+
+
+def vsub(a, b):
+    return tuple(x - y for x, y in zip(a, b))
+
+
+def vlen(a):
+    return math.sqrt(sum(x * x for x in a))
+
+
+def vmed(vs):
+    return tuple(statistics.median(c) for c in zip(*vs))
+
+
+# ---- uinput SW_LID ----
+def ioc(d, nr, size):
+    return (d << 30) | (size << 16) | (ord("U") << 8) | nr
+
+
+UI_SET_EVBIT, UI_SET_SWBIT = ioc(1, 100, 4), ioc(1, 109, 4)
+UI_DEV_SETUP, UI_DEV_CREATE = ioc(1, 3, 92), ioc(0, 1, 0)
+EV_SYN, EV_SW, SW_LID = 0, 5, 0
+
+
+class Lid:
+    def __init__(self):
+        self.state, self.fd = None, None
+        if DRY:
+            return
+        self.fd = os.open("/dev/uinput", os.O_WRONLY | os.O_NONBLOCK)
+        fcntl.ioctl(self.fd, UI_SET_EVBIT, EV_SW)
+        fcntl.ioctl(self.fd, UI_SET_SWBIT, SW_LID)
+        fcntl.ioctl(self.fd, UI_DEV_SETUP, struct.pack("HHHH80sI", 0x06, 0x1d6b, 0x0104, 1,   # BUS_VIRTUAL
+                                                       b"iceland cover detector", 0))
+        fcntl.ioctl(self.fd, UI_DEV_CREATE)
+
+    def set(self, closed, why):
+        if closed == self.state:
+            return
+        self.state = closed
+        log("decision: cover %s (%s)" % ("CLOSED" if closed else "OPEN", why))
+        if self.fd is not None:
+            now = time.time(); s, us = int(now), int((now % 1) * 1e6)
+            os.write(self.fd, struct.pack("llHHi", s, us, EV_SW, SW_LID, 1 if closed else 0) +
+                     struct.pack("llHHi", s, us, EV_SYN, 0, 0))
+
+
+class Detector:
+    def __init__(self, lid):
+        self.lid = lid
+        self.samples = []                    # (t, (x, y, z)), the last REF_FROM_S + 2 s
+        self.mag = self.prox = self.hall = None
+        self.hall_works = False              # the hub hall has seen a cover: it alone decides
+        self.near, self.near_t = False, time.monotonic()   # proximity state and since when
+        self.near_ref = None                 # the field before the proximity went NEAR
+        self.open_ref = self.step = None     # while closed: the field before the close, and the step
+        self.last_sample = time.monotonic()
+        self.dbg_t = 0.0
+        self.step_since = None               # since when the field step has been in the cover band (while NEAR)
+        self.load()
+
+    # -- state across restarts (package update, crash); /run is gone at reboot --
+    def load(self):
+        try:
+            s = json.load(open(STATE))
+            if s.get("closed"):
+                self.open_ref, self.step = tuple(s["ref"]), tuple(s["step"])
+                if s.get("v", 42) < 43:      # 0.28-42 kept the field WHILE closed: the open field is that - step
+                    self.open_ref = vsub(self.open_ref, self.step)
+                self.lid.set(True, "state from %s" % STATE); return
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+        self.lid.set(False, "start")
+
+    def save(self):
+        try:
+            os.makedirs(os.path.dirname(STATE), exist_ok=True)
+            with open(STATE, "w") as f:
+                json.dump({"v": 43, "closed": bool(self.lid.state), "ref": self.open_ref, "step": self.step}, f)
+        except OSError as e:
+            log("state not saved: %s" % e)
+
+    # -- hub sessions --
+    def start(self):
+        if USE_HALL and self.hall is None:
+            try:
+                h = SSC.SensorHall.new_sync(None)
+                if h is None:
+                    log("no hall sensor on the hub")
+                else:
+                    h.connect("measurement", self.on_hall); h.open_sync(None); self.hall = h
+                    log("hub hall sensor on")
+            except (GLib.Error, AttributeError) as e:
+                log("hall sensor unavailable: %s" % getattr(e, "message", e))
+        if not USE_MAG:
+            return
+        if self.prox is None:
+            p = SSC.SensorProximity.new_sync(None); p.connect("measurement", self.on_prox); p.open_sync(None)
+            self.prox = p
+        if self.mag is None:
+            m = SSC.SensorMagnetometer.new_sync(None); m.connect("measurement", self.on_mag); m.open_sync(None)
+            self.mag, self.samples, self.last_sample = m, [], time.monotonic()
+            log("proximity + magnetometer on")
+
+    def stop(self):
+        for attr in ("hall", "prox", "mag"):
+            s = getattr(self, attr)
+            if s is not None:
+                try:
+                    s.close_sync(None)
+                except GLib.Error:
+                    pass
+                setattr(self, attr, None)
+
+    # -- hub hall --
+    def on_hall(self, _s, near, value, msg_id):
+        closed = bool(near) != (C["HALL_INVERT"] == "yes")
+        log("hall: %s (value %g, message %u)" % ("magnet" if closed else "no magnet", value, msg_id))
+        if closed:
+            self.hall_works = True
+        if (closed or self.hall_works) and closed != self.lid.state:
+            self.lid.set(closed, "hub hall")
+            self.save()
+
+    # -- proximity + magnetometer --
+    def on_prox(self, _s, near):
+        near = bool(near)
+        if near == self.near:
+            return
+        now = time.monotonic()
+        self.near, self.near_t = near, now
+        if near:                              # remember the field before the cover came
+            ref = self.window(now, F["REF_TO_S"], F["REF_FROM_S"])
+            self.near_ref = vmed(ref) if len(ref) >= 3 else None
+        if DEBUG:
+            log("dbg proximity %s, field before %s" % ("NEAR" if near else "FAR",
+                                                        "%.0f uT" % vlen(self.near_ref) if near and self.near_ref else "-"))
+
+    def window(self, now, a, b):
+        return [v for t, v in self.samples if a <= now - t < b]
+
+    def on_mag(self, _s, x, y, z):
+        now = time.monotonic(); self.last_sample = now
+        self.samples.append((now, (x, y, z)))
+        if self.samples and now - self.samples[0][0] > F["REF_FROM_S"] + 2:
+            self.samples = [s for s in self.samples if now - s[0] < F["REF_FROM_S"] + 2]
+        recent = self.window(now, 0, 0.6)
+        if len(recent) < 2 or self.hall_works:
+            return
+        cur = vmed(recent)
+        held = now - self.near_t
+        if not self.lid.state:
+            d = vlen(vsub(cur, self.near_ref)) if self.near and self.near_ref else None
+            if DEBUG and now - self.dbg_t >= 0.5:
+                self.dbg_t = now
+                log("dbg open |B| %.0f, step %s, proximity %s %.1f s" % (vlen(cur), "%.0f" % d if d is not None else "-",
+                                                                          "NEAR" if self.near else "FAR", held))
+            if d is not None and F["CLOSE_UT"] <= d <= F["CLOSE_MAX_UT"]:
+                self.step_since = self.step_since or now
+            else:
+                self.step_since = None
+            if self.near and held >= F["PROX_CLOSE_S"] and self.step_since and now - self.step_since >= F["PROX_CLOSE_S"]:
+                self.open_ref, self.step = self.near_ref, vsub(cur, self.near_ref)
+                self.step_since = None
+                self.lid.set(True, "proximity NEAR %.1f s, field step %.0f uT" % (held, d))
+                self.save()
+        else:
+            back = vlen(vsub(cur, self.open_ref)) if self.open_ref else None
+            tol = max(F["OPEN_UT"], vlen(self.step) / 2) if self.step else F["OPEN_UT"]
+            if DEBUG and now - self.dbg_t >= 0.5:
+                self.dbg_t = now
+                log("dbg closed |B| %.0f, from open field %s (open below %.0f), proximity %s %.1f s"
+                    % (vlen(cur), "%.0f" % back if back is not None else "-", tol, "NEAR" if self.near else "FAR", held))
+            if not self.near and held >= F["PROX_OPEN_S"] and back is not None and back <= tol:
+                return self.opened("proximity FAR %.1f s, field back (%.0f uT from the open field)" % (held, back))
+            if not self.near and held >= F["PROX_FAR_OPEN_S"]:
+                return self.opened("proximity FAR %.1f s" % held)
+
+    def opened(self, why):
+        self.lid.set(False, why)
+        self.open_ref = self.step = None
+        self.save()
+
+    def watchdog(self):
+        if self.mag is not None and time.monotonic() - self.last_sample > F["STALL_S"]:
+            log("no magnetometer sample for %.0f s: reopening" % (time.monotonic() - self.last_sample))
+            self.stop()
+            try:
+                self.start()
+            except GLib.Error as e:
+                log("reopen failed: %s" % e.message)
+        return True
+
+
+def main():
+    if C["ENABLE"] != "yes":
+        log("disabled (ENABLE=%s in %s)" % (C["ENABLE"], CONF)); return
+    while not os.path.exists("/dev/fastrpc-adsp"):
+        time.sleep(2)                          # the sensor hub's node appears when the ADSP is up
+    lid = Lid(); det = Detector(lid)
+    det.start()                                # GLib.Error -> exit 1 -> systemd restarts us
+    bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+    inhibit = {"fd": None}
+
+    def take_delay():
+        try:
+            r, fds = bus.call_with_unix_fd_list_sync(
+                "org.freedesktop.login1", "/org/freedesktop/login1", "org.freedesktop.login1.Manager", "Inhibit",
+                GLib.Variant("(ssss)", ("sleep", "iceland-cover-detect", "close the sensor hub sessions", "delay")),
+                GLib.VariantType("(h)"), Gio.DBusCallFlags.NONE, 5000, None, None)
+            inhibit["fd"] = fds.get(r.unpack()[0])
+        except GLib.Error as e:
+            log("no delay lock: %s" % e.message)
+
+    def reopen(tries=[0]):
+        try:
+            det.start(); tries[0] = 0; return False
+        except GLib.Error as e:
+            tries[0] += 1
+            log("reopen after resume failed (%d): %s" % (tries[0], e.message))
+            return tries[0] < 30
+
+    def sleep_cb(_c, _s, _p, _i, _sig, params):
+        if params.unpack()[0]:
+            det.stop()
+            if inhibit["fd"] is not None:
+                os.close(inhibit["fd"]); inhibit["fd"] = None
+        else:
+            take_delay()
+            GLib.timeout_add_seconds(3, reopen)   # after iceland-ssc-resume has started hexagonrpcd again
+    bus.signal_subscribe("org.freedesktop.login1", "org.freedesktop.login1.Manager", "PrepareForSleep",
+                         "/org/freedesktop/login1", None, Gio.DBusSignalFlags.NONE, sleep_cb)
+    take_delay()
+    GLib.timeout_add_seconds(2, det.watchdog)
+    loop = GLib.MainLoop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, sig, loop.quit)
+    loop.run()
+    det.stop()                                 # the uinput device goes with the process; state stays in /run
+
+
+if __name__ == "__main__":
+    main()

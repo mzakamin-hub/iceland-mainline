@@ -11,12 +11,14 @@
 Summary:        Power Management Service
 Name:           upower
 Version:        1.91.5
-Release:        %autorelease.iceland1
+Release:        %autorelease.iceland2
 License:        GPL-2.0-or-later
 URL:            https://upower.freedesktop.org/
 Source0:        https://gitlab.freedesktop.org/upower/%{name}/-/archive/v%{version}/%{name}-v%{version}.tar.bz2
 # iceland (OnePlus Pad 4): time to full counts to the charge end threshold
 Patch9001:      upower-iceland-ttf-threshold.patch
+# iceland2 (OnePlus Pad 4): every lid switch is watched (gpio-keys hall + the cover detector's uinput lid)
+Patch9002:      upower-iceland-multi-lid.patch
 
 BuildRequires:  meson
 BuildRequires:  git
@@ -152,6 +154,10 @@ mv $RPM_BUILD_ROOT%{_libexecdir}/upower $RPM_BUILD_ROOT%{_libexecdir}/installed-
 %{_datadir}/installed-tests/upower/upower-integration.test
 
 %changelog
+* Tue Oct 27 2026 mzak <mzak.amin@gmail.com> - 1.91.5-1.iceland2
+- every lid switch is watched, not only the first one found: the Pad 4 has gpio-keys' lid and the cover
+  detector's uinput lid (upower-iceland-multi-lid.patch)
+
 * Thu Oct 22 2026 mzak <mzak.amin@gmail.com> - 1.91.5-1.iceland1
 - the time to full counts to the charge end threshold while the threshold is enabled, and is not given once the
   threshold is reached; the DisplayDevice keeps a single charging battery's own time to full

@@ -7,7 +7,7 @@ held from Fedora's updates:
 | Package | Upstream | Fedora 44 | What is packaged here |
 |---|---|---|---|
 | `hexagonrpc` | github.com/linux-msm/hexagonrpc `598b591` (v0.5.0 + 19) | not packaged | + `docs/sensors/patches/hexagonrpc/0001` (serves `/odm/etc/sensor`) and `0002` (answers an unsupported call with its error and keeps serving; the sensors PD's apps_std method 36 ended the daemon once per boot), units in the systemd unit directory, user `fastrpc`, a udev rule for the nodes |
-| `libssc` (+ `-devel`) | codeberg.org/DylanVanAssche/libssc `54dd13e` (v0.4.4 + 8) | not packaged | as upstream, without the test and mocking subdirectories; `ssccli` in the main package |
+| `libssc` (+ `-devel`) | codeberg.org/DylanVanAssche/libssc `54dd13e` (v0.4.4 + 8) | not packaged | as upstream, without the test and mocking subdirectories, plus [`libssc-iceland-hall.patch`](libssc-iceland-hall.patch) (2.iceland1: the sensor hub's hall sensor, `ssccli --sensor hall`); `ssccli` in the main package |
 | `iio-sensor-proxy` | gitlab.freedesktop.org/hadess/iio-sensor-proxy `3.9` | 3.8, no SSC support | built with `-Dssc-support=enabled`, + `docs/sensors/patches/iio-sensor-proxy/0001` (poll sensors claimed during discovery) and `0002` (HasAccelerometer is held back until a client has claimed it, or for 2 s after it looked; works around mutter 50 not claiming the sensor after a boot in touch mode, and keeps auto-rotate across a daemon restart) |
 
 The device side (the udev rule with the mount matrix, the unit drop-ins, the readiness wait, and the restart after a

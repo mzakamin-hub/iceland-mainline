@@ -19,3 +19,4 @@ enable iceland-clock.service
 enable iceland-clock.timer
 enable iceland-launchboost.service
 enable iceland-storage-summary.service
+enable iceland-cover-detect.service

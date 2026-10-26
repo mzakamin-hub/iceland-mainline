@@ -1,0 +1,20 @@
+# iceland-device: the cover detector (wf/coverlid). The sensor hub's hall sensor and, for covers whose magnet misses
+# it, the magnetometer (+ proximity) -> SW_LID on the uinput device "iceland cover detector"; UPower / powerdevil /
+# logind act on it as on any lid. It never suspends or locks by itself (the charging guard's sleep block stays in
+# charge). Settings: /etc/iceland/cover-detect.conf (ENABLE=no turns it off). The hub sessions close before a
+# suspend (a logind delay lock, before hexagonrpcd stops) and reopen after the resume; the process keeps running.
+[Unit]
+Description=OnePlus Pad 4: cover detector (sensor hub hall / magnetometer -> lid switch)
+After=hexagonrpcd-adsp-sensorspd.service systemd-logind.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/iceland/iceland-cover-detect
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=5
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

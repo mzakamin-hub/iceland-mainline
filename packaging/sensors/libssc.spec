@@ -8,11 +8,13 @@
 
 Name:           libssc
 Version:        0.4.4^8.git%{shortcommit}
-Release:        1.iceland1%{?dist}
+Release:        2.iceland1%{?dist}
 Summary:        Library to access the sensors of the Qualcomm Sensor Core (SSC)
 License:        GPL-3.0-or-later
 URL:            https://codeberg.org/DylanVanAssche/libssc
 Source0:        %{url}/archive/%{commit}.tar.gz#/%{name}-%{shortcommit}.tar.gz
+# OnePlus Pad 4: the sensor hub's hall sensor (cover), data type "hall"; ssccli --sensor hall
+Patch1:         libssc-iceland-hall.patch
 
 BuildRequires:  gcc
 BuildRequires:  meson >= 1.4
@@ -38,7 +40,7 @@ Requires:       %{name}%{?_isa} = %{version}-%{release}
 Headers, the pkg-config file and the introspection data of libssc.
 
 %prep
-%autosetup -n %{name}
+%autosetup -n %{name} -p1
 # the tests and the mock sensor hub need Python headers and a QRTR mock: not built for the package
 sed -i "/subdir('mocking')/d; /subdir('tests')/d" meson.build
 
@@ -67,5 +69,8 @@ if [ -e %{buildroot}%{_datadir}/gir-1.0/SSC-2.gir ]; then echo "%{_datadir}/gir-
 %{_libdir}/pkgconfig/libssc.pc
 
 %changelog
+* Tue Oct 27 2026 mzak <mzak.amin@gmail.com> - 0.4.4^8.git54dd13e-2.iceland1
+- hall sensor (data type "hall": the Pad 4's cover hall in the sensor hub) and ssccli --sensor hall
+
 * Fri Oct 02 2026 mzak <mzak.amin@gmail.com> - 0.4.4^8.git54dd13e-1.iceland1
 - First package: upstream 54dd13e (v0.4.4 + 8 commits), without the test and mocking subdirectories

@@ -1,7 +1,10 @@
 # upower (time to full to the charge limit)
 
-Fedora 44's `upower` 1.91.5-1 with one patch, built as `upower-1.91.5-1.fc44.iceland1` (and `upower-libs`). Current
-version on the reference tablet: **1.91.5-1.fc44.iceland1**.
+Fedora 44's `upower` 1.91.5-1 with two patches, built as `upower-1.91.5-1.fc44.iceland2` (and `upower-libs`). Current
+version on the reference tablet: **1.91.5-1.fc44.iceland2**. iceland2 adds
+[`upower-iceland-multi-lid.patch`](upower-iceland-multi-lid.patch): UPower watches every lid switch, not only the first
+one it finds (the Pad 4 has the hall sensor's lid and the keyboard cover detector's lid of iceland-device 0.28-42 and
+later).
 
 The Pad 4 stops charging at its charge end threshold (85 % by default). UPower 1.91.5 counted the time to full to
 100 % (`FIXME: Use charge-stop-threshold here`), so GNOME showed about twice the real time while charging to the limit.

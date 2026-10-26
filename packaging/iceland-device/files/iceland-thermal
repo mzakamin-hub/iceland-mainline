@@ -104,6 +104,19 @@
 # value), the kernel's cooling devices hold their own requests and the lowest request wins. It never writes a
 # thermal zone or a trip, and of the cooling devices only the backlight's own brightness limit (ktz8869-backlight,
 # which no thermal zone binds). So it only ever adds lower limits and takes its own back.
+# (0.28-41) refresh rate: stock lowers the panel's refresh rate when hot and we did not (optimization scan 25 Oct 2026,
+# item 9: less conservative than stock is not allowed). Stock: globalPolicy refreshRate (X:53-72) is 0 for gears 0-9
+# and 1 from gear 10 (the screen_off entries of gears 10-12 set it back to 0: no matter with the panel dark); stock's
+# display service then limits the panel; vendor/etc/display/thermallevel_to_fps.xml steps 144/120 -> 90 -> 60 by
+# thermal level (Device version 1), its restricted table (version 2) starts at 60 (level 1). The source X was checked
+# against our own carve on 25 Oct 2026: odm_a sys_thermal_control_config.xml sha256 d72222f9...6c49.
+# OURS: the cap per EFFECTIVE gear (mode offsets as for every other limit) is 0 (none) for gears 0-7, 90 Hz for
+# gears 8-9 (where stock's display mitigations start: disVideoSR / disHBMHB; an intermediate step like stock's FPS map,
+# stricter than globalPolicy, never looser) and 60 Hz from gear 10 (refreshRate 1 read as the lowest rate of stock's
+# restricted table: I, the APK's meaning of "1" is not decoded; 60 Hz is the strictest rate stock ever runs outside its
+# 30 Hz idle mode, so this reading is never less conservative). This service only publishes the cap in
+# /run/iceland/thermal-refresh-hz (Hz, 0 = none; removed when it stops): the user service iceland-refresh applies it
+# through the compositor (KWin / mutter), the only place that may change the mode. REFRESH=0 in thermal.conf = no cap.
 import errno, glob, json, os, select, signal, sys, syslog, time
 
 E = os.environ.get
@@ -157,6 +170,8 @@ BOOST_LEVEL = {0: (3302400, 3974400), 1: (3033600, 3398400), 2: (2899200, 288000
 BOOST_BREAK = [(20, 10)] * 7 + [(10, 5)] * 2 + [(10, 3)] + [(-1, -1)] * 10
 # screenOff section (X:90-96): gear -> (cpu level, gpu level); -2 = the entry does not name it
 SCREEN_OFF_TABLE = {3: (0, -2), 6: (7, 3), 8: (7, 3), 10: (7, 5), 11: (7, -2), 12: (7, -2), 14: (-2, -2)}
+# 0.28-41: the refresh-rate cap per effective gear in Hz (0 = none); stock refreshRate (X:53-72) is 1 from gear 10 (header)
+REFRESH_GEAR = [0] * 8 + [90] * 2 + [60] * 10
 BOOST_DEBOUNCE = 0.25                                     # OURS: input fds re-armed at most every 250 ms
 SAFETY_GEAR = 15
 CHARGE_MA = {1: 1200, 2: 1500, 3: 2000}
@@ -168,7 +183,7 @@ VALID = (-30000, 100000)                                  # OURS
 DEFAULTS = {"ENABLE": "1", "PERIOD": "5", "OFFSET_POWERSAVE": "1", "OFFSET_BALANCED": "0",
             "OFFSET_PERFORMANCE": "-4", "POLICY_PERFORMANCE": "global", "CPU": "1", "GPU": "1", "BRIGHTNESS": "1",
             "CHARGE": "1", "CHARGE_MA_HIGH": "3000", "CHARGE_SHIFT": "0", "SCREEN_OFF": "1", "BOOST": "1",
-            "BOOST_HOLD_MS": "1000"}
+            "BOOST_HOLD_MS": "1000", "REFRESH": "1"}
 
 def rd(path, default=None):
     try:
@@ -473,6 +488,7 @@ class Thermal:
         self.last_input = None     # monotonic time of the last input
         self.blocked = False       # a boost reached boost_max: none until the input pauses for hold
         self.boosts = 0
+        self.fps_cap = -1          # 0.28-41: the refresh-rate cap last published (-1 = not yet: the first step writes)
 
     def warn_once(self, key, msg):
         if key not in self.warned:
@@ -631,6 +647,26 @@ class Thermal:
         except OSError:
             pass
 
+    def set_refresh(self, hz):
+        """0.28-41: publish the refresh-rate cap (Hz; 0 = none) for iceland-refresh; None removes the file (stopped).
+        Written only when the value changes (iceland-refresh watches the file), atomically."""
+        p = os.path.join(RUN, "thermal-refresh-hz")
+        if DRYRUN or hz == self.fps_cap:
+            return
+        try:
+            if hz is None:
+                if os.path.exists(p):
+                    os.unlink(p)
+            else:
+                os.makedirs(RUN, exist_ok=True)
+                with open(p + ".tmp", "w") as f:
+                    f.write("%d\n" % hz)
+                os.chmod(p + ".tmp", 0o644)
+                os.replace(p + ".tmp", p)
+            self.fps_cap = hz
+        except OSError as e:
+            self.warn_once("fpscap", "%s cannot be written: %s" % (p, e))
+
     # ---- 0.28-8: boost
     def kernel_cpu_trip(self):
         """a kernel cpufreq cooling device holds a state: a kernel thermal trip acts on the CPUs"""
@@ -718,6 +754,7 @@ class Thermal:
         if self.bl_held:                             # 0.28-6: the brightness cap (cooling state) back to 0
             self.release_bl()
         self.set_charge(None)
+        self.set_refresh(None)                       # 0.28-41: no refresh-rate cap without this service
         try:
             os.unlink(os.path.join(RUN, "thermal-state"))
         except OSError:
@@ -821,9 +858,12 @@ class Thermal:
         if c.get("CHARGE") == "1" and ch_l > 0:
             ma = CHARGE_MA.get(ch_l, cint(c, "CHARGE_MA_HIGH"))
         self.set_charge(ma)
-        state = "shell=%s src=%s gear=%d eff=%d mode=%s%s cpu=%s,%s gpu=%s bl=%s blcap=%s fcc=%s screen=%s so=%s boost=%s boostcap=%s boosts=%d hist=%d %s %s" % (
+        # 0.28-41: the refresh-rate cap of the effective gear (stock refreshRate; header), published for iceland-refresh
+        fps = REFRESH_GEAR[eff] if c.get("REFRESH") == "1" and 0 <= eff < len(REFRESH_GEAR) else 0
+        self.set_refresh(fps)
+        state = "shell=%s src=%s gear=%d eff=%d mode=%s%s cpu=%s,%s gpu=%s bl=%s blcap=%s fcc=%s fpscap=%d screen=%s so=%s boost=%s boostcap=%s boosts=%d hist=%d %s %s" % (
             shell, src, raw, eff, mode, "(benchmark)" if bench else "", out[0], out[1], gout, bl,
-            BL_GEAR[bl] if bl is not None and 0 <= bl < len(BL_GEAR) else 0, ma or 0,
+            BL_GEAR[bl] if bl is not None and 0 <= bl < len(BL_GEAR) else 0, ma or 0, fps,
             self.screen or "unknown", so[0] if so else "-", int(self.boosting),
             ",".join(str(x) for x in self.cpu_boost) if self.cpu_boost else self.boost_why.replace(" ", "_"),
             self.boosts, len(self.hist),
