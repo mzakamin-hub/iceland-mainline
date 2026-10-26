@@ -1,8 +1,8 @@
 # OnePlus Pad 4 mainline: what works
 
-Status 26 Oct 2026. Fedora 44 is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel); the project's tablet runs KDE Plasma 6, the install image sets up GNOME 50. Current versions: kernel 7.3.0-next-20261020-iceland-00548 (q90u, the patch queue on linux-next next-20261020; iceland-linux branch iceland-7.3-rc7-next, release q90u), iceland-firmware 11.A.38-6, U-Boot install build v7, iceland-gvm 0.3-27 and iceland-vms 0.2-5 (virtual machines). The newest iceland-device release is 0.28-33.
+Status 26 Oct 2026. Fedora 44 is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel); the project's tablet runs KDE Plasma 6, the install image sets up GNOME 50. Current versions: kernel 7.3.0-next-20261020-iceland-00548 (q90u, the patch queue on linux-next next-20261020; iceland-linux branch iceland-7.3-rc7-next, release q90u), iceland-firmware 11.A.38-6, U-Boot install build v7, iceland-gvm 0.3-49 and iceland-vms 0.2-17 (virtual machines). The newest iceland-device release is 0.28-33.
 
-This list shows the 105 features that work today, sorted by functionality. Features that are still being worked on are not listed.
+This list shows the 106 features that work today, sorted by functionality. Features that are still being worked on are not listed.
 
 ## Boot & platform
 
@@ -30,11 +30,12 @@ This list shows the 105 features that work today, sorted by functionality. Featu
 | Fedora installed on the tablet | Fedora 44 installs with two partition writes: the system image into userdata and U-Boot into boot_b; nothing else is written. The tablet then boots Fedora on its own, the root is btrfs on a loop device in userdata, and Fedora marks the boot slot successful. |
 | Boot slot marked good from Fedora | Fedora marks the A/B boot slot successful after a good boot, so the boot loader keeps booting it. Confirmed working by the owner on 22 Oct 2026. |
 | Dual boot BlissROM + Fedora | A power-on menu (U-Boot v7) starts Fedora or BlissROM v20.1: Volume Up / Down move, Power selects, Fedora after 5 s. Fedora runs from its own fedora partition and BlissROM keeps its encrypted data in a smaller userdata, both on slot b; BlissROM's kernel comes from boot_a and starts with the ramdisk and device tree that the stock boot loader prepared. Guide and tools: docs/DUAL-BOOT.md, tools/dualboot. |
-| Virtual machines (Gunyah) | Protected virtual machines on Qualcomm's Gunyah hypervisor with crosvm, managed by the Virtual Machines app (iceland-gvm 0.3-27 and iceland-vms 0.2-5): Linux guests from cloud images with NAT networking, a serial console and a clean shutdown, and 3D in the guest (OpenGL through virgl, Vulkan through venus) with GPU-composited desktops drawn in the VM window. Windows guests run through the gvm tool (next row); inside the app they and ISO installs are not supported yet. |
-| Windows 11 ARM guest VM (gvm tool) | Windows 11 ARM64 as a protected Gunyah VM started with the gvm tool: the desktop on the VM's screen, network with RDP, HTTPS, x86 apps through Windows' own emulation, a 30-minute soak and a clean shutdown. Comes with the next iceland-gvm release. |
-| VM window touch input modes | The VM window takes touch as a tablet (tap, drag, long press and two-finger tap for right click, two-finger scroll), as a touchpad or as a multi-finger touch screen, also fullscreen and in both rotations. Comes with the next iceland-gvm / iceland-vms release. |
-| VM VNC display | A running VM's screen can be exported over VNC. Comes with the next iceland-gvm / iceland-vms release. |
-| VM memory and disk speed (2 MiB lends, io_uring) | Guest memory is lent in 2 MiB blocks (a VM boots in about 11 s instead of 53 s) and guest disks use io_uring (about 3.3 GB/s read). Comes with the next iceland-gvm / iceland-vms release. |
+| Virtual machines (Gunyah) | Protected virtual machines on Qualcomm's Gunyah hypervisor with crosvm, managed by the Virtual Machines app (iceland-gvm 0.3-49 and iceland-vms 0.2-17): Linux guests from cloud images with NAT networking, shared folders, a serial console and a clean shutdown; 3D in the guest (OpenGL through virgl, Vulkan through venus) with GPU-composited desktops in the VM window; a software display as the fallback; Windows 11 ARM guests (next row). ISO installs are not supported yet. |
+| Windows 11 ARM guest VM | Windows 11 ARM64 as a protected Gunyah VM, in the Virtual Machines app (import a prepared image, start, Remote Desktop, ssh) or with the gvm tool: the desktop, network with RDP, HTTPS and x86 apps through Windows' own emulation. Shut Windows down from inside Windows or with Force Off; the app's clean Shut Down is not supported yet (iceland-gvm 0.3-49 and iceland-vms 0.2-17). |
+| VM window touch input modes | The VM window takes touch as a tablet (tap, drag, long press and two-finger tap for right click, two-finger scroll), as a touchpad or as a multi-finger touch screen, also fullscreen and in both rotations (iceland-gvm 0.3-49 and iceland-vms 0.2-17). |
+| VM VNC display | A running VM's screen can be served over VNC, local only or on the network with a password, with a viewer button in the app (iceland-gvm 0.3-49 and iceland-vms 0.2-17). |
+| VM memory and disk speed (2 MiB lends, io_uring) | Guest memory is lent in 2 MiB blocks (a VM boots in about 11 s instead of 53 s) and guest disks use io_uring (about 3.3 GB/s read) (iceland-gvm 0.3-49 and iceland-vms 0.2-17). |
+| VM fast networking (vhost-net) | VM networking through the kernel's vhost-net, on by default: about 2.9 GB/s guest to host and 4.8 GB/s host to guest over the NAT link (iceland-gvm 0.3-49 and iceland-vms 0.2-17). |
 
 ## Display & input
 

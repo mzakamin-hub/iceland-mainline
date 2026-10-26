@@ -11,7 +11,7 @@ PUBLIC_STATUS = ("Fedora 44 is installed on the tablet and boots on its own (ABL
                  "project's tablet runs KDE Plasma 6, the install image sets up GNOME 50. Current versions: kernel "
                  "7.3.0-next-20261020-iceland-00548 (q90u, the patch queue on linux-next next-20261020; iceland-linux "
                  "branch iceland-7.3-rc7-next, release q90u), iceland-firmware 11.A.38-6, U-Boot install build v7, "
-                 "iceland-gvm 0.3-27 and iceland-vms 0.2-5 (virtual machines). The newest iceland-device release is "
+                 "iceland-gvm 0.3-49 and iceland-vms 0.2-17 (virtual machines). The newest iceland-device release is "
                  "0.28-33.")
 
 PUBLIC = {
@@ -319,18 +319,22 @@ PUBLIC = {
 # 25 Oct 2026 (matrix r174)
 "Virtual machines (Gunyah)": (
     "Virtual machines (Gunyah)",
-    "Protected virtual machines on Qualcomm's Gunyah hypervisor with crosvm, managed by the Virtual Machines app (iceland-gvm 0.3-27 and iceland-vms 0.2-5): Linux guests from cloud images with NAT networking, a serial console and a clean shutdown, and 3D in the guest (OpenGL through virgl, Vulkan through venus) with GPU-composited desktops drawn in the VM window. Windows guests run through the gvm tool (next row); inside the app they and ISO installs are not supported yet."),
+    "Protected virtual machines on Qualcomm's Gunyah hypervisor with crosvm, managed by the Virtual Machines app (iceland-gvm 0.3-49 and iceland-vms 0.2-17): Linux guests from cloud images with NAT networking, shared folders, a serial console and a clean shutdown; 3D in the guest (OpenGL through virgl, Vulkan through venus) with GPU-composited desktops in the VM window; a software display as the fallback; Windows 11 ARM guests (next row). ISO installs are not supported yet."),
 "KDE Plasma 6 desktop":
     "KDE Plasma 6 on Wayland: auto-rotate, automatic brightness, the charge limit in Plasma's power settings, suspend and Discover, with KWallet as the secrets provider.",
 "Android apps (DroidLoom)":
     "Android apps through DroidLoom (Android 17 in a container): each app in its own window with a title bar and Close, a left-edge swipe for Back, an AndroidVM menu folder and the androidvm manager. Confirmed working by the owner on 24 Oct 2026.",
 # 26 Oct 2026 (matrix r175)
-"Windows 11 ARM guest VM (gvm tool)":
-    "Windows 11 ARM64 as a protected Gunyah VM started with the gvm tool: the desktop on the VM's screen, network with RDP, HTTPS, x86 apps through Windows' own emulation, a 30-minute soak and a clean shutdown. Comes with the next iceland-gvm release.",
+"Windows 11 ARM guest VM (gvm tool)": (
+    "Windows 11 ARM guest VM",
+    "Windows 11 ARM64 as a protected Gunyah VM, in the Virtual Machines app (import a prepared image, start, Remote Desktop, ssh) or with the gvm tool: the desktop, network with RDP, HTTPS and x86 apps through Windows' own emulation. Shut Windows down from inside Windows or with Force Off; the app's clean Shut Down is not supported yet (iceland-gvm 0.3-49 and iceland-vms 0.2-17)."),
 "VM window touch input modes":
-    "The VM window takes touch as a tablet (tap, drag, long press and two-finger tap for right click, two-finger scroll), as a touchpad or as a multi-finger touch screen, also fullscreen and in both rotations. Comes with the next iceland-gvm / iceland-vms release.",
+    "The VM window takes touch as a tablet (tap, drag, long press and two-finger tap for right click, two-finger scroll), as a touchpad or as a multi-finger touch screen, also fullscreen and in both rotations (iceland-gvm 0.3-49 and iceland-vms 0.2-17).",
 "VM VNC display":
-    "A running VM's screen can be exported over VNC. Comes with the next iceland-gvm / iceland-vms release.",
+    "A running VM's screen can be served over VNC, local only or on the network with a password, with a viewer button in the app (iceland-gvm 0.3-49 and iceland-vms 0.2-17).",
 "VM memory and disk speed (2 MiB lends, io_uring)":
-    "Guest memory is lent in 2 MiB blocks (a VM boots in about 11 s instead of 53 s) and guest disks use io_uring (about 3.3 GB/s read). Comes with the next iceland-gvm / iceland-vms release.",
+    "Guest memory is lent in 2 MiB blocks (a VM boots in about 11 s instead of 53 s) and guest disks use io_uring (about 3.3 GB/s read) (iceland-gvm 0.3-49 and iceland-vms 0.2-17).",
+# 26 Oct 2026 (matrix r176)
+"VM fast networking (vhost-net)":
+    "VM networking through the kernel's vhost-net, on by default: about 2.9 GB/s guest to host and 4.8 GB/s host to guest over the NAT link (iceland-gvm 0.3-49 and iceland-vms 0.2-17).",
 }
