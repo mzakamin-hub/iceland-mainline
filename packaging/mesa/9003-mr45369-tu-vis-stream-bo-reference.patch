@@ -1,0 +1,32 @@
+From 3688c1f381e196a8617345446b21954984592d24 Mon Sep 17 00:00:00 2001
+From: Karmjit Mahil <karmjit.mahil@igalia.com>
+Date: Mon, 19 Oct 2026 12:48:45 +0100
+Subject: [PATCH] tu: Drop reference taken with get_vis_stream_patchpoint_cs()
+
+On `get_vis_stream_patchpoint_cs()` we also take a reference to
+the BO. After we `submit_add_entries()` the sub-stream, we need
+to release the reference, otherwise we'll keep the BO around
+indefinitely since the refcount will never be 0.
+
+This only finishes the local `struct tu_cs cs`. The cmd buffer
+still stores `fence_bo` and `cs_bo` so it has a reference to the BO,
+and releases it on destroy/reset.
+
+Signed-off-by: Karmjit Mahil <karmjit.mahil@igalia.com>
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/45369>
+---
+ src/freedreno/vulkan/tu_queue.cc | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/freedreno/vulkan/tu_queue.cc b/src/freedreno/vulkan/tu_queue.cc
+index c285eac5..225ef8b8 100644
+--- a/src/freedreno/vulkan/tu_queue.cc
++++ b/src/freedreno/vulkan/tu_queue.cc
+@@ -288,6 +288,7 @@ resolve_vis_stream_patchpoints(struct tu_queue *queue,
+ 
+          struct tu_cs_entry entry = tu_cs_end_sub_stream(&cs, &sub_cs);
+          submit_add_entries(queue->device, submit, dump_cmds, &entry, 1);
++         tu_cs_finish(&cs);
+       }
+ 
+       render_pass_idx += cmd_buffers[i]->state.tile_render_pass_count;

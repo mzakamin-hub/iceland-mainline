@@ -1,0 +1,35 @@
+From 1dbeacad94e947c7a6e8785053c5b6ba71e0cb22 Mon Sep 17 00:00:00 2001
+From: Valentine Burley <valentine.burley@collabora.com>
+Date: Mon, 7 Sep 2026 08:35:24 +0200
+Subject: [PATCH] tu: Fix CCU depth/color cache incoherency in sysmem depth
+ clears
+
+Turnip clears sysmem depth/stencil attachments through the color
+pipeline, bypassing the depth CCU. This causes a color CCU vs depth
+CCU aliasing issue across render passes.
+
+Fix this by properly evicting stale depth CCU data before the clear
+with CCU_CLEAN_DEPTH + CCU_INVALIDATE_DEPTH.
+
+Cc: mesa-stable
+Signed-off-by: Valentine Burley <valentine.burley@collabora.com>
+---
+ src/freedreno/vulkan/tu_clear_blit.cc | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/src/freedreno/vulkan/tu_clear_blit.cc b/src/freedreno/vulkan/tu_clear_blit.cc
+index 4b611ba0..f5ea3aa6 100644
+--- a/src/freedreno/vulkan/tu_clear_blit.cc
++++ b/src/freedreno/vulkan/tu_clear_blit.cc
+@@ -5385,6 +5385,11 @@ tu_clear_sysmem_attachment(struct tu_cmd_buffer *cmd,
+    if (!attachment->clear_mask)
+       return;
+ 
++   if (vk_format_is_depth_or_stencil(attachment->format)) {
++      tu_emit_event_write<CHIP>(cmd, cs, FD_CCU_CLEAN_DEPTH);
++      tu_emit_event_write<CHIP>(cmd, cs, FD_CCU_INVALIDATE_DEPTH);
++   }
++
+    if (attachment->format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
+       if (attachment->clear_mask & VK_IMAGE_ASPECT_DEPTH_BIT) {
+          clear_sysmem_attachment<CHIP>(cmd, cs, VK_FORMAT_D32_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT,

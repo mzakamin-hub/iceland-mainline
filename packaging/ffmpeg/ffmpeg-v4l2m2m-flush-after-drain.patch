@@ -1,0 +1,67 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: iceland local build <iceland-builder@localhost>
+Date: Fri, 23 Oct 2026 15:00:00 +0300
+Subject: [PATCH] libavcodec: v4l2m2m: restart the capture queue on a flush after drain
+
+After end of stream the driver is stopped; a following seek / loop got only
+EPIPE / EOF on qcom iris. Restart CAPTURE (stateful decoder reset path).
+---
+diff --git a/libavcodec/v4l2_m2m_dec.c b/libavcodec/v4l2_m2m_dec.c
+--- a/libavcodec/v4l2_m2m_dec.c
++++ b/libavcodec/v4l2_m2m_dec.c
+@@ -266,6 +266,14 @@
+         .cmd = V4L2_DEC_CMD_START,
+         .flags = 0,
+     };
++    /* A flush after a completed drain (end of stream, then seek / loop): the
++     * driver has returned the LAST capture buffer and is stopped. The OUTPUT
++     * restart plus V4L2_DEC_CMD_START below is not enough on every driver
++     * (qcom iris re-marks the next queued capture buffer as LAST), so every
++     * following dequeue ends in EPIPE / AVERROR_EOF. Restart the CAPTURE
++     * queue as well (the reset path of the stateful decoder interface),
++     * which clears the driver's drain state and vb2's last_buffer_dequeued. */
++    const int restart_capture = (s->draining || capture->done) && capture->streamon;
+ 
+     ret = ff_v4l2_context_set_status(output, VIDIOC_STREAMOFF);
+     if (ret < 0)
+@@ -280,9 +288,35 @@
+             output->buffers[i].status = V4L2BUF_AVAILABLE;
+     }
+ 
+-    ret = ioctl(s->fd, VIDIOC_DECODER_CMD, &cmd);
+-    if (ret < 0)
+-        av_log(avctx, AV_LOG_ERROR, "VIDIOC_DECODER_CMD start error: %d\n", errno);
++    if (restart_capture) {
++        ret = ff_v4l2_context_set_status(capture, VIDIOC_STREAMOFF);
++        if (ret < 0)
++            av_log(avctx, AV_LOG_ERROR, "VIDIOC_STREAMOFF %s error: %d\n", capture->name, ret);
++
++        /* STREAMOFF returned every queued buffer; frames still held by the
++         * caller (RET_USER) are queued again when they are released */
++        for (i = 0; i < capture->num_buffers; i++) {
++            if (capture->buffers[i].status == V4L2BUF_IN_DRIVER)
++                capture->buffers[i].status = V4L2BUF_AVAILABLE;
++        }
++
++        ret = ff_v4l2_context_set_status(capture, VIDIOC_STREAMON);
++        if (ret < 0)
++            av_log(avctx, AV_LOG_ERROR, "VIDIOC_STREAMON %s error: %d\n", capture->name, ret);
++
++        for (i = 0; i < capture->num_buffers; i++) {
++            if (capture->buffers[i].status == V4L2BUF_AVAILABLE) {
++                ret = ff_v4l2_buffer_enqueue(&capture->buffers[i]);
++                if (ret < 0)
++                    av_log(avctx, AV_LOG_ERROR, "%s requeue buffer %d error: %d\n",
++                           capture->name, i, ret);
++            }
++        }
++    } else {
++        ret = ioctl(s->fd, VIDIOC_DECODER_CMD, &cmd);
++        if (ret < 0)
++            av_log(avctx, AV_LOG_DEBUG, "VIDIOC_DECODER_CMD start error: %d\n", errno);
++    }
+ 
+     s->draining = 0;
+     output->done = 0;
+-- 
+2.51.0

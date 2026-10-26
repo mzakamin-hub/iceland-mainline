@@ -1,0 +1,197 @@
+From 5d61261e8d97d945df19cee91e5ef7d267cb8a11 Mon Sep 17 00:00:00 2001
+From: Nicholas Iquan Gaspard <anders.cs99g@g2.nctu.edu.tw>
+Date: Wed, 9 Sep 2026 20:55:25 -0700
+Subject: [PATCH 1/2] nir/lower_idiv: add an fp32 correction path for 32-bit
+ udiv
+
+New option fp32_udiv_correction, default false. Existing drivers stay
+on emit_udiv().
+
+emit_udiv() applies a 32.32 reciprocal with two umul_high. Where
+umul_high is a multi-instruction expansion, that is the bulk of the
+sequence. emit_udiv_fp32() corrects in fp32, so the integer multiplies
+left are low-32 ones.
+
+The two correction steps only converge from an under-estimate. The
+reciprocal is nudged down by a fixed 8 ulp before use. 8 ulp tolerates
+hardware error in [-128, +8] ulp. A host model confirms both edges of
+that window, and ffma_weak is enough.
+
+Assisted-by: Claude Code
+---
+ src/compiler/nir/nir.h            |  6 +++
+ src/compiler/nir/nir_lower_idiv.c | 65 ++++++++++++++++++++++++++++---
+ 2 files changed, 66 insertions(+), 5 deletions(-)
+
+diff --git a/src/compiler/nir/nir.h b/src/compiler/nir/nir.h
+index 44fba83c..55effcff 100644
+--- a/src/compiler/nir/nir.h
++++ b/src/compiler/nir/nir.h
+@@ -6721,6 +6721,12 @@ typedef struct nir_lower_idiv_options {
+     * division lowering
+     */
+    bool allow_fp16;
++
++   /* Correct 32-bit udiv in fp32.  For hardware where umul_high
++    * expands and frcp/ffma are one instruction.  Reciprocal nudged
++    * down 8 ulp.  Holds for rcp error in [-128, +8] ulp.
++    */
++   bool fp32_udiv_correction;
+ } nir_lower_idiv_options;
+ 
+ bool nir_lower_idiv(nir_shader *shader, const nir_lower_idiv_options *options);
+diff --git a/src/compiler/nir/nir_lower_idiv.c b/src/compiler/nir/nir_lower_idiv.c
+index 043ce561..9565e637 100644
+--- a/src/compiler/nir/nir_lower_idiv.c
++++ b/src/compiler/nir/nir_lower_idiv.c
+@@ -64,9 +64,58 @@ emit_udiv(nir_builder *bld, nir_def *numer, nir_def *denom, bool modulo)
+    }
+ }
+ 
++/* 32-bit udiv when fp32 rcp and fma are cheaper than umul_high.
++ *
++ * emit_udiv() builds a 32.32 reciprocal and applies it with two
++ * umul_high.  Where that expands, it is most of the sequence.  This
++ * path stays in fp32.  Integer multiplies left are low-32.
++ *
++ * Needs an under-estimate.  Otherwise the two steps do not converge.
++ * Step one can recover any shortfall.  Step two can only add 1.
++ *
++ *   1. Reciprocal nudged down 8 ulp.  Holds for rcp error in
++ *      [-128, +8] ulp. Vulkan allows 2.5.
++ *   2. -512.0 covers rounding of u2f32(numer).  ulp reaches 512
++ *      near 2^32.
++ */
++static nir_def *
++emit_udiv_fp32(nir_builder *bld, nir_def *numer, nir_def *denom, bool modulo)
++{
++   nir_def *rcp = nir_frcp(bld, nir_u2f32(bld, denom));
++
++   /* An integer subtract on a positive float's bit pattern steps it down by
++    * that many ulp.  The same trick convert_instr_small() uses.
++    */
++   rcp = nir_iadd_imm(bld, rcp, -8);
++
++   nir_def *quotient =
++      nir_f2u32(bld, nir_ffma_weak_imm2(bld, rcp, nir_u2f32(bld, numer),
++                                        -512.0));
++
++   nir_def *remainder = nir_isub(bld, numer, nir_imul(bld, quotient, denom));
++
++   /* First correction: divide the remainder the same way.  The bias is one
++    * ulp of a small remainder in fp32 and keeps this step from overshooting
++    * by one.
++    */
++   nir_def *step =
++      nir_f2u32(bld, nir_ffma_weak_imm2(bld, rcp, nir_u2f32(bld, remainder),
++                                        -6.103515625e-05));
++   quotient = nir_uadd_sat(bld, quotient, step);
++   remainder = nir_isub(bld, numer, nir_imul(bld, quotient, denom));
++
++   /* Second correction: at most one off now. */
++   nir_def *ge = nir_uge(bld, remainder, denom);
++   if (modulo)
++      return nir_bcsel(bld, ge, nir_isub(bld, remainder, denom), remainder);
++
++   return nir_uadd_sat(bld, quotient, nir_b2i32(bld, ge));
++}
++
+ /* ported from LLVM's AMDGPUTargetLowering::LowerSDIVREM */
+ static nir_def *
+-emit_idiv(nir_builder *bld, nir_def *numer, nir_def *denom, nir_op op)
++emit_idiv(nir_builder *bld, nir_def *numer, nir_def *denom, nir_op op,
++          const nir_lower_idiv_options *options)
+ {
+    nir_def *lhs = nir_iabs(bld, numer);
+    nir_def *rhs = nir_iabs(bld, denom);
+@@ -76,13 +125,17 @@ emit_idiv(nir_builder *bld, nir_def *numer, nir_def *denom, nir_op op)
+        * and since XOR is bitwise, that's the sign bit of the XOR.
+        */
+       nir_def *d_sign = nir_ilt_imm(bld, nir_ixor(bld, numer, denom), 0);
+-      nir_def *res = emit_udiv(bld, lhs, rhs, false);
++      nir_def *res = options->fp32_udiv_correction
++                        ? emit_udiv_fp32(bld, lhs, rhs, false)
++                        : emit_udiv(bld, lhs, rhs, false);
+       return nir_bcsel(bld, d_sign, nir_ineg(bld, res), res);
+    } else {
+       nir_def *lh_sign = nir_ilt_imm(bld, numer, 0);
+       nir_def *rh_sign = nir_ilt_imm(bld, denom, 0);
+ 
+-      nir_def *res = emit_udiv(bld, lhs, rhs, true);
++      nir_def *res = options->fp32_udiv_correction
++                        ? emit_udiv_fp32(bld, lhs, rhs, true)
++                        : emit_udiv(bld, lhs, rhs, true);
+       res = nir_bcsel(bld, lh_sign, nir_ineg(bld, res), res);
+       if (op == nir_op_imod) {
+          nir_def *cond = nir_ieq_imm(bld, res, 0);
+@@ -147,9 +200,11 @@ lower_idiv(nir_builder *b, nir_instr *instr, void *_data)
+    if (numer->bit_size < 32)
+       return convert_instr_small(b, alu->op, numer, denom, options);
+    else if (alu->op == nir_op_udiv || alu->op == nir_op_umod)
+-      return emit_udiv(b, numer, denom, alu->op == nir_op_umod);
++      return options->fp32_udiv_correction
++                ? emit_udiv_fp32(b, numer, denom, alu->op == nir_op_umod)
++                : emit_udiv(b, numer, denom, alu->op == nir_op_umod);
+    else
+-      return emit_idiv(b, numer, denom, alu->op);
++      return emit_idiv(b, numer, denom, alu->op, options);
+ }
+ 
+ static bool
+
+From e15e15bb8ba9f81ed11dbb2ad060be9a7597666c Mon Sep 17 00:00:00 2001
+From: Nicholas Iquan Gaspard <anders.cs99g@g2.nctu.edu.tw>
+Date: Wed, 9 Sep 2026 14:01:23 -0700
+Subject: [PATCH 2/2] ir3: use the fp32 udiv correction path
+
+Correctness fix, not just codegen.
+
+emit_udiv() needs its initial 32.32 fixed-point reciprocal to be an
+under-estimate.  The x(2^32 - 512) bias is meant to guarantee that, but
+for large divisors it actually rests on the hardware fp32 reciprocal
+rounding down, and Adreno's bare rcp can round up by 1 ulp
+(1.0f/47721859.0f gives 850657281 where 850657280 is correct).  When it
+does, e0 comes out as 90 instead of 89, d*90 wraps past 2^32, and the
+correction steps can only add 1 each, so it never recovers:
+703787787 / 47721859 returns 31 instead of 14.  Reproduced on a690,
+x2-90 and a830.  About 5.5e-9 of divisions are affected, on udiv, umod,
+idiv and imod alike.
+
+Cross-checked against the Qualcomm blob on an A830, 5.24e9 (n, d) pairs
+per operation: the current sequence disagrees on all four ops, the fp32
+path agrees bit-for-bit.  dEQP-VK on the same device is unchanged
+(34530 cases, 24561 pass / 0 fail / 9969 unsupported either way); no
+CTS case reaches a bad (n, d) pair, so that is a no-regression result,
+not a correctness one.
+
+Also cheaper: umul_high is five instructions on a8xx (mull.u + 3x
+mad32.u16 + shb), so the slow path goes from 31 to 17.
+
+Assisted-by: Claude Code
+---
+ src/freedreno/ir3/ir3_nir.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/src/freedreno/ir3/ir3_nir.c b/src/freedreno/ir3/ir3_nir.c
+index e5159187..2deba08c 100644
+--- a/src/freedreno/ir3/ir3_nir.c
++++ b/src/freedreno/ir3/ir3_nir.c
+@@ -812,6 +812,10 @@ ir3_finalize_nir(struct ir3_compiler *compiler,
+     */
+    nir_lower_idiv_options idiv_options = {
+       .allow_fp16 = true,
++      /* a8xx umul_high is 5 instructions (mull.u + 3x mad32.u16 +
++       * shb).  rcp was +1 ulp on a690, x2-90 and a830.
++       */
++      .fp32_udiv_correction = true,
+    };
+    bool progress = OPT(s, nir_opt_idiv_const, 8);
+    progress |= OPT(s, nir_lower_idiv, &idiv_options);
+@@ -1121,6 +1125,7 @@ ir3_nir_post_finalize(struct ir3_shader *shader)
+ 
+    const nir_lower_idiv_options lower_idiv_options = {
+       .allow_fp16 = true,
++      .fp32_udiv_correction = true,
+    };
+    NIR_PASS(_, s, nir_lower_idiv,
+             &lower_idiv_options); /* idiv generated by cube lowering */

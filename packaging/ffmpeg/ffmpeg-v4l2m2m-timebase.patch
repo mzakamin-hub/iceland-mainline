@@ -1,0 +1,27 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: iceland local build <iceland-builder@localhost>
+Date: Fri, 23 Oct 2026 12:00:00 +0300
+Subject: [PATCH] libavcodec: v4l2m2m: keep pts when the caller sets no timebase
+
+Firefox sets neither pkt_timebase nor time_base; with the default 0/1 every
+OUTPUT timestamp became 0 and every frame pts AV_NOPTS_VALUE.
+---
+diff --git a/libavcodec/v4l2_buffers.c b/libavcodec/v4l2_buffers.c
+--- a/libavcodec/v4l2_buffers.c
++++ b/libavcodec/v4l2_buffers.c
+@@ -58,7 +58,12 @@
+ 
+     if (s->avctx->pkt_timebase.num)
+         return s->avctx->pkt_timebase;
+-    return s->avctx->time_base;
++    if (s->avctx->time_base.num)
++        return s->avctx->time_base;
++    /* Neither timebase set (e.g. Firefox, which passes packet pts in
++     * microseconds): pass the pts through unchanged. With the default 0/1
++     * every OUTPUT timestamp became 0 and every frame pts AV_NOPTS_VALUE. */
++    return v4l2_timebase;
+ }
+ 
+ static inline void v4l2_set_pts(V4L2Buffer *out, int64_t pts)
+-- 
+2.51.0

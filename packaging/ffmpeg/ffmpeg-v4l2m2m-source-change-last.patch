@@ -1,0 +1,73 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: iceland local build <iceland-builder@localhost>
+Date: Fri, 23 Oct 2026 23:00:00 +0300
+Subject: [PATCH] libavcodec: v4l2m2m: finish a same-format source change at its LAST buffer
+
+qcom iris raises SOURCE_CHANGE after every seek, closes the old sequence with an
+empty LAST capture buffer and also sends an EOS event for it. Only end the stream
+on EOS while draining, send DEC_CMD_START after the LAST buffer (not at the event),
+resume on EPIPE outside a drain, and never return empty capture buffers as frames.
+---
+diff --git a/libavcodec/v4l2_context.c b/libavcodec/v4l2_context.c
+--- a/libavcodec/v4l2_context.c
++++ b/libavcodec/v4l2_context.c
+@@ -188,7 +188,10 @@
+     }
+ 
+     if (evt.type == V4L2_EVENT_EOS) {
+-        ctx->done = 1;
++        /* only a drain (DEC_CMD_STOP) ends the stream; qcom iris also signals
++         * EOS for the LAST buffer that closes a source change (every seek) */
++        if (s->draining)
++            ctx->done = 1;
+         return 0;
+     }
+ 
+@@ -206,7 +209,8 @@
+         s->capture.width = v4l2_get_width(&cap_fmt);
+         s->capture.sample_aspect_ratio = v4l2_get_sar(&s->capture);
+     } else {
+-        v4l2_start_decode(ctx);
++        /* same format: V4L2_DEC_CMD_START is sent when the LAST capture
++         * buffer of the old sequence arrives (v4l2_dequeue_v4l2buf) */
+         return 0;
+     }
+ 
+@@ -387,6 +391,11 @@
+ 
+         ret = ioctl(ctx_to_m2mctx(ctx)->fd, VIDIOC_DQBUF, &buf);
+         if (ret) {
++            int err = errno;
++            if (err == EPIPE && !V4L2_TYPE_IS_OUTPUT(ctx->type) &&
++                !ctx_to_m2mctx(ctx)->draining && !v4l2_start_decode(ctx))
++                return NULL;
++            errno = err;
+             if (errno != EAGAIN) {
+                 ctx->done = 1;
+                 if (errno != EPIPE)
+@@ -416,6 +425,23 @@
+             memcpy(avbuf->planes, planes, sizeof(planes));
+             avbuf->buf.m.planes = avbuf->planes;
+         }
++
++        if (!V4L2_TYPE_IS_OUTPUT(ctx->type) && !ctx_to_m2mctx(ctx)->draining) {
++            int bytesused = V4L2_TYPE_IS_MULTIPLANAR(buf.type) ?
++                            buf.m.planes[0].bytesused : buf.bytesused;
++            int last = 0;
++#ifdef V4L2_BUF_FLAG_LAST
++            last = !!(buf.flags & V4L2_BUF_FLAG_LAST);
++#endif
++            if (last)
++                v4l2_start_decode(ctx); /* end of a source change: resume */
++            if (bytesused == 0) {
++                /* no picture (LAST marker or a buffer flushed by a seek) */
++                if (ff_v4l2_buffer_enqueue(avbuf) < 0)
++                    av_log(logger(ctx), AV_LOG_DEBUG, "%s requeue of empty buffer failed\n", ctx->name);
++                return NULL;
++            }
++        }
+         return avbuf;
+     }
+ 
+-- 
+2.51.0

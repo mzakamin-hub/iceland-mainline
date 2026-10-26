@@ -31,3 +31,7 @@ value AD:5A:01:00:55:78
 #
 # The documentation example address (format examples in comments and help texts).
 value aa:bb:cc:dd:ee:ff
+#
+# Upstream AppStream metadata of Fedora-derived packages carries the upstream projects' contact addresses.
+skip email packaging/libcamera/qcam.metainfo.xml
+skip email packaging/gstreamer1-plugins-good/gstreamer-good.appdata.xml
