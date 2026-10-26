@@ -13,6 +13,16 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 [iceland-vms](https://github.com/mzakamin-hub/iceland-vms) ·
 [iceland-droidloom](https://github.com/mzakamin-hub/iceland-droidloom) (all public).
 
+## 2026-10-26 - iceland-gvm 0.3-55 / iceland-vms 0.2-18: the shared-memory mode
+
+- Releases [iceland-gvm 0.3-55](https://github.com/mzakamin-hub/iceland-gvm/releases/tag/0.3-55) and
+  [iceland-vms 0.2-18](https://github.com/mzakamin-hub/iceland-vms/releases/tag/0.2-18).
+- An opt-in shared-memory mode per VM (software display or headless): the VM's RAM is shared with the tablet
+  instead of lent, so there is no bounce buffer. The tablet can read and change all of that VM's memory; Protected
+  stays the default. Shared / protected: disk write 260 / 397 MB/s, cold read 450 / 430 MB/s, network guest to
+  host 4494 / 2611 MB/s, host to guest 1484 / 1940 MB/s. 3D in this mode is not supported yet.
+- Feature list (matrix r178): 107 working features.
+
 ## 2026-10-26 - iceland-device 0.28-40, the remaining package sources, iceland-droidloom
 
 - [iceland-device 0.28-40](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-40) with iceland-device-kde (KDE Plasma integration: KWallet as the secrets
