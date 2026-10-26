@@ -9,10 +9,10 @@
 
 PUBLIC_STATUS = ("Fedora 44 is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel); the "
                  "project's tablet runs KDE Plasma 6, the install image sets up GNOME 50. Current versions: kernel "
-                 "7.3.0-next-20261020-iceland-00548 (q90u, the patch queue on linux-next next-20261020; iceland-linux "
-                 "branch iceland-7.3-rc7-next, release q90u), iceland-firmware 11.A.38-6, U-Boot install build v7, "
-                 "iceland-gvm 0.3-55 and iceland-vms 0.2-18 (virtual machines). The newest iceland-device release is "
-                 "0.28-33.")
+                 "7.3.0-next-20261020-iceland-00549 (q90v, the patch queue on linux-next next-20261020; "
+                 "iceland-linux branch iceland-7.3-rc7-next, release q90v), iceland-firmware 11.A.38-6, U-Boot "
+                 "install build v7, iceland-gvm 0.3-55, iceland-vms 0.2-20 and iceland-qemu-gunyah 10.0.2-1 (virtual "
+                 "machines). The newest iceland-device release is 0.28-33.")
 
 PUBLIC = {
 # Boot & platform
@@ -27,7 +27,7 @@ PUBLIC = {
     "Boots a “fedora” partition if there is one, else the Fedora image in userdata.",
 "Linux 7.4 base (linux-next) through EFI": (
     "Linux (7.4 base)",
-    "Linux with the Pad 4 patch queue on linux-next next-20261020 (Linux 7.3 plus the trees queued for 7.4; current kernel 7.3.0-next-20261020-iceland-00548, q90u, iceland-linux branch iceland-7.3-rc7-next and its q90u release) boots through U-Boot's EFI, Fedora's shim and GRUB."),
+    "Linux with the Pad 4 patch queue on linux-next next-20261020 (Linux 7.3 plus the trees queued for 7.4; current kernel 7.3.0-next-20261020-iceland-00549, q90v, iceland-linux branch iceland-7.3-rc7-next and its q90v release) boots through U-Boot's EFI, Fedora's shim and GRUB."),
 "Internal storage (UFS 4)":
     "UFS 4 with 4 KiB blocks in MCQ mode (9 hardware queues per LUN), about 2.3 GB/s direct read. The installed "
     "root is btrfs (zstd compression) in userdata; with iceland-device 0.28-32's device-mapper option "
@@ -319,7 +319,7 @@ PUBLIC = {
 # 25 Oct 2026 (matrix r174)
 "Virtual machines (Gunyah)": (
     "Virtual machines (Gunyah)",
-    "Protected virtual machines on Qualcomm's Gunyah hypervisor with crosvm, managed by the Virtual Machines app (iceland-gvm 0.3-55 and iceland-vms 0.2-18): Linux guests from cloud images with NAT networking, shared folders, a serial console and a clean shutdown; 3D in the guest (OpenGL through virgl, Vulkan through venus) with GPU-composited desktops in the VM window; a software display as the fallback; Windows 11 ARM guests (next row). ISO installs are not supported yet."),
+    "Protected virtual machines on Qualcomm's Gunyah hypervisor with crosvm, managed by the Virtual Machines app (iceland-gvm 0.3-55 and iceland-vms 0.2-20): Linux guests from cloud images with NAT networking, shared folders, a serial console and a clean shutdown; 3D in the guest (OpenGL through virgl, Vulkan through venus) with GPU-composited desktops in the VM window; a software display as the fallback; Windows 11 ARM guests and an optional QEMU backend (next rows). ISO installs are not supported yet."),
 "KDE Plasma 6 desktop":
     "KDE Plasma 6 on Wayland: auto-rotate, automatic brightness, the charge limit in Plasma's power settings, suspend and Discover, with KWallet as the secrets provider.",
 "Android apps (DroidLoom)":
@@ -327,17 +327,20 @@ PUBLIC = {
 # 26 Oct 2026 (matrix r175)
 "Windows 11 ARM guest VM (gvm tool)": (
     "Windows 11 ARM guest VM",
-    "Windows 11 ARM64 as a protected Gunyah VM, in the Virtual Machines app (import a prepared image, start, Remote Desktop, ssh) or with the gvm tool: the desktop, network with RDP, HTTPS and x86 apps through Windows' own emulation. Shut Windows down from inside Windows or with Force Off; the app's clean Shut Down is not supported yet (iceland-gvm 0.3-55 and iceland-vms 0.2-18)."),
+    "Windows 11 ARM64 as a protected Gunyah VM, in the Virtual Machines app (import a prepared image, start, Remote Desktop, ssh) or with the gvm tool: the desktop, network with RDP, HTTPS and x86 apps through Windows' own emulation. Shut Windows down from inside Windows or with Force Off; the app's clean Shut Down is not supported yet (iceland-gvm 0.3-55 and iceland-vms 0.2-20)."),
 "VM window touch input modes":
-    "The VM window takes touch as a tablet (tap, drag, long press and two-finger tap for right click, two-finger scroll), as a touchpad or as a multi-finger touch screen, also fullscreen and in both rotations (iceland-gvm 0.3-55 and iceland-vms 0.2-18).",
+    "The VM window takes touch as a tablet (tap, drag, long press and two-finger tap for right click, two-finger scroll), as a touchpad or as a multi-finger touch screen, also fullscreen and in both rotations (iceland-gvm 0.3-55 and iceland-vms 0.2-20).",
 "VM VNC display":
-    "A running VM's screen can be served over VNC, local only or on the network with a password, with a viewer button in the app (iceland-gvm 0.3-55 and iceland-vms 0.2-18).",
+    "A running VM's screen can be served over VNC, local only or on the network with a password, with a viewer button in the app (iceland-gvm 0.3-55 and iceland-vms 0.2-20).",
 "VM memory and disk speed (2 MiB lends, io_uring)":
-    "Guest memory is lent in 2 MiB blocks (a VM boots in about 11 s instead of 53 s) and guest disks use io_uring (about 3.3 GB/s read) (iceland-gvm 0.3-55 and iceland-vms 0.2-18).",
+    "Guest memory is lent in 2 MiB blocks (a VM boots in about 11 s instead of 53 s) and guest disks use io_uring (about 3.3 GB/s read) (iceland-gvm 0.3-55 and iceland-vms 0.2-20).",
 # 26 Oct 2026 (matrix r176)
 "VM fast networking (vhost-net)":
-    "VM networking through the kernel's vhost-net, on by default: about 2.9 GB/s guest to host and 4.8 GB/s host to guest over the NAT link (iceland-gvm 0.3-55 and iceland-vms 0.2-18).",
+    "VM networking through the kernel's vhost-net, on by default: about 2.9 GB/s guest to host and 4.8 GB/s host to guest over the NAT link (iceland-gvm 0.3-55 and iceland-vms 0.2-20).",
 # 26 Oct 2026 (matrix r178)
 "VM shared-memory mode (partial protection)":
-    "VM shared-memory mode (partial protection): an opt-in per VM, for the software display or headless VMs. The VM still runs under Gunyah, but its memory is shared with the tablet instead of lent, so devices reach it without a bounce buffer. Warning: the tablet can read and change all of that VM's memory; Protected stays the default. It is not uniformly faster (shared / protected): disk write 260 / 397 MB/s, cold disk read 450 / 430 MB/s, network guest to host 4494 / 2611 MB/s, host to guest 1484 / 1940 MB/s. 3D graphics in this mode is not supported yet (iceland-gvm 0.3-55 and iceland-vms 0.2-18).",
+    "VM shared-memory mode (partial protection): an opt-in per VM, for VMs with 3D OpenGL (virgl), the software display or headless. The VM still runs under Gunyah, but its memory is shared with the tablet instead of lent, so devices reach it without a bounce buffer. Warning: the tablet can read and change all of that VM's memory; Protected stays the default. It is not uniformly faster (shared / protected): disk write 260 / 397 MB/s, cold disk read 450 / 430 MB/s, network guest to host 4494 / 2611 MB/s, host to guest 1484 / 1940 MB/s. 3D OpenGL works in this mode (glmark2 1799 at 1280x800); Vulkan does not yet (iceland-gvm 0.3-55 and iceland-vms 0.2-20).",
+# 26 Oct 2026 (matrix r179)
+"VM QEMU-Gunyah backend (3D OpenGL)":
+    "VM QEMU-Gunyah backend: an optional second backend of the Virtual Machines app (crosvm stays the default). Protected VMs run under QEMU 10.0.2 with the Gunyah accelerator, with 3D OpenGL (virgl) on the Adreno GPU in QEMU's window or over VNC and a clean start and stop; glmark2 at 1280x800 scores about 1390-1410 (crosvm about 1760). Vulkan stays a crosvm feature (iceland-vms 0.2-20 and iceland-qemu-gunyah 10.0.2-1).",
 }
