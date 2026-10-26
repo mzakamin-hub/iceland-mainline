@@ -1,0 +1,5 @@
+# iris-vaapi: VA-API clients (Chromium's GPU process, mpv, FFmpeg) allocate the surfaces they import into EGL from
+# the system DMA heap. Without access every surface falls back to memfd, which EGL cannot import (black video in
+# Chromium). Give it to the video group and, through logind's uaccess ACL, to the user of the active seat; never
+# world-writable. Ordered before 73-seat-late.rules, which applies the uaccess tag.
+SUBSYSTEM=="dma_heap", KERNEL=="system", GROUP="video", MODE="0660", TAG+="uaccess"

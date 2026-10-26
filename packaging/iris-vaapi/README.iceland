@@ -1,0 +1,40 @@
+iris-vaapi on the OnePlus Pad 4 (SM8850, "iceland")
+====================================================
+
+Source: upstream CFM880/iris-vaapi, commit 9852479 (version 0.2.0, 23 Oct 2026),
+GPL-2.0-or-later (COPYING). Upstream develops it on the Xiaomi Pad 5 (SM8150,
+Iris HFI gen1, the nabu-iris kernel); this build targets the mainline qcom_iris
+driver of the iceland kernel (HFI gen2).
+
+Two small changes, re-implemented from the notes of TheMojoMan's erhai port
+(OnePlus Pad 3, SM8750; oneplus-erhai-ubuntu, oneplus-erhai-video), whose
+copy of the driver has no licence file of its own and was not used:
+- decode: a CAPTURE picture without a client timestamp (gen2 firmware in
+  decode-order mode returns such internal pictures) is requeued and skipped
+  instead of failing the session;
+- vaapi: the 10-bit profiles also report VA_RT_FORMAT_YUV420, which Chromium
+  checks before it lists HEVC Main10.
+
+Upstream's nabu-only parts are not used: the VIDIOC_IRIS_SURFACE_FENCE ioctl
+(the driver falls back when the kernel does not have it) and the
+cached_capture module option.
+
+Installed:
+- /usr/lib64/dri/vpu_drv_video.so (+ iris_drv_video.so -> it)
+- /usr/lib/environment.d/55-iris-vaapi.conf: LIBVA_DRIVER_NAME=iris
+- /usr/lib/udev/rules.d/70-iris-vaapi-dmaheap.rules: /dev/dma_heap/system
+  0660 root:video + uaccess (the active seat user)
+- /usr/lib/modprobe.d/iris-vaapi.conf: qcom_iris decode_order_output=1
+- iris-vaapi-chromium: /usr/lib/environment.d/56-iris-vaapi-chromium.conf,
+  CHROMIUM_FLAGS=--enable-features=AcceleratedVideoDecoder,VaapiVideoDecoder.
+  Fedora 44's aarch64 chromium is built without VA-API (use_vaapi=0,
+  use_v4l2_codec=1): it decodes through the Iris V4L2 node and only needs
+  AcceleratedVideoDecoder; whether its GPU sandbox lets it open the node is
+  not proven yet (--disable-gpu-sandbox is NOT set here)
+- iris-vaapi-tests: /usr/libexec/iris-vaapi/test_va (vainfo stand-in),
+  test_va_decode, test_va_stress (pipelined H.264, as Chromium), test_va_vp9
+
+Check: vainfo (as the desktop user), ffmpeg -hwaccel vaapi -i clip -f null -,
+mpv --hwdec=vaapi, chrome://gpu ("Video Decode: Hardware accelerated") and
+chrome://media-internals (VaapiVideoDecoder). The environment.d files take
+effect at the next login.
