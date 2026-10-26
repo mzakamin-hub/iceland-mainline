@@ -13,6 +13,16 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 [iceland-vms](https://github.com/mzakamin-hub/iceland-vms) ·
 [iceland-droidloom](https://github.com/mzakamin-hub/iceland-droidloom) (all public).
 
+## 2026-10-27 - iceland-gvm 0.3-59 / iceland-vms 0.2-23: native GPU context, Super in the VM
+
+- Releases [iceland-gvm 0.3-59](https://github.com/mzakamin-hub/iceland-gvm/releases/tag/0.3-59) and
+  [iceland-vms 0.2-23](https://github.com/mzakamin-hub/iceland-vms/releases/tag/0.2-23) with the new package
+  iceland-vms-guest-mesa 26.2.5-1.iceland1 (Mesa 26.2.5 with freedreno's virtio backend, for the guest).
+- msm native GPU context (opt-in per VM): the VM's own Mesa draws directly on the Adreno 840 (OpenGL through
+  freedreno, Vulkan through turnip); glmark2 about 2690 at 1280x800, against about 1770 with virgl.
+- "Send shortcuts to the VM" now passes Super too.
+- Feature list (matrix r182): 110 working features.
+
 ## 2026-10-26 - iceland-gvm 0.3-58 / iceland-vms 0.2-22: Windows Shut Down, Vulkan in the shared mode
 
 - Releases [iceland-gvm 0.3-58](https://github.com/mzakamin-hub/iceland-gvm/releases/tag/0.3-58) (with

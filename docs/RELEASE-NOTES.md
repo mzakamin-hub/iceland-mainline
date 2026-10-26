@@ -10,7 +10,7 @@ The working features, one by one, are listed in [FEATURES.md](FEATURES.md); the 
 | Kernel | `7.3.0-next-20261020-iceland-00554` (queue q90w2): linux-next `next-20261020` (Linux 7.3 plus the trees queued for 7.4) plus the Pad 4 patch queue, iceland-linux branch `iceland-7.3-rc7-next`, tag `q90w2`; package `kernel-iceland`, updated with dnf (release download: q90w2) |
 | Device package | `iceland-device` 0.28-40 with `iceland-device-kde` (KDE Plasma integration); `iceland-coexist` 1.0-7 (kernel-install for the shared `/boot`, one-shot boot entries) |
 | Multimedia and GPU builds | Mesa 26.3.0-rc1 snapshot with seven A840 patches; libcamera 0.7.1 with autofocus; ffmpeg-free 8.1.3 with V4L2 decoding; gst-plugins-good 1.28.8 with the V4L2 colorimetry fix (specs and patches in `packaging/`) |
-| Virtual machines | `iceland-gvm` 0.3-58 (crosvm for Gunyah, the guest kernel, `gvm.sh`; with `virglrenderer` 1.3.0-1.iceland1) and `iceland-vms` 0.2-22 (the Virtual Machines app) with `iceland-qemu-gunyah` 10.0.2-1 (QEMU with the Gunyah accelerator, an optional backend), released with RPMs; sources in [iceland-gvm](https://github.com/mzakamin-hub/iceland-gvm) and [iceland-vms](https://github.com/mzakamin-hub/iceland-vms) |
+| Virtual machines | `iceland-gvm` 0.3-59 (crosvm for Gunyah, the guest kernel, `gvm.sh`; with `virglrenderer` 1.3.0-1.iceland1) and `iceland-vms` 0.2-23 (the Virtual Machines app; with `iceland-vms-guest-mesa` 26.2.5-1.iceland1) with `iceland-qemu-gunyah` 10.0.2-1 (QEMU with the Gunyah accelerator, an optional backend), released with RPMs; sources in [iceland-gvm](https://github.com/mzakamin-hub/iceland-gvm) and [iceland-vms](https://github.com/mzakamin-hub/iceland-vms) |
 | Android apps | DroidLoom (Android 17 in a container): host packages 0.1.0-23.git9789467.iceland3, image iceland4, `iceland-droidloom` 1.0-3 (packaging in [iceland-droidloom](https://github.com/mzakamin-hub/iceland-droidloom)) |
 | Power service | `upower` 1.91.5-1.fc44.iceland1 (time to full to the charge limit) |
 | Sensor programs | `iio-sensor-proxy` 3.9-11.iceland1, `hexagonrpc`, `libssc` |
@@ -81,7 +81,9 @@ should carry 0.28-8 or newer (see the install guide, section 6).
   HEVC and VP9 profiles, ffmpeg VP9 through VA-API, and H.264 / VP9 in Fedora's chromium with iris-vaapi-chromium.
   iceland-gvm 0.3-58 / iceland-vms 0.2-22: the app shuts Windows guests down cleanly over ssh (Force Off is offered
   at once when ssh is refused); Vulkan (venus) and zink work in the shared-memory mode, on by default; an option
-  sends desktop shortcuts such as Alt+Tab and Escape to the VM (the Super key stays with the desktop).
+  sends desktop shortcuts such as Alt+Tab and Escape to the VM. iceland-gvm 0.3-59 / iceland-vms 0.2-23: Super
+  reaches the VM too; an opt-in msm native GPU context lets the VM's own Mesa draw directly on the Adreno 840
+  (glmark2 about 2690 at 1280x800, virgl about 1770).
 
 ## 4. Known limits
 
@@ -89,6 +91,6 @@ should carry 0.28-8 or newer (see the install guide, section 6).
   the hardware encoder works.
 - Chromium / Electron apps do not use the GPU path yet.
 - No fast charging (SuperVOOC is not supported); USB-PD charging and the normal charger types work.
-- ISO installs are not supported yet; the Super key stays with the desktop in a VM window; no camera
+- ISO installs are not supported yet; no camera
   autofocus, no DSP protection inside the amplifiers (a PipeWire speaker-protection chain is used).
 - Fedora 45 stays blocked until it has been tested on the tablet.
