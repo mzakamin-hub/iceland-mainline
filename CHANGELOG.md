@@ -13,6 +13,18 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 [iceland-vms](https://github.com/mzakamin-hub/iceland-vms) ·
 [iceland-droidloom](https://github.com/mzakamin-hub/iceland-droidloom) (all public).
 
+## 2026-10-26 - iceland-gvm 0.3-58 / iceland-vms 0.2-22: Windows Shut Down, Vulkan in the shared mode
+
+- Releases [iceland-gvm 0.3-58](https://github.com/mzakamin-hub/iceland-gvm/releases/tag/0.3-58) (with
+  virglrenderer 1.3.0-1.iceland1: Fedora's 1.3.0 plus four upstream Venus fixes) and
+  [iceland-vms 0.2-22](https://github.com/mzakamin-hub/iceland-vms/releases/tag/0.2-22).
+- Windows guests: Shut Down in the app works (the app installs its own ssh key once, then `shutdown /s` over ssh;
+  off in about 7 s); when Windows refuses ssh the app says so at once and offers Force Off.
+- The shared-memory mode runs Vulkan (venus) and zink, on by default (glmark2 about 1820 at 1280x800).
+- "Send shortcuts to the VM" (off by default): Alt+Tab, Escape and similar reach the guest; Super stays with the
+  desktop.
+- Feature list (matrix r181): 109 working features.
+
 ## 2026-10-26 - kernel q90w2; iris-vaapi (VA-API hardware video decode)
 
 - Kernel q90w2 (`7.3.0-next-20261020-iceland-00554`) is the default and the newest release
