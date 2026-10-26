@@ -31,10 +31,10 @@ working features):
 | Sensors and gyroscope (through the ADSP sensor hub; iio-sensor-proxy 3.9-11.iceland1) | works |
 | Cameras: both sensors stream through libcamera; GNOME Camera | works |
 | Desktop: KDE Plasma 6 on Wayland on the project's tablet (since 24 Oct); GNOME 50 from the install image | works |
-| Virtual machines: protected Gunyah VMs with crosvm, 3D in the guest (virgl / venus), the Virtual Machines app (iceland-gvm 0.3-27, iceland-vms 0.2-5) | works (Linux guests; Windows 11 ARM through the gvm tool, not yet inside the app) |
+| Virtual machines: protected Gunyah VMs with crosvm, 3D in the guest (virgl / venus), the Virtual Machines app (iceland-gvm 0.3-49, iceland-vms 0.2-17): Linux and Windows 11 ARM guests, touch modes, VNC, vhost-net | works (Windows is shut down from inside Windows or with Force Off) |
 | Android apps: DroidLoom (Android 17 in a container; binder in the kernel since q90m) | works |
 | Install on the tablet: Fedora 44 GNOME in `userdata`, U-Boot in `boot_b` | works ([docs/INSTALL-GUIDE.md](docs/INSTALL-GUIDE.md)) |
-| Packages: `kernel-iceland` 00548 (q90u), `iceland-firmware` 11.A.38-6, `iceland-gvm` 0.3-27, `iceland-vms` 0.2-5; the newest `iceland-device` release is 0.28-33 (with `iceland-coexist` 1.0-6, `upower` 1.91.5-1.fc44.iceland1) | installed |
+| Packages: `kernel-iceland` 00548 (q90u), `iceland-firmware` 11.A.38-6, `iceland-gvm` 0.3-49, `iceland-vms` 0.2-17; the newest `iceland-device` release is 0.28-33 (with `iceland-coexist` 1.0-6, `upower` 1.91.5-1.fc44.iceland1) | installed |
 
 ## Our repositories (public, GitHub user `mzakamin-hub`)
 

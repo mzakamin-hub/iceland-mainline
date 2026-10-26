@@ -12,6 +12,17 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 [iceland-gvm](https://github.com/mzakamin-hub/iceland-gvm) ·
 [iceland-vms](https://github.com/mzakamin-hub/iceland-vms) (all public).
 
+## 2026-10-26 - virtual machines released: iceland-gvm 0.3-49, iceland-vms 0.2-17
+
+- Releases with RPMs: [iceland-gvm 0.3-49](https://github.com/mzakamin-hub/iceland-gvm/releases/tag/0.3-49), [iceland-vms 0.2-17](https://github.com/mzakamin-hub/iceland-vms/releases/tag/0.2-17).
+- Windows 11 ARM guests in the Virtual Machines app: import a prepared image, start, Remote Desktop, ssh. Windows
+  is shut down from inside Windows or with Force Off.
+- Touch input modes (tablet, touchpad, touch screen), fullscreen on a chosen monitor and a VNC display for the VM
+  window.
+- vhost-net on by default (TCP over the NAT link: 2877 MB/s guest to host, 4761 MB/s host to guest; crosvm's own
+  network 2420 / 1959 MB/s); 2 MiB guest pages and io_uring for every disk.
+- Feature list (matrix r176): 106 working features.
+
 ## 2026-10-26 - kernel q90u released; Windows 11 ARM guest through the gvm tool
 
 - Kernel q90u (`7.3.0-next-20261020-iceland-00548`) is the default and the newest release
