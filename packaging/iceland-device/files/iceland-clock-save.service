@@ -1,8 +1,0 @@
-# iceland-device: one save of the persistent clock stamp (started by iceland-clock.timer)
-[Unit]
-Description=OnePlus Pad 4: save the persistent clock stamp
-After=local-fs.target
-
-[Service]
-Type=oneshot
-ExecStart=/usr/libexec/iceland/iceland-clock save

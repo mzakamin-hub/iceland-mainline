@@ -1,5 +1,0 @@
-# iceland-device 0.28-9: when the panel's backlight appears, systemd also starts iceland-backlight-default.service
-# (stock's default brightness on the first boot only; the unit skips at once once it has decided). systemd's own
-# 99-systemd.rules adds systemd-backlight@backlight:ktz8869-backlight.service to the same device; the unit is ordered
-# after it.
-ACTION=="add", SUBSYSTEM=="backlight", KERNEL=="ktz8869-backlight", TAG+="systemd", ENV{SYSTEMD_WANTS}+="iceland-backlight-default.service"

@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        43%{?dist}
+Release:        44%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -56,12 +56,6 @@ Source110:      iceland-dsp-tree.conf
 Source105:      iceland_sensors.te
 # sound at boot (wf/fedtest): shadows alsa-lib's modprobe install hook that fails without a sequencer
 Source104:      dist-alsa.conf
-# the persistent clock (wf/fedtest): the PMIC RTC cannot be set; PID 1 restores the clock from the mtime of
-# /var/lib/systemd/timesync/clock at boot, and these keep that stamp current (timer + shutdown)
-Source100:      iceland-clock
-Source101:      iceland-clock.service
-Source102:      iceland-clock.timer
-Source103:      iceland-clock-save.service
 Source1:        sleep-iceland.conf
 Source2:        journald-iceland.conf
 Source3:        49-iceland-no-system-upgrade.rules
@@ -83,8 +77,6 @@ Source14:       iceland-refresh.service
 Source15:       refresh.conf
 Source16:       iceland-npu
 Source17:       iceland-npu-off.service
-Source18:       iceland-wifi-country
-Source19:       iceland-wifi-country.service
 # upstream linux-msm/audioreach-topology at 993a17d (BSD-3-Clause) + our Pad 4 overlay (audio/ in iceland-mainline)
 Source20:       audioreach-topology-993a17d.tar.gz
 Source21:       iceland-audio.tar.gz
@@ -157,10 +149,7 @@ Source191:      iceland-audio-profile
 Source132:      iceland-slot-mark
 Source133:      iceland-slot-mark.service
 # 0.28-9 (field report 14 Oct 2026), four separate changes:
-# (1) stock's default brightness (102 / 255 of 3542 = 1417) on the first boot only
-Source150:      iceland-backlight-default
-Source151:      iceland-backlight-default.service
-Source152:      70-iceland-backlight-default.rules
+# (1) stock's default brightness on the first boot: since 0.28-44 the kernel's (q90x+ ktz8869 default 1417)
 # (2) runtime PM for the USB-C controller (dwc3 forbids it at probe), never in a rehearsal / RAM kit / with a gadget
 Source153:      iceland-usb-pm
 Source154:      72-iceland-usb-pm.rules
@@ -357,10 +346,11 @@ Settings that make Fedora 44 work safely on the OnePlus Pad 4 with the kernel-ic
 - the CDSP (NPU) runs from boot and idles by itself; the boot-time stop (iceland-npu-off.service) is opt-in
   through /etc/iceland/npu-off-at-boot, because a stopped CDSP keeps the SoC out of CX collapse in suspend
   until it runs again (iceland-npu on|off|status);
-- the Wi-Fi regulatory country comes from /etc/iceland/wifi-country (written at install: the owner's country);
-- the clock survives reboots without a settable RTC: iceland-clock keeps the mtime of
-  /var/lib/systemd/timesync/clock current (every 15 min and at shutdown); systemd's PID 1 takes it as the lower bound
-  of the system time at boot, so rpm's signature checks and TLS work before the first NTP sync
+- the Wi-Fi regulatory country is the kernel's from the start: iceland-cmdline puts cfg80211.ieee80211_regdom=<country>
+  on every boot entry (WIFI_REGDOM in /etc/iceland/boot.conf; auto = the country in /etc/iceland/wifi-country,
+  written at install, else /etc/sysconfig/regdomain);
+- the clock survives reboots: the kernel keeps the PMIC RTC's offset in SDAM2 (the counter itself cannot be set)
+  and chrony's rtcsync lets the kernel's 11-minute mode keep it current, so the time is right at boot before NTP
 - sound: the Pad 4 AudioReach topology (TDM speakers, stream gain capped until speaker protection exists) and the
   ALSA UCM profile (speakers + internal microphones for PipeWire/GNOME);
 - GNOME's power modes (tuned-ppd) map to Pad 4 profiles: schedutil with the frequency floors of stock's own
@@ -476,8 +466,6 @@ install -Dm0644 %{SOURCE15} %{buildroot}/etc/iceland/refresh.conf
 install -Dm0644 %{SOURCE24} %{buildroot}/etc/iceland/battery-guard.conf
 install -Dm0755 %{SOURCE16} %{buildroot}/usr/bin/iceland-npu
 install -Dm0644 %{SOURCE17} %{buildroot}/usr/lib/systemd/system/iceland-npu-off.service
-install -Dm0755 %{SOURCE18} %{buildroot}/usr/libexec/iceland/iceland-wifi-country
-install -Dm0644 %{SOURCE19} %{buildroot}/usr/lib/systemd/system/iceland-wifi-country.service
 install -Dm0644 %{SOURCE111} %{buildroot}/etc/sysconfig/regdomain
 install -Dm0644 audioreach-topology/OnePlus-Pad4-tplg.bin %{buildroot}/usr/lib/firmware/qcom/kaanapali/OnePlus-Pad4-tplg.bin
 install -Dm0644 audio/ucm/OnePlus-Pad4/OnePlus-Pad4.conf %{buildroot}/usr/share/alsa/ucm2/Qualcomm/kaanapali/OnePlus-Pad4/OnePlus-Pad4.conf
@@ -512,10 +500,6 @@ install -Dm0644 %{SOURCE106} %{buildroot}/usr/lib/systemd/system-preset/50-icela
 install -Dm0644 iceland_sensors.pp %{buildroot}/usr/share/selinux/packages/iceland/iceland_sensors.pp
 install -Dm0644 %{SOURCE105} %{buildroot}/usr/share/selinux/packages/iceland/iceland_sensors.te
 install -Dm0644 %{SOURCE104} %{buildroot}/etc/modprobe.d/dist-alsa.conf
-install -Dm0755 %{SOURCE100} %{buildroot}/usr/libexec/iceland/iceland-clock
-install -Dm0644 %{SOURCE101} %{buildroot}/usr/lib/systemd/system/iceland-clock.service
-install -Dm0644 %{SOURCE102} %{buildroot}/usr/lib/systemd/system/iceland-clock.timer
-install -Dm0644 %{SOURCE103} %{buildroot}/usr/lib/systemd/system/iceland-clock-save.service
 install -Dm0644 %{SOURCE52} %{buildroot}/etc/iceland/thermal.conf
 install -Dm0755 %{SOURCE160} %{buildroot}/usr/libexec/iceland/iceland-launchboost
 install -Dm0644 %{SOURCE161} %{buildroot}/usr/lib/systemd/system/iceland-launchboost.service
@@ -606,9 +590,6 @@ install -Dm0644 %{SOURCE136} %{buildroot}/usr/lib/systemd/user/iceland-speaker-d
 install -Dm0755 %{SOURCE191} %{buildroot}/usr/bin/iceland-audio-profile
 install -Dm0755 %{SOURCE132} %{buildroot}/usr/libexec/iceland/iceland-slot-mark
 install -Dm0644 %{SOURCE133} %{buildroot}/usr/lib/systemd/system/iceland-slot-mark.service
-install -Dm0755 %{SOURCE150} %{buildroot}/usr/libexec/iceland/iceland-backlight-default
-install -Dm0644 %{SOURCE151} %{buildroot}/usr/lib/systemd/system/iceland-backlight-default.service
-install -Dm0644 %{SOURCE152} %{buildroot}/usr/lib/udev/rules.d/70-iceland-backlight-default.rules
 install -Dm0755 %{SOURCE153} %{buildroot}/usr/libexec/iceland/iceland-usb-pm
 install -Dm0644 %{SOURCE154} %{buildroot}/usr/lib/udev/rules.d/72-iceland-usb-pm.rules
 install -Dm0644 %{SOURCE155} %{buildroot}/usr/lib/systemd/system-preset/50-iceland-unused.preset
@@ -634,6 +615,17 @@ install -Dm0755 %{SOURCE218} %{buildroot}/usr/libexec/iceland/iceland-kde-bright
 install -d -m0700 %{buildroot}/var/lib/iceland/kde-curve
 install -Dm0644 %{SOURCE219} %{buildroot}/usr/lib/systemd/system/iceland-kde-brightness-curve.service
 
+%pre
+# 0.28-44: an update stops and disables the helpers this version no longer ships while their unit files still
+# exist (the old package's %preun does nothing on an update). Stopping iceland-clock.service runs its last stamp
+# save; the regulatory domain iceland-wifi-country set stays until the next boot, which sets it from the kernel.
+if [ "$1" -ge 2 ] && [ -d /run/systemd/system ]; then
+	systemctl disable --now iceland-clock.timer iceland-clock.service iceland-wifi-country.service >/dev/null 2>&1 || :
+	systemctl stop iceland-clock-save.service >/dev/null 2>&1 || :
+elif [ "$1" -ge 2 ]; then
+	systemctl disable iceland-clock.timer iceland-clock.service iceland-wifi-country.service >/dev/null 2>&1 || :
+fi
+
 %posttrans
 # install plan: GRUB settings (per-kernel device tree, visible menu, $iceland_args), trial-boot units, udev
 /usr/libexec/iceland/iceland-grub-setup || :
@@ -657,7 +649,7 @@ if [ ! -e /var/lib/iceland/.asound-state-reset ]; then
 	rm -f /var/lib/alsa/asound.state
 	mkdir -p /var/lib/iceland && touch /var/lib/iceland/.asound-state-reset
 fi
-systemctl enable iceland-battery-guard.service iceland-npu-off.service iceland-wifi-country.service iceland-ssc-resume.service >/dev/null 2>&1 || :
+systemctl enable iceland-battery-guard.service iceland-npu-off.service iceland-ssc-resume.service >/dev/null 2>&1 || :
 # 0.16 had a unit that kept a sensor-hub sensor streaming for the cameras; the kernel keeps their bus connected now
 systemctl stop iceland-ssc-hold.service >/dev/null 2>&1 || :
 # K7: the kernel holds the rear lens at its default position while the rear sensor streams; the old
@@ -683,9 +675,19 @@ if ! semodule -l 2>/dev/null | grep -qx iceland_irqbalance || [ -e /var/lib/icel
 fi
 # 0.28-32: the udev rules of the 22 Oct tweaks act at once (the memlat poll, the UFS scheduler, the loop read-ahead)
 if [ -d /run/systemd/system ]; then udevadm control --reload >/dev/null 2>&1 || :; udevadm trigger --action=change -s devfreq -s block >/dev/null 2>&1 || :; fi
-# the persistent clock: enabled here (no Fedora preset names it); the stamp is saved once now if the clock is trusted
-systemctl enable iceland-clock.service iceland-clock.timer >/dev/null 2>&1 || :
-[ -d /run/systemd/system ] && /usr/libexec/iceland/iceland-clock save >/dev/null 2>&1 || :
+# 0.28-44: three helpers moved into the kernel and its command line (HELPERS-TO-KERNEL, 27 Oct 2026):
+# iceland-wifi-country -> cfg80211.ieee80211_regdom (iceland-cmdline WIFI_REGDOM, above), iceland-backlight-default ->
+# the ktz8869 driver's default 1417 (kernel q90x+), iceland-clock (+ .timer, -save) -> the kernel's SDAM2 RTC offset,
+# kept current by chrony's rtcsync (the kernel's 11-minute mode) and written at shutdown. %pre disabled the units
+# before their files went; links that survived (a manual enable) are removed here, and the backlight marker.
+# Kept on purpose: /etc/iceland/wifi-country (WIFI_REGDOM=auto reads it) and /var/lib/systemd/timesync/clock (PID 1
+# still takes its mtime as a lower bound at boot; nothing refreshes it any more, so it only ages: harmless).
+for l in /etc/systemd/system/multi-user.target.wants/iceland-wifi-country.service \
+	/etc/systemd/system/sysinit.target.wants/iceland-clock.service /etc/systemd/system/timers.target.wants/iceland-clock.timer; do
+	if [ -L "$l" ] && [ ! -e "$l" ]; then rm -f "$l"; fi
+done
+rm -f /var/lib/iceland/backlight-default.done
+if [ -d /run/systemd/system ]; then systemctl daemon-reload >/dev/null 2>&1 || :; systemctl reset-failed iceland-wifi-country.service iceland-clock.service iceland-clock.timer iceland-clock-save.service iceland-backlight-default.service >/dev/null 2>&1 || :; fi
 # logind reads the cover settings again (a reload, not a restart: a restart would end the sessions)
 if [ -d /run/systemd/system ]; then systemctl kill -s HUP systemd-logind.service >/dev/null 2>&1 || :; fi
 # the charge limit starts switched on ("Preserve Battery Health": before 0.17 the guard's 85 % limit was always on).
@@ -811,14 +813,13 @@ fi
 %preun
 [ "$1" -eq 0 ] && systemctl disable iceland-trial-early.service iceland-boot-confirm.service >/dev/null 2>&1 || :
 [ "$1" -eq 0 ] && systemctl disable iceland-slot-mark.service >/dev/null 2>&1 || :
-[ "$1" -eq 0 ] && systemctl --global disable iceland-refresh.service iceland-charge-alert.service iceland-speaker-default.service >/dev/null 2>&1; [ "$1" -eq 0 ] && systemctl disable iceland-ssc-resume.service iceland-wifi-country.service iceland-npu-off.service iceland-battery-guard.service iceland-bdaddr.service >/dev/null 2>&1 || :
+[ "$1" -eq 0 ] && systemctl --global disable iceland-refresh.service iceland-charge-alert.service iceland-speaker-default.service >/dev/null 2>&1; [ "$1" -eq 0 ] && systemctl disable iceland-ssc-resume.service iceland-npu-off.service iceland-battery-guard.service iceland-bdaddr.service >/dev/null 2>&1 || :
 # the thermal policy hands its limits back when it stops
 [ "$1" -eq 0 ] && systemctl disable --now iceland-thermal.service >/dev/null 2>&1 || :
 # the launch boost hands every clamp back when it stops
 [ "$1" -eq 0 ] && systemctl disable --now iceland-launchboost.service >/dev/null 2>&1 || :
 if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/enforce ]; then semodule -r iceland_sensors >/dev/null 2>&1 || :; else semodule -n -r iceland_sensors >/dev/null 2>&1 || :; fi; fi
 if [ "$1" -eq 0 ] && [ -e /var/lib/iceland/.irqbalance-cil-0.28-32 ]; then semodule -r iceland_irqbalance >/dev/null 2>&1 || :; rm -f /var/lib/iceland/.irqbalance-cil-0.28-32; fi
-[ "$1" -eq 0 ] && systemctl disable --now iceland-clock.timer iceland-clock.service >/dev/null 2>&1 || :
 [ "$1" -eq 0 ] && systemctl disable --now iceland-cover-detect.service >/dev/null 2>&1 || :
 [ "$1" -eq 0 ] && { systemctl disable iceland-storage-summary.service >/dev/null 2>&1; rm -f /var/lib/iceland/.new-unit-*; } || :
 [ "$1" -eq 0 ] && /usr/bin/iceland-power-profiles reset >/dev/null 2>&1 || :
@@ -877,9 +878,6 @@ dconf update >/dev/null 2>&1 || :
 /usr/bin/iceland-audio-profile
 /usr/libexec/iceland/iceland-slot-mark
 /usr/lib/systemd/system/iceland-slot-mark.service
-/usr/libexec/iceland/iceland-backlight-default
-/usr/lib/systemd/system/iceland-backlight-default.service
-/usr/lib/udev/rules.d/70-iceland-backlight-default.rules
 /usr/libexec/iceland/iceland-usb-pm
 /usr/lib/udev/rules.d/72-iceland-usb-pm.rules
 /usr/lib/systemd/system-preset/50-iceland-unused.preset
@@ -888,8 +886,6 @@ dconf update >/dev/null 2>&1 || :
 /usr/lib/tmpfiles.d/iceland-thp.conf
 /usr/share/polkit-1/rules.d/49-iceland-no-sleep-override.rules
 /usr/lib/systemd/system/iceland-npu-off.service
-/usr/libexec/iceland/iceland-wifi-country
-/usr/lib/systemd/system/iceland-wifi-country.service
 %config(noreplace) /etc/sysconfig/regdomain
 /usr/lib/firmware/qcom/kaanapali/OnePlus-Pad4-tplg.bin
 %dir /usr/share/alsa/ucm2/Qualcomm/kaanapali/OnePlus-Pad4
@@ -961,10 +957,6 @@ dconf update >/dev/null 2>&1 || :
 /usr/share/selinux/packages/iceland/iceland_sensors.pp
 /usr/share/selinux/packages/iceland/iceland_sensors.te
 %config(noreplace) /etc/modprobe.d/dist-alsa.conf
-/usr/libexec/iceland/iceland-clock
-/usr/lib/systemd/system/iceland-clock.service
-/usr/lib/systemd/system/iceland-clock.timer
-/usr/lib/systemd/system/iceland-clock-save.service
 %config(noreplace) /etc/iceland/thermal.conf
 %config(noreplace) /etc/iceland/launchboost.conf
 /usr/lib/systemd/logind.conf.d/60-iceland.conf
@@ -1043,6 +1035,21 @@ dconf update >/dev/null 2>&1 || :
 %dir %attr(0700,root,root) /var/lib/iceland/kde-curve
 
 %changelog
+* Tue Oct 27 2026 mzak <mzak.amin@gmail.com> - 0.28-44
+- three helpers moved into the kernel and its command line:
+- iceland-wifi-country removed: iceland-cmdline puts cfg80211.ieee80211_regdom=<country> on every boot entry and
+  /etc/kernel/cmdline (WIFI_REGDOM in /etc/iceland/boot.conf: auto = the country in /etc/iceland/wifi-country,
+  else COUNTRY in /etc/sysconfig/regdomain; a two-letter code = that country; 0 = removed; keep = not managed), so
+  cfg80211 starts in the country's domain instead of the world domain and no service runs iw. The kernel's
+  regulatory hint options (CFG80211_CERTIFICATION_ONUS, ATH_REG_DYNAMIC_USER_REG_HINTS) stay off.
+- iceland-backlight-default (+ unit, udev rule) removed: kernel q90x and later start the ktz8869 backlight at
+  stock's default, 1417 of 4095; from the second boot on systemd-backlight restores the user's value as before.
+- iceland-clock (+ .timer, iceland-clock-save) removed: since kernel queue 0281 / 0337 the RTC keeps its offset in
+  the PMIC's SDAM2 (written at once for a change of 30 s or more, else at shutdown) and chrony's rtcsync (Fedora's
+  default) lets the kernel's 11-minute mode keep it current, so the clock is right at boot without a network.
+- an update disables the retired units before their files go (%pre) and removes leftover links and the
+  backlight marker; /etc/iceland/wifi-country and the timesync stamp stay (read / harmless).
+
 * Tue Oct 27 2026 mzak <mzak.amin@gmail.com> - 0.28-43
 - iceland-cover-detect: 0.28-42 shipped the script with CRLF line endings (the service could not start: 203/EXEC).
 - the cover is now seen by the proximity sensor first: NEAR held 1 s, confirmed by a magnetometer step of 10-50 uT

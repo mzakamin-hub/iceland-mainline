@@ -79,11 +79,19 @@
 #     firmware_class.path stays an option (GPU_FW); msm.dpu_bw_floor_pct=0 is the default of every kernel since q90g
 #     (written for older kernels only).
 #     PSEUDO_NMI=1 is refused (pseudo-NMI hangs the boot under Gunyah, q90o-run stage C, 24 Oct 2026): it counts as 0.
+# 10. 0.28-44, the Wi-Fi regulatory country (replaces the iceland-wifi-country service): WIFI_REGDOM=auto (default,
+#     also when the key is missing): cfg80211.ieee80211_regdom=<CC> with the country of /etc/iceland/wifi-country
+#     (ISO 3166 alpha-2, written at install), else COUNTRY= of /etc/sysconfig/regdomain; no valid country found:
+#     not managed. WIFI_REGDOM=<two letters>: that country; 0: the option is removed (cfg80211's world domain until
+#     something sets one); keep: not managed. cfg80211 is a module: it reads the option from the kernel command
+#     line when it loads, so the global domain is the country's before ath12k registers its wiphy. The kernel's
+#     regulatory hint options (CERTIFICATION_ONUS / ATH_REG_DYNAMIC_USER_REG_HINTS) stay off: the WCN7860 firmware
+#     keeps its own (US) domain; this sets the kernel's side, as iw reg set did.
 # ICELAND_ROOT (tests only): the root to work on.
 R=${ICELAND_ROOT:-}
 ARGS="clk_ignore_unused pd_ignore_unused regulator_ignore_unused"
 IDLE_GOV=teo; RCU_LAZY=1; GPU_FW=vendor533; GPU_PREEMPT=auto; MEM_SLEEP=s2idle
-IDLE_RR=30; BW_FLOOR=0; CLX=1; CLX_TZ=1; SPLASH=keep; PSEUDO_NMI=0; GLITCH=1
+IDLE_RR=30; BW_FLOOR=0; CLX=1; CLX_TZ=1; SPLASH=keep; PSEUDO_NMI=0; GLITCH=1; WIFI_REGDOM=auto
 FW=/usr/lib/firmware
 # 0.28-40: the glitch-hunt display options (their values = the q90p+ kernel defaults)
 GLITCH_OPTS="msm.dpu_vid_idle_irq_off=0 msm.dpu_dsc_once=1 msm.dpu_pending_flush_clear=1 msm.dpu_vfp_inplace=1
@@ -107,11 +115,24 @@ if [ -r "$R/etc/iceland/boot.conf" ]; then
 	v=$(sed -n 's/^CLX_TZ=\([a-z0-9]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); case "$v" in 1|0|keep) CLX_TZ=$v ;; esac
 	v=$(sed -n 's/^PSEUDO_NMI=\([a-z0-9]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); case "$v" in 1|0|keep) PSEUDO_NMI=$v ;; esac
 	v=$(sed -n 's/^GLITCH=\([a-z0-9]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); case "$v" in 1|keep) GLITCH=$v ;; esac
+	v=$(sed -n 's/^WIFI_REGDOM=\([A-Za-z0-9]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1)
+	case "$v" in auto|keep|0) WIFI_REGDOM=$v ;; [A-Za-z][A-Za-z]) WIFI_REGDOM=$(echo "$v" | tr a-z A-Z) ;; esac
 fi
 if [ "$PSEUDO_NMI" = 1 ]; then
 	echo "iceland-cmdline: PSEUDO_NMI=1 refused: GIC pseudo-NMI hangs the boot under the Gunyah hypervisor (unsupported on the OnePlus Pad 4); the option is removed" >&2
 	PSEUDO_NMI=0
 fi
+# 0.28-44: the country for cfg80211.ieee80211_regdom (REGDOM = CC, off, or empty = not managed)
+REGDOM=""
+case "$WIFI_REGDOM" in
+auto)
+	cc=""; [ -r "$R/etc/iceland/wifi-country" ] && cc=$(tr -d ' \t\r\n' < "$R/etc/iceland/wifi-country" | tr a-z A-Z)
+	case "$cc" in [A-Z][A-Z]) ;; *) cc=$(sed -n 's/^COUNTRY=\([A-Za-z][A-Za-z]\)[[:space:]]*$/\1/p' "$R/etc/sysconfig/regdomain" 2>/dev/null | tail -n 1 | tr a-z A-Z) ;; esac
+	case "$cc" in [A-Z][A-Z]) REGDOM=$cc ;; *) echo "iceland-cmdline: WIFI_REGDOM=auto found no country (/etc/iceland/wifi-country, /etc/sysconfig/regdomain): not managed" >&2 ;; esac ;;
+0) REGDOM=off ;;
+keep) ;;
+*) REGDOM=$WIFI_REGDOM ;;
+esac
 pair() { [ -f "$R$FW/iceland-gpu-$1/qcom/gen80200_gmu.bin" ] && [ -f "$R$FW/iceland-gpu-$1/qcom/gen80200_sqe.fw" ]; }
 GPU=$GPU_FW
 [ "$GPU" = vendor533 ] && ! pair vendor533 && GPU=stock
@@ -188,6 +209,8 @@ sets() {
 		if [ $D_MSM = 1 ]; then OFF="$OFF $GLITCH_OPTS"; else ON="$ON $GLITCH_OPTS"; fi
 	fi
 	case "$SPLASH" in 1) ON="$ON rhgb" ;; 0) OFF="$OFF rhgb" ;; esac
+	# 0.28-44: the Wi-Fi regulatory country
+	case "$REGDOM" in '') ;; off) DROPN="$DROPN cfg80211.ieee80211_regdom" ;; *) ON="$ON cfg80211.ieee80211_regdom=$REGDOM" ;; esac
 	return 0
 }
 fix() { # stdin: one options line -> the managed line (single spaces)
