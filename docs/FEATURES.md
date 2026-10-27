@@ -1,6 +1,6 @@
 # OnePlus Pad 4 mainline: what works
 
-Status 27 Oct 2026. Fedora 44 is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel); the project's tablet runs KDE Plasma 6, the install image sets up GNOME 50. Current versions: kernel 7.3.0-next-20261020-iceland-00554 (q90w2, the patch queue on linux-next next-20261020; iceland-linux branch iceland-7.3-rc7-next, release q90w2), iceland-firmware 11.A.38-6, U-Boot install build v7, iceland-gvm 0.3-59, iceland-vms 0.2-23 and iceland-qemu-gunyah 10.0.2-1 (virtual machines). The newest iceland-device release is 0.28-43.
+Status 27 Oct 2026. Fedora 44 is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel); the project's tablet runs KDE Plasma 6, the install image sets up GNOME 50. Current versions: kernel 7.3.0-next-20261020-iceland-00555 (q90x, the patch queue on linux-next next-20261020; iceland-linux branch iceland-7.3-rc7-next, release q90x), iceland-firmware 11.A.38-6, U-Boot install build v7, iceland-gvm 0.3-59, iceland-vms 0.2-23 and iceland-qemu-gunyah 10.0.2-1 (virtual machines). The newest iceland-device release is 0.28-44.
 
 This list shows the 110 features that work today, sorted by functionality. Features that are still being worked on are not listed.
 
@@ -10,7 +10,7 @@ This list shows the 110 features that work today, sorted by functionality. Featu
 |---|---|
 | U-Boot (install build and RAM boot) | The stock boot loader (ABL) starts U-Boot from boot_b, and U-Boot starts Fedora through EFI. The install build (v7 since 17 Oct 2026) shows a power-on boot menu on the keys (Fedora, BlissROM on the dual-boot layout, or the boot loader's fastboot), boots Fedora by default and never resets or powers off by itself. A RAM-boot build gives display, USB fastboot, UFS read and EFI, with fastboot flashing compiled out. |
 | U-Boot boot setting for single or dual boot | Boots a “fedora” partition if there is one, else the Fedora image in userdata. |
-| Linux (7.4 base) | Linux with the Pad 4 patch queue on linux-next next-20261020 (Linux 7.3 plus the trees queued for 7.4; current kernel 7.3.0-next-20261020-iceland-00554, q90w2, iceland-linux branch iceland-7.3-rc7-next and its q90w2 release) boots through U-Boot's EFI, Fedora's shim and GRUB. |
+| Linux (7.4 base) | Linux with the Pad 4 patch queue on linux-next next-20261020 (Linux 7.3 plus the trees queued for 7.4; current kernel 7.3.0-next-20261020-iceland-00555, q90x, iceland-linux branch iceland-7.3-rc7-next and its q90x release) boots through U-Boot's EFI, Fedora's shim and GRUB. |
 | Internal storage (UFS 4) | UFS 4 with 4 KiB blocks in MCQ mode (9 hardware queues per LUN), about 2.3 GB/s direct read. The installed root is btrfs (zstd compression) in userdata; with iceland-device 0.28-32's device-mapper option (iceland.carrier.map=dm) TRIM reaches the flash (fstrim, btrfs discard=async). The LUNs use the none I/O scheduler. |
 | Hardware watchdog | qcom_wdt with a 30 s timeout, fed by systemd: a hung system reboots by itself. |
 | System cache (LLCC) and memory error counters | The system cache driver (qcom-llcc) binds, and EDAC reports the memory error counters (no errors recorded). |
@@ -20,7 +20,7 @@ This list shows the 110 features that work today, sorted by functionality. Featu
 | Fuses (QFPROM) | Read through their drivers; the GPU picks its speed bin (18 levels) from them. |
 | Hardware random number generator | Two hardware sources: the firmware TRNG (the default, it feeds the kernel's random pool) and qcom_hwrng. The output passes statistical checks (chi-square, FIPS 140-2). |
 | CPU firmware after a cold start | The CPU control processor's firmware (SCMI) starts cleanly, also after the tablet has cooled down (SuperTurtleDev's quirk for its first notification). Confirmed working by the owner on 22 Oct 2026. |
-| Wall clock (RTC offset in SDAM2) | The clock is right at boot, also offline: the PMIC's RTC belongs to the secure world, so the kernel keeps a UTC offset in the PMIC's SDAM (SuperTurtleDev's fix). NTP keeps the clock in sync. |
+| Wall clock (RTC offset in SDAM2) | The clock is right at boot, also offline: the PMIC's RTC belongs to the secure world, so the kernel keeps a UTC offset in the PMIC's SDAM (SuperTurtleDev's fix). NTP keeps the clock in sync, and chrony keeps the RTC current, so no extra service is needed. |
 | Fedora 44 from RAM / the PC's disk | For testing, the Fedora image boots from RAM or from a PC's disk over USB, with nothing written to the tablet. |
 | GNOME Shell 50 | GNOME 50.5 on Fedora 44; a new install starts with GNOME's first-boot setup. |
 | KDE Plasma 6 desktop | KDE Plasma 6 on Wayland: auto-rotate, automatic brightness, the charge limit in Plasma's power settings, suspend and Discover, with KWallet as the secrets provider. |
@@ -47,7 +47,7 @@ This list shows the 110 features that work today, sorted by functionality. Featu
 |---|---|
 | Native display 3392×2400, dual DSI + DSC | The panel runs at its native 3392×2400 over dual DSI with DSC; the boot splash hands over to the MSM DRM driver. Since kernel 00436 the flicker in the lower quarter of the screen with automatic brightness is gone; kernel 00453 adds fixes for the display state after a screen blank, and kernel 00519 stops the second DSI link only after both links have stopped, so the screen turns off without an underrun. |
 | Refresh 30 / 60 / 90 / 120 / 144 Hz | Live rate changes keep the picture, and since kernel 00511 a change between 120 and 60 Hz is made in place, without a modeset; GPU-drawn frames are paced exactly at 60, 120 and 144 Hz. A static screen drops to 30 Hz after 1 s (idle refresh) and returns at the next frame. |
-| Backlight | Both backlight chips are programmed as on stock. GNOME's brightness slider and automatic brightness work (automatic brightness is on by default since iceland-device 0.28-31, as on stock); the thermal limit lowers only what the chips get, so the slider keeps the user's value. |
+| Backlight | Both backlight chips are programmed as on stock, and a new install starts at stock's default brightness. GNOME's brightness slider and automatic brightness work (automatic brightness is on by default since iceland-device 0.28-31, as on stock); the thermal limit lowers only what the chips get, so the slider keeps the user's value. |
 | Display wake from sleep | The picture comes back after every wake from sleep (16 of 16 wakes tested), with no display timeouts at suspend entry. |
 | No pink / blocky glitches in GNOME | Fixed in queue 0060 (the compressed-buffer decoder is set up again after the splash hand-over); not seen since 30 Sep. |
 | Smooth window moves under load | Window moves stay smooth, also under load with stock's thermal policy. Confirmed working by the owner on 22 Oct 2026. |
@@ -88,7 +88,7 @@ This list shows the 110 features that work today, sorted by functionality. Featu
 
 | Feature | What works |
 |---|---|
-| Wi-Fi 2.4 GHz | Connects and reconnects after a drop; the regulatory domain is set before registration, and the Wi-Fi address is stable across boots. |
+| Wi-Fi 2.4 GHz | Connects and reconnects after a drop; the Wi-Fi country is set on the kernel command line, so the right regulatory domain applies from the start, and the Wi-Fi address is stable across boots. |
 | Wi-Fi 5 / 6 GHz | Connects on 5 GHz networks: an 80 MHz link at about 650-780 Mbit/s link rate, downloads above 100 Mbit/s (Wi-Fi 6 GHz not tested yet). |
 | Bluetooth, own address | The controller comes up powered with the tablet's own address, also after rfkill cycles. |
 | Bluetooth pairing in GNOME | Pairing works from GNOME's settings, and scans find devices. |

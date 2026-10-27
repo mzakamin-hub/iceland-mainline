@@ -9,10 +9,10 @@
 
 PUBLIC_STATUS = ("Fedora 44 is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel); the "
                  "project's tablet runs KDE Plasma 6, the install image sets up GNOME 50. Current versions: kernel "
-                 "7.3.0-next-20261020-iceland-00554 (q90w2, the patch queue on linux-next next-20261020; "
-                 "iceland-linux branch iceland-7.3-rc7-next, release q90w2), iceland-firmware 11.A.38-6, U-Boot "
+                 "7.3.0-next-20261020-iceland-00555 (q90x, the patch queue on linux-next next-20261020; "
+                 "iceland-linux branch iceland-7.3-rc7-next, release q90x), iceland-firmware 11.A.38-6, U-Boot "
                  "install build v7, iceland-gvm 0.3-59, iceland-vms 0.2-23 and iceland-qemu-gunyah 10.0.2-1 (virtual "
-                 "machines). The newest iceland-device release is 0.28-43.")
+                 "machines). The newest iceland-device release is 0.28-44.")
 
 PUBLIC = {
 # Boot & platform
@@ -27,7 +27,7 @@ PUBLIC = {
     "Boots a “fedora” partition if there is one, else the Fedora image in userdata.",
 "Linux 7.4 base (linux-next) through EFI": (
     "Linux (7.4 base)",
-    "Linux with the Pad 4 patch queue on linux-next next-20261020 (Linux 7.3 plus the trees queued for 7.4; current kernel 7.3.0-next-20261020-iceland-00554, q90w2, iceland-linux branch iceland-7.3-rc7-next and its q90w2 release) boots through U-Boot's EFI, Fedora's shim and GRUB."),
+    "Linux with the Pad 4 patch queue on linux-next next-20261020 (Linux 7.3 plus the trees queued for 7.4; current kernel 7.3.0-next-20261020-iceland-00555, q90x, iceland-linux branch iceland-7.3-rc7-next and its q90x release) boots through U-Boot's EFI, Fedora's shim and GRUB."),
 "Internal storage (UFS 4)":
     "UFS 4 with 4 KiB blocks in MCQ mode (9 hardware queues per LUN), about 2.3 GB/s direct read. The installed "
     "root is btrfs (zstd compression) in userdata; with iceland-device 0.28-32's device-mapper option "
@@ -52,7 +52,8 @@ PUBLIC = {
     "output passes statistical checks (chi-square, FIPS 140-2).",
 "Wall clock (RTC offset in SDAM2)":
     "The clock is right at boot, also offline: the PMIC's RTC belongs to the secure world, so the kernel keeps a UTC "
-    "offset in the PMIC's SDAM (SuperTurtleDev's fix). NTP keeps the clock in sync.",
+    "offset in the PMIC's SDAM (SuperTurtleDev's fix). NTP keeps the clock in sync, and chrony keeps the RTC "
+    "current, so no extra service is needed.",
 "Fedora 44 from RAM / the PC's disk":
     "For testing, the Fedora image boots from RAM or from a PC's disk over USB, with nothing written to the tablet.",
 "GNOME Shell 50":
@@ -89,9 +90,10 @@ PUBLIC = {
     "without a modeset; GPU-drawn frames are paced exactly at 60, 120 and 144 Hz. A static screen drops to 30 Hz "
     "after 1 s (idle refresh) and returns at the next frame.",
 "Backlight":
-    "Both backlight chips are programmed as on stock. GNOME's brightness slider and automatic brightness work "
-    "(automatic brightness is on by default since iceland-device 0.28-31, as on stock); the thermal limit "
-    "lowers only what the chips get, so the slider keeps the user's value.",
+    "Both backlight chips are programmed as on stock, and a new install starts at stock's default brightness. "
+    "GNOME's brightness slider and automatic brightness work (automatic brightness is on by default since "
+    "iceland-device 0.28-31, as on stock); the thermal limit lowers only what the chips get, so the slider keeps the "
+    "user's value.",
 "Display wake from sleep":
     "The picture comes back after every wake from sleep (16 of 16 wakes tested), with no display timeouts at "
     "suspend entry.",
@@ -161,8 +163,8 @@ PUBLIC = {
     "Both follow GNOME's curve within about 1 dB.",
 # Connectivity
 "Wi-Fi 2.4 GHz":
-    "Connects and reconnects after a drop; the regulatory domain is set before registration, and the Wi-Fi address "
-    "is stable across boots.",
+    "Connects and reconnects after a drop; the Wi-Fi country is set on the kernel command line, so the right "
+    "regulatory domain applies from the start, and the Wi-Fi address is stable across boots.",
 "Wi-Fi 5 / 6 GHz":
     "Connects on 5 GHz networks: an 80 MHz link at about 650-780 Mbit/s link rate, downloads above 100 Mbit/s (Wi-Fi "
     "6 GHz not tested yet).",
