@@ -13,6 +13,17 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 [iceland-vms](https://github.com/mzakamin-hub/iceland-vms) ·
 [iceland-droidloom](https://github.com/mzakamin-hub/iceland-droidloom) (all public).
 
+## 2026-10-27 - iceland-vms 0.2-25
+
+- Release [iceland-vms 0.2-25](https://github.com/mzakamin-hub/iceland-vms/releases/tag/0.2-25).
+- Tested on the tablet: the guest agent receives the app's display switches (glamor off, autologin, Wayland, zink)
+  and older agents are updated over ssh; autologin at boot with lightdm or GDM, on by default also in existing Linux
+  VMs; new Fedora 44+ VMs default to the native GPU (msm native context) with the guest Mesa delivered
+  automatically; the app keeps 2 GiB for the host (was 3 GiB), so a 4 GiB Windows VM starts with apps open.
+- Not tested on the tablet yet: whether Xorg and the desktop draw on the Adreno through the guest Mesa (now
+  registered with the library loader), Xorg with zink through Mesa's driconf, and the display-manager restart with
+  a one-time guest reboot fallback after a settings change in a running guest.
+
 ## 2026-10-27 - kernel q90x and iceland-device 0.28-44: three helpers moved into the kernel
 
 - Kernel q90x (`7.3.0-next-20261020-iceland-00555`) is the default and the newest release

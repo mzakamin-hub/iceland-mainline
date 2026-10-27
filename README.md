@@ -498,7 +498,7 @@ Everything below is a published release with a `SHA256SUMS` file. Check your dow
 | Windows installer (blocked for writes) | in iceland-device 0.28-16 | [iceland-device-0.28-16](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-16) | `Install-Pad4Linux.ps1`, `README-INSTALLER.md`, `SHA256SUMS` |
 
 The current kernel is q90x (`7.3.0-next-20261020-iceland-00555`, iceland-linux tag `q90x`). The virtual machine packages are released as
-[iceland-gvm 0.3-59](https://github.com/mzakamin-hub/iceland-gvm/releases/tag/0.3-59) (with virglrenderer 1.3.0-1.iceland1) and [iceland-vms 0.2-23](https://github.com/mzakamin-hub/iceland-vms/releases/tag/0.2-23) (with iceland-vms-guest-mesa 26.2.5-1.iceland1) (with iceland-qemu-gunyah 10.0.2-1 from [0.2-20](https://github.com/mzakamin-hub/iceland-vms/releases/tag/0.2-20); RPMs and `SHA256SUMS`;
+[iceland-gvm 0.3-59](https://github.com/mzakamin-hub/iceland-gvm/releases/tag/0.3-59) (with virglrenderer 1.3.0-1.iceland1) and [iceland-vms 0.2-25](https://github.com/mzakamin-hub/iceland-vms/releases/tag/0.2-25) (iceland-vms-guest-mesa from [0.2-23](https://github.com/mzakamin-hub/iceland-vms/releases/tag/0.2-23)) (with iceland-qemu-gunyah 10.0.2-1 from [0.2-20](https://github.com/mzakamin-hub/iceland-vms/releases/tag/0.2-20); RPMs and `SHA256SUMS`;
 sources and build steps in each repository).
 
 The Fedora disk image and the install image are **not** published. [Guide 04](docs/guide/04-BUILD-YOUR-OWN.md) covers
