@@ -489,15 +489,15 @@ Everything below is a published release with a `SHA256SUMS` file. Check your dow
 
 | What | Version | Release page | Files |
 |---|---|---|---|
-| Kernel (`kernel-iceland`, Fedora 44 aarch64) | q90w2, kernel `7.3.0-next-20261020-iceland-00554` (the patch queue on linux-next `next-20261020`) | [iceland-linux q90w2](https://github.com/mzakamin-hub/iceland-linux/releases/tag/q90w2) | RPM, source RPM, `SHA256SUMS` |
+| Kernel (`kernel-iceland`, Fedora 44 aarch64) | q90x, kernel `7.3.0-next-20261020-iceland-00555` (the patch queue on linux-next `next-20261020`) | [iceland-linux q90x](https://github.com/mzakamin-hub/iceland-linux/releases/tag/q90x) | RPM, source RPM, `SHA256SUMS` |
 | U-Boot, install build | v7 (2026-10-17) | [iceland-u-boot v7-2026-10-17](https://github.com/mzakamin-hub/iceland-u-boot/releases/tag/v7-2026-10-17) | plain image (RAM test), footered image (`boot_b`), `SHA256SUMS` |
-| `iceland-device` (the tablet's settings, with `iceland-device-kde` / `-gnome`), `iceland-coexist` (kernel-install for a shared `/boot`) | iceland-device 0.28-43 ([0.28-43](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-43)), iceland-coexist 1.0-7 | [iceland-device-0.28-40](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-40) (iceland-coexist) | noarch RPMs, source RPMs, `SHA256SUMS` |
+| `iceland-device` (the tablet's settings, with `iceland-device-kde` / `-gnome`), `iceland-coexist` (kernel-install for a shared `/boot`) | iceland-device 0.28-44 ([0.28-44](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-44)), iceland-coexist 1.0-7 | [iceland-device-0.28-40](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-40) (iceland-coexist) | noarch RPMs, source RPMs, `SHA256SUMS` |
 | `upower` (time to full to the charge limit, every lid switch), `libssc` (the sensor hub, hall sensor) | upower 1.91.5-1.fc44.iceland2, libssc 0.4.4^8.git54dd13e-2.iceland1 | [iceland-device-0.28-43](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-43) | aarch64 RPMs, source RPM, `SHA256SUMS` |
 | `iris-vaapi` (VA-API hardware video decode; `iris-vaapi-chromium` for Fedora's chromium) | 0.2.0^20261023git9852479-1.iceland1 | [iris-vaapi-0.2.0-1.iceland1](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iris-vaapi-0.2.0-1.iceland1) | aarch64 RPMs, source RPM, `SHA256SUMS` |
 | `iceland-firmware` (generic firmware) | 11.A.38-6 | [iceland-firmware 11.A.38-6](https://github.com/mzakamin-hub/iceland-firmware/releases/tag/11.A.38-6) | noarch RPM, source RPM, `SHA256SUMS` |
 | Windows installer (blocked for writes) | in iceland-device 0.28-16 | [iceland-device-0.28-16](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-16) | `Install-Pad4Linux.ps1`, `README-INSTALLER.md`, `SHA256SUMS` |
 
-The current kernel is q90w2 (`7.3.0-next-20261020-iceland-00554`, iceland-linux tag `q90w2`). The virtual machine packages are released as
+The current kernel is q90x (`7.3.0-next-20261020-iceland-00555`, iceland-linux tag `q90x`). The virtual machine packages are released as
 [iceland-gvm 0.3-59](https://github.com/mzakamin-hub/iceland-gvm/releases/tag/0.3-59) (with virglrenderer 1.3.0-1.iceland1) and [iceland-vms 0.2-23](https://github.com/mzakamin-hub/iceland-vms/releases/tag/0.2-23) (with iceland-vms-guest-mesa 26.2.5-1.iceland1) (with iceland-qemu-gunyah 10.0.2-1 from [0.2-20](https://github.com/mzakamin-hub/iceland-vms/releases/tag/0.2-20); RPMs and `SHA256SUMS`;
 sources and build steps in each repository).
 

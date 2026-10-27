@@ -13,6 +13,17 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 [iceland-vms](https://github.com/mzakamin-hub/iceland-vms) ·
 [iceland-droidloom](https://github.com/mzakamin-hub/iceland-droidloom) (all public).
 
+## 2026-10-27 - kernel q90x and iceland-device 0.28-44: three helpers moved into the kernel
+
+- Kernel q90x (`7.3.0-next-20261020-iceland-00555`) is the default and the newest release
+  ([q90x](https://github.com/mzakamin-hub/iceland-linux/releases/tag/q90x): kernel RPM, source RPM, `SHA256SUMS`):
+  q90w2 plus the backlight driver starting at stock's default brightness (1417 of 4095).
+- [iceland-device 0.28-44](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-44): the Wi-Fi country is set on the kernel command line
+  (`cfg80211.ieee80211_regdom`, `WIFI_REGDOM` in `/etc/iceland/boot.conf`); the clock is kept by the kernel (the
+  RTC offset in the PMIC's SDAM, kept current by chrony); the first-boot brightness comes from the kernel. The
+  services iceland-wifi-country, iceland-backlight-default and iceland-clock are gone.
+- Porting guide (`docs/guide/05-PORTING-TO-OTHER-DISTROS.md`) updated for these.
+
 ## 2026-10-27 - iceland-device 0.28-43: keyboard cover detection
 
 - Release [iceland-device-0.28-43](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-43) with libssc 2.iceland1 and upower iceland2.

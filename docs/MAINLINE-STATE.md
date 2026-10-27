@@ -5,14 +5,14 @@ This page is the state of the two upstream-facing ports: the kernel and U-Boot. 
 
 ## Kernel (iceland-linux)
 
-- **Build in use:** `7.3.0-next-20261020-iceland-00554-g87174e7e291d`, queue head **q90w2**, branch
-  `iceland-7.3-rc7-next` (tag `q90w2`). It runs on the installed tablet as the default kernel, installed with dnf;
+- **Build in use:** `7.3.0-next-20261020-iceland-00555-gbc55efdfac46`, queue head **q90x**, branch
+  `iceland-7.3-rc7-next` (tag `q90x`). It runs on the installed tablet as the default kernel, installed with dnf;
   q90s4 and q90t4 are kept as fallback entries. `scripts/build.sh` gives the package's config exactly (configs
-  `q90b`, `q90i`, `q90i-shipped`, `q90m` to `q90r`). The newest kernel release download is q90w2. The first install image (golden B149)
+  `q90b`, `q90i`, `q90i-shipped`, `q90m` to `q90r`). The newest kernel release download is q90x. The first install image (golden B149)
   carries q89g (`7.3.0-rc7-iceland-00426`, tag `q89g`).
 - **Base:** linux-next `next-20261020` (`UPSTREAM_COMMIT` 8f7df005a756; Linux 7.3 plus the trees queued for 7.4)
-  with 554 patch files: 110 in `0001-infiniti` (the infiniti-mainline base for SM8850), 304 in `0002-iceland` (the
-  Pad 4 series) and 140 in the series `0003-glitchfix` (display-timing switches) and `0004-q90b` to `0024-q90w2`.
+  with 555 patch files: 110 in `0001-infiniti` (the infiniti-mainline base for SM8850), 304 in `0002-iceland` (the
+  Pad 4 series) and 141 in the series `0003-glitchfix` (display-timing switches) and `0004-q90b` to `0025-q90x`.
   The rebase dropped 107 patches that are upstream in that base. Binder is back since q90m: the base removed the C
   driver and q90m restores it as an option (binderfs only), for Android containers.
 - **Queue history:** q89 (rc4) -> q89b (rc6 rebase, 10 Oct) -> q89c-tb (tb323fu patches) -> q89d8 and q89d9 (rc6,
@@ -38,7 +38,8 @@ This page is the state of the two upstream-facing ports: the kernel and U-Boot. 
   (26 Oct: a protected VM whose shared memory is private anonymous memory is refused cleanly at start instead of
   faulting), q90w2 (26 Oct: USB 2 host resume terminations on Kaanapali (Peter Chen); the WCD939x headset switch's
   MG2_MISC address; class-H IQ forced only while the flyback has no user; the WCD939x codec version read after
-  the SoundWire attach; the vendor bandgap fine adjust on codec v1.1 and later).
+  the SoundWire attach; the vendor bandgap fine adjust on codec v1.1 and later), q90x (27 Oct: the ktz8869
+  backlight driver starts at stock's default brightness, 1417 of 4095).
 - **Upstream candidates:** the patches that are not in q90i are held: the q6apm RFC (0202-0205; the read-done payload
   size was wrong), the GPU CLX series (0244-0245; superseded: the 7.4 base's rpmhpd fix makes CLX start), the DW9800K update (0253; a chip-ID
   mismatch), the wcd939x port switches (0254), and two old candidates (the SoundWire IRQ and the hci_qca sleep reset),
