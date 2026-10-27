@@ -118,7 +118,7 @@ Only working features are listed; the details are in [docs/FEATURES.md](docs/FEA
 | VM shared-memory mode (partial protection) | ✅ Working | Opt-in shared-memory VMs with 3D OpenGL and Vulkan; the tablet can then read that VM's memory. |
 | VM QEMU-Gunyah backend (3D OpenGL) | ✅ Working | An optional QEMU backend runs VMs with 3D OpenGL in a window or over VNC. |
 | VM keyboard shortcuts (Send shortcuts to the VM) | ✅ Working | Optionally Super, Alt+Tab, Escape and similar desktop shortcuts go to the VM. |
-| VM native GPU context (msm) | ✅ Working | Opt-in: the VM's own Mesa draws directly on the GPU, about 50 % faster than virgl. |
+| VM native GPU context (msm) | ✅ Working | New Fedora VMs: the VM's own Mesa draws directly on the GPU, about 50 % faster than virgl. |
 
 </details>
 

@@ -38,7 +38,7 @@ SHORT = {
 "VM shared-memory mode (partial protection)": "Opt-in shared-memory VMs with 3D OpenGL and Vulkan; the tablet can then read that VM's memory.",
 "VM QEMU-Gunyah backend (3D OpenGL)": "An optional QEMU backend runs VMs with 3D OpenGL in a window or over VNC.",
 "VM keyboard shortcuts (Send shortcuts to the VM)": "Optionally Super, Alt+Tab, Escape and similar desktop shortcuts go to the VM.",
-"VM native GPU context (msm)": "Opt-in: the VM's own Mesa draws directly on the GPU, about 50 % faster than virgl.",
+"VM native GPU context (msm)": "New Fedora VMs: the VM's own Mesa draws directly on the GPU, about 50 % faster than virgl.",
 # Display & input
 "Native display 3392×2400, dual DSI + DSC": "The panel runs at its native 3392×2400 resolution, without flicker.",
 "Refresh 30 / 60 / 90 / 120 / 144 Hz": "30 to 144 Hz with live switching; a still screen drops to 30 Hz to save power.",
