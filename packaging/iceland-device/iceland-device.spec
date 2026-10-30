@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        44%{?dist}
+Release:        45%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -1035,6 +1035,11 @@ dconf update >/dev/null 2>&1 || :
 %dir %attr(0700,root,root) /var/lib/iceland/kde-curve
 
 %changelog
+* Fri Oct 30 2026 mzak <mzak.amin@gmail.com> - 0.28-45
+- memory: swap settings for zram in 60-iceland-vm.conf: vm.swappiness 180, vm.page-cluster 0,
+  vm.watermark_boost_factor 0, vm.watermark_scale_factor 125 (the only swap is zram; the kernel's defaults are tuned
+  for a disk). A file of the same name in /etc/sysctl.d overrides them.
+
 * Tue Oct 27 2026 mzak <mzak.amin@gmail.com> - 0.28-44
 - three helpers moved into the kernel and its command line:
 - iceland-wifi-country removed: iceland-cmdline puts cfg80211.ieee80211_regdom=<country> on every boot entry and
