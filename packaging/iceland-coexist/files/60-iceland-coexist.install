@@ -25,7 +25,7 @@ COMMAND="$1"; KVER="$2"; IMAGE="${3:-}"
 case "$KVER" in *-iceland*) ;; *) exit 0 ;; esac
 R=${ICELAND_ROOT:-}
 EDITENV=${ICELAND_EDITENV:-grub2-editenv}
-DTB_VARIANT=glitchfix-rails; SUBDIR=fedora44; ARCH_DEFAULT=""
+DTB_VARIANT=standard; SUBDIR=fedora44; ARCH_DEFAULT=""
 [ -r "$R/etc/iceland/coexist.conf" ] && . "$R/etc/iceland/coexist.conf"
 B=$R/boot; E=$B/loader/entries; GENV=$B/grub2/grubenv
 DT=qcom/kaanapali-oneplus-iceland.dtb

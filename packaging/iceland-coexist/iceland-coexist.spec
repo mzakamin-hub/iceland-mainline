@@ -1,6 +1,6 @@
 Name:           iceland-coexist
 Version:        1.0
-Release:        7%{?dist}
+Release:        8%{?dist}
 Summary:        OnePlus Pad 4: Fedora 44 next to Arch Linux ARM in one shared /boot
 License:        GPL-2.0-or-later
 BuildArch:      noarch
@@ -84,6 +84,12 @@ lsinitrd /boot/initramfs-$(uname -r).img 2>/dev/null | grep -q iceland-oneshot-c
 /etc/kernel/install.d/90-iceland-dtb.install
 
 %changelog
+* Fri Oct 30 2026 mzak <mzak.amin@gmail.com> - 1.0-8
+- DTB_VARIANT defaults to standard (coexist.conf and the hook's own default): each Fedora entry boots its kernel's own
+  device tree. The glitchfix-rails variant is not needed: with the rails in auto mode and the kernel's USB fix
+  (dwc3_qcom.keep_icc_runtime, q90d and later) on, the display glitch did not appear; with the fix off it came back.
+  An existing /etc/iceland/coexist.conf is kept (noreplace): set DTB_VARIANT=standard there by hand.
+
 * Sat Oct 24 2026 mzak <mzak.amin@gmail.com> - 1.0-7
 - iceland-oneshot consume (every boot): every one-shot entry that next_entry does not name is removed (a copy stays in
   /var/lib/iceland/oneshot/entries/). After a one-shot that hung before the initramfs (q90o-run stage C, pseudo-NMI)
