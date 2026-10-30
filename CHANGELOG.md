@@ -13,6 +13,32 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 [iceland-vms](https://github.com/mzakamin-hub/iceland-vms) ·
 [iceland-droidloom](https://github.com/mzakamin-hub/iceland-droidloom) (all public).
 
+## 2026-10-30 - kernel q90z, iceland-device 0.28-45; the rails device-tree variant is no longer needed
+
+- Kernel q90z (`7.3.0-next-20261020-iceland-00572`) is the newest release
+  ([q90z](https://github.com/mzakamin-hub/iceland-linux/releases/tag/q90z): kernel RPM, source RPM, `SHA256SUMS`).
+  It includes q90y, which had no release of its own (tag `q90y`: the qrtr name service keeps announcing after a
+  failed send, the dwc3-qcom VBUS override follows the role entered, a charge current cooling device and a weighted
+  thermal sensor, both unused by the device tree). q90z, from a comparison with Qualcomm's qcom-next and
+  kernel-topics trees, tb323fu-linux (Lenovo TB323FU, the same SoC) and SuperTurtleDev's iceland kernel:
+  - the CPU and LLCC bandwidth monitors lower their vote after 3 sample windows instead of 16;
+  - the video decoder waits for its NoC to reach low power before power-off;
+  - the inline crypto engine clock scales with the UFS clocks (with a Kaanapali ICE OPP table);
+  - the qrtr re-announce fix in its v3;
+  - USB 2.0 keeps working when DisplayPort takes all four lanes (a USB-C monitor's hub);
+  - L2F stays on: it is also the camera I2C pull-up supply, and the first transfer at boot failed without it;
+  - config: a 2 MB bounce-buffer pool that grows on demand (was 64 MB; about 62 MB more RAM) and a 128 MB CMA area
+    (was 32 MB).
+- The `glitchfix-rails` device-tree variant (LDOs held in high-power mode, L18B always on) is no longer needed.
+  Tested on the tablet with q90y: with the kernel's own device tree (the rails in auto mode) and the q90d USB fix on,
+  no display glitch while the sensor hub streamed; with the fix off (`dwc3_qcom.keep_icc_runtime=0`) the glitch came
+  back. The variant was a diagnostic from before the cause was found. Set `DTB_VARIANT=standard` in
+  `/etc/iceland/coexist.conf`; q90z ships no variant trees.
+- [iceland-device 0.28-45](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-45): swap
+  settings for zram (`vm.swappiness` 180, `vm.page-cluster` 0, `vm.watermark_boost_factor` 0,
+  `vm.watermark_scale_factor` 125).
+- Running on the reference tablet: q90z with the kernel's own device tree, iceland-device 0.28-45.
+
 ## 2026-10-27 - iceland-vms 0.2-25
 
 - Release [iceland-vms 0.2-25](https://github.com/mzakamin-hub/iceland-vms/releases/tag/0.2-25).
