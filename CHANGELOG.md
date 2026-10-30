@@ -34,6 +34,8 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
   no display glitch while the sensor hub streamed; with the fix off (`dwc3_qcom.keep_icc_runtime=0`) the glitch came
   back. The variant was a diagnostic from before the cause was found. Set `DTB_VARIANT=standard` in
   `/etc/iceland/coexist.conf`; q90z ships no variant trees.
+  [iceland-coexist 1.0-8](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-coexist-1.0-8) makes
+  `standard` the default for new installs (an existing `coexist.conf` is kept).
 - [iceland-device 0.28-45](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-45): swap
   settings for zram (`vm.swappiness` 180, `vm.page-cluster` 0, `vm.watermark_boost_factor` 0,
   `vm.watermark_scale_factor` 125).
