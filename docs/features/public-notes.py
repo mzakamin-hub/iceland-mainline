@@ -12,7 +12,7 @@ PUBLIC_STATUS = ("Fedora 44 is installed on the tablet and boots on its own (ABL
                  "7.3.0-next-20261020-iceland-00555 (q90x, the patch queue on linux-next next-20261020; "
                  "iceland-linux branch iceland-7.3-rc7-next, release q90x), iceland-firmware 11.A.38-6, U-Boot "
                  "install build v7, iceland-gvm 0.3-59, iceland-vms 0.2-25 and iceland-qemu-gunyah 10.0.2-1 (virtual "
-                 "machines). The newest iceland-device release is 0.28-44.")
+                 "machines). The newest iceland-device release is 0.28-46.")
 
 PUBLIC = {
 # Boot & platform
@@ -39,6 +39,9 @@ PUBLIC = {
     "The system cache driver (qcom-llcc) binds, and EDAC reports the memory error counters (no errors recorded).",
 "Memory bandwidth monitors":
     "The three bandwidth monitors bind, and their interrupts follow the memory load.",
+"Memory management (zram, MGLRU)":
+    "Swap is zram: lz4 for fast swap-in, idle pages recompressed with zstd; MGLRU keeps the working set of the "
+    "last second; GPU buffers stay out of swap; 64 KiB mTHP is an opt-in switch (iceland-device 0.28-46).",
 "Memory bus DVFS (DDR / LLCC memlat)":
     "DDR (547 to 5333 MHz) and the system cache (282 to 1350 MHz) scale with the load (tb323fu-linux's memlat "
     "series). Since kernel q90i their frequencies are no longer polled every 2 ms, which saves thousands of "
@@ -88,7 +91,7 @@ PUBLIC = {
 "Refresh 30 / 60 / 90 / 120 / 144 Hz":
     "Live rate changes keep the picture, and since kernel 00511 a change between 120 and 60 Hz is made in place, "
     "without a modeset; GPU-drawn frames are paced exactly at 60, 120 and 144 Hz. A static screen drops to 30 Hz "
-    "after 1 s (idle refresh) and returns at the next frame.",
+    "after 1 s (idle refresh) and returns at the next frame. 48 and 50 Hz modes are listed too (kernel q91c).",
 "Backlight":
     "Both backlight chips are programmed as on stock, and a new install starts at stock's default brightness. "
     "GNOME's brightness slider and automatic brightness work (automatic brightness is on by default since "
@@ -147,7 +150,8 @@ PUBLIC = {
 "DSP audio + sound card":
     "The ADSP-based sound card comes up at boot and stays present.",
 "GNOME shows speakers and microphones":
-    "Speakers and microphones appear in GNOME on a fresh boot.",
+    "Speakers and microphones appear in GNOME on a fresh boot; since iceland-device 0.28-46 also headphones and "
+    "DisplayPort audio.",
 "Microphones (2)":
     "Both microphones work at stock's gain. GNOME's default input is a processed source (echo cancellation, gain "
     "control, noise suppression); the raw source is kept.",
@@ -258,7 +262,8 @@ PUBLIC = {
     "Read through the sensor hub at about 24 Hz, with a mean near 0 rad/s at rest.",
 "Cameras (13 MP rear, 8 MP front)":
     "The 13 MP rear (SC1320CS) and 8 MP front (SC820CS) cameras stream through Fedora's libcamera 0.7.1-2, with the "
-    "orientation matching the display; the rear lens actuator is powered only while streaming.",
+    "orientation matching the display; the rear lens actuator is powered only while streaming. Switching between "
+    "front and rear works (20 of 20 on kernel q91c).",
 "Camera app on the installed image":
     "GNOME Camera (Snapshot) works with both cameras (40 of 40 open / close cycles clean).",
 # Software & packaging
@@ -269,8 +274,8 @@ PUBLIC = {
     "neutral build host name.",
 "Device package (iceland-device 0.28-32)":(
     "Device package (iceland-device)",
-    "iceland-device 0.28-32 carries the tablet's settings: the battery guard, the thermal policy, the sound "
-    "chain, the sensor and Bluetooth address services, the power-key handling, the GPU firmware choice, the "
+    "iceland-device 0.28-46 carries the tablet's settings: the battery guard, the thermal policy, the sound "
+    "profile (speakers, headphones, DisplayPort audio), the memory settings, the sensor and Bluetooth address services, the power-key handling, the GPU firmware choice, the "
     "refresh-rate switch and the power-saving boot options (suspend-to-idle as the kernel's default, idle "
     "refresh, CLX, the display and GPU interrupts kept on CPU 0, device interrupts off the prime cores), "
     "automatic brightness by default and the device-mapper option that lets TRIM reach the flash."),
@@ -305,8 +310,6 @@ PUBLIC = {
 "Speaker level at stock (0 dB)": (
     "Speaker level",
     "The speakers play as loud as on stock, with the amplifiers at stock's settings. Confirmed working by the owner on 22 Oct 2026."),
-"Headset over USB-C":
-    "Headsets on the USB-C port. Confirmed working by the owner on 22 Oct 2026. The codec is detected as WCD939x v2.0 and gets the vendor's bandgap setting (kernel q90w2).",
 "USB host / OTG, PD hub": (
     "USB host / OTG and hubs",
     "USB host mode on the USB-C port: keyboards, mice, USB sticks and hubs. Confirmed working by the owner on 22 Oct 2026."),

@@ -14,6 +14,7 @@ SHORT = {
 "Hardware watchdog": "A hung system reboots by itself.",
 "System cache (LLCC) and memory error counters": "The system cache works and memory error counters are reported.",
 "Memory bandwidth monitors": "The memory bandwidth monitors work and follow the load.",
+"Memory management (zram, MGLRU)": "Fast compressed swap (lz4, idle pages zstd) with working-set protection.",
 "Memory bus DVFS (DDR / LLCC memlat)": "Memory and system-cache clocks scale with the load.",
 "GPI DMA engines": "The DMA engines for the I2C and SPI buses work.",
 "Fuses (QFPROM)": "The fuses are read; the GPU picks its speed bin from them.",
@@ -62,14 +63,13 @@ SHORT = {
 "NPU (Hexagon on the CDSP)": "The NPU's DSP runs, and its runtime library loads.",
 # Audio
 "DSP audio + sound card": "The sound card comes up at boot and stays present.",
-"GNOME shows speakers and microphones": "Speakers and microphones appear in the desktop's sound settings.",
+"GNOME shows speakers and microphones": "Speakers, headphones, DisplayPort audio and microphones appear in the sound settings.",
 "Microphones (2)": "Both microphones work, with echo cancellation and noise suppression by default.",
 "Echo cancellation and loopback sound test": "Echo cancellation on the microphone, with a limiter so the output does not clip.",
 "All six speakers in stereo": "All six speakers play in stereo with balanced left and right.",
 "Speaker level": "The speakers play as loud as on stock.",
 "Speaker protection (PipeWire chain)": "A protective filter chain in front of the amplifiers prevents clipping.",
 "GNOME volume bar and input slider": "The volume and input sliders follow the desktop's curve.",
-"Headset over USB-C": "Headsets work on the USB-C port.",
 # Connectivity
 "Wi-Fi 2.4 GHz": "Connects and reconnects, with a stable Wi-Fi address.",
 "Wi-Fi 5 / 6 GHz": "Connects on 5 GHz with downloads above 100 Mbit/s.",
@@ -113,7 +113,7 @@ SHORT = {
 "Rear flash LEDs": "Both flash LEDs work as a torch.",
 "Accelerometer, compass, light / proximity": "Accelerometer, compass, light and proximity sensors work.",
 "Gyroscope (sensor hub)": "The gyroscope works.",
-"Cameras (13 MP rear, 8 MP front)": "The 13 MP rear and 8 MP front cameras stream with the right orientation.",
+"Cameras (13 MP rear, 8 MP front)": "The 13 MP rear and 8 MP front cameras stream and switch, with the right orientation.",
 "Camera app on the installed image": "The desktop camera app works with both cameras.",
 # Software & packaging
 "Kernel package (kernel-iceland)": "Kernel updates install with dnf; a new kernel becomes the default after a good boot.",

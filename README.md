@@ -83,7 +83,7 @@ Only working features are listed; the details are in [docs/FEATURES.md](docs/FEA
 
 ### Boot & platform
 
-<details><summary>Show the 32 working features</summary>
+<details><summary>Show the 33 working features</summary>
 
 | Feature | Status | Details |
 |---|---|---|
@@ -95,6 +95,7 @@ Only working features are listed; the details are in [docs/FEATURES.md](docs/FEA
 | System cache (LLCC) and memory error counters | ✅ Working | The system cache works and memory error counters are reported. |
 | Memory bandwidth monitors | ✅ Working | The memory bandwidth monitors work and follow the load. |
 | Memory bus DVFS (DDR / LLCC memlat) | ✅ Working | Memory and system-cache clocks scale with the load. |
+| Memory management (zram, MGLRU) | ✅ Working | Fast compressed swap (lz4, idle pages zstd) with working-set protection. |
 | GPI DMA engines | ✅ Working | The DMA engines for the I2C and SPI buses work. |
 | Fuses (QFPROM) | ✅ Working | The fuses are read; the GPU picks its speed bin from them. |
 | Hardware random number generator | ✅ Working | Two hardware random number sources feed the kernel's random pool. |
@@ -156,14 +157,13 @@ Only working features are listed; the details are in [docs/FEATURES.md](docs/FEA
 | Feature | Status | Details |
 |---|---|---|
 | DSP audio + sound card | ✅ Working | The sound card comes up at boot and stays present. |
-| GNOME shows speakers and microphones | ✅ Working | Speakers and microphones appear in the desktop's sound settings. |
+| GNOME shows speakers and microphones | ✅ Working | Speakers, headphones, DisplayPort audio and microphones appear in the sound settings. |
 | Microphones (2) | ✅ Working | Both microphones work, with echo cancellation and noise suppression by default. |
 | Echo cancellation and loopback sound test | ✅ Working | Echo cancellation on the microphone, with a limiter so the output does not clip. |
 | All six speakers in stereo | ✅ Working | All six speakers play in stereo with balanced left and right. |
 | Speaker level | ✅ Working | The speakers play as loud as on stock. |
 | Speaker protection (PipeWire chain) | ✅ Working | A protective filter chain in front of the amplifiers prevents clipping. |
 | GNOME volume bar and input slider | ✅ Working | The volume and input sliders follow the desktop's curve. |
-| Headset over USB-C | ✅ Working | Headsets work on the USB-C port. |
 
 ### Connectivity
 
@@ -227,7 +227,7 @@ Only working features are listed; the details are in [docs/FEATURES.md](docs/FEA
 | Rear flash LEDs | ✅ Working | Both flash LEDs work as a torch. |
 | Accelerometer, compass, light / proximity | ✅ Working | Accelerometer, compass, light and proximity sensors work. |
 | Gyroscope (sensor hub) | ✅ Working | The gyroscope works. |
-| Cameras (13 MP rear, 8 MP front) | ✅ Working | The 13 MP rear and 8 MP front cameras stream with the right orientation. |
+| Cameras (13 MP rear, 8 MP front) | ✅ Working | The 13 MP rear and 8 MP front cameras stream and switch, with the right orientation. |
 | Camera app on the installed image | ✅ Working | The desktop camera app works with both cameras. |
 
 ### Software & packaging

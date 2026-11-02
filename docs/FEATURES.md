@@ -1,6 +1,6 @@
 # OnePlus Pad 4 mainline: what works
 
-Status 27 Oct 2026. Fedora 44 is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel); the project's tablet runs KDE Plasma 6, the install image sets up GNOME 50. Current versions: kernel 7.3.0-next-20261020-iceland-00555 (q90x, the patch queue on linux-next next-20261020; iceland-linux branch iceland-7.3-rc7-next, release q90x), iceland-firmware 11.A.38-6, U-Boot install build v7, iceland-gvm 0.3-59, iceland-vms 0.2-25 and iceland-qemu-gunyah 10.0.2-1 (virtual machines). The newest iceland-device release is 0.28-44.
+Status 2 Nov 2026. Fedora 44 is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel); the project's tablet runs KDE Plasma 6, the install image sets up GNOME 50. Current versions: kernel 7.3.0-next-20261020-iceland-00555 (q90x, the patch queue on linux-next next-20261020; iceland-linux branch iceland-7.3-rc7-next, release q90x), iceland-firmware 11.A.38-6, U-Boot install build v7, iceland-gvm 0.3-59, iceland-vms 0.2-25 and iceland-qemu-gunyah 10.0.2-1 (virtual machines). The newest iceland-device release is 0.28-46.
 
 This list shows the 110 features that work today, sorted by functionality. Features that are still being worked on are not listed.
 
@@ -16,6 +16,7 @@ This list shows the 110 features that work today, sorted by functionality. Featu
 | System cache (LLCC) and memory error counters | The system cache driver (qcom-llcc) binds, and EDAC reports the memory error counters (no errors recorded). |
 | Memory bandwidth monitors | The three bandwidth monitors bind, and their interrupts follow the memory load. |
 | Memory bus DVFS (DDR / LLCC memlat) | DDR (547 to 5333 MHz) and the system cache (282 to 1350 MHz) scale with the load (tb323fu-linux's memlat series). Since kernel q90i their frequencies are no longer polled every 2 ms, which saves thousands of interrupts a second at idle. |
+| Memory management (zram, MGLRU) | Swap is zram: lz4 for fast swap-in, idle pages recompressed with zstd; MGLRU keeps the working set of the last second; GPU buffers stay out of swap; 64 KiB mTHP is an opt-in switch (iceland-device 0.28-46). |
 | GPI DMA engines | Four GPI DMA controllers serve the I2C and SPI buses. |
 | Fuses (QFPROM) | Read through their drivers; the GPU picks its speed bin (18 levels) from them. |
 | Hardware random number generator | Two hardware sources: the firmware TRNG (the default, it feeds the kernel's random pool) and qcom_hwrng. The output passes statistical checks (chi-square, FIPS 140-2). |
@@ -46,7 +47,7 @@ This list shows the 110 features that work today, sorted by functionality. Featu
 | Feature | What works |
 |---|---|
 | Native display 3392×2400, dual DSI + DSC | The panel runs at its native 3392×2400 over dual DSI with DSC; the boot splash hands over to the MSM DRM driver. Since kernel 00436 the flicker in the lower quarter of the screen with automatic brightness is gone; kernel 00453 adds fixes for the display state after a screen blank, and kernel 00519 stops the second DSI link only after both links have stopped, so the screen turns off without an underrun. |
-| Refresh 30 / 60 / 90 / 120 / 144 Hz | Live rate changes keep the picture, and since kernel 00511 a change between 120 and 60 Hz is made in place, without a modeset; GPU-drawn frames are paced exactly at 60, 120 and 144 Hz. A static screen drops to 30 Hz after 1 s (idle refresh) and returns at the next frame. |
+| Refresh 30 / 60 / 90 / 120 / 144 Hz | Live rate changes keep the picture, and since kernel 00511 a change between 120 and 60 Hz is made in place, without a modeset; GPU-drawn frames are paced exactly at 60, 120 and 144 Hz. A static screen drops to 30 Hz after 1 s (idle refresh) and returns at the next frame. 48 and 50 Hz modes are listed too (kernel q91c). |
 | Backlight | Both backlight chips are programmed as on stock, and a new install starts at stock's default brightness. GNOME's brightness slider and automatic brightness work (automatic brightness is on by default since iceland-device 0.28-31, as on stock); the thermal limit lowers only what the chips get, so the slider keeps the user's value. |
 | Display wake from sleep | The picture comes back after every wake from sleep (16 of 16 wakes tested), with no display timeouts at suspend entry. |
 | No pink / blocky glitches in GNOME | Fixed in queue 0060 (the compressed-buffer decoder is set up again after the splash hand-over); not seen since 30 Sep. |
@@ -75,14 +76,13 @@ This list shows the 110 features that work today, sorted by functionality. Featu
 | Feature | What works |
 |---|---|
 | DSP audio + sound card | The ADSP-based sound card comes up at boot and stays present. |
-| GNOME shows speakers and microphones | Speakers and microphones appear in GNOME on a fresh boot. |
+| GNOME shows speakers and microphones | Speakers and microphones appear in GNOME on a fresh boot; since iceland-device 0.28-46 also headphones and DisplayPort audio. |
 | Microphones (2) | Both microphones work at stock's gain. GNOME's default input is a processed source (echo cancellation, gain control, noise suppression); the raw source is kept. |
 | Echo cancellation and loopback sound test | WebRTC echo cancellation runs on the default microphone source, followed by a limiter, so the processed output does not clip. An automatic loopback test (tones, sweep, speech-like) checks the whole chain. |
 | All six speakers in stereo | All six speakers play in stereo with the sides correct and left / right balanced. |
 | Speaker level | The speakers play as loud as on stock, with the amplifiers at stock's settings. Confirmed working by the owner on 22 Oct 2026. |
 | Speaker protection (PipeWire chain) | A protective PipeWire filter chain (150 Hz high-pass, compressor, limiter) runs in front of the six amplifiers and leaves no clipped samples. |
 | GNOME volume bar and input slider | Both follow GNOME's curve within about 1 dB. |
-| Headset over USB-C | Headsets on the USB-C port. Confirmed working by the owner on 22 Oct 2026. The codec is detected as WCD939x v2.0 and gets the vendor's bandgap setting (kernel q90w2). |
 
 ## Connectivity
 
@@ -146,7 +146,7 @@ This list shows the 110 features that work today, sorted by functionality. Featu
 | Rear flash LEDs | Both LEDs work as a torch. |
 | Accelerometer, compass, light / proximity | All four sensor types appear at boot through the ADSP sensor hub (hexagonrpc 1.iceland2, libssc, iio-sensor-proxy 3.9-11.iceland1). The stream stops across sleep, the light sensor is filtered to steady values, and the login screen no longer holds the light sensor. |
 | Gyroscope (sensor hub) | Read through the sensor hub at about 24 Hz, with a mean near 0 rad/s at rest. |
-| Cameras (13 MP rear, 8 MP front) | The 13 MP rear (SC1320CS) and 8 MP front (SC820CS) cameras stream through Fedora's libcamera 0.7.1-2, with the orientation matching the display; the rear lens actuator is powered only while streaming. |
+| Cameras (13 MP rear, 8 MP front) | The 13 MP rear (SC1320CS) and 8 MP front (SC820CS) cameras stream through Fedora's libcamera 0.7.1-2, with the orientation matching the display; the rear lens actuator is powered only while streaming. Switching between front and rear works (20 of 20 on kernel q91c). |
 | Camera app on the installed image | GNOME Camera (Snapshot) works with both cameras (40 of 40 open / close cycles clean). |
 
 ## Software & packaging
@@ -154,7 +154,7 @@ This list shows the 110 features that work today, sorted by functionality. Featu
 | Feature | What works |
 |---|---|
 | Kernel package (kernel-iceland) | kernel-iceland RPMs (current 7.3.0.next.20261020.iceland.00463) install and update with dnf on the installed system: a new kernel boots once as a trial and becomes the default after a confirmed boot. The camera and backlight modules are included; no firmware is inside. The kernel and the package record a neutral build host name. |
-| Device package (iceland-device) | iceland-device 0.28-32 carries the tablet's settings: the battery guard, the thermal policy, the sound chain, the sensor and Bluetooth address services, the power-key handling, the GPU firmware choice, the refresh-rate switch and the power-saving boot options (suspend-to-idle as the kernel's default, idle refresh, CLX, the display and GPU interrupts kept on CPU 0, device interrupts off the prime cores), automatic brightness by default and the device-mapper option that lets TRIM reach the flash. |
+| Device package (iceland-device) | iceland-device 0.28-46 carries the tablet's settings: the battery guard, the thermal policy, the sound profile (speakers, headphones, DisplayPort audio), the memory settings, the sensor and Bluetooth address services, the power-key handling, the GPU firmware choice, the refresh-rate switch and the power-saving boot options (suspend-to-idle as the kernel's default, idle refresh, CLX, the display and GPU interrupts kept on CPU 0, device interrupts off the prime cores), automatic brightness by default and the device-mapper option that lets TRIM reach the flash. |
 | Update policy and minimal package holds | Fedora 44 updates normally, with a read-only snapshot before each transaction and a GRUB rollback entry. Kernels and the project's packages come only from the local repository, and the release is pinned to 44. |
 | Full GNOME app set | Fedora 44 Workstation's default GNOME apps, the on-screen keyboard and GNOME Software with Flathub. Confirmed working by the owner on 22 Oct 2026. |
 | Android apps (DroidLoom) | Android apps through DroidLoom (Android 17 in a container): each app in its own window with a title bar and Close, a left-edge swipe for Back, an AndroidVM menu folder and the androidvm manager. Confirmed working by the owner on 24 Oct 2026. |
