@@ -13,6 +13,24 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 [iceland-vms](https://github.com/mzakamin-hub/iceland-vms) ·
 [iceland-droidloom](https://github.com/mzakamin-hub/iceland-droidloom) (all public).
 
+## 2026-11-02 - iceland-device 0.28-46: headphones and DisplayPort audio, memory settings, camera tuning for libcamera 0.8
+
+- [iceland-device 0.28-46](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-46):
+  - sound: the UCM profile gains Headphones (stock's headphone values), a headset microphone and HDMI0 (DisplayPort
+    audio) next to Speaker and Mic; the internal back microphone moves to ADC3 (ADC2 is the headset microphone's only
+    input); the microphones record in the ADC HiFi mode; speakers, headphones and microphones offer 32-bit samples.
+    The headphone path needs a kernel with the 24-bit RX codec DMA (q91); an analog headset on the USB-C port needs a
+    device tree with the codec's Type-C accessory mode;
+  - memory: zram compresses with lz4 and recompresses pages idle for an hour with zstd, MGLRU keeps the working set of
+    the last second (`min_ttl_ms` 1000), GPU buffers stay out of swap; `iceland-mthp` switches 64 KiB anonymous mTHP
+    on as an opt-in (off by default);
+  - cameras: the tuning files are installed for libcamera 0.8 (`ipa/softisp/`) with links for 0.7 (`ipa/simple/`).
+- Tested on the tablet with kernel q91c (`7.4.0-rc1-iceland-00618`, v7.4-rc1 base, not released yet): both cameras
+  stream and switch front / rear 20 of 20; the Headphones and DisplayPort sinks are listed; the memory settings read
+  back; vkmark 23586, glmark2 6429, 0 GPU errors.
+- The feature matrix row "Headset over USB-C" is corrected to in progress: an analog headset needs the accessory-mode
+  device tree, and listening with a headset is still to be done.
+
 ## 2026-10-30 - kernel q90z, iceland-device 0.28-45; the rails device-tree variant is no longer needed
 
 - Kernel q90z (`7.3.0-next-20261020-iceland-00572`) is the newest release
