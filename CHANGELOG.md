@@ -13,8 +13,10 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 [iceland-vms](https://github.com/mzakamin-hub/iceland-vms) ·
 [iceland-droidloom](https://github.com/mzakamin-hub/iceland-droidloom) (all public).
 
-## 2026-11-02 - iceland-device 0.28-46: headphones and DisplayPort audio, memory settings, camera tuning for libcamera 0.8
+## 2026-11-02 - kernel q91c (Linux v7.4-rc1 base) and iceland-device 0.28-46: headphones and DisplayPort audio, memory settings, camera tuning for libcamera 0.8
 
+- Kernel q91c (`7.4.0-rc1-iceland-00618`, the patch queue on Linux `v7.4-rc1`) is the newest release
+  ([q91c](https://github.com/mzakamin-hub/iceland-linux/releases/tag/q91c): kernel RPM, source RPM, `SHA256SUMS`).
 - [iceland-device 0.28-46](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-46):
   - sound: the UCM profile gains Headphones (stock's headphone values), a headset microphone and HDMI0 (DisplayPort
     audio) next to Speaker and Mic; the internal back microphone moves to ADC3 (ADC2 is the headset microphone's only
@@ -24,8 +26,13 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
   - memory: zram compresses with lz4 and recompresses pages idle for an hour with zstd, MGLRU keeps the working set of
     the last second (`min_ttl_ms` 1000), GPU buffers stay out of swap; `iceland-mthp` switches 64 KiB anonymous mTHP
     on as an opt-in (off by default);
-  - cameras: the tuning files are installed for libcamera 0.8 (`ipa/softisp/`) with links for 0.7 (`ipa/simple/`).
-- Tested on the tablet with kernel q91c (`7.4.0-rc1-iceland-00618`, v7.4-rc1 base, not released yet): both cameras
+  - cameras: the tuning files are installed for libcamera 0.8 (`ipa/softisp/`) with links for 0.7 (`ipa/simple/`);
+  - GPU: two switches of kernel q91c, off in the kernel by default, are on through the managed kernel command line:
+    `msm.a8xx_ab_vote=1` (average-bandwidth votes to the GMU) and `msm.gmu_hfi_irq_fix=1` (the HFI interrupt acks only
+    the GMU CM3 fault bit), only on boot entries of kernels that know them. q91c with both on: 0 GMU / HFI / hang
+    errors, including 2 s2idle cycles; the performance / power effect is not measured yet. Opt out: `GPU_AB_VOTE=0` /
+    `GMU_HFI_FIX=0` in `/etc/iceland/boot.conf`, then `sudo /usr/libexec/iceland/iceland-cmdline` (next boot).
+- Tested on the tablet with kernel q91c: both cameras
   stream and switch front / rear 20 of 20; the Headphones and DisplayPort sinks are listed; the memory settings read
   back; vkmark 23586, glmark2 6429, 0 GPU errors.
 - The feature matrix row "Headset over USB-C" is corrected to in progress: an analog headset needs the accessory-mode

@@ -1,6 +1,6 @@
 # OnePlus Pad 4 mainline: what works
 
-Status 2 Nov 2026. Fedora 44 is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel); the project's tablet runs KDE Plasma 6, the install image sets up GNOME 50. Current versions: kernel 7.3.0-next-20261020-iceland-00555 (q90x, the patch queue on linux-next next-20261020; iceland-linux branch iceland-7.3-rc7-next, release q90x), iceland-firmware 11.A.38-6, U-Boot install build v7, iceland-gvm 0.3-59, iceland-vms 0.2-25 and iceland-qemu-gunyah 10.0.2-1 (virtual machines). The newest iceland-device release is 0.28-46.
+Status 2 Nov 2026. Fedora 44 is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel); the project's tablet runs KDE Plasma 6, the install image sets up GNOME 50. Current versions: kernel 7.4.0-rc1-iceland-00618 (q91c, the patch queue on Linux v7.4-rc1; iceland-linux branch release/q91c, release q91c), iceland-firmware 11.A.38-6, U-Boot install build v7, iceland-gvm 0.3-59, iceland-vms 0.2-25 and iceland-qemu-gunyah 10.0.2-1 (virtual machines). The newest iceland-device release is 0.28-46.
 
 This list shows the 110 features that work today, sorted by functionality. Features that are still being worked on are not listed.
 
@@ -10,7 +10,7 @@ This list shows the 110 features that work today, sorted by functionality. Featu
 |---|---|
 | U-Boot (install build and RAM boot) | The stock boot loader (ABL) starts U-Boot from boot_b, and U-Boot starts Fedora through EFI. The install build (v7 since 17 Oct 2026) shows a power-on boot menu on the keys (Fedora, BlissROM on the dual-boot layout, or the boot loader's fastboot), boots Fedora by default and never resets or powers off by itself. A RAM-boot build gives display, USB fastboot, UFS read and EFI, with fastboot flashing compiled out. |
 | U-Boot boot setting for single or dual boot | Boots a “fedora” partition if there is one, else the Fedora image in userdata. |
-| Linux (7.4 base) | Linux with the Pad 4 patch queue on linux-next next-20261020 (Linux 7.3 plus the trees queued for 7.4; current kernel 7.3.0-next-20261020-iceland-00555, q90x, iceland-linux branch iceland-7.3-rc7-next and its q90x release) boots through U-Boot's EFI, Fedora's shim and GRUB. |
+| Linux (7.4 base) | Linux with the Pad 4 patch queue on Linux v7.4-rc1 (current kernel 7.4.0-rc1-iceland-00618, q91c, iceland-linux branch release/q91c and its q91c release) boots through U-Boot's EFI, Fedora's shim and GRUB. |
 | Internal storage (UFS 4) | UFS 4 with 4 KiB blocks in MCQ mode (9 hardware queues per LUN), about 2.3 GB/s direct read. The installed root is btrfs (zstd compression) in userdata; with iceland-device 0.28-32's device-mapper option (iceland.carrier.map=dm) TRIM reaches the flash (fstrim, btrfs discard=async). The LUNs use the none I/O scheduler. |
 | Hardware watchdog | qcom_wdt with a 30 s timeout, fed by systemd: a hung system reboots by itself. |
 | System cache (LLCC) and memory error counters | The system cache driver (qcom-llcc) binds, and EDAC reports the memory error counters (no errors recorded). |
