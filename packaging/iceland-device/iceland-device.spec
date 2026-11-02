@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        45%{?dist}
+Release:        46%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -236,6 +236,14 @@ Source219:      iceland-kde-brightness-curve.service
 Source220:      iceland-cover-detect
 Source221:      iceland-cover-detect.service
 Source222:      cover-detect.conf
+# 0.28-46 memory: GPU buffers out of swap, MGLRU min_ttl, zram lz4 + zstd recompression,
+# the 64 KiB mTHP A/B switch (off by default)
+Source230:      iceland-memory.conf
+Source231:      60-iceland-zram.conf
+Source232:      iceland-zram-recompress
+Source233:      iceland-zram-recompress.service
+Source234:      iceland-zram-recompress.timer
+Source235:      iceland-mthp
 
 Requires:       kernel-iceland
 # 0.28-19: stock's GPU GMU / SQE pair (/usr/lib/firmware/iceland-gpu-stock, GPU_FW=stock); 0.28-20: the vendor pair
@@ -488,8 +496,13 @@ install -Dm0644 %{SOURCE30} %{buildroot}/usr/lib/systemd/system/iceland-ssc-resu
 install -Dm0755 %{SOURCE220} %{buildroot}/usr/libexec/iceland/iceland-cover-detect
 install -Dm0644 %{SOURCE221} %{buildroot}/usr/lib/systemd/system/iceland-cover-detect.service
 install -Dm0644 %{SOURCE222} %{buildroot}/etc/iceland/cover-detect.conf
-install -Dm0644 %{SOURCE31} %{buildroot}/usr/share/libcamera/ipa/simple/sc1320cs.yaml
-install -Dm0644 %{SOURCE34} %{buildroot}/usr/share/libcamera/ipa/simple/sc820cs.yaml
+# libcamera >= 0.8.0 reads the soft ISP tuning from ipa/softisp/ (IPA renamed from "simple"); the links in
+# ipa/simple/ keep libcamera 0.7.x working with the same files
+install -Dm0644 %{SOURCE31} %{buildroot}/usr/share/libcamera/ipa/softisp/sc1320cs.yaml
+install -Dm0644 %{SOURCE34} %{buildroot}/usr/share/libcamera/ipa/softisp/sc820cs.yaml
+install -d %{buildroot}/usr/share/libcamera/ipa/simple
+ln -s ../softisp/sc1320cs.yaml %{buildroot}/usr/share/libcamera/ipa/simple/sc1320cs.yaml
+ln -s ../softisp/sc820cs.yaml %{buildroot}/usr/share/libcamera/ipa/simple/sc820cs.yaml
 install -Dm0644 %{SOURCE35} %{buildroot}/usr/share/wireplumber/wireplumber.conf.d/51-iceland-camera.conf
 install -Dm0644 %{SOURCE39} %{buildroot}/usr/lib/udev/rules.d/71-iceland-dma-heap.rules
 install -Dm0644 %{SOURCE32} %{buildroot}/usr/lib/udev/hwdb.d/61-iceland-battery.hwdb
@@ -596,6 +609,14 @@ install -Dm0644 %{SOURCE155} %{buildroot}/usr/lib/systemd/system-preset/50-icela
 install -Dm0644 %{SOURCE156} %{buildroot}/usr/lib/systemd/system-preset/50-iceland-abrt.preset
 install -Dm0644 %{SOURCE157} %{buildroot}/usr/lib/sysctl.d/60-iceland-vm.conf
 install -Dm0644 %{SOURCE158} %{buildroot}/usr/lib/tmpfiles.d/iceland-thp.conf
+install -Dm0644 %{SOURCE230} %{buildroot}/usr/lib/tmpfiles.d/iceland-memory.conf
+install -Dm0644 %{SOURCE231} %{buildroot}/usr/lib/systemd/zram-generator.conf.d/60-iceland-zram.conf
+install -Dm0755 %{SOURCE232} %{buildroot}/usr/libexec/iceland/iceland-zram-recompress
+install -Dm0644 %{SOURCE233} %{buildroot}/usr/lib/systemd/system/iceland-zram-recompress.service
+install -Dm0644 %{SOURCE234} %{buildroot}/usr/lib/systemd/system/iceland-zram-recompress.timer
+install -d %{buildroot}/usr/lib/systemd/system/timers.target.wants
+ln -s ../iceland-zram-recompress.timer %{buildroot}/usr/lib/systemd/system/timers.target.wants/iceland-zram-recompress.timer
+install -Dm0755 %{SOURCE235} %{buildroot}/usr/bin/iceland-mthp
 install -Dm0644 %{SOURCE159} %{buildroot}/usr/share/polkit-1/rules.d/49-iceland-no-sleep-override.rules
 install -d %{buildroot}/var/lib/iceland/trial
 # 0.28-36: iceland-device-kde
@@ -884,6 +905,14 @@ dconf update >/dev/null 2>&1 || :
 /usr/lib/systemd/system-preset/50-iceland-abrt.preset
 /usr/lib/sysctl.d/60-iceland-vm.conf
 /usr/lib/tmpfiles.d/iceland-thp.conf
+/usr/lib/tmpfiles.d/iceland-memory.conf
+%dir /usr/lib/systemd/zram-generator.conf.d
+/usr/lib/systemd/zram-generator.conf.d/60-iceland-zram.conf
+/usr/libexec/iceland/iceland-zram-recompress
+/usr/lib/systemd/system/iceland-zram-recompress.service
+/usr/lib/systemd/system/iceland-zram-recompress.timer
+/usr/lib/systemd/system/timers.target.wants/iceland-zram-recompress.timer
+/usr/bin/iceland-mthp
 /usr/share/polkit-1/rules.d/49-iceland-no-sleep-override.rules
 /usr/lib/systemd/system/iceland-npu-off.service
 %config(noreplace) /etc/sysconfig/regdomain
@@ -921,6 +950,10 @@ dconf update >/dev/null 2>&1 || :
 /usr/libexec/iceland/iceland-cover-detect
 /usr/lib/systemd/system/iceland-cover-detect.service
 %config(noreplace) /etc/iceland/cover-detect.conf
+%dir /usr/share/libcamera/ipa/softisp
+%dir /usr/share/libcamera/ipa/simple
+/usr/share/libcamera/ipa/softisp/sc1320cs.yaml
+/usr/share/libcamera/ipa/softisp/sc820cs.yaml
 /usr/share/libcamera/ipa/simple/sc1320cs.yaml
 /usr/share/libcamera/ipa/simple/sc820cs.yaml
 /usr/share/wireplumber/wireplumber.conf.d/51-iceland-camera.conf
@@ -1035,6 +1068,23 @@ dconf update >/dev/null 2>&1 || :
 %dir %attr(0700,root,root) /var/lib/iceland/kde-curve
 
 %changelog
+* Mon Nov 02 2026 mzak <mzak.amin@gmail.com> - 0.28-46
+- sound: the ALSA UCM profile gains Headphones (MultiMedia2 to the WCD9395 headphone amplifier; stock's headphone
+  values: class-H HiFi, low-power HiFi mode, compander on, RX digital volume -2 dB, DSP stream gain at 0 dB; the jack
+  mutes the speakers' port), a headset microphone (ADC2, low-power mode, as stock) and HDMI0 (DisplayPort audio on
+  MultiMedia6) next to Speaker and Mic; the internal back microphone moves from ADC2 to ADC3 (ADC2 is the only input
+  of the headset microphone); the internal microphones record in the ADC HiFi mode (stock's); speakers, headphones and
+  microphones offer 32-bit samples. The headphone path needs kernel q91 or later (24-bit RX codec DMA); an analog
+  headset on the USB-C port needs a device tree with the codec's Type-C accessory mode.
+- memory: GPU buffers stay out of swap (tmpfiles.d/iceland-memory.conf: msm enable_eviction N) and the MGLRU
+  working-set protection is on (lru_gen min_ttl_ms 1000); zram0 compresses with lz4 and recompresses pages idle for an
+  hour with zstd (zram-generator.conf.d/60-iceland-zram.conf, iceland-zram-recompress.timer, hourly at idle
+  priority; from the next boot); new command iceland-mthp: 64 KiB anonymous multi-size THP as an opt-in switch
+  (status | off | inherit | always), off by default.
+- cameras: the soft ISP tuning files sc1320cs.yaml / sc820cs.yaml move to /usr/share/libcamera/ipa/softisp/, where
+  libcamera 0.8.0 looks for them (its soft IPA is named "softisp" now); /usr/share/libcamera/ipa/simple/ keeps
+  links to them for libcamera 0.7.x. The files themselves are unchanged.
+
 * Fri Oct 30 2026 mzak <mzak.amin@gmail.com> - 0.28-45
 - memory: swap settings for zram in 60-iceland-vm.conf: vm.swappiness 180, vm.page-cluster 0,
   vm.watermark_boost_factor 0, vm.watermark_scale_factor 125 (the only swap is zram; the kernel's defaults are tuned

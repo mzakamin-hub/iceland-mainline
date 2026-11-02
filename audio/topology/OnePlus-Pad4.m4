@@ -22,17 +22,22 @@ define(`VOL_CTRL_MAX', `8192')dnl
 # | [WR_SH] -> [PCM DEC] -> [PCM CONV] -> [LOG]  |- Kcontrol
 # |______________________________________________|
 #
-dnl Playback MultiMedia1
+dnl Playback MultiMedia1 (speakers): 16 or 32 bit. Stock plays the speakers 32 bit end to end; PipeWire's float
+dnl volume and filter chain then reach the DSP without being cut to 16 bit (low levels keep their resolution). The
+dnl DSP gain cap (VOL_CTRL_MAX) and the TDM back end (S32_LE, 8 x 32 bit) are unchanged.
 STREAM_SG_PCM_ADD(audioreach/subgraph-stream-vol-playback-capped.m4, FRONTEND_DAI_MULTIMEDIA1,
-	`S16_LE', 48000, 48000, 2, 2,
+	``S16_LE,S32_LE'', 48000, 48000, 2, 2,
 	0x00004001, 0x00004001, 0x00006001, `110000')
-dnl Playback MultiMedia2
+dnl Playback MultiMedia2 (headphones, UCM): 16 or 32 bit, as MultiMedia1. Not S24_LE: q6apm describes a 24-bit
+dnl stream as packed 24 bit, while ALSA's S24_LE has 32-bit words (it plays silence).
 STREAM_SG_PCM_ADD(audioreach/subgraph-stream-vol-playback-capped.m4, FRONTEND_DAI_MULTIMEDIA2,
-	`S16_LE', 48000, 48000, 2, 2,
+	``S16_LE,S32_LE'', 48000, 48000, 2, 2,
 	0x00004002, 0x00004002, 0x00006010, `110000')
-dnl Capture MultiMedia3
+dnl Capture MultiMedia3 (microphones, UCM): 16 or 32 bit. Stock records 24 bit; the TX codec DMA back end runs
+dnl 24-bit samples (kernel: sc8280xp, record 24-bit samples on the OnePlus Pad 4) and a 32-bit capture keeps them
+dnl (kernel: q6apm-dai, allow 32-bit capture). The +14 dB after the echo canceller then lifts no 16-bit noise floor.
 STREAM_SG_PCM_ADD(audioreach/subgraph-stream-capture.m4, FRONTEND_DAI_MULTIMEDIA3,
-	`S16_LE', 48000, 48000, 1, 2,
+	``S16_LE,S32_LE'', 48000, 48000, 1, 2,
 	0x00004003, 0x00004003, 0x00006020, `110000')
 dnl Capture MultiMedia4
 STREAM_SG_PCM_ADD(audioreach/subgraph-stream-capture.m4, FRONTEND_DAI_MULTIMEDIA4,
@@ -82,9 +87,12 @@ DEVICE_SG_ADD(audioreach/subgraph-device-tdm-playback.m4, `Primary', PRIMARY_TDM
 	LPAIF_INTF_TYPE_LPAIF, I2S_INTF_TYPE_PRIMARY, 0, DATA_FORMAT_FIXED_POINT,
 	0x00004006, 0x00004006, 0x00006060, `PRIMARY_TDM_RX_0')
 dnl
-dnl WCDRX Playback
+dnl WCDRX Playback (headphones, fed by MultiMedia2 through the UCM): 24-bit samples in 32-bit words, as stock's
+dnl CODEC_DMA-LPAIF_RXTX-RX-0. On Kaanapali the RX macro receives nothing from a 16-bit RX codec DMA. The
+dnl back end's real format comes from the kernel's hw_params fixup (sc8280xp: run the Kaanapali RX codec DMA at
+dnl 24 bit); the format here documents it (the device subgraph does not use it).
 DEVICE_SG_ADD(audioreach/subgraph-device-codec-dma-playback.m4, `RX_CODEC_DMA_RX_0', RX_CODEC_DMA_RX_0,
-	`S16_LE', 48000, 48000, 2, 2,
+	`S24_LE', 48000, 48000, 2, 2,
 	LPAIF_INTF_TYPE_RXTX, CODEC_INTF_IDX_RX0, 0, DATA_FORMAT_FIXED_POINT,
 	0x00004007, 0x00004007, 0x00006070)
 dnl
@@ -94,9 +102,9 @@ DEVICE_SG_ADD(audioreach/subgraph-device-codec-dma-capture.m4, `VA_CODEC_DMA_TX_
 	LPAIF_INTF_TYPE_VA, CODEC_INTF_IDX_TX0, 0, DATA_FORMAT_FIXED_POINT,
 	0x00004008, 0x00004008, 0x00006080)
 dnl
-dnl WCDTX Capture
+dnl WCDTX Capture: 24-bit samples in 32-bit words (stock); the kernel's hw_params fixup sets the real format
 DEVICE_SG_ADD(audioreach/subgraph-device-codec-dma-capture.m4, `TX_CODEC_DMA_TX_3', TX_CODEC_DMA_TX_3,
-	`S16_LE', 48000, 48000, 1, 2,
+	`S24_LE', 48000, 48000, 1, 2,
 	LPAIF_INTF_TYPE_RXTX, CODEC_INTF_IDX_TX3, 0, DATA_FORMAT_FIXED_POINT,
 	0x00004009, 0x00004009, 0x00006090)
 dnl

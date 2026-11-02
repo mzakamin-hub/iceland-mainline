@@ -172,7 +172,7 @@ From `packaging/iceland-device/README.md` and the spec (version 0.28-8). The fil
 | (no helper) the kernel's backlight driver (q90x and later) | stock's default brightness (1417 of 4095) on a first boot without a saved brightness | nothing to do with kernel q90x or later |
 | `60-iceland-wifi-powersave.conf` (NetworkManager) | Wi-Fi power saving | same |
 | `hexagonrpcd-adsp-sensorspd-iceland.conf`, `iio-sensor-proxy-iceland.conf`, `iceland-ssc-wait`, `iceland-ssc-resume.service` | sensor service order, readiness wait, restart after a suspend | same, once the sensor packages exist (section 6) |
-| `sc1320cs.yaml`, `sc820cs.yaml` (`/usr/share/libcamera/ipa/simple/`) | the cameras' black level for the soft ISP | same path |
+| `sc1320cs.yaml`, `sc820cs.yaml` (`/usr/share/libcamera/ipa/softisp/`; `ipa/simple/` before libcamera 0.8.0) | the cameras' black level for the soft ISP | same path |
 | `51-iceland-camera.conf` (WirePlumber) | hides the raw CAMSS video nodes | same, but **WirePlumber 0.5.17 stalls with it** (0 camera sources); require >= 0.5.18 or leave the rule out |
 | `iceland-camera-focus` + service | lens at stock's start position while the rear camera streams | same |
 | `machine-info` | GNOME's About shows "OnePlus Pad 4" | `/etc/machine-info` |

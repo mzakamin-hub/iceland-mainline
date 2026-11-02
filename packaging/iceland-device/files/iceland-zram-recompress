@@ -1,0 +1,35 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-zram-recompress (iceland-device 0.28-46): recompress the zram pages nobody touched for an hour with the
+# device's recompression algorithm (zstd; /usr/lib/systemd/zram-generator.conf.d/60-iceland-zram.conf makes lz4 the
+# primary one). Run by iceland-zram-recompress.timer at idle CPU / IO priority.
+#   iceland-zram-recompress [status]
+# 1. idle marking: writing a number of seconds to /sys/block/zram0/idle marks the pages not accessed for that long
+#    (CONFIG_ZRAM_TRACK_ENTRY_ACTIME);
+# 2. "type=idle" to /sys/block/zram0/recompress recompresses the marked pages with the recompression algorithm
+#    (priority 1); a page that zstd does not make smaller stays as it is. max_pages bounds one run (256 MiB of
+#    pages), so a run never takes long on a busy device.
+# Nothing happens without a recompression algorithm (recomp_algorithm empty: an older zram-generator, the drop-in
+# masked, or another algorithm set by the owner) or without zram0.
+set -u
+Z=/sys/block/zram0
+AGE=${ICELAND_ZRAM_IDLE_AGE:-3600}
+MAXPAGES=${ICELAND_ZRAM_MAX_PAGES:-65536}
+mm() { awk '{ printf "orig %d MiB, compressed %d MiB, used %d MiB, huge %d pages", $1 / 1048576, $2 / 1048576, $3 / 1048576, $8 }' "$Z/mm_stat" 2>/dev/null; }
+if [ "${1:-}" = status ]; then
+	[ -e "$Z/comp_algorithm" ] || { echo "no zram0"; exit 0; }
+	echo "comp_algorithm:   $(cat "$Z/comp_algorithm")"
+	echo "recomp_algorithm: $(tr '\n' ' ' < "$Z/recomp_algorithm" 2>/dev/null)"
+	echo "mm_stat:          $(mm)"
+	exit 0
+fi
+[ -w "$Z/recompress" ] && [ -w "$Z/idle" ] || { echo "iceland-zram-recompress: no zram0 with recompression - nothing to do"; exit 0; }
+grep -q '[a-z]' "$Z/recomp_algorithm" 2>/dev/null || { echo "iceland-zram-recompress: zram0 has no recompression algorithm - nothing to do"; exit 0; }
+[ "$(cat "$Z/disksize" 2>/dev/null)" != 0 ] || { echo "iceland-zram-recompress: zram0 not set up - nothing to do"; exit 0; }
+before=$(mm)
+if ! echo "$AGE" > "$Z/idle" 2>/dev/null; then
+	# a kernel without per-entry access times only knows "all"
+	echo all > "$Z/idle" || { echo "iceland-zram-recompress: cannot mark idle pages"; exit 1; }
+fi
+echo "type=idle max_pages=$MAXPAGES" > "$Z/recompress" || { echo "iceland-zram-recompress: recompress failed"; exit 1; }
+echo "iceland-zram-recompress: pages idle >= ${AGE}s recompressed (max $MAXPAGES); before: $before; after: $(mm)"
