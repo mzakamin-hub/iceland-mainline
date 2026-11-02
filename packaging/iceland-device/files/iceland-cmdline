@@ -87,11 +87,22 @@
 #     line when it loads, so the global domain is the country's before ath12k registers its wiphy. The kernel's
 #     regulatory hint options (CERTIFICATION_ONUS / ATH_REG_DYNAMIC_USER_REG_HINTS) stay off: the WCN7860 firmware
 #     keeps its own (US) domain; this sets the kernel's side, as iw reg set did.
+# 11. 0.28-46, two GPU switches of kernel q91c (7.4.0-rc1-iceland-00618) and later, both off in the kernel by default:
+#       GPU_AB_VOTE=1 (default, also when the key is missing): msm.a8xx_ab_vote=1 - the A8xx GMU also gets average-
+#                 bandwidth (AB) votes with each GPU frequency, as Qualcomm's KGSL sends them
+#       GMU_HFI_FIX=1 (default, also when the key is missing): msm.gmu_hfi_irq_fix=1 - the HFI interrupt acknowledges
+#                 only the GMU CM3 fault bit of this GMU firmware, and the crash-dump waits are bounded (as the
+#                 downstream driver)
+#     Kernel q91c run with both on: 0 GMU / HFI / hang errors, including 2 s2idle cycles; the performance / power
+#     effect is not measured yet. Only an entry whose kernel knows the parameter gets it (its built-in msm lists it in
+#     /usr/lib/modules/<version>/modules.builtin.modinfo); older kernels' entries lose it. 0 = the option removed (the
+#     kernel's default, off); keep = not managed. A value in GRUB's $iceland_args still wins.
 # ICELAND_ROOT (tests only): the root to work on.
 R=${ICELAND_ROOT:-}
 ARGS="clk_ignore_unused pd_ignore_unused regulator_ignore_unused"
 IDLE_GOV=teo; RCU_LAZY=1; GPU_FW=vendor533; GPU_PREEMPT=auto; MEM_SLEEP=s2idle
 IDLE_RR=30; BW_FLOOR=0; CLX=1; CLX_TZ=1; SPLASH=keep; PSEUDO_NMI=0; GLITCH=1; WIFI_REGDOM=auto
+GPU_AB_VOTE=1; GMU_HFI_FIX=1
 FW=/usr/lib/firmware
 # 0.28-40: the glitch-hunt display options (their values = the q90p+ kernel defaults)
 GLITCH_OPTS="msm.dpu_vid_idle_irq_off=0 msm.dpu_dsc_once=1 msm.dpu_pending_flush_clear=1 msm.dpu_vfp_inplace=1
@@ -117,6 +128,8 @@ if [ -r "$R/etc/iceland/boot.conf" ]; then
 	v=$(sed -n 's/^GLITCH=\([a-z0-9]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); case "$v" in 1|keep) GLITCH=$v ;; esac
 	v=$(sed -n 's/^WIFI_REGDOM=\([A-Za-z0-9]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1)
 	case "$v" in auto|keep|0) WIFI_REGDOM=$v ;; [A-Za-z][A-Za-z]) WIFI_REGDOM=$(echo "$v" | tr a-z A-Z) ;; esac
+	v=$(sed -n 's/^GPU_AB_VOTE=\([a-z0-9]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); case "$v" in 1|0|keep) GPU_AB_VOTE=$v ;; esac
+	v=$(sed -n 's/^GMU_HFI_FIX=\([a-z0-9]*\)[[:space:]]*$/\1/p' "$R/etc/iceland/boot.conf" | tail -n 1); case "$v" in 1|0|keep) GMU_HFI_FIX=$v ;; esac
 fi
 if [ "$PSEUDO_NMI" = 1 ]; then
 	echo "iceland-cmdline: PSEUDO_NMI=1 refused: GIC pseudo-NMI hangs the boot under the Gunyah hypervisor (unsupported on the OnePlus Pad 4); the option is removed" >&2
@@ -147,8 +160,15 @@ esac
 # kernel features (0.28-40): kconf VERSION -> D_MSM D_GOV D_NOCB D_S2I (1 / 0) from that kernel's config
 kconf() {
 	c=$R/usr/lib/modules/$1/config; [ -f "$c" ] || c=$R/boot/config-$1
-	D_MSM=0; D_GOV=0; D_NOCB=0; D_S2I=0
-	[ -n "$1" ] && [ -f "$c" ] || return 0
+	D_MSM=0; D_GOV=0; D_NOCB=0; D_S2I=0; K_ABV=0; K_HFI=0
+	[ -n "$1" ] || return 0
+	# 0.28-46: msm parameters the kernel's built-in msm knows
+	m=$R/usr/lib/modules/$1/modules.builtin.modinfo
+	if [ -f "$m" ]; then
+		tr '\000' '\n' < "$m" | grep -qx 'msm.parmtype=a8xx_ab_vote:bool' && K_ABV=1
+		tr '\000' '\n' < "$m" | grep -qx 'msm.parmtype=gmu_hfi_irq_fix:bool' && K_HFI=1
+	fi
+	[ -f "$c" ] || return 0
 	grep -qx 'CONFIG_DRM_MSM_ICELAND_DEFAULTS=y' "$c" && D_MSM=1
 	grep -qx 'CONFIG_CPU_IDLE_GOV_DEFAULT="teo"' "$c" && D_GOV=1
 	grep -qx 'CONFIG_RCU_NOCB_CPU_DEFAULT_ALL=y' "$c" && grep -qx 'CONFIG_RCU_LAZY=y' "$c" && ! grep -qx 'CONFIG_RCU_LAZY_DEFAULT_OFF=y' "$c" && D_NOCB=1
@@ -211,6 +231,15 @@ sets() {
 	case "$SPLASH" in 1) ON="$ON rhgb" ;; 0) OFF="$OFF rhgb" ;; esac
 	# 0.28-44: the Wi-Fi regulatory country
 	case "$REGDOM" in '') ;; off) DROPN="$DROPN cfg80211.ieee80211_regdom" ;; *) ON="$ON cfg80211.ieee80211_regdom=$REGDOM" ;; esac
+	# 0.28-46: the two GPU switches, only for kernels that know them
+	case "$GPU_AB_VOTE" in
+	1) if [ $K_ABV = 1 ]; then ON="$ON msm.a8xx_ab_vote=1"; else DROPN="$DROPN msm.a8xx_ab_vote"; fi ;;
+	0) DROPN="$DROPN msm.a8xx_ab_vote" ;;
+	esac
+	case "$GMU_HFI_FIX" in
+	1) if [ $K_HFI = 1 ]; then ON="$ON msm.gmu_hfi_irq_fix=1"; else DROPN="$DROPN msm.gmu_hfi_irq_fix"; fi ;;
+	0) DROPN="$DROPN msm.gmu_hfi_irq_fix" ;;
+	esac
 	return 0
 }
 fix() { # stdin: one options line -> the managed line (single spaces)

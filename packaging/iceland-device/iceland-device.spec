@@ -1081,6 +1081,13 @@ dconf update >/dev/null 2>&1 || :
   hour with zstd (zram-generator.conf.d/60-iceland-zram.conf, iceland-zram-recompress.timer, hourly at idle
   priority; from the next boot); new command iceland-mthp: 64 KiB anonymous multi-size THP as an opt-in switch
   (status | off | inherit | always), off by default.
+- GPU: two switches of kernel q91c (7.4.0-rc1-iceland-00618) and later are on by default through the managed kernel
+  command line (iceland-cmdline, /etc/iceland/boot.conf): GPU_AB_VOTE=1 -> msm.a8xx_ab_vote=1 (average-bandwidth
+  votes to the A8xx GMU) and GMU_HFI_FIX=1 -> msm.gmu_hfi_irq_fix=1 (the HFI interrupt acks only the GMU CM3 fault
+  bit, bounded crash-dump waits). Both are off in the kernel by default; only boot entries whose kernel knows the
+  parameter (its modules.builtin.modinfo) get them. Kernel q91c with both on: 0 GMU / HFI / hang errors, including
+  2 s2idle cycles; the performance / power effect is not measured yet. Opt out: GPU_AB_VOTE=0 / GMU_HFI_FIX=0 in
+  /etc/iceland/boot.conf, then /usr/libexec/iceland/iceland-cmdline (next boot).
 - cameras: the soft ISP tuning files sc1320cs.yaml / sc820cs.yaml move to /usr/share/libcamera/ipa/softisp/, where
   libcamera 0.8.0 looks for them (its soft IPA is named "softisp" now); /usr/share/libcamera/ipa/simple/ keeps
   links to them for libcamera 0.7.x. The files themselves are unchanged.
