@@ -6,7 +6,8 @@
 #
 # It only writes a request for iceland-battery-guard; the guard is the one writer of charge_behaviour and decides
 # (bypass = one more reason to stop charging, never a reason to charge; every stock limit and the charge limit still
-# apply). Started by D-Bus activation (iceland-bypass.service), runs as root.
+# apply). Started by D-Bus activation (iceland-bypass.service), runs as root; exits after 60 s without a call
+# (0.28-47, ICELAND_BYPASS_IDLE) and is activated again by the next one.
 #
 #   Enable(u threshold)   bypass on, hold from <threshold> % (20..100; stock's picker begins at 20 %); needs a charger
 #   Disable()             bypass off
@@ -32,6 +33,7 @@ USB = os.environ.get("ICELAND_USB", "/sys/class/power_supply/qcom-battmgr-usb")
 LEASE_S = int(os.environ.get("ICELAND_BYPASS_LEASE", "300"))   # stock oplus,plc_support_timeout 300000 ms
 THR_MIN, THR_MAX, THR_DEFAULT = 20, 100, 20                     # stock: the picker begins at 20 %, default 20
 STATE_FRESH_S = 30                                               # the guard writes its state at least every 15 s
+IDLE_S = int(os.environ.get("ICELAND_BYPASS_IDLE", "60"))        # 0.28-47: exit after this long without a call
 BUS_NAME, OBJ_PATH, IFACE = "org.iceland.Bypass", "/org/iceland/Bypass", "org.iceland.Bypass"
 ACTION = "org.iceland.bypass.set"
 XML = """<node>
@@ -165,7 +167,10 @@ def main():
             log("iceland-bypassd: polkit check failed: %s" % e.message, syslog.LOG_WARNING)
             return False
 
+    last = [time.monotonic()]
+
     def on_call(conn, sender, path, iface, method, params, inv):
+        last[0] = time.monotonic()
         try:
             if method == "GetState":
                 st = state()
@@ -198,7 +203,21 @@ def main():
         loop.quit()
 
     bus = Gio.BusType.SESSION if session else Gio.BusType.SYSTEM
-    Gio.bus_own_name(bus, BUS_NAME, Gio.BusNameOwnerFlags.NONE, on_bus, None, on_lost)
+    owner = Gio.bus_own_name(bus, BUS_NAME, Gio.BusNameOwnerFlags.NONE, on_bus, None, on_lost)
+
+    # 0.28-47: exit after IDLE_S seconds without a call (D-Bus activation starts the service again on the next one).
+    # Nothing is lost: the request lives in /run/iceland/bypass-request and the guard alone acts on it; while bypass
+    # is on, the toggle's Refresh every 60 s starts the service again. 0 = never exit (as before).
+    def idle_check():
+        if time.monotonic() - last[0] >= IDLE_S:
+            log("iceland-bypassd: idle for %d s, exiting (started again on the next call)" % IDLE_S, syslog.LOG_INFO)
+            Gio.bus_unown_name(owner)
+            loop.quit()
+            return False
+        return True
+
+    if IDLE_S > 0:
+        GLib.timeout_add_seconds(max(1, min(15, IDLE_S // 2)), idle_check)
     loop.run()
     return 0
 

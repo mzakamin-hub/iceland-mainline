@@ -12,9 +12,10 @@
 #   orientation): raw (8.16, 0.02, 5.94) m/s2 -> (0, -8, -5) = "normal".
 # SYSTEMD_WANTS: the node appears when the ADSP is up and fastrpc has bound, early or late in the boot. Both
 #   services start from here (hexagonrpcd first, see the two iceland.conf drop-ins), not from multi-user.target.
+#   0.28-47: the cover detector too (iceland-cover-detect.service has no [Install] section any more).
 ACTION=="remove", GOTO="iceland_ssc_end"
 SUBSYSTEM=="misc", KERNEL=="fastrpc-adsp", \
   ENV{IIO_SENSOR_PROXY_TYPE}="ssc-light ssc-compass ssc-accel ssc-proximity", \
   ENV{ACCEL_MOUNT_MATRIX}="0, 1, 0; -1, 0, 0; 0, 0, -1", \
-  TAG+="systemd", ENV{SYSTEMD_WANTS}+="hexagonrpcd-adsp-sensorspd.service iio-sensor-proxy.service"
+  TAG+="systemd", ENV{SYSTEMD_WANTS}+="hexagonrpcd-adsp-sensorspd.service iio-sensor-proxy.service iceland-cover-detect.service"
 LABEL="iceland_ssc_end"

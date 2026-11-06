@@ -2,7 +2,7 @@
 // org.iceland.bypass (iceland-device-kde 0.28-36): the Plasma form of the GNOME Shell extension iceland-bypass@oneplus-pad4
 // (a system-tray item). Bypass Charging talks to the system service org.iceland.Bypass (iceland-bypassd; polkit
 // org.iceland.bypass.set: the active local session, no password) through busctl, as the extension does through Gio:
-// GetState every 30 s (10 s while open), Enable / Disable / SetThreshold on a tap, and Refresh every 60 s while bypass
+// GetState every 120 s (30 s while bypass is requested, 10 s while open), Enable / Disable / SetThreshold on a tap, and Refresh every 60 s while bypass
 // is requested AND the session is unlocked (the service's 5-minute lease: with the item gone or the screen locked,
 // bypass ends by itself, as with GNOME).
 // The charge limit switch is GNOME Settings' "Preserve Battery Health": UPower's EnableChargeThreshold on the battery
@@ -78,7 +78,9 @@ PlasmoidItem {
     }
 
     Timer {
-        interval: root.expanded ? 10000 : 30000
+        // 0.28-47: every 120 s while bypass is off and the item is closed, so iceland-bypassd (idle exit after 60 s)
+        // is not kept resident by the poll; 30 s while bypass is requested, 10 s while open
+        interval: root.expanded ? 10000 : ((root.st !== null && root.st.requested) ? 30000 : 120000)
         running: true; repeat: true; triggeredOnStart: true
         onTriggered: root.poll()
     }

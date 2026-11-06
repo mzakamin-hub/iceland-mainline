@@ -49,6 +49,7 @@ Source81:       iceland-fwupd-guard
 # charging safety (wf/chgsafe): the GNOME user service that shows the guard's safety stops as desktop notifications
 Source82:       iceland-charge-alert
 Source83:       iceland-charge-alert.service
+Source239:      iceland-charge-alert.path
 # systemd preset (wf/fedtest): keeps the iceland units enabled through the first boot's preset-all
 Source106:      50-iceland.preset
 # sensors: the DSP file tree readable by group fastrpc (hexagonrpcd's user)
@@ -574,6 +575,8 @@ install -Dm0644 %{SOURCE80} %{buildroot}/etc/dnf/protected.d/iceland-device.conf
 install -Dm0755 %{SOURCE81} %{buildroot}/usr/libexec/iceland/iceland-fwupd-guard
 install -Dm0755 %{SOURCE82} %{buildroot}/usr/libexec/iceland/iceland-charge-alert
 install -Dm0644 %{SOURCE83} %{buildroot}/usr/lib/systemd/user/iceland-charge-alert.service
+/usr/lib/systemd/user/iceland-charge-alert.path
+install -Dm0644 %{SOURCE239} %{buildroot}/usr/lib/systemd/user/iceland-charge-alert.path
 install -Dm0755 %{SOURCE198} %{buildroot}/usr/libexec/iceland/iceland-ambient-default
 install -Dm0644 %{SOURCE199} %{buildroot}/usr/lib/systemd/user/iceland-ambient-default.service
 install -Dm0755 %{SOURCE200} %{buildroot}/usr/libexec/iceland/iceland-dmmap
@@ -737,6 +740,11 @@ if [ -d /run/systemd/system ]; then systemctl daemon-reload >/dev/null 2>&1 || :
 # is one check 90 s after its start (armed again by every stop / failure of the proxy): arm it once now
 [ -d /run/systemd/system ] && systemctl start iceland-ssc-watch.timer >/dev/null 2>&1 || :
 systemctl --global enable iceland-refresh.service iceland-charge-alert.service iceland-speaker-default.service >/dev/null 2>&1 || :
+# 0.28-47: the charge alert is a oneshot started by its .path unit (and once at login)
+systemctl --global enable iceland-charge-alert.path >/dev/null 2>&1 || :
+# 0.28-47: the cover detector starts from udev (the sensor hub's node), no longer from multi-user.target: the old
+# enable link goes (the unit has no [Install] section, so systemctl disable cannot name it)
+rm -f /etc/systemd/system/multi-user.target.wants/iceland-cover-detect.service
 # bypass charging: the bus reads the D-Bus policy of iceland-bypassd again (the service starts on demand); a running
 # one takes the new version. polkit sees the new action by itself; the GSettings override is compiled by glib2's
 # file trigger; GNOME Shell loads the extension at the next login.
@@ -844,14 +852,14 @@ fi
 %preun
 [ "$1" -eq 0 ] && systemctl disable iceland-trial-early.service iceland-boot-confirm.service >/dev/null 2>&1 || :
 [ "$1" -eq 0 ] && systemctl disable iceland-slot-mark.service >/dev/null 2>&1 || :
-[ "$1" -eq 0 ] && systemctl --global disable iceland-refresh.service iceland-charge-alert.service iceland-speaker-default.service >/dev/null 2>&1; [ "$1" -eq 0 ] && systemctl disable iceland-ssc-resume.service iceland-npu-off.service iceland-battery-guard.service iceland-bdaddr.service >/dev/null 2>&1 || :
+[ "$1" -eq 0 ] && systemctl --global disable iceland-refresh.service iceland-charge-alert.service iceland-charge-alert.path iceland-speaker-default.service >/dev/null 2>&1; [ "$1" -eq 0 ] && systemctl disable iceland-ssc-resume.service iceland-npu-off.service iceland-battery-guard.service iceland-bdaddr.service >/dev/null 2>&1 || :
 # the thermal policy hands its limits back when it stops
 [ "$1" -eq 0 ] && systemctl disable --now iceland-thermal.service >/dev/null 2>&1 || :
 # the launch boost hands every clamp back when it stops
 [ "$1" -eq 0 ] && systemctl disable --now iceland-launchboost.service >/dev/null 2>&1 || :
 if [ "$1" -eq 0 ]; then if [ -d /run/systemd/system ] && [ -e /sys/fs/selinux/enforce ]; then semodule -r iceland_sensors >/dev/null 2>&1 || :; else semodule -n -r iceland_sensors >/dev/null 2>&1 || :; fi; fi
 if [ "$1" -eq 0 ] && [ -e /var/lib/iceland/.irqbalance-cil-0.28-32 ]; then semodule -r iceland_irqbalance >/dev/null 2>&1 || :; rm -f /var/lib/iceland/.irqbalance-cil-0.28-32; fi
-[ "$1" -eq 0 ] && systemctl disable --now iceland-cover-detect.service >/dev/null 2>&1 || :
+[ "$1" -eq 0 ] && systemctl stop iceland-cover-detect.service >/dev/null 2>&1 || :
 [ "$1" -eq 0 ] && { systemctl disable iceland-storage-summary.service >/dev/null 2>&1; rm -f /var/lib/iceland/.new-unit-*; } || :
 [ "$1" -eq 0 ] && /usr/bin/iceland-power-profiles reset >/dev/null 2>&1 || :
 # bypass charging ends with the package (the running guard gives charging back at its next step)
@@ -1111,6 +1119,14 @@ dconf update >/dev/null 2>&1 || :
   restarted by %%posttrans). avahi-daemon stays the mDNS stack.
 - no OpenCL Recommends (clinfo, mesa-libOpenCL; ~230 MB, never tested on the Adreno 840). An installed copy stays
   until removed by hand (dnf remove mesa-libOpenCL clinfo).
+- iceland-bypassd exits after 60 s without a D-Bus call (ICELAND_BYPASS_IDLE) and is activated again by the next one
+  (about 24 MB less between uses); the request file and the guard are unchanged. The Plasma item polls every 120 s
+  while bypass is off and closed (30 s while requested, 10 s while open), so the poll does not keep it resident.
+- iceland-charge-alert is a oneshot (--once) started by the user unit iceland-charge-alert.path on each change of
+  /run/iceland/charge-alert and once at login: no resident watcher (about 21 MB less).
+- iceland-cover-detect starts from udev when the sensor hub's node /dev/fastrpc-adsp appears (81-iceland-ssc.rules
+  SYSTEMD_WANTS) after iceland-ssc-wait, no longer from multi-user.target (it took 5 s in the boot's start-up list);
+  the old multi-user.target.wants link is removed.
 
 * Mon Nov 02 2026 mzak <mzak.amin@gmail.com> - 0.28-46
 - sound: the ALSA UCM profile gains Headphones (MultiMedia2 to the WCD9395 headphone amplifier; stock's headphone

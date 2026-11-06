@@ -103,7 +103,7 @@ def save_state(st):
         print("iceland-charge-alert: can't keep the state in %s: %s" % (STATE, e), flush=True)
 
 class Alert:
-    def __init__(self):
+    def __init__(self, watch=True):
         from gi.repository import Gio, GLib
         self.Gio, self.GLib = Gio, GLib
         self.bus = Gio.bus_get_sync(Gio.BusType.SESSION)
@@ -112,9 +112,12 @@ class Alert:
                                             "org.freedesktop.Notifications", None)
         self.last = load_state()
         self.retry = None
-        d = Gio.File.new_for_path(os.path.dirname(ALERT))
-        self.mon = d.monitor_directory(Gio.FileMonitorFlags.NONE, None)
-        self.mon.connect("changed", lambda *a: self.check())
+        self.watch = watch
+        self.failed = False
+        if watch:
+            d = Gio.File.new_for_path(os.path.dirname(ALERT))
+            self.mon = d.monitor_directory(Gio.FileMonitorFlags.NONE, None)
+            self.mon.connect("changed", lambda *a: self.check())
 
     def notify(self, summary, body, urgency, replaces, timeout):
         v = self.GLib.Variant("(susssasa{sv}i)", (APP, replaces, ICON, summary, body, [],
@@ -143,7 +146,8 @@ class Alert:
                 print("iceland-charge-alert: event %d %s (%s): nothing to show" % (ev["seq"], ev["kind"], ev.get("why", "")), flush=True)
         except Exception as e:     # the notification service is not there (yet): try again in a while
             print("iceland-charge-alert: event %d not shown (%s), trying again" % (ev["seq"], e), flush=True)
-            if self.retry is None:
+            self.failed = True
+            if self.watch and self.retry is None:
                 self.retry = self.GLib.timeout_add_seconds(15, self.retry_check)
             return False
         self.last["seq"] = ev["seq"]
@@ -161,6 +165,12 @@ def main():
     except ImportError as e:
         print("iceland-charge-alert: python3-gobject missing (%s)" % e, flush=True)
         return 1
+    if "--once" in sys.argv[1:]:
+        # 0.28-47: started by iceland-charge-alert.path when the guard writes an event (and once at login): show it,
+        # exit. Exit 1 when the notification service did not answer: the unit retries (Restart=on-failure).
+        a = Alert(watch=False)
+        a.check()
+        return 1 if a.failed else 0
     a = Alert()
     print("iceland-charge-alert: watching %s (last event shown: %d)" % (ALERT, a.last.get("seq", 0)), flush=True)
     a.check()
