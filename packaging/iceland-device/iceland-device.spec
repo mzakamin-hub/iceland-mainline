@@ -131,6 +131,9 @@ Source142:      61-iceland-mic-gain.conf
 Source121:      iceland-update-check
 # 0.28-47: retires the hand-placed /etc hold files whose content is now in the packaged hold file
 Source236:      iceland-hold-migrate
+# 0.28-47: PowerDevil without the DDC/CI probe (-kde); resolved without LLMNR / mDNS (avahi stays the mDNS stack)
+Source237:      51-iceland-kde-powerdevil.conf
+Source238:      60-iceland-resolved.conf
 # platform defaults (0.26, from the tb323fu-linux review): the sensor stream stopped across a suspend, systemd
 # feeds the hardware watchdog (0.28-6: the wakeup defaults are in the device tree, the GPU floor rule is gone)
 Source124:      iceland-sensors-sleep
@@ -295,12 +298,8 @@ Requires:       device-mapper
 Requires:       nbd
 Requires:       busybox
 Recommends:     snapshot
-# 0.28-29 (GAPS-2026-10-18 G-2): OpenCL through Mesa's rusticl on the Adreno (freedreno); both packages exist for
-# Fedora 44 aarch64 (clinfo in the release, mesa-libOpenCL in updates; ~230 MB with ocl-icd / libclc / clang-libs).
-# Untested on the Adreno 840: the tablet test is `RUSTICL_ENABLE=freedreno clinfo` (Mesa 26.2 enables freedreno in
-# rusticl by default; the variable is harmless). `dnf install --exclude=clinfo,mesa-libOpenCL` leaves them out.
-Recommends:     clinfo
-Recommends:     mesa-libOpenCL
+# 0.28-47: no OpenCL Recommends any more (0.28-29 had clinfo + mesa-libOpenCL: ~230 MB with ocl-icd / libclc /
+# clang-libs, never tested on the Adreno 840). `dnf install mesa-libOpenCL clinfo` adds them by hand.
 # F1 (wf/fedtest, r2g 3 Oct 2026): GNOME Snapshot died with SIGBUS in pipewire 1.6.2's GStreamer device provider
 # (libgstpipewire re-adds its metadata listener when the portal re-announces the default metadata); fixed upstream
 # in PipeWire 1.6.8 (gst: device-provider: don't re-add metadata listener on permission change). The floor pulls
@@ -633,6 +632,8 @@ install -Dm0644 %{SOURCE211} %{buildroot}/usr/lib/systemd/user/iceland-kde-defau
 install -Dm0755 %{SOURCE212} %{buildroot}/usr/bin/iceland-shot
 install -Dm0755 %{SOURCE213} %{buildroot}/usr/bin/iceland-input
 install -Dm0644 %{SOURCE214} %{buildroot}/usr/lib/environment.d/50-iceland-kde-secrets.conf
+install -Dm0644 %{SOURCE237} %{buildroot}/usr/lib/environment.d/51-iceland-kde-powerdevil.conf
+install -Dm0644 %{SOURCE238} %{buildroot}/usr/lib/systemd/resolved.conf.d/60-iceland-resolved.conf
 install -Dm0644 %{SOURCE215} %{buildroot}/usr/share/iceland/session-first/dbus-1/services/org.freedesktop.secrets.service
 install -Dm0644 %{SOURCE216} %{buildroot}/etc/xdg/kwalletrc
 install -Dm0755 %{SOURCE217} %{buildroot}/usr/bin/iceland-secrets-migrate
@@ -655,6 +656,8 @@ fi
 # 0.28-47: the hand-placed /etc/dnf/repos.override.d/53, 54, 55 hold files are in 50-iceland-fedora-hold.repo now;
 # moved to /var/lib/iceland/retired-holds/ only when their content is the known one, else left with a warning
 /usr/libexec/iceland/iceland-hold-migrate || :
+# 0.28-47: resolved reads resolved.conf.d only when it starts
+[ -d /run/systemd/system ] && systemctl try-restart systemd-resolved.service >/dev/null 2>&1 || :
 # install plan: GRUB settings (per-kernel device tree, visible menu, $iceland_args), trial-boot units, udev
 /usr/libexec/iceland/iceland-grub-setup || :
 systemctl enable iceland-trial-early.service iceland-boot-confirm.service >/dev/null 2>&1 || :
@@ -895,6 +898,8 @@ dconf update >/dev/null 2>&1 || :
 /usr/bin/iceland-npu
 /usr/bin/iceland-update-check
 /usr/libexec/iceland/iceland-hold-migrate
+%dir /usr/lib/systemd/resolved.conf.d
+/usr/lib/systemd/resolved.conf.d/60-iceland-resolved.conf
 /usr/lib/systemd/system-sleep/iceland-sensors
 /usr/lib/systemd/system/iio-sensor-proxy.service.d/iceland-sleep.conf
 /usr/libexec/iceland/iceland-sensors-mark
@@ -1065,6 +1070,7 @@ dconf update >/dev/null 2>&1 || :
 /usr/bin/iceland-shot
 /usr/bin/iceland-input
 /usr/lib/environment.d/50-iceland-kde-secrets.conf
+/usr/lib/environment.d/51-iceland-kde-powerdevil.conf
 %dir /usr/share/iceland/session-first
 %dir /usr/share/iceland/session-first/dbus-1
 %dir /usr/share/iceland/session-first/dbus-1/services
@@ -1098,6 +1104,13 @@ dconf update >/dev/null 2>&1 || :
   journal (--dry-run: report only).
 - iceland-update-check --check (no network): every held package that is installed must be our build (release contains
   "iceland"; kernel-iceland by name); FAIL otherwise. The private ffmpeg-free family gives WARN instead.
+- iceland-device-kde: POWERDEVIL_NO_DDCUTIL=1 for the user session (/usr/lib/environment.d/51-iceland-kde-powerdevil.conf;
+  PowerDevil is the systemd user unit plasma-powerdevil.service): no DDC/CI probe of every /dev/i2c-* at each start
+  (8 EACCES lines per start in the 6 Nov probe); the panel is DSI. From the next login.
+- systemd-resolved: LLMNR=no, MulticastDNS=no (/usr/lib/systemd/resolved.conf.d/60-iceland-resolved.conf; resolved
+  restarted by %%posttrans). avahi-daemon stays the mDNS stack.
+- no OpenCL Recommends (clinfo, mesa-libOpenCL; ~230 MB, never tested on the Adreno 840). An installed copy stays
+  until removed by hand (dnf remove mesa-libOpenCL clinfo).
 
 * Mon Nov 02 2026 mzak <mzak.amin@gmail.com> - 0.28-46
 - sound: the ALSA UCM profile gains Headphones (MultiMedia2 to the WCD9395 headphone amplifier; stock's headphone
