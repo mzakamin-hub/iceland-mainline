@@ -1,0 +1,33 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-hold-migrate (iceland-device 0.28-47, run by %posttrans): the hand-placed hold files of Oct 2026 in
+# /etc/dnf/repos.override.d are now part of the packaged 50-iceland-fedora-hold.repo. Each one is moved to
+# /var/lib/iceland/retired-holds/ ONLY when it is exactly the known file:
+#   55-iceland-ffhw-hold.repo     byte-identical (sha256 of the whole file, 2047 bytes)
+#   53-iceland-upower-hold.repo   same size and the same content without comment / blank lines (sha256 below); the
+#   54-iceland-rpmfusion-hold.repo  full original text was never kept, the 6 Nov 2026 tablet probe recorded the content
+# Any other content (an owner edit) stays where it is, with a warning: dnf5 appends excludepkgs, so it only adds.
+# Undo: move the file back from /var/lib/iceland/retired-holds/. --dry-run: report only.
+set -u
+D=${ICELAND_HOLD_DIR:-/etc/dnf/repos.override.d}; R=${ICELAND_HOLD_RETIRED:-/var/lib/iceland/retired-holds}; DRY=0
+[ "${1:-}" = --dry-run ] && DRY=1
+log() { echo "iceland-hold-migrate: $*"; command -v logger > /dev/null && logger -t iceland-hold-migrate -- "$*" || :; }
+norm() { grep -v '^[[:space:]]*#' "$1" | grep -v '^[[:space:]]*$' | sha256sum | cut -d' ' -f1; }
+full() { sha256sum < "$1" | cut -d' ' -f1; }
+# name  mode  size  sha256
+while read -r n m sz h; do
+	f=$D/$n; [ -f "$f" ] || continue
+	if [ "$m" = full ]; then got=$(full "$f"); else got=$(norm "$f"); fi
+	if [ "$(stat -c %s "$f")" = "$sz" ] && [ "$got" = "$h" ]; then
+		if [ $DRY = 1 ]; then log "would retire $f (known content, now in 50-iceland-fedora-hold.repo)"; continue; fi
+		mkdir -p "$R" && mv -f "$f" "$R/$n" && log "retired $f -> $R/$n (known content, now in 50-iceland-fedora-hold.repo)" \
+			|| log "WARNING: could not move $f"
+	else
+		log "WARNING: $f differs from the known version (size $(stat -c %s "$f"), $m sha256 $got): left in place; dnf5 appends its excludes to the packaged list"
+	fi
+done <<'EOT'
+55-iceland-ffhw-hold.repo full 2047 fe7c56aeb0c4fdc0fa2a6c739ed4c65e7d33436296a7b2d2d52d1d41b94661a7
+53-iceland-upower-hold.repo norm 287 a354881e8136dc4dd0b091e5b07f269925bdc6e69dc75073efcfbe6ca915a788
+54-iceland-rpmfusion-hold.repo norm 1126 82117563fa6532ac0f32062e96ae0895bcd866438edfd3be1c788a5a247dacc4
+EOT
+exit 0

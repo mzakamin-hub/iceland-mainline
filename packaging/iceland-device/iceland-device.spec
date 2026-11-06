@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        46%{?dist}
+Release:        47%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -20,7 +20,8 @@ BuildRequires:  policycoreutils
 Requires(post): policycoreutils
 Requires(postun): policycoreutils
 Source0:        80-iceland-kernel.conf
-# Fedora's repositories: GRUB, shim, firmware and the sensor programs held; the release pinned (dnf5 repository
+# Fedora's and RPM Fusion's repositories: the one hold list (0.28-47: boot loader, Mesa, libcamera, UPower,
+# virglrenderer, gst-good, ffmpeg-free, sensor programs, our names); the release pinned (dnf5 repository
 # overrides; an empty file of the same name in /etc/dnf/repos.override.d masks either)
 Source60:       50-iceland-fedora-hold.repo
 Source61:       51-iceland-fedora-44-pin.repo
@@ -128,6 +129,8 @@ Source120:      60-iceland-mic-processing.conf
 Source142:      61-iceland-mic-gain.conf
 # update policy (0.24): read-only list of the upgrades offered, held back by the hold file and skipped by the resolver
 Source121:      iceland-update-check
+# 0.28-47: retires the hand-placed /etc hold files whose content is now in the packaged hold file
+Source236:      iceland-hold-migrate
 # platform defaults (0.26, from the tb323fu-linux review): the sensor stream stopped across a suspend, systemd
 # feeds the hardware watchdog (0.28-6: the wakeup defaults are in the device tree, the GPU floor rule is gone)
 Source124:      iceland-sensors-sleep
@@ -591,6 +594,7 @@ install -Dm0644 %{SOURCE119} %{buildroot}/usr/share/glib-2.0/schemas/zz_iceland-
 install -Dm0644 %{SOURCE120} %{buildroot}/usr/share/pipewire/pipewire.conf.d/60-iceland-mic-processing.conf
 install -Dm0644 %{SOURCE142} %{buildroot}/usr/share/pipewire/pipewire.conf.d/61-iceland-mic-gain.conf
 install -Dm0755 %{SOURCE121} %{buildroot}/usr/bin/iceland-update-check
+install -Dm0755 %{SOURCE236} %{buildroot}/usr/libexec/iceland/iceland-hold-migrate
 install -Dm0755 %{SOURCE124} %{buildroot}/usr/lib/systemd/system-sleep/iceland-sensors
 install -Dm0644 %{SOURCE125} %{buildroot}/usr/lib/systemd/system/iio-sensor-proxy.service.d/iceland-sleep.conf
 install -Dm0755 %{SOURCE190} %{buildroot}/usr/libexec/iceland/iceland-sensors-mark
@@ -648,6 +652,9 @@ elif [ "$1" -ge 2 ]; then
 fi
 
 %posttrans
+# 0.28-47: the hand-placed /etc/dnf/repos.override.d/53, 54, 55 hold files are in 50-iceland-fedora-hold.repo now;
+# moved to /var/lib/iceland/retired-holds/ only when their content is the known one, else left with a warning
+/usr/libexec/iceland/iceland-hold-migrate || :
 # install plan: GRUB settings (per-kernel device tree, visible menu, $iceland_args), trial-boot units, udev
 /usr/libexec/iceland/iceland-grub-setup || :
 systemctl enable iceland-trial-early.service iceland-boot-confirm.service >/dev/null 2>&1 || :
@@ -887,6 +894,7 @@ dconf update >/dev/null 2>&1 || :
 %config(noreplace) /etc/iceland/battery-guard.conf
 /usr/bin/iceland-npu
 /usr/bin/iceland-update-check
+/usr/libexec/iceland/iceland-hold-migrate
 /usr/lib/systemd/system-sleep/iceland-sensors
 /usr/lib/systemd/system/iio-sensor-proxy.service.d/iceland-sleep.conf
 /usr/libexec/iceland/iceland-sensors-mark
@@ -1068,6 +1076,28 @@ dconf update >/dev/null 2>&1 || :
 %dir %attr(0700,root,root) /var/lib/iceland/kde-curve
 
 %changelog
+* Sat Nov 07 2026 mzak <mzak.amin@gmail.com> - 0.28-47
+- update policy: ONE hold file, /usr/share/dnf5/repos.override.d/50-iceland-fedora-hold.repo, for Fedora (fedora,
+  updates, updates-testing) and RPM Fusion (free / nonfree, updates, updates-testing): kernel*, grub2-*, shim-*,
+  Mesa (the Fedora sub-packages), libcamera*, upower*, virglrenderer*, gstreamer1-plugins-good*, the ffmpeg-free
+  family, iio-sensor-proxy*, hexagonrpc*, libssc*, kernel-iceland*, iceland-*; RPM Fusion also ffmpeg, ffmpeg-libs,
+  ffmpeg-devel, libavdevice, libavcodec-freeworld and its mesa-*-freeworld drivers. New in the hold: upower (was held
+  only by a hand-placed /etc file) and virglrenderer (was not held: Fedora's 1.3.0-2+ would have replaced the VM 3D
+  backports). Mesa, libcamera, gst-plugins-good, GRUB and shim no longer depend on iceland-coexist's
+  52-iceland-coexist-hold.repo (dropped in iceland-coexist 1.0-9). dnf5 appends the excludepkgs of all override
+  files (checked with dnf5 5.4.6), so leftover files only add.
+- alsa-ucm is no longer held: no alsa-ucm file is a file of this package (the file lists of 1.2.15.3-3 and 1.2.16.1-1
+  have Qualcomm/kaanapali/MTP only), so an update cannot overwrite our profile; a future same path would be a file
+  conflict that rpm refuses (skip_broken skips it). Our profile still includes lib/card-init.conf, lib/ctl-remap.conf
+  and codecs/wcd939x/init.conf from alsa-ucm.
+- new /usr/libexec/iceland/iceland-hold-migrate (%%posttrans): the hand-placed /etc/dnf/repos.override.d/
+  53-iceland-upower-hold.repo, 54-iceland-rpmfusion-hold.repo and 55-iceland-ffhw-hold.repo move to
+  /var/lib/iceland/retired-holds/ when their content is the known one (55: byte-identical; 53 / 54: the same size and
+  content without comments, as the 6 Nov 2026 probe recorded them); any other content stays, with a warning in the
+  journal (--dry-run: report only).
+- iceland-update-check --check (no network): every held package that is installed must be our build (release contains
+  "iceland"; kernel-iceland by name); FAIL otherwise. The private ffmpeg-free family gives WARN instead.
+
 * Mon Nov 02 2026 mzak <mzak.amin@gmail.com> - 0.28-46
 - sound: the ALSA UCM profile gains Headphones (MultiMedia2 to the WCD9395 headphone amplifier; stock's headphone
   values: class-H HiFi, low-power HiFi mode, compander on, RX digital volume -2 dB, DSP stream gain at 0 dB; the jack

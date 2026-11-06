@@ -1,6 +1,6 @@
 Name:           iceland-coexist
 Version:        1.0
-Release:        8%{?dist}
+Release:        9%{?dist}
 Summary:        OnePlus Pad 4: Fedora 44 next to Arch Linux ARM in one shared /boot
 License:        GPL-2.0-or-later
 BuildArch:      noarch
@@ -8,14 +8,14 @@ Source0:        60-iceland-coexist.install
 Source1:        coexist.conf
 Source2:        install.conf
 Source3:        02-iceland-coexist.conf
-Source4:        52-iceland-coexist-hold.repo
 Source5:        45-iceland-vmlinuz-first.install
 Source6:        iceland-oneshot
 Source7:        dracut-oneshot-module-setup.sh
 Source8:        iceland-oneshot-clear.service
 Source9:        iceland-oneshot-consume.service
 Source10:       03-iceland-oneshot.conf
-Requires:       iceland-device >= 0.28-30
+# 1.0-9: the holds (Mesa, libcamera, gst-good, GRUB, shim) are in iceland-device 0.28-47's one hold file
+Requires:       iceland-device >= 0.28-47
 Requires:       /usr/bin/kernel-install
 Requires:       dracut
 # iceland-oneshot: grub2-editenv, findmnt / blkid / losetup, cmp, lsinitrd
@@ -27,7 +27,7 @@ Requires:       diffutils
 Fedora's kernel-install writes only into its own subdirectory of the shared /boot (bind-mounted at /boot by
 /etc/fstab); its BLS entries are fedora-<kver>-f44.conf in the shared loader/entries; the default boot entry is never
 changed by a kernel install. Fedora's own boot-entry, device-tree, GRUB and EFI writers are masked; Mesa, the
-patched gst-plugins-good, libcamera, GRUB and shim are held. PC-built for the fedback kit (22 Oct 2026).
+patched gst-plugins-good, libcamera, GRUB and shim are held by iceland-device's hold file (1.0-9). PC-built for the fedback kit (22 Oct 2026).
 iceland-oneshot (1.0-4): GRUB cannot write grubenv on this tablet, so a one-shot boot entry is cleared by Linux:
 in the initramfs before udev starts (dracut module iceland-oneshot), and by a root unit on every boot as the
 fallback.
@@ -40,7 +40,6 @@ install -Dm0755 %{SOURCE5} %{buildroot}/usr/lib/kernel/install.d/45-iceland-vmli
 install -Dm0644 %{SOURCE1} %{buildroot}/etc/iceland/coexist.conf
 install -Dm0644 %{SOURCE2} %{buildroot}/etc/kernel/install.conf
 install -Dm0644 %{SOURCE3} %{buildroot}/etc/dracut.conf.d/02-iceland-coexist.conf
-install -Dm0644 %{SOURCE4} %{buildroot}/usr/share/dnf5/repos.override.d/52-iceland-coexist-hold.repo
 mkdir -p %{buildroot}/etc/kernel/install.d
 install -Dm0755 %{SOURCE6} %{buildroot}/usr/bin/iceland-oneshot
 install -Dm0755 %{SOURCE7} %{buildroot}/usr/lib/dracut/modules.d/91iceland-oneshot/module-setup.sh
@@ -72,7 +71,6 @@ lsinitrd /boot/initramfs-$(uname -r).img 2>/dev/null | grep -q iceland-oneshot-c
 %config(noreplace) /etc/iceland/coexist.conf
 %config(noreplace) /etc/kernel/install.conf
 /etc/dracut.conf.d/02-iceland-coexist.conf
-/usr/share/dnf5/repos.override.d/52-iceland-coexist-hold.repo
 /etc/kernel/install.d/10-devicetree.install
 /etc/kernel/install.d/20-grub.install
 /etc/kernel/install.d/90-loaderentry.install
@@ -84,6 +82,11 @@ lsinitrd /boot/initramfs-$(uname -r).img 2>/dev/null | grep -q iceland-oneshot-c
 /etc/kernel/install.d/90-iceland-dtb.install
 
 %changelog
+* Sat Nov 07 2026 mzak <mzak.amin@gmail.com> - 1.0-9
+- 52-iceland-coexist-hold.repo removed: iceland-device 0.28-47 (now required) carries every hold in its one file
+  /usr/share/dnf5/repos.override.d/50-iceland-fedora-hold.repo (Mesa, libcamera, gst-plugins-good, GRUB and shim
+  included), so the holds no longer depend on this package being installed
+
 * Fri Oct 30 2026 mzak <mzak.amin@gmail.com> - 1.0-8
 - DTB_VARIANT defaults to standard (coexist.conf and the hook's own default): each Fedora entry boots its kernel's own
   device tree. The glitchfix-rails variant is not needed: with the rails in auto mode and the kernel's USB fix

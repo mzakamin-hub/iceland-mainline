@@ -2,8 +2,8 @@
 # iceland-update-check (iceland-device 0.24): what Fedora's updates offer and what waits. Read-only: it installs
 # nothing and changes no setting.
 #   1. the upgrades dnf (and GNOME Software) would apply now: dnf5 check-upgrade
-#   2. the upgrades held back by /usr/share/dnf5/repos.override.d/50-iceland-fedora-hold.repo (0.28-4: the sensor
-#      programs, alsa-ucm, our own names): check-upgrade again with the three Fedora repositories' excludes
+#   2. the upgrades held back by /usr/share/dnf5/repos.override.d/50-iceland-fedora-hold.repo (0.28-47: the one hold
+#      list: boot loader, Mesa, libcamera, UPower, virglrenderer, gst-good, ffmpeg-free, sensors, our own names): check-upgrade again with the three Fedora repositories' excludes
 #      disabled (--setopt=disable_excludes=...), minus list 1. They come through the local repository after a RAM
 #      rehearsal.
 #   3. as root only: the upgrades the resolver skips (best=False / skip_broken=True in
@@ -11,9 +11,38 @@
 #      "dnf5 upgrade --assumeno" (answers no, nothing is installed), its "Skipping" lines.
 # The main excludes (Fedora's kernels, boot loaders) stay in force in every list: they are never upgrades here.
 # Exit 0; 1 when dnf5 could not read the repositories.
+#
+#   iceland-update-check --check   (0.28-47) no network: every held package that is installed must be OUR build
+#      (its release contains "iceland"; kernel-iceland by name). A Fedora build in its place means a hold was
+#      missing when it came in. PASS / FAIL per package, exit 0 = all PASS, 1 = a FAIL. The ffmpeg-free family is a
+#      private build: a Fedora ffmpeg-free there is a WARN, not a FAIL (systems without the private build).
 set -u
 HOLD_REPOS="fedora,updates,updates-testing"
 DNF=${ICELAND_DNF:-dnf5}
+if [ "${1:-}" = --check ]; then
+	f=0
+	# required: installed on every Pad 4 Fedora; optional: checked only when installed
+	REQ="kernel-iceland mesa-dri-drivers mesa-filesystem mesa-libEGL mesa-libGL mesa-libgbm mesa-vulkan-drivers libcamera libcamera-ipa upower upower-libs gstreamer1-plugins-good iio-sensor-proxy hexagonrpc libssc"
+	OPT="mesa-libOpenCL mesa-va-drivers mesa-vdpau-drivers libcamera-tools virglrenderer gstreamer1-plugins-good-gtk gstreamer1-plugins-good-qt6"
+	FF="ffmpeg-free libavcodec-free libavdevice-free libavfilter-free libavformat-free libavutil-free libswresample-free libswscale-free"
+	row() {   # name kind(req|opt|ff)
+		local r
+		r=$(rpm -q --qf '%{VERSION}-%{RELEASE}\n' "$1" 2>/dev/null | tail -n 1)
+		if ! rpm -q "$1" > /dev/null 2>&1; then
+			[ "$2" = req ] && { echo "  FAIL $1 not installed"; f=$((f + 1)); } || echo "  INFO $1 not installed"
+		elif [ "$1" = kernel-iceland ] || printf '%s' "$r" | grep -q iceland; then echo "  PASS $1 $r"
+		elif [ "$2" = ff ]; then echo "  WARN $1 $r is not the iceland build (private ffhw build absent or replaced)"
+		else echo "  FAIL $1 $r is not an iceland build (a hold was missing)"; f=$((f + 1)); fi
+	}
+	echo "== held packages are our builds:"
+	for p in $REQ; do row "$p" req; done
+	for p in $OPT; do row "$p" opt; done
+	for p in $FF; do row "$p" ff; done
+	h=/usr/share/dnf5/repos.override.d/50-iceland-fedora-hold.repo
+	[ -f "$h" ] && echo "  PASS $h present" || { echo "  FAIL $h missing"; f=$((f + 1)); }
+	echo "iceland-update-check --check: $([ $f = 0 ] && echo PASS || echo "FAIL ($f)")"
+	exit $((f > 0))
+fi
 list() {   # name.arch version, one per line, sorted
 	local out rc
 	out=$("$DNF" -q check-upgrade "$@" 2>/dev/null); rc=$?
