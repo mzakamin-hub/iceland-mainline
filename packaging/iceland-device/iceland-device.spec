@@ -1078,14 +1078,15 @@ dconf update >/dev/null 2>&1 || :
 %changelog
 * Sat Nov 07 2026 mzak <mzak.amin@gmail.com> - 0.28-47
 - update policy: ONE hold file, /usr/share/dnf5/repos.override.d/50-iceland-fedora-hold.repo, for Fedora (fedora,
-  updates, updates-testing) and RPM Fusion (free / nonfree, updates, updates-testing): kernel*, grub2-*, shim-*,
+  updates, updates-testing) and RPM Fusion (free / nonfree, updates, updates-testing): grub2-*, shim-*,
   Mesa (the Fedora sub-packages), libcamera*, upower*, virglrenderer*, gstreamer1-plugins-good*, the ffmpeg-free
   family, iio-sensor-proxy*, hexagonrpc*, libssc*, kernel-iceland*, iceland-*; RPM Fusion also ffmpeg, ffmpeg-libs,
   ffmpeg-devel, libavdevice, libavcodec-freeworld and its mesa-*-freeworld drivers. New in the hold: upower (was held
   only by a hand-placed /etc file) and virglrenderer (was not held: Fedora's 1.3.0-2+ would have replaced the VM 3D
   backports). Mesa, libcamera, gst-plugins-good, GRUB and shim no longer depend on iceland-coexist's
   52-iceland-coexist-hold.repo (dropped in iceland-coexist 1.0-9). dnf5 appends the excludepkgs of all override
-  files (checked with dnf5 5.4.6), so leftover files only add.
+  files (checked with dnf5 5.4.6), so leftover files only add. Fedora's kernels stay refused by
+  80-iceland-kernel.conf; kernel-tools / kernel-headers keep updating from Fedora (no kernel* in the hold file).
 - alsa-ucm is no longer held: no alsa-ucm file is a file of this package (the file lists of 1.2.15.3-3 and 1.2.16.1-1
   have Qualcomm/kaanapali/MTP only), so an update cannot overwrite our profile; a future same path would be a file
   conflict that rpm refuses (skip_broken skips it). Our profile still includes lib/card-init.conf, lib/ctl-remap.conf
