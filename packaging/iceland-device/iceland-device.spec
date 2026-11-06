@@ -575,7 +575,6 @@ install -Dm0644 %{SOURCE80} %{buildroot}/etc/dnf/protected.d/iceland-device.conf
 install -Dm0755 %{SOURCE81} %{buildroot}/usr/libexec/iceland/iceland-fwupd-guard
 install -Dm0755 %{SOURCE82} %{buildroot}/usr/libexec/iceland/iceland-charge-alert
 install -Dm0644 %{SOURCE83} %{buildroot}/usr/lib/systemd/user/iceland-charge-alert.service
-/usr/lib/systemd/user/iceland-charge-alert.path
 install -Dm0644 %{SOURCE239} %{buildroot}/usr/lib/systemd/user/iceland-charge-alert.path
 install -Dm0755 %{SOURCE198} %{buildroot}/usr/libexec/iceland/iceland-ambient-default
 install -Dm0644 %{SOURCE199} %{buildroot}/usr/lib/systemd/user/iceland-ambient-default.service
@@ -1047,6 +1046,7 @@ dconf update >/dev/null 2>&1 || :
 /usr/libexec/iceland/iceland-fwupd-guard
 /usr/libexec/iceland/iceland-charge-alert
 /usr/lib/systemd/user/iceland-charge-alert.service
+/usr/lib/systemd/user/iceland-charge-alert.path
 /usr/libexec/iceland/iceland-bypassd
 /usr/lib/systemd/system/iceland-bypass.service
 /usr/share/dbus-1/system-services/org.iceland.Bypass.service
