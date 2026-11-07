@@ -1,0 +1,35 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# /usr/libexec/iceland/iceland-kde-discover (iceland-device-kde 0.28-48): Discover with the PackageKit backend only.
+#
+# Discover loads every backend plugin it finds unless "--backends" names them (no config key, no environment
+# variable). Its fwupd backend (inside plasma-discover-libs, cannot be removed on its own) tries to start
+# fwupd.service, which stays masked on this tablet (no supported device, never flash), so every update refresh showed
+# "Error: unit is masked". This writes a copy of Discover's own launcher with "--backends packagekit-backend" on its
+# Exec lines (the window and the "See Available Updates" action) to /usr/share/iceland/session-first/applications/,
+# which /usr/lib/environment.d/50-iceland-kde-secrets.conf puts ahead of /usr/share in the session's XDG_DATA_DIRS.
+# The copy keeps every translation and follows Discover updates (rpm trigger on plasma-discover).
+#   write   (re)create the copy from /usr/share/applications/org.kde.discover.desktop (none there: remove the copy)
+#   remove  delete the copy
+# One account can still override it: a ~/.local/share/applications/org.kde.discover.desktop wins over this copy.
+set -u
+SRC=/usr/share/applications/org.kde.discover.desktop
+DIR=/usr/share/iceland/session-first/applications
+DST=$DIR/org.kde.discover.desktop
+BACKENDS=packagekit-backend
+case "${1:-write}" in
+write)
+	if [ ! -f "$SRC" ]; then rm -f "$DST"; exit 0; fi
+	mkdir -p "$DIR"
+	tmp=$(mktemp "$DIR/.discover.XXXXXX") || exit 0
+	if sed -E "s|^Exec=plasma-discover( --backends [^ ]+)?|Exec=plasma-discover --backends $BACKENDS|" "$SRC" > "$tmp" &&
+		chmod 0644 "$tmp" && mv -f "$tmp" "$DST"; then :; else rm -f "$tmp"; fi
+	;;
+remove)
+	rm -f "$DST"
+	;;
+*)
+	echo "usage: $0 write|remove" >&2; exit 2
+	;;
+esac
+exit 0

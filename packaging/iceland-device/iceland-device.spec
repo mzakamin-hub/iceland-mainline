@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        47%{?dist}
+Release:        48%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -240,6 +240,7 @@ Source217:      iceland-secrets-migrate
 Source218:      iceland-kde-brightness-curve
 Source219:      iceland-kde-brightness-curve.service
 # 0.28-42: the cover detector
+# 0.28-48: CLOSE_UT 6 / CLOSE_MAX_UT 60 (were 10 / 50), in the script and the conf template's comments
 Source220:      iceland-cover-detect
 Source221:      iceland-cover-detect.service
 Source222:      cover-detect.conf
@@ -251,6 +252,10 @@ Source232:      iceland-zram-recompress
 Source233:      iceland-zram-recompress.service
 Source234:      iceland-zram-recompress.timer
 Source235:      iceland-mthp
+# 0.28-48: the Wi-Fi root port's wakeup stays off (kernel q91g puts WAKE# back in the device tree)
+Source240:      72-iceland-pcie-wake.rules
+# 0.28-48 (-kde): Discover with the PackageKit backend only (its fwupd backend fails on the masked fwupd.service)
+Source241:      iceland-kde-discover
 
 Requires:       kernel-iceland
 # 0.28-19: stock's GPU GMU / SQE pair (/usr/lib/firmware/iceland-gpu-stock, GPU_FW=stock); 0.28-20: the vendor pair
@@ -418,6 +423,10 @@ screen saver, else the freedesktop one + Plasma's "Turn Off Screen"). This packa
 - KWallet as the secrets provider: org.freedesktop.secrets is activated as ksecretd ahead of gnome-keyring's file
   (/usr/lib/environment.d/50-iceland-kde-secrets.conf + /usr/share/iceland/session-first), /etc/xdg/kwalletrc (on,
   no first-run wizard: a plain Blowfish "kdewallet"), iceland-secrets-migrate (gnome-keyring's login items into it);
+- Discover with the PackageKit backend only: a copy of its launcher in
+  /usr/share/iceland/session-first/applications starts it with
+  "--backends packagekit-backend" (its firmware backend fails on the masked
+  firmware update service);
 
 %package gnome
 Summary:        OnePlus Pad 4 (iceland) device settings for a GNOME session
@@ -610,6 +619,7 @@ install -Dm0755 %{SOURCE132} %{buildroot}/usr/libexec/iceland/iceland-slot-mark
 install -Dm0644 %{SOURCE133} %{buildroot}/usr/lib/systemd/system/iceland-slot-mark.service
 install -Dm0755 %{SOURCE153} %{buildroot}/usr/libexec/iceland/iceland-usb-pm
 install -Dm0644 %{SOURCE154} %{buildroot}/usr/lib/udev/rules.d/72-iceland-usb-pm.rules
+install -Dm0644 %{SOURCE240} %{buildroot}/usr/lib/udev/rules.d/72-iceland-pcie-wake.rules
 install -Dm0644 %{SOURCE155} %{buildroot}/usr/lib/systemd/system-preset/50-iceland-unused.preset
 install -Dm0644 %{SOURCE156} %{buildroot}/usr/lib/systemd/system-preset/50-iceland-abrt.preset
 install -Dm0644 %{SOURCE157} %{buildroot}/usr/lib/sysctl.d/60-iceland-vm.conf
@@ -642,6 +652,10 @@ install -Dm0755 %{SOURCE217} %{buildroot}/usr/bin/iceland-secrets-migrate
 install -Dm0755 %{SOURCE218} %{buildroot}/usr/libexec/iceland/iceland-kde-brightness-curve
 install -d -m0700 %{buildroot}/var/lib/iceland/kde-curve
 install -Dm0644 %{SOURCE219} %{buildroot}/usr/lib/systemd/system/iceland-kde-brightness-curve.service
+# 0.28-48: Discover's launcher with --backends packagekit-backend, written by iceland-kde-discover (rpm triggers)
+install -Dm0755 %{SOURCE241} %{buildroot}/usr/libexec/iceland/iceland-kde-discover
+install -d %{buildroot}/usr/share/iceland/session-first/applications
+touch %{buildroot}/usr/share/iceland/session-first/applications/org.kde.discover.desktop
 
 %pre
 # 0.28-44: an update stops and disables the helpers this version no longer ships while their unit files still
@@ -830,6 +844,15 @@ systemctl enable iceland-kde-brightness-curve.service >/dev/null 2>&1 || :
 %preun kde
 [ "$1" -eq 0 ] && systemctl --global disable iceland-kde-defaults.service >/dev/null 2>&1 || :
 [ "$1" -eq 0 ] && systemctl disable iceland-kde-brightness-curve.service >/dev/null 2>&1 || :
+[ "$1" -eq 0 ] && /usr/libexec/iceland/iceland-kde-discover remove >/dev/null 2>&1 || :
+
+# 0.28-48: Discover's launcher copy with --backends packagekit-backend follows plasma-discover (written when either
+# package is installed or updated, removed with plasma-discover); KDE's sycoca picks the change up by itself
+%triggerin kde -- plasma-discover
+/usr/libexec/iceland/iceland-kde-discover write >/dev/null 2>&1 || :
+
+%triggerpostun kde -- plasma-discover
+[ "$2" -eq 0 ] && /usr/libexec/iceland/iceland-kde-discover remove >/dev/null 2>&1 || :
 
 %triggerin -- fwupd
 /usr/libexec/iceland/iceland-fwupd-guard || :
@@ -921,6 +944,7 @@ dconf update >/dev/null 2>&1 || :
 /usr/lib/systemd/system/iceland-slot-mark.service
 /usr/libexec/iceland/iceland-usb-pm
 /usr/lib/udev/rules.d/72-iceland-usb-pm.rules
+/usr/lib/udev/rules.d/72-iceland-pcie-wake.rules
 /usr/lib/systemd/system-preset/50-iceland-unused.preset
 /usr/lib/systemd/system-preset/50-iceland-abrt.preset
 /usr/lib/sysctl.d/60-iceland-vm.conf
@@ -1088,8 +1112,21 @@ dconf update >/dev/null 2>&1 || :
 /usr/libexec/iceland/iceland-kde-brightness-curve
 /usr/lib/systemd/system/iceland-kde-brightness-curve.service
 %dir %attr(0700,root,root) /var/lib/iceland/kde-curve
+/usr/libexec/iceland/iceland-kde-discover
+%dir /usr/share/iceland/session-first/applications
+%ghost %attr(0644,root,root) /usr/share/iceland/session-first/applications/org.kde.discover.desktop
 
 %changelog
+* Sat Nov 07 2026 mzak <mzak.amin@gmail.com> - 0.28-48
+- new /usr/lib/udev/rules.d/72-iceland-pcie-wake.rules: the Wi-Fi PCIe root port (0000:00:00.0) is not a wakeup
+  source (kernel q91g puts WAKE#, GPIO 104, back in the device tree; without Wake-on-WLAN the chip is off in a
+  suspend). Replaces the hand-placed /etc/udev/rules.d copy. No Wake-on-WLAN service yet (packet wake not working).
+- iceland-device-kde: Discover with the PackageKit backend only: iceland-kde-discover writes a copy of
+  org.kde.discover.desktop with "--backends packagekit-backend" to /usr/share/iceland/session-first/applications
+  (rpm triggers on plasma-discover keep it current); the fwupd backend no longer fails on the masked fwupd.service
+  ("Error: unit is masked" at every update refresh).
+- cover detector: close decided sooner (field step 6-60 uT, was 10-50)
+
 * Sat Nov 07 2026 mzak <mzak.amin@gmail.com> - 0.28-47
 - update policy: ONE hold file, /usr/share/dnf5/repos.override.d/50-iceland-fedora-hold.repo, for Fedora (fedora,
   updates, updates-testing) and RPM Fusion (free / nonfree, updates, updates-testing): grub2-*, shim-*,

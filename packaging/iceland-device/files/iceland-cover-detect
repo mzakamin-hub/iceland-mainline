@@ -10,7 +10,8 @@
 #    pin's interrupt, so gpio-keys' lid never fires). Once it has reported a magnet, its edges alone decide.
 #  2 proximity + magnetometer (0.28-43): the main signal is the proximity sensor NEAR, held PROX_CLOSE_S; the field
 #    confirms it: the field now differs from the field before the proximity went NEAR (median of REF_FROM_S..REF_TO_S
-#    before) by at least CLOSE_UT (owner captures: 18-27 uT for this cover; noise 1-2 uT). A hand over the sensor
+#    before) by at least CLOSE_UT (owner captures: 6-46 uT for this cover, incl. a slow close whose step grew
+#    8 -> 12 -> 17 -> 20 uT over 2.9 s; noise 1-2 uT). A hand over the sensor
 #    without a field step, a step above CLOSE_MAX_UT (turns of the tablet: 67-82 uT seen) or a step with the sensor
 #    FAR is no cover; the step must hold PROX_CLOSE_S together with NEAR. No
 #    steadiness rule: the owner may close the cover while holding the tablet.
@@ -32,8 +33,8 @@ DEF = {"ENABLE": "yes",
        "SOURCE": "hall+mag",    # hall | mag | hall+mag  ("mag" = proximity + magnetometer)
        "HALL_INVERT": "no",
        "DEBUG": "no",
-       "CLOSE_UT": "10",        # field step that confirms a NEAR proximity as a cover (captures: 18-27 uT)
-       "CLOSE_MAX_UT": "50",    # a bigger step is a turn of the tablet, not this kind of cover (turns seen: 67-82 uT)
+       "CLOSE_UT": "6",         # field step that confirms a NEAR proximity as a cover (captures: 6-46 uT)
+       "CLOSE_MAX_UT": "60",    # a bigger step is a turn of the tablet, not this kind of cover (turns seen: 67-82 uT)
        "OPEN_UT": "8",          # open: field back to within max(this, step / 2) of the field before the close
        "PROX_CLOSE_S": "1.0",   # proximity NEAR held this long (with the step) = closed
        "PROX_OPEN_S": "1.0",    # proximity FAR held this long + field back = open
