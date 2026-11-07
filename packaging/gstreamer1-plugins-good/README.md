@@ -1,5 +1,9 @@
 # gstreamer1-plugins-good with the V4L2 colorimetry fix
 
+**Retired (8 Nov 2026).** The fix is upstream in GStreamer 1.28.9, which Fedora 45 ships; iceland-device 0.28-49
+no longer holds gstreamer1-plugins-good and Fedora's build is the one installed. This directory is kept only as the
+record of the Fedora 44 build; it is not built any more.
+
 `gstreamer1-plugins-good-1.28.8-1.fc44.iceland1`: Fedora 44's spec plus one patch,
 `gst-plugins-good-1.28-mr12699-v4l2-coded-colorimetry.patch` = GStreamer
 [!12699](https://gitlab.freedesktop.org/gstreamer/gstreamer/-/merge_requests/12699) (the 1.28 backport of !12602):

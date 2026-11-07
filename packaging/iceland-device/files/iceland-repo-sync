@@ -4,7 +4,8 @@
 # /var/lib/iceland/repo and refresh dnf's cache for it. Then `dnf upgrade` picks the updates up.
 #   iceland-repo-sync /run/media/USER/STICK/iceland-repo      (a directory)
 #   iceland-repo-sync http://172.16.42.2:8000/                 (the PC, e.g. `python3 -m http.server` in the repo)
-# Every rpm must match the repository's SHA256SUMS, or nothing is installed.
+# Every rpm must match the repository's SHA256SUMS and (0.28-50) be signed with the project key
+# (/etc/pki/rpm-gpg/RPM-GPG-KEY-iceland), or nothing is installed.
 set -eu
 src=${1:?usage: iceland-repo-sync DIR|URL}
 dst=/var/lib/iceland/repo
@@ -24,6 +25,15 @@ http://*|https://*)
 	;;
 esac
 (cd "$tmp" && sha256sum -c --quiet SHA256SUMS) || { echo "iceland-repo-sync: checksum mismatch, nothing changed" >&2; exit 1; }
+# 0.28-50: iceland-local has gpgcheck=1: every rpm must carry the project key's signature (checked against that key
+# only, in a throw-away key database), or nothing changes
+key=/etc/pki/rpm-gpg/RPM-GPG-KEY-iceland
+kdb=$(mktemp -d)
+rpmkeys --dbpath "$kdb" --import "$key" || { rm -rf "$kdb"; echo "iceland-repo-sync: cannot read $key, nothing changed" >&2; exit 1; }
+bad=$(find "$tmp" -name '*.rpm' ! -name '*.src.rpm' | while read -r r; do
+	rpmkeys --dbpath "$kdb" --checksig "$r" 2>/dev/null | grep -q 'signatures OK' || basename "$r"; done)
+rm -rf "$kdb"
+[ -z "$bad" ] || { echo "iceland-repo-sync: not signed with the project key, nothing changed:" >&2; echo "$bad" | sed 's/^/  /' >&2; exit 1; }
 createrepo_c -q "$tmp/aarch64"
 rm -rf "$dst.old"; [ -d "$dst" ] && mv "$dst" "$dst.old"
 mv "$tmp" "$dst"; trap - EXIT

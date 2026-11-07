@@ -16,6 +16,8 @@
 #      (its release contains "iceland"; kernel-iceland by name). A Fedora build in its place means a hold was
 #      missing when it came in. PASS / FAIL per package, exit 0 = all PASS, 1 = a FAIL. The ffmpeg-free family is a
 #      private build: a Fedora ffmpeg-free there is a WARN, not a FAIL (systems without the private build).
+#      0.28-50: also the package signatures: the project key file, iceland-local's gpgcheck=1, the key imported into
+#      rpm (WARN if not), every rpm in /var/lib/iceland/repo/aarch64 signed with it (FAIL if not: dnf refuses it).
 set -u
 HOLD_REPOS="fedora,updates,updates-testing"
 DNF=${ICELAND_DNF:-dnf5}
@@ -47,6 +49,26 @@ if [ "${1:-}" = --check ]; then
 	for e in /etc/dnf/repos.override.d/50-iceland-fedora-hold.repo /etc/dnf/repos.override.d/51-iceland-fedora-4*-pin.repo; do
 		[ -e "$e" ] && echo "  WARN $e shadows / adds to the packaged overrides (a temporary hand-placed copy? remove it)"
 	done
+	# 0.28-50: our packages are signed (project key FF9C6A4E...CCA25574); iceland-local checks the signatures
+	echo "== signed packages (iceland-local, project key):"
+	k=/etc/pki/rpm-gpg/RPM-GPG-KEY-iceland; lr=/etc/yum.repos.d/iceland-local.repo; rd=/var/lib/iceland/repo/aarch64
+	[ -s "$k" ] && echo "  PASS $k present" || { echo "  FAIL $k missing"; f=$((f + 1)); }
+	if grep -q '^gpgcheck=1' "$lr" 2>/dev/null; then echo "  PASS $lr gpgcheck=1"
+	else echo "  WARN $lr without gpgcheck=1 (a locally changed copy? compare with $lr.rpmnew)"; fi
+	if rpm -q gpg-pubkey --qf '%{VERSION}\n' 2>/dev/null | grep -qi 'cca25574$'; then echo "  PASS key imported into rpm (plain rpm -U verifies our packages)"
+	else echo "  WARN key not imported yet: dnf imports it at the first iceland-local transaction; plain rpm needs: sudo rpm --import $k"; fi
+	if [ -s "$k" ] && [ -d "$rd" ]; then
+		db=$(mktemp -d); un=""
+		if rpmkeys --dbpath "$db" --import "$k" 2>/dev/null; then
+			for r in "$rd"/*.rpm; do
+				[ -e "$r" ] || continue
+				rpmkeys --dbpath "$db" --checksig "$r" 2>/dev/null | grep -qE 'signatures OK|digests signatures OK' || un="$un $(basename "$r")"
+			done
+			if [ -z "$un" ]; then echo "  PASS every rpm in $rd is signed with the project key"
+			else echo "  FAIL not signed with the project key (dnf refuses them):$un"; f=$((f + 1)); fi
+		else echo "  WARN could not read $k"; fi
+		rm -rf "$db"
+	fi
 	echo "iceland-update-check --check: $([ $f = 0 ] && echo PASS || echo "FAIL ($f)")"
 	exit $((f > 0))
 fi

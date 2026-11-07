@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        49%{?dist}
+Release:        50%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -256,6 +256,15 @@ Source235:      iceland-mthp
 Source240:      72-iceland-pcie-wake.rules
 # 0.28-48 (-kde): Discover with the PackageKit backend only (its fwupd backend fails on the masked fwupd.service)
 Source241:      iceland-kde-discover
+# 0.28-50: the project's RPM signing key (public part; iceland-local gpgcheck=1)
+Source242:      RPM-GPG-KEY-iceland
+# 0.28-50: speaker crackle with the microphone open (capture in its own clock domain, speaker sink = driver,
+# minimum quantum 2048) and no second WirePlumber card object for the compress node (from jstockdale's
+# ubuntu-oneplus-pad-4, BSD-3-Clause; licence text Source246)
+Source243:      64-iceland-clock.conf
+Source244:      64-iceland-clocks.conf
+Source245:      52-iceland-compress.conf
+Source246:      LICENSE.BSD-3-Clause.ubuntu-iceland
 
 Requires:       kernel-iceland
 # 0.28-19: stock's GPU GMU / SQE pair (/usr/lib/firmware/iceland-gpu-stock, GPU_FW=stock); 0.28-20: the vendor pair
@@ -616,6 +625,13 @@ install -Dm0644 %{SOURCE126} %{buildroot}/usr/lib/systemd/system.conf.d/60-icela
 install -Dm0644 %{SOURCE127} %{buildroot}/usr/share/pipewire/pipewire.conf.d/62-iceland-speakers.conf
 install -Dm0644 %{SOURCE128} %{buildroot}/usr/share/wireplumber/wireplumber.conf.d/62-iceland-speaker-raw.conf
 install -Dm0644 %{SOURCE134} %{buildroot}/usr/share/wireplumber/wireplumber.conf.d/63-iceland-mic-raw.conf
+# 0.28-50: clock domains + quantum (crackle with the mic open), no device for the compress node
+install -Dm0644 %{SOURCE243} %{buildroot}/usr/share/pipewire/pipewire.conf.d/64-iceland-clock.conf
+install -Dm0644 %{SOURCE244} %{buildroot}/usr/share/wireplumber/wireplumber.conf.d/64-iceland-clocks.conf
+install -Dm0644 %{SOURCE245} %{buildroot}/usr/share/wireplumber/wireplumber.conf.d/52-iceland-compress.conf
+install -Dm0644 %{SOURCE246} %{buildroot}/usr/share/licenses/%{name}/LICENSE.BSD-3-Clause.ubuntu-iceland
+# 0.28-50: the project's RPM signing key (iceland-local.repo gpgkey=)
+install -Dm0644 %{SOURCE242} %{buildroot}/etc/pki/rpm-gpg/RPM-GPG-KEY-iceland
 install -Dm0755 %{SOURCE135} %{buildroot}/usr/libexec/iceland/iceland-speaker-default
 install -Dm0644 %{SOURCE136} %{buildroot}/usr/lib/systemd/user/iceland-speaker-default.service
 install -Dm0755 %{SOURCE191} %{buildroot}/usr/bin/iceland-audio-profile
@@ -949,6 +965,12 @@ dconf update >/dev/null 2>&1 || :
 /usr/share/pipewire/pipewire.conf.d/62-iceland-speakers.conf
 /usr/share/wireplumber/wireplumber.conf.d/62-iceland-speaker-raw.conf
 /usr/share/wireplumber/wireplumber.conf.d/63-iceland-mic-raw.conf
+/usr/share/pipewire/pipewire.conf.d/64-iceland-clock.conf
+/usr/share/wireplumber/wireplumber.conf.d/64-iceland-clocks.conf
+/usr/share/wireplumber/wireplumber.conf.d/52-iceland-compress.conf
+%dir /usr/share/licenses/%{name}
+%license /usr/share/licenses/%{name}/LICENSE.BSD-3-Clause.ubuntu-iceland
+/etc/pki/rpm-gpg/RPM-GPG-KEY-iceland
 /usr/libexec/iceland/iceland-speaker-default
 /usr/lib/systemd/user/iceland-speaker-default.service
 /usr/bin/iceland-audio-profile
@@ -1129,6 +1151,21 @@ dconf update >/dev/null 2>&1 || :
 %ghost %attr(0644,root,root) /usr/share/iceland/session-first/applications/org.kde.discover.desktop
 
 %changelog
+* Sun Nov 08 2026 mzak <mzak.amin@gmail.com> - 0.28-50
+- sound: speaker crackle while a microphone is open (our echo canceller keeps both open): the capture sources get
+  a clock domain of their own and the raw speaker sink is the preferred graph driver
+  (wireplumber.conf.d/64-iceland-clocks.conf), minimum graph quantum 2048 frames
+  (pipewire.conf.d/64-iceland-clock.conf); off switch in the file. From jstockdale's ubuntu-oneplus-pad-4
+  (BSD-3-Clause, licence text in /usr/share/licenses/iceland-device).
+- sound: WirePlumber creates no device for the compress-offload node (wireplumber.conf.d/
+  52-iceland-compress.conf): two card objects for hw:0 fought over ReserveDevice1 and the loser, sometimes the
+  real card, was set to the profile off (all sinks gone).
+- packages: our packages are signed with the project RPM signing key (RSA 4096, fingerprint
+  FF9C6A4E64CB38F01035AD7F939BE983CCA25574; the private key stays on the build PC); its public key is
+  /etc/pki/rpm-gpg/RPM-GPG-KEY-iceland, iceland-local.repo checks signatures (gpgcheck=1, gpgkey=);
+  iceland-repo-sync refuses unsigned rpms; iceland-update-check --check reports the key, its import and
+  unsigned rpms in the local repository.
+
 * Sat Nov 07 2026 mzak <mzak.amin@gmail.com> - 0.28-49
 - Fedora 45: the release pin moves to 45 (51-iceland-fedora-45-pin.repo replaces 51-iceland-fedora-44-pin.repo:
   fedora-45, updates-released-f45, updates-testing-f45, fedora-cisco-openh264-45 metalinks and the

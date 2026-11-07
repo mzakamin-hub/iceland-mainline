@@ -69,7 +69,7 @@ and the test material. Every binary records its source commits in its build info
 | Device settings package (`iceland-device`) | [packaging/iceland-device/](packaging/iceland-device/) |
 | Sensor programs (hexagonrpc, libssc, iio-sensor-proxy) | [packaging/sensors/](packaging/sensors/), [docs/sensors/](docs/sensors/) |
 | Mesa for the A840 (spec, open-MR patches) | [packaging/mesa/](packaging/mesa/) |
-| libcamera autofocus, ffmpeg V4L2 decoding, gst-plugins-good colorimetry | [packaging/libcamera/](packaging/libcamera/), [packaging/ffmpeg/](packaging/ffmpeg/), [packaging/gstreamer1-plugins-good/](packaging/gstreamer1-plugins-good/) |
+| libcamera autofocus, ffmpeg V4L2 decoding (gst-plugins-good colorimetry: upstream since 1.28.9, Fedora's build) | [packaging/libcamera/](packaging/libcamera/), [packaging/ffmpeg/](packaging/ffmpeg/) |
 | Android apps (DroidLoom) | [iceland-droidloom](https://github.com/mzakamin-hub/iceland-droidloom) |
 | Gunyah virtual machines | [iceland-gvm](https://github.com/mzakamin-hub/iceland-gvm) (crosvm, guest kernel, `gvm.sh`) and [iceland-vms](https://github.com/mzakamin-hub/iceland-vms) (the app); the VM manager is in the kernel since q90m. The earlier side package: [packaging/gunyah/](packaging/gunyah/) |
 | Audio topology and UCM | [audio/](audio/) |
