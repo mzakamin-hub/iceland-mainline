@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        48%{?dist}
+Release:        49%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -21,10 +21,10 @@ Requires(post): policycoreutils
 Requires(postun): policycoreutils
 Source0:        80-iceland-kernel.conf
 # Fedora's and RPM Fusion's repositories: the one hold list (0.28-47: boot loader, Mesa, libcamera, UPower,
-# virglrenderer, gst-good, ffmpeg-free, sensor programs, our names); the release pinned (dnf5 repository
+# virglrenderer, ffmpeg-free, sensor programs, our names); the release pinned to 45 (dnf5 repository
 # overrides; an empty file of the same name in /etc/dnf/repos.override.d masks either)
 Source60:       50-iceland-fedora-hold.repo
-Source61:       51-iceland-fedora-44-pin.repo
+Source61:       51-iceland-fedora-45-pin.repo
 # install plan (wf/install): read-only internal storage, the root inside userdata, snapshots, trial boots
 Source62:       59-iceland-storage-ro.rules
 Source63:       iceland-storage-ro
@@ -274,11 +274,12 @@ Requires:       qbootctl
 Requires:       iproute
 Requires:       alsa-utils
 Requires:       tuned-ppd
-# the sensor programs (packaging/sensors; not in Fedora 44, iio-sensor-proxy there has no SSC support)
+# the sensor programs (packaging/sensors; not in Fedora 44 / 45, iio-sensor-proxy there has no SSC support)
 Requires:       hexagonrpc
 Requires:       libssc >= 0.4.4^8.git54dd13e-2.iceland1
 # the cover detector's lid switch next to gpio-keys' needs UPower to watch every lid switch (iceland2)
-Requires:       upower >= 1.91.5-1.fc44.iceland2
+# 0.28-49: our F45 build (Fedora 45's unpatched 1.91.5-1.fc45 sorts above the fc44 one and would satisfy that)
+Requires:       upower >= 1.91.5-1.fc45.iceland2
 Requires:       iio-sensor-proxy >= 3.9-10
 # the desktop's way to the cameras: libcamera's software ISP, PipeWire's libcamera plug-in, the portal that asks
 # for the camera permission (GNOME backend) and the document portal's FUSE helper
@@ -315,7 +316,7 @@ Requires:       pipewire-libs >= 1.6.8
 Requires(posttrans): grubby
 
 %description
-Settings that make Fedora 44 work safely on the OnePlus Pad 4 with the kernel-iceland package:
+Settings that make Fedora 45 work safely on the OnePlus Pad 4 with the kernel-iceland package:
 - Fedora's own kernel packages are excluded from dnf (they have no Pad 4 support);
   kernel-iceland is the default kernel;
 - suspend uses s2idle (the only sleep state on this SoC);
@@ -404,6 +405,9 @@ Requires:       spectacle
 # apps that want it; iceland-secrets-migrate uses it when it is there)
 Requires:       kf6-kwallet
 Recommends:     kwallet-pam
+# 0.28-49: Discover offers Fedora version upgrades only with the distribution's AppStream metadata installed
+# (fedora-appstream-metadata); the release pin above still keeps every upgrade at 45 until a new iceland-device
+Requires:       fedora-appstream-metadata
 Supplements:    (iceland-device and plasma-workspace)
 
 %description kde
@@ -463,7 +467,7 @@ grep -q 'max "8192"' audioreach-topology/OnePlus-Pad4.conf
 %install
 install -Dm0644 %{SOURCE0} %{buildroot}/usr/share/dnf5/libdnf.conf.d/80-iceland-kernel.conf
 install -Dm0644 %{SOURCE60} %{buildroot}/usr/share/dnf5/repos.override.d/50-iceland-fedora-hold.repo
-install -Dm0644 %{SOURCE61} %{buildroot}/usr/share/dnf5/repos.override.d/51-iceland-fedora-44-pin.repo
+install -Dm0644 %{SOURCE61} %{buildroot}/usr/share/dnf5/repos.override.d/51-iceland-fedora-45-pin.repo
 install -Dm0644 %{SOURCE1} %{buildroot}/usr/lib/systemd/sleep.conf.d/60-iceland.conf
 install -Dm0644 %{SOURCE2} %{buildroot}/usr/lib/systemd/journald.conf.d/60-iceland.conf
 install -Dm0644 %{SOURCE3} %{buildroot}/usr/share/polkit-1/rules.d/49-iceland-no-system-upgrade.rules
@@ -669,6 +673,14 @@ elif [ "$1" -ge 2 ]; then
 fi
 
 %posttrans
+# 0.28-49: temporary /etc copies of our dnf5 overrides (the 7 Nov 2026 Fedora 45 upgrade placed
+# /etc/dnf/repos.override.d/51-iceland-fedora-44-pin.repo and 50-iceland-fedora-hold.repo by hand) are NOT removed
+# here (files in /etc stay the administrator's); a note in the journal and on the console names them
+for e in /etc/dnf/repos.override.d/51-iceland-fedora-44-pin.repo /etc/dnf/repos.override.d/50-iceland-fedora-hold.repo; do
+	[ -e "$e" ] || continue
+	m="iceland-device: $e is a hand-placed copy that overrides the packaged dnf5 repository settings; remove it (see iceland-update-check --check)"
+	echo "$m"; logger -t iceland-device "$m" 2>/dev/null || :
+done
 # 0.28-47: the hand-placed /etc/dnf/repos.override.d/53, 54, 55 hold files are in 50-iceland-fedora-hold.repo now;
 # moved to /var/lib/iceland/retired-holds/ only when their content is the known one, else left with a warning
 /usr/libexec/iceland/iceland-hold-migrate || :
@@ -905,7 +917,7 @@ dconf update >/dev/null 2>&1 || :
 %files
 /usr/share/dnf5/libdnf.conf.d/80-iceland-kernel.conf
 /usr/share/dnf5/repos.override.d/50-iceland-fedora-hold.repo
-/usr/share/dnf5/repos.override.d/51-iceland-fedora-44-pin.repo
+/usr/share/dnf5/repos.override.d/51-iceland-fedora-45-pin.repo
 /usr/lib/systemd/sleep.conf.d/60-iceland.conf
 /usr/lib/systemd/journald.conf.d/60-iceland.conf
 /usr/share/polkit-1/rules.d/49-iceland-no-system-upgrade.rules
@@ -1117,6 +1129,18 @@ dconf update >/dev/null 2>&1 || :
 %ghost %attr(0644,root,root) /usr/share/iceland/session-first/applications/org.kde.discover.desktop
 
 %changelog
+* Sat Nov 07 2026 mzak <mzak.amin@gmail.com> - 0.28-49
+- Fedora 45: the release pin moves to 45 (51-iceland-fedora-45-pin.repo replaces 51-iceland-fedora-44-pin.repo:
+  fedora-45, updates-released-f45, updates-testing-f45, fedora-cisco-openh264-45 metalinks and the
+  RPM-GPG-KEY-fedora-45 signing key). It moves to 46 only in a new iceland-device after a tested upgrade.
+- hold file: gstreamer1-plugins-good is no longer held (our V4L2 colorimetry fix, GStreamer !12699, is upstream in
+  1.28.9, which Fedora 45 ships); virglrenderer stays held (Fedora 45's 1.3.0-2 has none of our 4 VM 3D backports),
+  upower stays held (time-to-full to the charge end threshold is not upstream). iceland-update-check --check no longer
+  expects our gst-good build, checks the pin and warns about /etc copies of the override files.
+- Requires upower >= 1.91.5-1.fc45.iceland2 (our F45 build).
+- iceland-device-kde: Requires fedora-appstream-metadata (Discover's version-upgrade offers).
+- %%posttrans names hand-placed /etc/dnf/repos.override.d copies of the pin / hold files (left in place).
+
 * Sat Nov 07 2026 mzak <mzak.amin@gmail.com> - 0.28-48
 - new /usr/lib/udev/rules.d/72-iceland-pcie-wake.rules: the Wi-Fi PCIe root port (0000:00:00.0) is not a wakeup
   source (kernel q91g puts WAKE#, GPIO 104, back in the device tree; without Wake-on-WLAN the chip is off in a

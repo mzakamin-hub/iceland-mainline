@@ -15,5 +15,5 @@ git -C "$ART" archive --prefix=audioreach-topology/ -o "$work/SOURCES/audioreach
 tar -C "$top" -czf "$work/SOURCES/iceland-audio.tar.gz" audio
 # the Pad 4 tuned profiles (files/tuned/<profile>/tuned.conf)
 tar -C "$here/files" -czf "$work/SOURCES/iceland-tuned.tar.gz" tuned
-rpmbuild --define "_topdir $work" --define "dist .fc44" --nodeps -ba "$here/iceland-device.spec"
+rpmbuild --define "_topdir $work" --define "dist ${ICELAND_DIST:-.fc45}" --nodeps -ba "$here/iceland-device.spec"
 mkdir -p "$dest"; cp "$work"/RPMS/*/*.rpm "$work"/SRPMS/*.rpm "$dest/"; ls -la "$dest"

@@ -3,7 +3,7 @@
 # nothing and changes no setting.
 #   1. the upgrades dnf (and GNOME Software) would apply now: dnf5 check-upgrade
 #   2. the upgrades held back by /usr/share/dnf5/repos.override.d/50-iceland-fedora-hold.repo (0.28-47: the one hold
-#      list: boot loader, Mesa, libcamera, UPower, virglrenderer, gst-good, ffmpeg-free, sensors, our own names): check-upgrade again with the three Fedora repositories' excludes
+#      list: boot loader, Mesa, libcamera, UPower, virglrenderer, ffmpeg-free, sensors, our own names): check-upgrade again with the three Fedora repositories' excludes
 #      disabled (--setopt=disable_excludes=...), minus list 1. They come through the local repository after a RAM
 #      rehearsal.
 #   3. as root only: the upgrades the resolver skips (best=False / skip_broken=True in
@@ -22,8 +22,8 @@ DNF=${ICELAND_DNF:-dnf5}
 if [ "${1:-}" = --check ]; then
 	f=0
 	# required: installed on every Pad 4 Fedora; optional: checked only when installed
-	REQ="kernel-iceland mesa-dri-drivers mesa-filesystem mesa-libEGL mesa-libGL mesa-libgbm mesa-vulkan-drivers libcamera libcamera-ipa upower upower-libs gstreamer1-plugins-good iio-sensor-proxy hexagonrpc libssc"
-	OPT="mesa-libOpenCL mesa-va-drivers mesa-vdpau-drivers libcamera-tools virglrenderer gstreamer1-plugins-good-gtk gstreamer1-plugins-good-qt6"
+	REQ="kernel-iceland mesa-dri-drivers mesa-filesystem mesa-libEGL mesa-libGL mesa-libgbm mesa-vulkan-drivers libcamera libcamera-ipa upower upower-libs iio-sensor-proxy hexagonrpc libssc"
+	OPT="mesa-libOpenCL mesa-va-drivers mesa-vdpau-drivers libcamera-tools virglrenderer"
 	FF="ffmpeg-free libavcodec-free libavdevice-free libavfilter-free libavformat-free libavutil-free libswresample-free libswscale-free"
 	row() {   # name kind(req|opt|ff)
 		local r
@@ -40,6 +40,13 @@ if [ "${1:-}" = --check ]; then
 	for p in $FF; do row "$p" ff; done
 	h=/usr/share/dnf5/repos.override.d/50-iceland-fedora-hold.repo
 	[ -f "$h" ] && echo "  PASS $h present" || { echo "  FAIL $h missing"; f=$((f + 1)); }
+	# 0.28-49: the release pin (Fedora 45: metalinks and signing key) and leftover /etc shadows of our override files
+	pf=/usr/share/dnf5/repos.override.d/51-iceland-fedora-45-pin.repo
+	if [ -f "$pf" ] && [ "$(grep -v '^#' "$pf" | grep -c 'fedora-45\|f45\|openh264-45')" -ge 8 ] && ! grep -v '^#' "$pf" | grep -q '44'; then
+		echo "  PASS $pf (metalinks + gpgkey 45)"; else echo "  FAIL $pf missing or not on 45"; f=$((f + 1)); fi
+	for e in /etc/dnf/repos.override.d/50-iceland-fedora-hold.repo /etc/dnf/repos.override.d/51-iceland-fedora-4*-pin.repo; do
+		[ -e "$e" ] && echo "  WARN $e shadows / adds to the packaged overrides (a temporary hand-placed copy? remove it)"
+	done
 	echo "iceland-update-check --check: $([ $f = 0 ] && echo PASS || echo "FAIL ($f)")"
 	exit $((f > 0))
 fi

@@ -1,0 +1,27 @@
+# iceland-device: Fedora's repositories stay on release 45, whatever $releasever a tool asks for.
+# Why: Discover (PackageKit) and GNOME Software install and upgrade through PackageKit / dnf5daemon, whose polkit
+# actions are the same for a normal update and for a version upgrade (dnf5daemon-server Rpm::system_upgrade checks
+# POLKIT_EXECUTE_RPM_TRANSACTION), so the polkit rule cannot stop a version upgrade. With this file a version upgrade
+# ("dnf system-upgrade --releasever=46", "dnf --releasever=46 distro-sync", an upgrade banner) resolves against
+# release 45 and finds nothing to do.
+# 0.28-49: moved from 44 to 45 after the tested Fedora 44 -> 45 upgrade of 7 Nov 2026 (file renamed from
+# 51-iceland-fedora-44-pin.repo; the metalinks AND the signing key name the release: a 44 key on 45 packages fails
+# the transaction's signature check). The pin moves to 46 only in a new iceland-device, after a TESTED upgrade to 46
+# (dry run with our builds in iceland-local, then the upgrade with snapshots) - never by editing this file.
+# A dnf5 repository override (/usr/share/dnf5/repos.override.d); an empty file of the same name in
+# /etc/dnf/repos.override.d masks it.
+[fedora]
+metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-45&arch=$basearch
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-45-$basearch
+
+[updates]
+metalink=https://mirrors.fedoraproject.org/metalink?repo=updates-released-f45&arch=$basearch
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-45-$basearch
+
+[updates-testing]
+metalink=https://mirrors.fedoraproject.org/metalink?repo=updates-testing-f45&arch=$basearch
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-45-$basearch
+
+[fedora-cisco-openh264]
+metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-cisco-openh264-45&arch=$basearch
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-45-$basearch
