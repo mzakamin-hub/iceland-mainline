@@ -25,6 +25,8 @@ BuildRequires:  gcc
 BuildRequires:  make
 BuildRequires:  pkgconfig(libva)
 BuildRequires:  pkgconfig(vulkan)
+# %%{_udevrulesdir} (F45's minimal mock buildroot does not pull systemd-rpm-macros in by itself)
+BuildRequires:  systemd-rpm-macros
 Requires:       libva
 Requires(post): systemd-udev
 Recommends:     libva-utils
@@ -124,6 +126,10 @@ fi
 %{_libexecdir}/iris-vaapi/test_va_vp9
 
 %changelog
+* Sat Nov 07 2026 mzak <mzak.amin@gmail.com> - 0.2.0^20261023git9852479-1.iceland1
+- rebuilt for Fedora 45 (not packaged by Fedora 45); no source or patch change
+- BuildRequires systemd-rpm-macros (%%{_udevrulesdir} is undefined in a minimal F45 buildroot)
+
 * Mon Oct 26 2026 mzak <mzak.amin@gmail.com> - 0.2.0^20261023git9852479-1.iceland1
 - First package for the OnePlus Pad 4 (SM8850, iceland): upstream 9852479 (0.2.0)
 - Skip CAPTURE pictures without a client timestamp instead of failing the session, and report YUV420 for the

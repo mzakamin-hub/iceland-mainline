@@ -1,0 +1,234 @@
+From 6e7aa4f02cbd183170b0aba30f4d198c75c311aa Mon Sep 17 00:00:00 2001
+From: mzak <mzak.amin@gmail.com>
+Date: Fri, 2 Oct 2026 05:23:53 +0300
+Subject: [PATCH 2/2] main: hold back HasAccelerometer until a client has
+ claimed or waited
+
+mutter 50.5 never claims the accelerometer when it starts while
+iio-sensor-proxy is already up with an accelerometer and the seat is in
+touch mode, which is every boot of a tablet: the first has-accelerometer
+notification makes the panel orientation managed, and
+update_panel_orientation_managed() then calls
+meta_orientation_manager_uninhibit_tracking() although nothing had
+inhibited the tracking. The count goes to -1, and
+sync_accelerometer_claimed() only claims at exactly 0. Automatic rotation
+stays dead for the whole session.
+
+When HasAccelerometer reads false at that moment mutter takes its other
+path: it claims blind and learns of the sensor from the PropertiesChanged
+signal that claimed clients get. So a client sees HasAccelerometer only
+once it has claimed the accelerometer, and the claim sends it the
+property.
+
+A mutter that has been through that once behaves the other way round:
+when this daemon is restarted under the running session (package update,
+crash) it waits for HasAccelerometer to become true before it claims.
+So a client that read the property and did not claim is told 2 s later.
+The bus name is taken before the sensors are opened, so that client can
+have looked while there was no accelerometer yet: it is then told once
+the accelerometer is there.
+
+This is a workaround for the OnePlus Pad 4 package until mutter is fixed;
+it is not meant for upstream.
+
+Tested on the Pad 4. Shown only after the claim (area-combo-19, -23, -24):
+a new GNOME session started after the daemon makes 1 claim and follows 4
+of 4 orientations (0 claims and 1 of 4 without). Without the other two
+rules a daemon restart under that session got 0 claims (area-combo-23,
+-24).
+
+Signed-off-by: mzak <mzak.amin@gmail.com>
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+---
+ src/iio-sensor-proxy.c | 140 ++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 139 insertions(+), 1 deletion(-)
+
+diff --git a/src/iio-sensor-proxy.c b/src/iio-sensor-proxy.c
+index aff7ac9..13eccfd 100644
+--- a/src/iio-sensor-proxy.c
++++ b/src/iio-sensor-proxy.c
+@@ -48,6 +48,9 @@ typedef struct {
+ 	SensorDevice      *devices[NUM_SENSOR_TYPES];
+ 	GUdevDevice       *udev_devices[NUM_SENSOR_TYPES];
+ 	GHashTable        *clients[NUM_SENSOR_TYPES]; /* key = D-Bus name, value = watch ID */
++	/* key = D-Bus name of a client that read HasAccelerometer; value = timeout ID while the delay runs,
++	 * ACCEL_SHOW_WAITING after it when there is no accelerometer yet, 0 once the client was shown */
++	GHashTable        *accel_shown;
+ 
+ 	GPtrArray         *sensor_startup_dbus_invocations_delayed[NUM_SENSOR_TYPES];
+ 	gboolean           sensor_startup_dbus_event_delayed[NUM_SENSOR_TYPES];
+@@ -336,6 +339,124 @@ send_dbus_event_for_client (SensorData     *data,
+ 				       props_changed, NULL);
+ }
+ 
++/*
++ * HasAccelerometer is held back from a client until it has claimed the accelerometer, or until
++ * ACCEL_SHOW_DELAY_MS after it first read the property.
++ *
++ * mutter 50 never claims an accelerometer that it can see when it starts (a tablet after a boot, the
++ * seat in touch mode): the notification makes the panel orientation managed, which uninhibits the
++ * orientation tracking before anything inhibited it, and the claim is only made at a count of
++ * exactly 0. When it reads "false" it claims blind and learns of the sensor from the signal that
++ * the claim sends. A mutter that has been through that once (this daemon restarted under a running
++ * session) does the opposite: it waits for HasAccelerometer before it claims, so a client that
++ * looked and did not claim is told after the delay - or, when it looked before the accelerometer
++ * was found (the bus name is taken before the sensors are opened), once the accelerometer is there.
++ */
++#define ACCEL_SHOW_DELAY_MS 2000
++#define ACCEL_SHOWN_MAX 256
++#define ACCEL_SHOW_WAITING G_MAXUINT
++
++typedef struct {
++	SensorData *data;
++	char *name;
++} AccelShow;
++
++static void
++accel_show_free (gpointer user_data)
++{
++	AccelShow *show = user_data;
++
++	g_free (show->name);
++	g_free (show);
++}
++
++static gboolean
++accel_shown_drop (gpointer key, gpointer value, gpointer user_data)
++{
++	return GPOINTER_TO_UINT (value) == 0;
++}
++
++/* at the claim: the claimer sees the accelerometer (and its last orientation) from now on */
++static void
++accel_show_now (SensorData *data,
++		const char *name)
++{
++	guint id;
++
++	if (data->accel_shown == NULL)
++		data->accel_shown = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
++	id = GPOINTER_TO_UINT (g_hash_table_lookup (data->accel_shown, name));
++	if (id != 0 && id != ACCEL_SHOW_WAITING)
++		g_source_remove (id);
++	g_hash_table_insert (data->accel_shown, g_strdup (name), GUINT_TO_POINTER (0));
++	if (driver_type_exists (data, DRIVER_TYPE_ACCEL))
++		send_dbus_event_for_client (data, name, PROP_HAS_ACCELEROMETER);
++}
++
++/* the delay is over for a client that looked and did not claim */
++static gboolean
++accel_show_cb (gpointer user_data)
++{
++	AccelShow *show = user_data;
++
++	if (!driver_type_exists (show->data, DRIVER_TYPE_ACCEL)) {
++		g_hash_table_insert (show->data->accel_shown, g_strdup (show->name),
++				     GUINT_TO_POINTER (ACCEL_SHOW_WAITING));
++		return G_SOURCE_REMOVE;
++	}
++	g_hash_table_insert (show->data->accel_shown, g_strdup (show->name), GUINT_TO_POINTER (0));
++	g_debug ("Showing the accelerometer to '%s', which looked and did not claim", show->name);
++	send_dbus_event_for_client (show->data, show->name, PROP_HAS_ACCELEROMETER);
++	return G_SOURCE_REMOVE;
++}
++
++/* the accelerometer is there now: tell the clients that looked before it was */
++static void
++accel_show_waiting (SensorData *data)
++{
++	GHashTableIter iter;
++	gpointer key, value;
++
++	if (data->accel_shown == NULL || !driver_type_exists (data, DRIVER_TYPE_ACCEL))
++		return;
++	g_hash_table_iter_init (&iter, data->accel_shown);
++	while (g_hash_table_iter_next (&iter, &key, &value)) {
++		if (GPOINTER_TO_UINT (value) != ACCEL_SHOW_WAITING)
++			continue;
++		g_hash_table_iter_replace (&iter, GUINT_TO_POINTER (0));
++		g_debug ("Showing the accelerometer to '%s', which looked before it was found", (const char *) key);
++		send_dbus_event_for_client (data, (const char *) key, PROP_HAS_ACCELEROMETER);
++	}
++}
++
++static gboolean
++accel_shown_to (SensorData *data,
++		const char *name)
++{
++	gpointer value;
++	AccelShow *show;
++	guint id;
++
++	if (name == NULL || g_hash_table_lookup (data->clients[DRIVER_TYPE_ACCEL], name) != NULL)
++		return driver_type_exists (data, DRIVER_TYPE_ACCEL);
++	if (data->accel_shown == NULL)
++		data->accel_shown = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
++	if (g_hash_table_lookup_extended (data->accel_shown, name, NULL, &value))
++		return GPOINTER_TO_UINT (value) == 0 && driver_type_exists (data, DRIVER_TYPE_ACCEL);
++
++	/* the first look */
++	g_debug ("'%s' looks for the accelerometer before claiming it (%s)", name,
++		 driver_type_exists (data, DRIVER_TYPE_ACCEL) ? "held back" : "not found yet");
++	if (g_hash_table_size (data->accel_shown) >= ACCEL_SHOWN_MAX)
++		g_hash_table_foreach_remove (data->accel_shown, accel_shown_drop, NULL);
++	show = g_new0 (AccelShow, 1);
++	show->data = data;
++	show->name = g_strdup (name);
++	id = g_timeout_add_full (G_PRIORITY_DEFAULT, ACCEL_SHOW_DELAY_MS, accel_show_cb, show, accel_show_free);
++	g_hash_table_insert (data->accel_shown, g_strdup (name), GUINT_TO_POINTER (id));
++	return FALSE;
++}
++
+ static void
+ send_dbus_event (SensorData     *data,
+ 		 PropertiesMask  mask)
+@@ -349,6 +470,9 @@ send_dbus_event (SensorData     *data,
+ 	g_assert (data->connection);
+ 	g_assert ((mask & PROP_ALL) == 0 || (mask & PROP_ALL_COMPASS) == 0);
+ 
++	if (mask & PROP_HAS_ACCELEROMETER)
++		accel_show_waiting (data);
++
+ 	/* Make a list of the events each client for each sensor
+ 	 * is interested in */
+ 	ht = g_hash_table_new (g_str_hash, g_str_equal);
+@@ -522,6 +646,9 @@ handle_generic_method_call (SensorData            *data,
+ 							   NULL);
+ 		g_hash_table_insert (ht, g_strdup (sender), GUINT_TO_POINTER (watch_id));
+ 
++		if (driver_type == DRIVER_TYPE_ACCEL)
++			accel_show_now (data, sender);
++
+ 		if (driver_type_exists (data, driver_type)) {
+ 			SensorDevice *sensor_device = DEVICE_FOR_TYPE(driver_type);
+ 
+@@ -610,7 +737,7 @@ handle_get_property (GDBusConnection *connection,
+ 	g_assert (data->connection);
+ 
+ 	if (g_strcmp0 (property_name, "HasAccelerometer") == 0)
+-		return g_variant_new_boolean (driver_type_exists (data, DRIVER_TYPE_ACCEL));
++		return g_variant_new_boolean (accel_shown_to (data, sender));
+ 	if (g_strcmp0 (property_name, "AccelerometerOrientation") == 0)
+ 		return g_variant_new_string (orientation_to_string (data->previous_orientation));
+ 	if (g_strcmp0 (property_name, "AccelerometerTilt") == 0)
+@@ -1021,6 +1148,17 @@ free_sensor_data (SensorData *data)
+ 		g_clear_pointer (&data->clients[i], g_hash_table_unref);
+ 		g_clear_pointer (&data->sensor_startup_dbus_invocations_delayed[i], g_ptr_array_unref);
+ 	}
++	if (data->accel_shown != NULL) {
++		GHashTableIter iter;
++		gpointer value;
++
++		g_hash_table_iter_init (&iter, data->accel_shown);
++		while (g_hash_table_iter_next (&iter, NULL, &value)) {
++			if (GPOINTER_TO_UINT (value) != 0 && GPOINTER_TO_UINT (value) != ACCEL_SHOW_WAITING)
++				g_source_remove (GPOINTER_TO_UINT (value));
++		}
++		g_clear_pointer (&data->accel_shown, g_hash_table_unref);
++	}
+ 
+ 	g_clear_object (&data->auth);
+ 	g_clear_pointer (&data->introspection_data, g_dbus_node_info_unref);
+-- 
+2.43.0
+

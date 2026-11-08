@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
 # libssc for the OnePlus Pad 4: the client library for Qualcomm's sensor hub (SSC) over QMI / QRTR.
-# iio-sensor-proxy uses it for the accelerometer, light, proximity and compass sensors. Not in Fedora 44.
+# iio-sensor-proxy uses it for the accelerometer, light, proximity and compass sensors. Not in Fedora 44 or 45.
 
 %global commit 54dd13e36d65c21263cf5b0f4a70c230a77b26bc
 %global shortcommit 54dd13e
@@ -69,6 +69,9 @@ if [ -e %{buildroot}%{_datadir}/gir-1.0/SSC-2.gir ]; then echo "%{_datadir}/gir-
 %{_libdir}/pkgconfig/libssc.pc
 
 %changelog
+* Sat Nov 07 2026 mzak <mzak.amin@gmail.com> - 0.4.4^8.git54dd13e-2.iceland1
+- rebuilt for Fedora 45 (not packaged by Fedora 45); no source or patch change
+
 * Tue Oct 27 2026 mzak <mzak.amin@gmail.com> - 0.4.4^8.git54dd13e-2.iceland1
 - hall sensor (data type "hall": the Pad 4's cover hall in the sensor hub) and ssccli --sensor hall
 

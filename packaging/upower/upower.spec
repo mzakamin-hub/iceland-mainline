@@ -154,6 +154,10 @@ mv $RPM_BUILD_ROOT%{_libexecdir}/upower $RPM_BUILD_ROOT%{_libexecdir}/installed-
 %{_datadir}/installed-tests/upower/upower-integration.test
 
 %changelog
+* Sat Nov 07 2026 mzak <mzak.amin@gmail.com> - 1.91.5-1.iceland2
+- rebuilt for Fedora 45 on Fedora's F45 upower-1.91.5-1.fc45 spec (identical to F44's); patches unchanged
+  (both still needed with 1.91.5: upstream's multi-lid change 732db2a is only on main, after v1.91.5)
+
 * Tue Oct 27 2026 mzak <mzak.amin@gmail.com> - 1.91.5-1.iceland2
 - every lid switch is watched, not only the first one found: the Pad 4 has gpio-keys' lid and the cover
   detector's uinput lid (upower-iceland-multi-lid.patch)
@@ -162,4 +166,4 @@ mv $RPM_BUILD_ROOT%{_libexecdir}/upower $RPM_BUILD_ROOT%{_libexecdir}/installed-
 - the time to full counts to the charge end threshold while the threshold is enabled, and is not given once the
   threshold is reached; the DisplayDevice keeps a single charging battery's own time to full
   (upower-iceland-ttf-threshold.patch)
-- otherwise Fedora 44's upower 1.91.5-1; its earlier changelog is in Fedora's dist-git (rpms/upower)
+- the earlier changelog entries are Fedora's: https://src.fedoraproject.org/rpms/upower

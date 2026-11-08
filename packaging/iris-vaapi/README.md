@@ -1,5 +1,7 @@
 # iris-vaapi: VA-API hardware video decode for the OnePlus Pad 4
 
+**Fedora 45 build (8 Nov 2026):** the same source and patches, rebuilt as `.fc45`; the spec now build-requires `systemd-rpm-macros` (a minimal Fedora 45 buildroot does not define `%{_udevrulesdir}` without it).
+
 `iris-vaapi-0.2.0^20261023git9852479-1.iceland1`: the VA-API driver of
 [CFM880/iris-vaapi](https://github.com/CFM880/iris-vaapi) (upstream name vpu-vaapi, commit `9852479`, version 0.2.0)
 for the Qualcomm Iris V4L2 decoder (`qcom_iris`) of the Pad 4's kernel, packaged for Fedora 44 aarch64.

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
 # hexagonrpc for the OnePlus Pad 4: hexagonrpcd serves the ADSP's sensors PD its configuration files over FastRPC
-# (the sensor hub does not start its sensors without them). Not in Fedora 44.
+# (the sensor hub does not start its sensors without them). Not in Fedora 44 or 45.
 # Upstream snapshot + two local patches (docs/sensors/patches/hexagonrpc).
 
 %global commit 598b591ae9da6a6cfe2ca5ea78998019ca6395ea
@@ -80,6 +80,9 @@ install -Dm0644 %{SOURCE2} %{buildroot}%{_udevrulesdir}/60-hexagonrpc.rules
 %{_udevrulesdir}/60-hexagonrpc.rules
 
 %changelog
+* Sat Nov 07 2026 mzak <mzak.amin@gmail.com> - 0.5.0^19.git598b591-1.iceland2
+- rebuilt for Fedora 45 (not packaged by Fedora 45); no source or patch change
+
 * Fri Oct 16 2026 mzak <mzak.amin@gmail.com> - 0.5.0^19.git598b591-1.iceland2
 - Patch 0002: an unsupported FastRPC call (unknown handle or method, missing arguments, no memory) is answered
   with its error and hexagonrpcd keeps serving. On the Pad 4 the ADSP's sensors PD calls apps_std method 36

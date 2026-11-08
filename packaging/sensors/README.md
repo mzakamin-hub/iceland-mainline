@@ -1,5 +1,7 @@
 # The sensor programs for the OnePlus Pad 4
 
+**Fedora 45 builds (8 Nov 2026):** `iio-sensor-proxy-3.9-13.fc45.iceland1` (patches `0001-main-*` to `0004-ssc-*`: sensors claimed during the first discovery are polled, HasAccelerometer is held back until a client claims, the ambient light sensor is rate-limited with hysteresis, the orientation comes from the sensor hub's device orientation), `libssc-0.4.4^8.git54dd13e-2.iceland1.fc45` and `hexagonrpc-0.5.0^19.git598b591-1.iceland2.fc45` (patches `0001-hexagonrpcd-*`, `0002-hexagonrpcd-*`: /odm/etc/sensor served from /odm/sensor, unsupported calls answered so the daemon keeps serving).
+
 The Pad 4's accelerometer (auto-rotate), light, proximity and compass sensors sit behind the ADSP's sensor hub
 (Qualcomm SSC). Three programs reach them. None of them is packaged by Fedora 44 as it is, so they are built here and
 held from Fedora's updates:

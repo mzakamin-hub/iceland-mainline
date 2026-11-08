@@ -1,6 +1,6 @@
 Name:           iceland-coexist
 Version:        1.0
-Release:        9%{?dist}
+Release:        10%{?dist}
 Summary:        OnePlus Pad 4: Fedora 44 next to Arch Linux ARM in one shared /boot
 License:        GPL-2.0-or-later
 BuildArch:      noarch
@@ -82,6 +82,11 @@ lsinitrd /boot/initramfs-$(uname -r).img 2>/dev/null | grep -q iceland-oneshot-c
 /etc/kernel/install.d/90-iceland-dtb.install
 
 %changelog
+* Sat Nov 07 2026 mzak <mzak.amin@gmail.com> - 1.0-10
+- Rebuilt for Fedora 45 (tabbuild3, native mock on the tablet). No source change: the on-disk names
+  /bootfs/fedora44, SUBDIR=fedora44 and the BLS ids fedora-<kver>-f44 stay as they are (saved_entry and the
+  existing entries use them); only the dist tag changes
+
 * Sat Nov 07 2026 mzak <mzak.amin@gmail.com> - 1.0-9
 - 52-iceland-coexist-hold.repo removed: iceland-device 0.28-47 (now required) carries every hold in its one file
   /usr/share/dnf5/repos.override.d/50-iceland-fedora-hold.repo (Mesa, libcamera, gst-plugins-good, GRUB and shim
