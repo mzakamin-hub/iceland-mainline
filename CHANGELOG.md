@@ -15,9 +15,9 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 
 ## 2026-11-02 - kernel q91c (Linux v7.4-rc1 base) and iceland-device 0.28-46: headphones and DisplayPort audio, memory settings, camera tuning for libcamera 0.8
 
-- Kernel q91c (`7.4.0-rc1-iceland-00618`, the patch queue on Linux `v7.4-rc1`) is the newest release
-  ([q91c](https://github.com/mzakamin-hub/iceland-linux/releases/tag/q91c): kernel RPM, source RPM, `SHA256SUMS`).
-- [iceland-device 0.28-46](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-46):
+- Kernel q91c (`7.4.0-rc1-iceland-00618`, the patch queue on Linux `v7.4-rc1`; tag `q91c`, its changes are in the
+  q91k release).
+- iceland-device 0.28-46 (tag `iceland-device-0.28-46`, released with 0.28-51):
   - sound: the UCM profile gains Headphones (stock's headphone values), a headset microphone and HDMI0 (DisplayPort
     audio) next to Speaker and Mic; the internal back microphone moves to ADC3 (ADC2 is the headset microphone's only
     input); the microphones record in the ADC HiFi mode; speakers, headphones and microphones offer 32-bit samples.
@@ -45,8 +45,8 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
   longer holds gst-plugins-good: GStreamer 1.28.9 has the V4L2 colorimetry fix, so our gst-plugins-good build is
   retired. Our Fedora 45 builds (packaging in this repository): Mesa 26.3.0-rc3 snapshot `25248e6` with 30
   freedreno / turnip / ir3 merge requests for the A8xx (`26.3.0~rc3^git20261104.25248e6-1.fc45.iceland1`),
-  libcamera 0.7.2-5 with the autofocus patches (`iceland_af2`), ffmpeg-free 9.0.2-3 with the V4L2 decoders
-  (`iceland5`), upower 1.91.5 (`iceland2`), iio-sensor-proxy 3.9-13, libssc, hexagonrpc, iris-vaapi and
+  libcamera 0.7.2-5 (`iceland_af2`; both cameras are listed), ffmpeg-free 9.0.2-3 (`iceland5`; the V4L2 M2M
+  decoders are listed), upower 1.91.5 (`iceland2`), iio-sensor-proxy 3.9-13, libssc, hexagonrpc, iris-vaapi and
   iceland-coexist 1.0-10.
 - **Signed packages.** The project's RPMs are signed with a new key (RSA 4096, fingerprint
   `FF9C6A4E64CB38F01035AD7F939BE983CCA25574`). iceland-device 0.28-50 ships the public key
@@ -68,8 +68,7 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
   - USB-C: alt-mode handling left to the altmode driver, DP PHY state tracking, UCSI init retries, the dwc3 gadget End
     Transfer series, and the USB connector temperature on the battery manager's USB supply;
   - thermal: stock's shell temperature policy, 95 C CPU and QMX backstops and the Horae shell estimate are in the
-    default device tree; a 2 MiB ramoops region for pstore;
-  - optional, off by default: a smaller dwc3 usb-ddr vote across runtime suspend and the ath12k Wake-on-WLAN switches.
+    default device tree.
 - **iceland-device 0.28-47 to 0.28-51**
   ([iceland-device-0.28-51](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-51)):
   - 0.28-47: one hold file for every held package; PowerDevil without DDC/CI; systemd-resolved without LLMNR / mDNS;
@@ -86,7 +85,7 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
     echo canceller's latency at 2048/48000 (no more errors under the larger graph quantum).
 - **DexHid** (new, its own repository): the tablet as touchpad and keyboard for a USB-C monitor, as USB keyboard and
   mouse for another computer, or a normal second screen, with one switch.
-- **Android apps:** DroidLoom release 30 with the GApps add-on and the AndroidVM helper 1.1 (iceland-droidloom).
+- **Android apps:** DroidLoom release 30 with the GApps add-on.
 
 ## 2026-10-30 - kernel q90z, iceland-device 0.28-45; the rails device-tree variant is no longer needed
 
