@@ -38,6 +38,56 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 - The feature matrix row "Headset over USB-C" is corrected to in progress: an analog headset needs the accessory-mode
   device tree, and listening with a headset is still to be done.
 
+## 2026-11-08 - Fedora 45, kernel q91k, iceland-device 0.28-51, signed packages, Night Light, DexHid
+
+- **Fedora 45.** The project's tablet moved from Fedora 44 to Fedora 45 with dnf's offline upgrade. iceland-device
+  0.28-49 pins the release to 45 (`51-iceland-fedora-45-pin.repo`, with the Fedora 45 keys) and its one hold file no
+  longer holds gst-plugins-good: GStreamer 1.28.9 has the V4L2 colorimetry fix, so our gst-plugins-good build is
+  retired. Our Fedora 45 builds (packaging in this repository): Mesa 26.3.0-rc3 snapshot `25248e6` with 30
+  freedreno / turnip / ir3 merge requests for the A8xx (`26.3.0~rc3^git20261104.25248e6-1.fc45.iceland1`),
+  libcamera 0.7.2-5 with the autofocus patches (`iceland_af2`), ffmpeg-free 9.0.2-3 with the V4L2 decoders
+  (`iceland5`), upower 1.91.5 (`iceland2`), iio-sensor-proxy 3.9-13, libssc, hexagonrpc, iris-vaapi and
+  iceland-coexist 1.0-10.
+- **Signed packages.** The project's RPMs are signed with a new key (RSA 4096, fingerprint
+  `FF9C6A4E64CB38F01035AD7F939BE983CCA25574`). iceland-device 0.28-50 ships the public key
+  `RPM-GPG-KEY-iceland`, the local repository checks signatures (`gpgcheck=1`), `iceland-repo-sync` refuses unsigned
+  packages and `iceland-update-check --check` reports the signatures.
+- **Kernel q91k** (`7.4.0-rc1-iceland-00704`) is the newest release
+  ([q91k](https://github.com/mzakamin-hub/iceland-linux/releases/tag/q91k): kernel RPM, source RPM with the whole
+  queue, the optional headset DTB, `SHA256SUMS`). The queue moved to the branch `iceland-7.4-rc1`; q91c to q91j have
+  tags, no releases of their own. Since q91c:
+  - GPU: recovery frees the crash state asynchronously (no deadlock with the fault handler), the GMU-to-host
+    interrupts are masked before the GMU boots, A8xx alpha filtering precision;
+  - display: KWin's Night Light works (the Kaanapali DSPP no longer offers its LUT-DMA-only gamma block, so the
+    compositor uses the colour matrix);
+  - sleep: the cover puts the tablet to sleep about a second after it closes (the SMP2P sleep-state driver reported
+    wakeup events all the time while the sensors streamed); SoundWire and the LPASS pins are runtime-suspended in
+    system sleep; tsens and bwmon behave across suspend; UFS holds clock gating in system PM;
+  - Bluetooth and Wi-Fi: a 100 ms WCN7860 power-up delay, hci_qca and MGMT fixes, ath12k fixes, the WCN7860 QMI chunk
+    size;
+  - USB-C: alt-mode handling left to the altmode driver, DP PHY state tracking, UCSI init retries, the dwc3 gadget End
+    Transfer series, and the USB connector temperature on the battery manager's USB supply;
+  - thermal: stock's shell temperature policy, 95 C CPU and QMX backstops and the Horae shell estimate are in the
+    default device tree; a 2 MiB ramoops region for pstore;
+  - optional, off by default: a smaller dwc3 usb-ddr vote across runtime suspend and the ath12k Wake-on-WLAN switches.
+- **iceland-device 0.28-47 to 0.28-51**
+  ([iceland-device-0.28-51](https://github.com/mzakamin-hub/iceland-mainline/releases/tag/iceland-device-0.28-51)):
+  - 0.28-47: one hold file for every held package; PowerDevil without DDC/CI; systemd-resolved without LLMNR / mDNS;
+    the charge alert as a path unit; the cover detector started from udev; iceland-coexist 1.0-9 no longer ships
+    its own hold file;
+  - 0.28-48: the Wi-Fi root port's wakeup stays off (for kernel q91g's WAKE# line); Discover installs through
+    PackageKit only (Plasma); the cover close is decided sooner;
+  - 0.28-49: the Fedora 45 pin; `iceland-device-kde` requires `fedora-appstream-metadata`, so Discover offers Fedora
+    upgrades;
+  - 0.28-50: PipeWire runs the microphone and headset sources in their own clock domain with the speaker as the driver
+    (adapted from jstockdale's ubuntu-oneplus-pad-4, BSD-3-Clause, licence text packaged), which removes the crackle
+    while a microphone is open; no second sound card for the compress-offload PCM; the signing key;
+  - 0.28-51: the microphones' ADCs in mode NORMAL (0.28-46's HIFI clipped the raw signal and recordings hissed) and the
+    echo canceller's latency at 2048/48000 (no more errors under the larger graph quantum).
+- **DexHid** (new, its own repository): the tablet as touchpad and keyboard for a USB-C monitor, as USB keyboard and
+  mouse for another computer, or a normal second screen, with one switch.
+- **Android apps:** DroidLoom release 30 with the GApps add-on and the AndroidVM helper 1.1 (iceland-droidloom).
+
 ## 2026-10-30 - kernel q90z, iceland-device 0.28-45; the rails device-tree variant is no longer needed
 
 - Kernel q90z (`7.3.0-next-20261020-iceland-00572`) is the newest release

@@ -7,12 +7,7 @@
 # A working row without an entry here is listed with its internal note, cleaned of run ids; build.py warns about it.
 # Keep the entries in sync when a matrix-*.py script adds, renames or re-words a working row.
 
-PUBLIC_STATUS = ("Fedora 44 is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel); the "
-                 "project's tablet runs KDE Plasma 6, the install image sets up GNOME 50. Current versions: kernel "
-                 "7.4.0-rc1-iceland-00618 (q91c, the patch queue on Linux v7.4-rc1; iceland-linux branch "
-                 "release/q91c, release q91c), iceland-firmware 11.A.38-6, U-Boot install build v7, iceland-gvm "
-                 "0.3-59, iceland-vms 0.2-25 and iceland-qemu-gunyah 10.0.2-1 (virtual machines). The newest "
-                 "iceland-device release is 0.28-46.")
+PUBLIC_STATUS = ("Fedora 45 is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel); the project's tablet runs KDE Plasma 6, the install image sets up GNOME 50. Current versions: kernel 7.4.0-rc1-iceland-00704 (q91k, the patch queue on Linux v7.4-rc1; iceland-linux branch iceland-7.4-rc1, release q91k), iceland-device 0.28-51, iceland-firmware 11.A.38-6, U-Boot install build v7. The project's packages are signed with RPM-GPG-KEY-iceland.")
 
 PUBLIC = {
 # Boot & platform
@@ -27,7 +22,7 @@ PUBLIC = {
     "Boots a “fedora” partition if there is one, else the Fedora image in userdata.",
 "Linux 7.4 base (linux-next) through EFI": (
     "Linux (7.4 base)",
-    "Linux with the Pad 4 patch queue on Linux v7.4-rc1 (current kernel 7.4.0-rc1-iceland-00618, q91c, iceland-linux branch release/q91c and its q91c release) boots through U-Boot's EFI, Fedora's shim and GRUB."),
+    "Linux with the Pad 4 patch queue on Linux v7.4-rc1 (current kernel 7.4.0-rc1-iceland-00704, q91k, iceland-linux branch iceland-7.4-rc1 and its q91k release) boots through U-Boot's EFI, Fedora's shim and GRUB. Since q91c: GPU recovery without deadlock, Night Light, faster sleep on cover close, Bluetooth / Wi-Fi robustness fixes and the USB connector temperature."),
 "Internal storage (UFS 4)":
     "UFS 4 with 4 KiB blocks in MCQ mode (9 hardware queues per LUN), about 2.3 GB/s direct read. The installed "
     "root is btrfs (zstd compression) in userdata; with iceland-device 0.28-32's device-mapper option "
@@ -73,10 +68,8 @@ PUBLIC = {
     "sensor hub registry) as an RPM, each file sha256-pinned to our own extraction, plus two GPU firmware pairs in "
     "their own directories: stock's v5.3.39 and the vendor v5.3.33 (a third-party copy, byte-identical in the other "
     "ports' repositories). In the public repo mzakamin-hub/iceland-firmware. Unit-specific data is never included.",
-"Fedora installed on the tablet":
-    "Fedora 44 installs with two partition writes: the system image into userdata and U-Boot into boot_b; nothing "
-    "else is written. The tablet then boots Fedora on its own, the root is btrfs on a loop device in userdata, and "
-    "Fedora marks the boot slot successful.",
+"Fedora installed on the tablet": 
+    "Fedora installs with two partition writes: the system image into userdata and U-Boot into boot_b; nothing else is written. The tablet then boots Fedora on its own, the root is btrfs on a loop device in userdata, and Fedora marks the boot slot successful. The installed system upgrades between Fedora releases with dnf's offline upgrade (Fedora 44 to 45 on 7 Nov 2026).",
 "Dual boot BlissROM + Fedora":
     "A power-on menu (U-Boot v7) starts Fedora or BlissROM v20.1: Volume Up / Down move, Power selects, Fedora "
     "after 5 s. Fedora runs from its own fedora partition and BlissROM keeps its encrypted data in a smaller "
@@ -108,8 +101,8 @@ PUBLIC = {
     "Works, also after display off / on and suspend.",
 "Pen":
     "Works (checked on the tablet).",
-"Lid switch":
-    "Closing a keyboard cover locks the tablet and turns the screen off (on battery it sleeps); opening it shows the lock screen. This also works for magnet covers the hall sensor cannot see, recognised from the magnetometer and the proximity sensor. Waking the tablet from sleep when the cover opens needs the power key.",
+"Lid switch": 
+    "Closing a keyboard cover locks the tablet and turns the screen off (on battery it sleeps about a second later); opening it shows the lock screen. This also works for magnet covers the hall sensor cannot see, recognised from the magnetometer and the proximity sensor. Waking the tablet from sleep when the cover opens needs the power key.",
 "Power and volume keys":
     "The power key wakes the tablet from sleep. Without a charger a press suspends; with a charger in it locks and "
     "turns the screen off, as stock does.",
@@ -119,19 +112,12 @@ PUBLIC = {
     "as designed; GNOME then releases the accelerometer, as it does while rotation lock is on, and the sensor "
     "hub stops streaming.",
 # Graphics & compute
-"Adreno 840 GPU, GLES 3.2":
-    "OpenGL 4.6 / OpenGL ES 3.2 on Mesa, with no GPU faults in the test runs. Since 16 Oct 2026 the GPU runs "
-    "the vendor firmware GMU v5.3.33 / SQE 0x094 (as the other ports of this chip) with GPU preemption on: in "
-    "the test run 48356 preemption switches without a fenced-write failure, timeout or GPU fault. Stock's "
-    "firmware v5.3.39 is also packaged and runs cleanly with preemption off. The GPU's current limiter (CLX) "
-    "is on (iceland-device 0.28-32).",
+"Adreno 840 GPU, GLES 3.2": 
+    "OpenGL 4.6 / OpenGL ES 3.2 on Mesa 26.3 (our build with the freedreno / turnip / ir3 fixes for the A8xx), with no GPU faults in the test runs. The GPU runs the vendor firmware GMU v5.3.33 / SQE 0x094 with GPU preemption on; stock's firmware v5.3.39 is also packaged and runs cleanly with preemption off. The GPU's current limiter (CLX) is on (iceland-device 0.28-32).",
 "GNOME and Wayland drawn by the GPU":
     "GNOME and Wayland are drawn by the GPU; buffers from other devices (video, shared memory) show correctly.",
-"GPU correctness, WebGL, stress":
-    "dEQP: Vulkan 34,650 cases with 2 failures, GLES 34,950 cases with 53 failures, 0 crashes; 193 of 196 WebGL "
-    "test pages pass; a 90 s stress run had 0 GPU faults. Firefox renders normally; Chromium WebGL ran 180 s "
-    "without a GPU-process crash with GPU preemption on. A GPU hang is recovered: the GPU is reset and the "
-    "desktop keeps running (kernel q90e and later).",
+"GPU correctness, WebGL, stress": 
+    "dEQP: Vulkan 34,650 cases with 2 failures, GLES 34,950 cases with 53 failures, 0 crashes; 193 of 196 WebGL test pages pass; a 90 s stress run had 0 GPU faults. Firefox renders normally; Chromium WebGL ran 180 s without a GPU-process crash with GPU preemption on. A GPU hang is recovered: the GPU is reset and the desktop keeps running (3 of 3 forced recoveries on kernel q91k).",
 "Vulkan":
     "Vulkan 1.4 through turnip on Mesa 26.2.4; vkcube and vkmark run (vkmark about 22,000-23,600 headless).",
 "Hardware video decoding":
@@ -149,15 +135,12 @@ PUBLIC = {
 # Audio
 "DSP audio + sound card":
     "The ADSP-based sound card comes up at boot and stays present.",
-"GNOME shows speakers and microphones":
-    "Speakers and microphones appear in GNOME on a fresh boot; since iceland-device 0.28-46 also headphones and "
-    "DisplayPort audio.",
-"Microphones (2)":
-    "Both microphones work at stock's gain. GNOME's default input is a processed source (echo cancellation, gain "
-    "control, noise suppression); the raw source is kept.",
-"Echo cancellation and loopback sound test":
-    "WebRTC echo cancellation runs on the default microphone source, followed by a limiter, so the processed output "
-    "does not clip. An automatic loopback test (tones, sweep, speech-like) checks the whole chain.",
+"GNOME shows speakers and microphones": 
+    "Speakers and microphones appear on a fresh boot; since iceland-device 0.28-46 also headphones and DisplayPort audio, and since 0.28-50 the compress-offload device no longer shows as a second card.",
+"Microphones (2)": 
+    "Both microphones record cleanly (ADC mode NORMAL, no clipping, raw floor about -64 dBFS). GNOME's and Plasma's default input is a processed source (echo cancellation, gain control, noise suppression); the raw source is kept.",
+"Echo cancellation and loopback sound test": 
+    "WebRTC echo cancellation runs on the default microphone source, followed by a limiter, so the processed output does not clip; the microphones run in their own PipeWire clock domain with the speaker as the driver, so recording does not make playback crackle. An automatic loopback test (tones, sweep, speech-like) checks the whole chain.",
 "All six speakers in stereo":
     "All six speakers play in stereo with the sides correct and left / right balanced.",
 "Speaker protection (PipeWire chain)":
@@ -222,9 +205,8 @@ PUBLIC = {
 "Skin temperature policy (stock gears)":
     "iceland-thermal applies stock's 20 temperature gears (CPU, GPU, brightness and charging caps) on stock's "
     "shell-temperature model, with stock's screen-off table and input boost ceiling.",
-"USB-C connector temperature zones":
-    "usb-therm and stock's left / right connector sensors read within a few °C of the board; the battery guard "
-    "watches all three.",
+"USB-C connector temperature zones": 
+    "usb-therm and stock's left / right connector sensors read within a few °C of the board; the battery guard watches all three, and the battery manager reports the connector temperature on its USB supply.",
 "GPU cooling":
     "Limited as on stock (20 of 20 checks); the hottest GPU sensor reached 98 °C under load.",
 "NPU / CDSP cooling":
@@ -260,28 +242,18 @@ PUBLIC = {
     "values, and the login screen no longer holds the light sensor.",
 "Gyroscope (sensor hub)":
     "Read through the sensor hub at about 24 Hz, with a mean near 0 rad/s at rest.",
-"Cameras (13 MP rear, 8 MP front)":
-    "The 13 MP rear (SC1320CS) and 8 MP front (SC820CS) cameras stream through Fedora's libcamera 0.7.1-2, with the "
-    "orientation matching the display; the rear lens actuator is powered only while streaming. Switching between "
-    "front and rear works (20 of 20 on kernel q91c).",
+"Cameras (13 MP rear, 8 MP front)": 
+    "The 13 MP rear (SC1320CS) and 8 MP front (SC820CS) cameras stream through libcamera (Fedora 45's 0.7.2 with our autofocus patches), with the orientation matching the display; the rear lens actuator is powered only while streaming. Switching between front and rear works.",
 "Camera app on the installed image":
     "GNOME Camera (Snapshot) works with both cameras (40 of 40 open / close cycles clean).",
 # Software & packaging
-"Kernel package (kernel-iceland)":
-    "kernel-iceland RPMs (current 7.3.0.next.20261020.iceland.00463) install and update with dnf on the "
-    "installed system: a new kernel boots once as a trial and becomes the default after a confirmed boot. The "
-    "camera and backlight modules are included; no firmware is inside. The kernel and the package record a "
-    "neutral build host name.",
-"Device package (iceland-device 0.28-32)":(
+"Kernel package (kernel-iceland)": 
+    "kernel-iceland RPMs (current 7.4.0~rc1.iceland.00704) install and update with dnf on the installed system; the GRUB menu keeps the previous kernels. The camera and backlight modules are included; no firmware is inside. The source RPM carries the whole patch queue.",
+"Device package (iceland-device 0.28-32)": (
     "Device package (iceland-device)",
-    "iceland-device 0.28-46 carries the tablet's settings: the battery guard, the thermal policy, the sound "
-    "profile (speakers, headphones, DisplayPort audio), the memory settings, the sensor and Bluetooth address services, the power-key handling, the GPU firmware choice, the "
-    "refresh-rate switch and the power-saving boot options (suspend-to-idle as the kernel's default, idle "
-    "refresh, CLX, the display and GPU interrupts kept on CPU 0, device interrupts off the prime cores), "
-    "automatic brightness by default and the device-mapper option that lets TRIM reach the flash."),
-"Update policy and minimal package holds":
-    "Fedora 44 updates normally, with a read-only snapshot before each transaction and a GRUB rollback entry. Kernels "
-    "and the project's packages come only from the local repository, and the release is pinned to 44.",
+    "iceland-device 0.28-51 carries the tablet's settings: the battery guard, the thermal policy, the sound profile (speakers, headphones, DisplayPort audio, the microphones and the PipeWire clock domains), the memory settings, the sensor and Bluetooth address services, the cover detector, the power-key handling, the GPU firmware choice, the refresh-rate switch, the power-saving boot options, the Fedora release pin with the one hold file, the signing key, automatic brightness by default and the device-mapper option that lets TRIM reach the flash."),
+"Update policy and minimal package holds": 
+    "Fedora updates normally, with a read-only snapshot before each transaction and a GRUB rollback entry. Kernels and the project's packages come only from the local repository and are signed with the project key (RPM-GPG-KEY-iceland, fingerprint FF9C6A4E64CB38F01035AD7F939BE983CCA25574); the release is pinned to Fedora 45.",
 "Stock-values audit":
     "1,249 values compared with stock: nothing above stock in the battery, charger, thermal, CPU or GPU tables, and "
     "all six amplifiers at stock.",
@@ -327,10 +299,10 @@ PUBLIC = {
 "Virtual machines (Gunyah)": (
     "Virtual machines (Gunyah)",
     "Protected virtual machines on Qualcomm's Gunyah hypervisor with crosvm, managed by the Virtual Machines app (iceland-gvm 0.3-59 and iceland-vms 0.2-25): Linux guests from cloud images with NAT networking, shared folders, a serial console, autologin into the desktop and a clean shutdown; 3D in the guest (OpenGL through virgl, Vulkan through venus) with GPU-composited desktops in the VM window; a software display as the fallback; Windows 11 ARM guests and an optional QEMU backend (next rows). ISO installs are not supported yet."),
-"KDE Plasma 6 desktop":
-    "KDE Plasma 6 on Wayland: auto-rotate, automatic brightness, the charge limit in Plasma's power settings, suspend and Discover, with KWallet as the secrets provider.",
-"Android apps (DroidLoom)":
-    "Android apps through DroidLoom (Android 17 in a container): each app in its own window with a title bar and Close, a left-edge swipe for Back, an AndroidVM menu folder and the androidvm manager. Confirmed working by the owner on 24 Oct 2026.",
+"KDE Plasma 6 desktop": 
+    "KDE Plasma 6 on Wayland: auto-rotate, automatic brightness, the charge limit in Plasma's power settings, suspend, Night Light and Discover (Fedora upgrades offered, installs through PackageKit), with KWallet as the secrets provider.",
+"Android apps (DroidLoom)": 
+    "Android apps through DroidLoom (release 30, Android 17 in a container, with Google Play services): each app in its own window with a title bar and Close, a left-edge swipe for Back, shared folders, an AndroidVM menu folder and the AndroidVM helper for apps, folders, display density, GPU mode, backups, logs and updates.",
 # 26 Oct 2026 (matrix r175)
 "Windows 11 ARM guest VM (gvm tool)": (
     "Windows 11 ARM guest VM",
@@ -356,4 +328,9 @@ PUBLIC = {
 # 27 Oct 2026 (matrix r182)
 "VM native GPU context (msm)":
     "VM native GPU context: a display mode of the Virtual Machines app (3D: msm native context), the default for new Fedora 44 and later VMs. The guest's own Mesa (freedreno for OpenGL, turnip for Vulkan) draws directly on the Adreno 840; glmark2 at 1280x800 scores about 2690, against about 1770 with virgl. The app delivers the guest Mesa into the VM (iceland-gvm 0.3-59 and iceland-vms 0.2-25).",
+"Night Light": 
+    "KWin's Night Light tints the screen (warm to deep red): the kernel offers the display's colour matrix to the compositor.",
+"Tablet as touchpad and keyboard (DexHid)": (
+    "Tablet as touchpad and keyboard (DexHid)",
+    "DexHid turns the tablet into a touchpad and keyboard for a USB-C monitor, or into a USB keyboard and mouse for another computer, or leaves it a normal second screen, with one switch in its app window. Layouts: full PC keyboard, tablet keyboard, split or touchpad only, movable and resizable; taps, scrolling and gestures through the desktop's own touchpad handling. It idles at about 0.02 wakeups per second."),
 }

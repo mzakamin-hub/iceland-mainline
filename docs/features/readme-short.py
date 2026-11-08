@@ -49,10 +49,12 @@ SHORT = {
 "Smooth window moves under load": "Window moves stay smooth, also under load.",
 "Touchscreen": "Works, also after the screen turns off and after sleep.",
 "Pen": "The pen works.",
-"Lid switch": "Closing a keyboard cover locks (sleeps on battery), opening shows the lock screen; also for non-hall covers.",
+"Lid switch": "Closing a cover locks and sleeps within about a second on battery; opening shows the lock screen.",
 "Power and volume keys": "The power key wakes and suspends the tablet, as on stock; the volume keys work.",
 "Pogo keyboard": "The keyboard cover works: keys, touchpad, lamps and backlight.",
 "Auto-rotate": "The screen rotates in tablet mode and stays put while a keyboard is connected.",
+"Tablet as touchpad and keyboard (DexHid)": "The tablet as touchpad and keyboard for a monitor, or as USB keyboard and mouse for another PC.",
+"Night Light": "KWin's Night Light tints the screen warm in the evening.",
 # Graphics & compute
 "Adreno 840 GPU, GLES 3.2": "OpenGL 4.6 / OpenGL ES 3.2 on Mesa with GPU preemption, without GPU faults.",
 "GNOME and Wayland drawn by the GPU": "The desktop is drawn by the GPU; video and shared buffers show correctly.",
