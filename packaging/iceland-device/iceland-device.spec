@@ -5,7 +5,7 @@
 
 Name:           iceland-device
 Version:        0.28
-Release:        50%{?dist}
+Release:        51%{?dist}
 Summary:        OnePlus Pad 4 (iceland) device settings for Fedora
 License:        GPL-2.0-or-later AND BSD-3-Clause
 URL:            https://github.com/mzakamin-hub/iceland-mainline
@@ -1151,6 +1151,13 @@ dconf update >/dev/null 2>&1 || :
 %ghost %attr(0644,root,root) /usr/share/iceland/session-first/applications/org.kde.discover.desktop
 
 %changelog
+* Sun Nov 08 2026 mzak <mzak.amin@gmail.com> - 0.28-51
+- sound: internal microphones back in ADC mode NORMAL (UCM Mic, TX0 / TX2 MODE): ADC_HIFI (since 0.28-46)
+  saturates the ADCs on mainline, the raw capture was near full-scale noise in a quiet room; NORMAL records the
+  room at -64..-70 dBFS and speech cleanly (raw -44 dBFS, processed -26 dBFS).
+- sound: echo canceller node.latency 480 -> 2048 frames, the graph's minimum quantum of 0.28-50: with 480 it
+  counted ~25 errors/s while a microphone was open; 0 now, still 0 resyncs.
+
 * Sun Nov 08 2026 mzak <mzak.amin@gmail.com> - 0.28-50
 - sound: speaker crackle while a microphone is open (our echo canceller keeps both open): the capture sources get
   a clock domain of their own and the raw speaker sink is the preferred graph driver
