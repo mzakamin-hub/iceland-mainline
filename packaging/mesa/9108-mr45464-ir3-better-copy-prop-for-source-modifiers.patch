@@ -1,0 +1,861 @@
+From 1ea9676ee48d2357e085d3623da3d6e86e0f8f52 Mon Sep 17 00:00:00 2001
+From: Emma Anholt <anholt@igalia.com>
+Date: Fri, 9 Oct 2026 14:42:09 -0700
+Subject: [PATCH 1/6] ir3: Add support for (not) as a source modifier name.
+
+blob disasm prints the flag as (not) on and.b/or.b in some actual a540
+instruction examples I have.  I've verified not-vs-neg behavior on all the
+opcodes documented for a530/a660/a750.
+
+Assisted-by: LLM
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/45464>
+(cherry picked from commit 10839580a96a52bdf3f5ec49f622420747a075d8)
+---
+ src/freedreno/ir3/ir3_lexer.l    |  1 +
+ src/freedreno/ir3/ir3_parser.y   |  2 ++
+ src/freedreno/ir3/ir3_print.c    | 12 +++++---
+ src/freedreno/ir3/tests/disasm.c | 21 ++++++++++++++
+ src/freedreno/isa/ir3-cat2.xml   | 50 ++++++++++++++++++++++++++++++++
+ src/freedreno/isa/ir3-cat4.xml   |  2 ++
+ src/freedreno/isa/ir3-common.xml | 22 +++++++++-----
+ 7 files changed, 98 insertions(+), 12 deletions(-)
+
+diff --git a/src/freedreno/ir3/ir3_lexer.l b/src/freedreno/ir3/ir3_lexer.l
+index 2aef2f52a52..6b8acbbfa75 100644
+--- a/src/freedreno/ir3/ir3_lexer.l
++++ b/src/freedreno/ir3/ir3_lexer.l
+@@ -162,6 +162,7 @@ static int parse_reg(const char *str)
+ "(ss)"                            return TOKEN(T_SS);
+ "(absneg)"                        return TOKEN(T_ABSNEG);
+ "(neg)"                           return TOKEN(T_NEG);
++"(not)"                           return TOKEN(T_NOT);
+ "(abs)"                           return TOKEN(T_ABS);
+ "(r)"                             return TOKEN(T_R);
+ "(last)"                          return TOKEN(T_LAST);
+diff --git a/src/freedreno/ir3/ir3_parser.y b/src/freedreno/ir3/ir3_parser.y
+index 60b9ecec6c9..31db579ebc5 100644
+--- a/src/freedreno/ir3/ir3_parser.y
++++ b/src/freedreno/ir3/ir3_parser.y
+@@ -93,6 +93,7 @@ static void print_token(FILE *file, int type, YYSTYPE value)
+ /* src register flags */
+ %token <tok> T_ABSNEG
+ %token <tok> T_NEG
++%token <tok> T_NOT
+ %token <tok> T_ABS
+ %token <tok> T_R
+ %token <tok> T_LAST
+@@ -1370,6 +1371,7 @@ dst_reg:           dst                 { $1->flags |= IR3_REG_R; }
+ 
+ src_reg_flag:      T_ABSNEG       { rflags.flags |= IR3_REG_ABS|IR3_REG_NEGATE; }
+ |                  T_NEG          { rflags.flags |= IR3_REG_NEGATE; }
++|                  T_NOT          { rflags.flags |= IR3_REG_BNOT; }
+ |                  T_ABS          { rflags.flags |= IR3_REG_ABS; }
+ |                  T_R            { rflags.flags |= IR3_REG_R; }
+ |                  T_LAST         { rflags.flags |= IR3_REG_LAST_USE; }
+diff --git a/src/freedreno/ir3/ir3_print.c b/src/freedreno/ir3/ir3_print.c
+index 274e677d98a..e1f60e7eeda 100644
+--- a/src/freedreno/ir3/ir3_print.c
++++ b/src/freedreno/ir3/ir3_print.c
+@@ -336,12 +336,16 @@ print_reg_name(struct log_stream *stream, struct ir3_instruction *instr,
+                struct ir3_register *reg, bool dest)
+ {
+    if ((reg->flags & (IR3_REG_FABS | IR3_REG_SABS)) &&
+-       (reg->flags & (IR3_REG_FNEG | IR3_REG_SNEG | IR3_REG_BNOT)))
++       (reg->flags & (IR3_REG_FNEG | IR3_REG_SNEG)))
+       mesa_log_stream_printf(stream, "(absneg)");
+-   else if (reg->flags & (IR3_REG_FNEG | IR3_REG_SNEG | IR3_REG_BNOT))
++   else if (reg->flags & (IR3_REG_FNEG | IR3_REG_SNEG))
+       mesa_log_stream_printf(stream, "(neg)");
+-   else if (reg->flags & (IR3_REG_FABS | IR3_REG_SABS))
+-      mesa_log_stream_printf(stream, "(abs)");
++   else {
++      if (reg->flags & (IR3_REG_FABS | IR3_REG_SABS))
++         mesa_log_stream_printf(stream, "(abs)");
++      if (reg->flags & (IR3_REG_BNOT))
++         mesa_log_stream_printf(stream, "(not)");
++   }
+ 
+    if (reg->flags & IR3_REG_FIRST_KILL)
+       mesa_log_stream_printf(stream, "(kill)");
+diff --git a/src/freedreno/ir3/tests/disasm.c b/src/freedreno/ir3/tests/disasm.c
+index 0602946b6fe..828c1721cae 100644
+--- a/src/freedreno/ir3/tests/disasm.c
++++ b/src/freedreno/ir3/tests/disasm.c
+@@ -118,11 +118,32 @@ static const struct test {
+    INSTR_6XX(40a500f8_2c000004, "cmps.f.ne p0.x, hr1.x, h(0.0)"),
+    INSTR_6XX(438000f8_20010009, "and.b p0.x, hr2.y, h(1)"),
+    INSTR_6XX(438000f9_00020001, "and.b p0.y, hr0.y, hr0.z"),
++   INSTR_5XX(43900803_40050003, "(nop1) and.b r0.w, r0.w, (not)r1.y"),
+    INSTR_6XX(40080902_50200006, "(rpt1)add.f hr0.z, (r)hr1.z, (neg)(r)hc8.x"),
+    INSTR_6XX(42380c01_00040001, "(nop3) add.s (sat)r0.y, r0.y, r1.x"),
+    INSTR_6XX(42480000_48801086, "(nop2) sub.u hr0.x, hc33.z, (neg)hr<a0.x + 128>"),
+    INSTR_6XX(46b00001_00001020, "clz.b r0.y, c8.x"),
+    INSTR_6XX(46700009_00000009, "bfrev.b r2.y, r2.y"),
++   INSTR_5XX(43b00004_60ff0000, "or.b r1.x, r0.x, (not)255"),
++   INSTR_5XX(46f0000d_4006000d, "shr.b r3.y, r3.y, (neg)r1.z"),
++   INSTR_5XX(47100015_40120015, "ashr.b r5.y, r5.y, (neg)r4.z"),
++
++   INSTR_6XX(46700009_00004009, "bfrev.b r2.y, (not)r2.y"), // blob has (neg)
++   INSTR_6XX(46b00009_00004009, "clz.b r2.y, (not)r2.y"), // blob has (neg)
++   INSTR_6XX(43d00009_00004009, "not.b r2.y, (neg)r2.y"),
++   INSTR_6XX(47b00009_00004009, "cbits.b r2.y, (not)r2.y"),
++   INSTR_6XX(43900009_00064009, "and.b r2.y, (not)r2.y, r1.z"),
++   INSTR_6XX(43b00009_00064009, "or.b r2.y, (not)r2.y, r1.z"),
++   INSTR_6XX(43f00009_00064009, "xor.b r2.y, (not)r2.y, r1.z"),
++   INSTR_6XX(43f00009_40060009, "xor.b r2.y, r2.y, (not)r1.z"),
++   INSTR_6XX(46d00009_00064009, "shl.b r2.y, (not)r2.y, r1.z"), // blob has (neg)
++   INSTR_6XX(46d00009_40060009, "shl.b r2.y, r2.y, (neg)r1.z"),
++   INSTR_6XX(46f00009_00064009, "shr.b r2.y, (not)r2.y, r1.z"), // blob has (neg)
++   INSTR_6XX(47100009_00064009, "ashr.b r2.y, (neg)r2.y, r1.z"),
++   INSTR_6XX(47500009_00064009, "mgen.b r2.y, (neg)r2.y, r1.z"),
++   INSTR_6XX(47500009_40060009, "mgen.b r2.y, r2.y, (neg)r1.z"),
++   INSTR_6XX(47700009_00064009, "getbit.b r2.y, (not)r2.y, r1.z"),
++   INSTR_6XX(47700009_40060009, "getbit.b r2.y, r2.y, (neg)r1.z"),
+ 
+    INSTR_7XX(42380800_04010400, "(nop3) add.s r0.x, (last)r0.x, (last)r0.y"),
+    INSTR_7XX(42930000_04000406, "cmps.u.ge r0.x, (last)r1.z, (last)r0.x"),
+diff --git a/src/freedreno/isa/ir3-cat2.xml b/src/freedreno/isa/ir3-cat2.xml
+index 6802d3bb041..fd929169c93 100644
+--- a/src/freedreno/isa/ir3-cat2.xml
++++ b/src/freedreno/isa/ir3-cat2.xml
+@@ -87,6 +87,8 @@ SOFTWARE.
+ 	<field name="SRC1_R" pos="43" type="bool" display="(r)"/>
+ 	<field name="SRC2_R" pos="51" type="bool" display="(r)"/>
+ 	<derived name="ZERO" expr="#zero" type="bool" display=""/>
++	<derived name="SRC1_BNOT" expr="#false" type="bool"/>
++	<derived name="SRC2_BNOT" expr="#false" type="bool"/>
+ 	<encode>
+ 		<map name="SAT">!!(src->flags &amp; IR3_INSTR_SAT)</map>
+ 		<map name="DST_CONV">
+@@ -109,6 +111,7 @@ SOFTWARE.
+ 		<field name="SRC1" low="0" high="15" type="#multisrc">
+ 			<param name="ZERO" as="SRC_R"/>
+ 			<param name="FULL"/>
++			<param name="SRC1_BNOT" as="MOD_IS_BNOT"/>
+ 		</field>
+ 	</override>
+ 	<display>
+@@ -119,6 +122,7 @@ SOFTWARE.
+ 	<field name="SRC1" low="0" high="15" type="#multisrc">
+ 		<param name="SRC1_R" as="SRC_R"/>
+ 		<param name="FULL"/>
++		<param name="SRC1_BNOT" as="MOD_IS_BNOT"/>
+ 	</field>
+ </bitset>
+ 
+@@ -133,10 +137,12 @@ SOFTWARE.
+ 		<field name="SRC1" low="0" high="15" type="#multisrc">
+ 			<param name="ZERO" as="SRC_R"/>
+ 			<param name="FULL"/>
++			<param name="SRC1_BNOT" as="MOD_IS_BNOT"/>
+ 		</field>
+ 		<field name="SRC2" low="16" high="31" type="#multisrc">
+ 			<param name="ZERO" as="SRC_R"/>
+ 			<param name="FULL"/>
++			<param name="SRC2_BNOT" as="MOD_IS_BNOT"/>
+ 		</field>
+ 	</override>
+ 	<display>
+@@ -145,10 +151,12 @@ SOFTWARE.
+ 	<field name="SRC1" low="0" high="15" type="#multisrc">
+ 		<param name="SRC1_R" as="SRC_R"/>
+ 		<param name="FULL"/>
++		<param name="SRC1_BNOT" as="MOD_IS_BNOT"/>
+ 	</field>
+ 	<field name="SRC2" low="16" high="31" type="#multisrc">
+ 		<param name="SRC2_R" as="SRC_R"/>
+ 		<param name="FULL"/>
++		<param name="SRC2_BNOT" as="MOD_IS_BNOT"/>
+ 	</field>
+ 	<pattern low="48" high="50">xxx</pattern>  <!-- COND -->
+ </bitset>
+@@ -163,10 +171,12 @@ SOFTWARE.
+ 		<field name="SRC1" low="0" high="15" type="#multisrc">
+ 			<param name="ZERO" as="SRC_R"/>
+ 			<param name="FULL"/>
++			<param name="SRC1_BNOT" as="MOD_IS_BNOT"/>
+ 		</field>
+ 		<field name="SRC2" low="16" high="31" type="#multisrc">
+ 			<param name="ZERO" as="SRC_R"/>
+ 			<param name="FULL"/>
++			<param name="SRC2_BNOT" as="MOD_IS_BNOT"/>
+ 		</field>
+ 	</override>
+ 	<display>
+@@ -175,10 +185,12 @@ SOFTWARE.
+ 	<field name="SRC1" low="0" high="15" type="#multisrc">
+ 		<param name="SRC1_R" as="SRC_R"/>
+ 		<param name="FULL"/>
++		<param name="SRC1_BNOT" as="MOD_IS_BNOT"/>
+ 	</field>
+ 	<field name="SRC2" low="16" high="31" type="#multisrc">
+ 		<param name="SRC2_R" as="SRC_R"/>
+ 		<param name="FULL"/>
++		<param name="SRC2_BNOT" as="MOD_IS_BNOT"/>
+ 	</field>
+ 	<field name="COND" low="48" high="50" type="#cond"/>
+ 	<encode>
+@@ -196,10 +208,12 @@ SOFTWARE.
+ 		<field name="SRC1" low="0" high="15" type="#multisrc">
+ 			<param name="ZERO" as="SRC_R"/>
+ 			<param name="FULL"/>
++			<param name="SRC1_BNOT" as="MOD_IS_BNOT"/>
+ 		</field>
+ 		<field name="SRC2" low="16" high="31" type="#multisrc">
+ 			<param name="ZERO" as="SRC_R"/>
+ 			<param name="FULL"/>
++			<param name="SRC2_BNOT" as="MOD_IS_BNOT"/>
+ 		</field>
+ 	</override>
+ 	<display>
+@@ -209,10 +223,12 @@ SOFTWARE.
+ 	<field name="SRC1" low="0" high="15" type="#multisrc">
+ 		<param name="SRC1_R" as="SRC_R"/>
+ 		<param name="FULL"/>
++		<param name="SRC1_BNOT" as="MOD_IS_BNOT"/>
+ 	</field>
+ 	<field name="SRC2" low="16" high="31" type="#multisrc">
+ 		<param name="SRC2_R" as="SRC_R"/>
+ 		<param name="FULL"/>
++		<param name="SRC2_BNOT" as="MOD_IS_BNOT"/>
+ 	</field>
+ 	<pattern low="48" high="49">xx</pattern>  <!-- COND -->
+ 	<pattern low="53" high="58">111001</pattern>
+@@ -281,6 +297,8 @@ SOFTWARE.
+ 
+ <bitset name="add.u" extends="#instruction-cat2-2src">
+ 	<pattern low="53" high="58">010000</pattern>
++
++	<!-- (neg) src modifiers are ignored. -->
+ </bitset>
+ 
+ <bitset name="add.s" extends="#instruction-cat2-2src">
+@@ -325,18 +343,26 @@ SOFTWARE.
+ 
+ <bitset name="and.b" extends="#instruction-cat2-2src">
+ 	<pattern low="53" high="58">011100</pattern>
++	<derived name="SRC1_BNOT" expr="#true" type="bool"/>
++	<derived name="SRC2_BNOT" expr="#true" type="bool"/>
+ </bitset>
+ 
+ <bitset name="or.b" extends="#instruction-cat2-2src">
+ 	<pattern low="53" high="58">011101</pattern>
++	<derived name="SRC1_BNOT" expr="#true" type="bool"/>
++	<derived name="SRC2_BNOT" expr="#true" type="bool"/>
+ </bitset>
+ 
+ <bitset name="not.b" extends="#instruction-cat2-1src">
+ 	<pattern low="53" high="58">011110</pattern>
++
++	<!-- src1 (neg) modifier is ignored on a5xx-a7xx -->
+ </bitset>
+ 
+ <bitset name="xor.b" extends="#instruction-cat2-2src">
+ 	<pattern low="53" high="58">011111</pattern>
++	<derived name="SRC1_BNOT" expr="#true" type="bool"/>
++	<derived name="SRC2_BNOT" expr="#true" type="bool"/>
+ </bitset>
+ 
+ <bitset name="cmpv.u" extends="#instruction-cat2-2src-cond">
+@@ -381,38 +407,59 @@ SOFTWARE.
+ 
+ <bitset name="bfrev.b" extends="#instruction-cat2-1src">
+ 	<pattern low="53" high="58">110011</pattern>
++
++	<!-- blob disassembles bfrev.b's modifier as (neg) instead of (not), but it's ignored on a530 and (not) on a660/a750 -->
++	<derived name="SRC1_BNOT" expr="#true" type="bool"/>
+ </bitset>
+ 
+ <bitset name="clz.s" extends="#instruction-cat2-1src">
+ 	<doc>Number of leading bits (including sign) that match the sign bit, or -1 for input of 0/~0.</doc>
+ 	<pattern low="53" high="58">110100</pattern>
++
++	<!-- (neg) flag is a no-op, which matches the behavior of a (not) for this opcode -->
++	<derived name="SRC1_BNOT" expr="#true" type="bool"/>
+ </bitset>
+ 
+ <bitset name="clz.b" extends="#instruction-cat2-1src">
+ 	<doc>Number of leading zeroes, or -1 if the input was 0.</doc>
+ 	<pattern low="53" high="58">110101</pattern>
++
++	<!-- blob disassembles clz.b's modifier as (neg) instead of (not), but it behaves as (not) on a5xx-a7xx -->
++	<derived name="SRC1_BNOT" expr="#true" type="bool"/>
+ </bitset>
+ 
+ <bitset name="shl.b" extends="#instruction-cat2-2src">
+ 	<pattern low="53" high="58">110110</pattern>
++
++	<!-- (neg) mods are ignored on a5xx.  On a6xx+ it's (not) in src1 and (neg) in src2. -->
++	<derived name="SRC1_BNOT" expr="#true" type="bool"/>
+ </bitset>
+ 
+ <bitset name="shr.b" extends="#instruction-cat2-2src">
+ 	<pattern low="53" high="58">110111</pattern>
++	<!-- (neg) mods are ignored on a5xx.  On a6xx+ it's (not) in src1 and (neg) in src2. -->
++	<derived name="SRC1_BNOT" expr="#true" type="bool"/>
+ </bitset>
+ 
+ <bitset name="ashr.b" extends="#instruction-cat2-2src">
+ 	<pattern low="53" high="58">111000</pattern>
++
++	<!-- (neg) mods are ignored on a5xx.  On a6xx+ it's ignored in src1 and (neg) in src2. -->
+ </bitset>
+ 
+ <bitset name="mgen.b" extends="#instruction-cat2-2src">
+ 	<doc>Returns (1 &lt;&lt; (src0 &amp; (bit_size - 1)) - 1) &lt;&lt; (src1 &amp; (bit_size - 1)).</doc>
+ 	<pattern low="53" high="58">111010</pattern>
++
++	<!-- (neg) modifier is ignored on a5xx-a7xx -->
+ </bitset>
+ 
+ <bitset name="getbit.b" extends="#instruction-cat2-2src">
+ 	<doc>Returns src0 >> (src1 &amp; (bit_size - 1)) &amp; 1.</doc>
+ 	<pattern low="53" high="58">111011</pattern>
++
++	<!-- (neg) mods are ignored on a5xx.  On a6xx+ it's (not) in src1 and ignored in src2. -->
++	<derived name="SRC1_BNOT" expr="#true" type="bool"/>
+ </bitset>
+ 
+ <bitset name="setrm" extends="#instruction-cat2-1src">
+@@ -421,6 +468,9 @@ SOFTWARE.
+ 
+ <bitset name="cbits.b" extends="#instruction-cat2-1src">
+ 	<pattern low="53" high="58">111101</pattern>
++
++	<!-- blob disassembles cbits.b's modifier as (neg) instead of (not), but it's ignored on a530 and behaves as not on a660/a750 -->
++	<derived name="SRC1_BNOT" expr="#true" type="bool"/>
+ </bitset>
+ 
+ <bitset name="shb" extends="#instruction-cat2-2src">
+diff --git a/src/freedreno/isa/ir3-cat4.xml b/src/freedreno/isa/ir3-cat4.xml
+index a9acda2d965..3e5b98b3b5b 100644
+--- a/src/freedreno/isa/ir3-cat4.xml
++++ b/src/freedreno/isa/ir3-cat4.xml
+@@ -35,7 +35,9 @@ SOFTWARE.
+ 	<field name="SRC" low="0" high="15" type="#multisrc">
+ 		<param name="SRC_R"/>
+ 		<param name="FULL"/>
++		<param name="SRC1_BNOT" as="MOD_IS_BNOT"/>
+ 	</field>
++	<derived name="SRC1_BNOT" expr="#false" type="bool"/>
+ 	<pattern low="16" high="31">xxxxxxxxxxxxxxxx</pattern>
+ 	<field name="DST" low="32" high="39" type="#reg-gpr"/>
+ 	<field name="REPEAT" low="40" high="41" type="#rptN"/>
+diff --git a/src/freedreno/isa/ir3-common.xml b/src/freedreno/isa/ir3-common.xml
+index 68926113018..2983fb94a09 100644
+--- a/src/freedreno/isa/ir3-common.xml
++++ b/src/freedreno/isa/ir3-common.xml
+@@ -130,6 +130,12 @@ SOFTWARE.
+ 		Encoding for instruction source which can be GPR/CONST/IMMED
+ 		or relative GPR/CONST.
+ 	</doc>
++	<derived name="NOT" type="bool" display="(not)">
++		<expr>{MOD_IS_BNOT} &amp;&amp; ({ABSNEG} &amp; 1)</expr>
++	</derived>
++	<derived name="MODS" type="#absneg">
++		<expr>{MOD_IS_BNOT} ? {ABSNEG} &amp; 2 : {ABSNEG}</expr>
++	</derived>
+ 	<encode type="struct ir3_register *" case-prefix="REG_">
+ 		<map name="ABSNEG">extract_ABSNEG(src)</map>
+ 		<map name="SRC">src</map>
+@@ -139,11 +145,11 @@ SOFTWARE.
+ <bitset name="#mulitsrc-immed" extends="#multisrc">
+ 	<override expr="#multisrc-half">
+ 		<display>
+-			{ABSNEG}{SRC_R}h({IMMED})
++			{MODS}{NOT}{SRC_R}h({IMMED})
+ 		</display>
+ 	</override>
+ 	<display>
+-		{ABSNEG}{SRC_R}{IMMED}
++		{MODS}{NOT}{SRC_R}{IMMED}
+ 	</display>
+ 	<field name="IMMED" low="0"  high="10" type="int"/>
+ 	<pattern low="11" high="13">100</pattern>
+@@ -181,14 +187,14 @@ SOFTWARE.
+ 
+ <bitset name="#multisrc-immed-flut-full" extends="#mulitsrc-immed-flut">
+ 	<display>
+-		{ABSNEG}{SRC_R}{IMMED}
++		{MODS}{NOT}{SRC_R}{IMMED}
+ 	</display>
+ 	<pattern pos="10">0</pattern>
+ </bitset>
+ 
+ <bitset name="#multisrc-immed-flut-half" extends="#mulitsrc-immed-flut">
+ 	<display>
+-		{ABSNEG}{SRC_R}h{IMMED}
++		{MODS}{NOT}{SRC_R}h{IMMED}
+ 	</display>
+ 	<pattern pos="10">1</pattern>
+ </bitset>
+@@ -199,7 +205,7 @@ SOFTWARE.
+ 
+ <bitset name="#multisrc-gpr" extends="#multisrc">
+ 	<display>
+-		{LAST}{ABSNEG}{SRC_R}{HALF}{SRC}
++		{LAST}{MODS}{NOT}{SRC_R}{HALF}{SRC}
+ 	</display>
+ 	<derived name="HALF" expr="#multisrc-half" type="bool" display="h"/>
+ 	<field name="SRC" low="0" high="7" type="#reg-gpr"/>
+@@ -214,7 +220,7 @@ SOFTWARE.
+ 
+ <bitset name="#multisrc-const" extends="#multisrc">
+ 	<display>
+-		{ABSNEG}{SRC_R}{HALF}{SRC}
++		{MODS}{NOT}{SRC_R}{HALF}{SRC}
+ 	</display>
+ 	<derived name="HALF" expr="#multisrc-half" type="bool" display="h"/>
+ 	<field name="SRC" low="0" high="10" type="#reg-const"/>
+@@ -229,7 +235,7 @@ SOFTWARE.
+ 
+ <bitset name="#multisrc-relative-gpr" extends="#multisrc-relative">
+ 	<display>
+-		{ABSNEG}{SRC_R}{HALF}{SRC}
++		{MODS}{NOT}{SRC_R}{HALF}{SRC}
+ 	</display>
+ 	<derived name="HALF" expr="#multisrc-half" type="bool" display="h"/>
+ 	<field name="SRC" low="0" high="9" type="#reg-relative-gpr"/>
+@@ -238,7 +244,7 @@ SOFTWARE.
+ 
+ <bitset name="#multisrc-relative-const" extends="#multisrc-relative">
+ 	<display>
+-		{ABSNEG}{SRC_R}{HALF}{SRC}
++		{MODS}{NOT}{SRC_R}{HALF}{SRC}
+ 	</display>
+ 	<derived name="HALF" expr="#multisrc-half" type="bool" display="h"/>
+ 	<field name="SRC" low="0" high="9" type="#reg-relative-const"/>
+
+From 8a1e557ff405488a60607c602b4b2f5c088bb349 Mon Sep 17 00:00:00 2001
+From: Emma Anholt <anholt@igalia.com>
+Date: Fri, 9 Oct 2026 14:07:13 -0700
+Subject: [PATCH 2/6] ir3: Correct the IR3_REG_BNOT flags support.
+
+It hasn't been used yet outside of nir_op_bitz, but I validated across the
+opcodes on a530/a660/a750 in preparation for adding copy propagation
+support for it.
+
+Assisted-by: LLM
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/45464>
+(cherry picked from commit 1eb4fe36e7a12c574a1728190f26b86a7828fe98)
+---
+ src/freedreno/ir3/ir3.c          | 24 +++++++++++++++++-------
+ src/freedreno/ir3/ir3.h          |  3 ++-
+ src/freedreno/ir3/ir3_compiler.c |  1 +
+ 3 files changed, 20 insertions(+), 8 deletions(-)
+
+diff --git a/src/freedreno/ir3/ir3.c b/src/freedreno/ir3/ir3.c
+index d43583d51f5..1f42cab863b 100644
+--- a/src/freedreno/ir3/ir3.c
++++ b/src/freedreno/ir3/ir3.c
+@@ -1795,7 +1795,7 @@ ir3_valid_flags(struct ir3_instruction *instr, unsigned n, unsigned flags)
+          return false;
+       break;
+    case 2:
+-      valid_flags = ir3_cat2_absneg(instr->opc) | IR3_REG_CONST |
++      valid_flags = ir3_cat2_absneg(compiler, instr->opc, n) | IR3_REG_CONST |
+                     IR3_REG_RELATIV | IR3_REG_IMMED | IR3_REG_SHARED;
+ 
+       if (flags & ~valid_flags)
+@@ -2151,7 +2151,7 @@ ir3_is_subreg_move(struct ir3_instruction *instr)
+ }
+ 
+ inline unsigned
+-ir3_cat2_absneg(opc_t opc)
++ir3_cat2_absneg(struct ir3_compiler *compiler, opc_t opc, unsigned src_n)
+ {
+    switch (opc) {
+    case OPC_ADD_F:
+@@ -2186,6 +2186,9 @@ ir3_cat2_absneg(opc_t opc)
+    case OPC_MUL_S24:
+    case OPC_MULL_U:
+    case OPC_CLZ_S:
++   case OPC_NOT_B:
++   case OPC_MGEN_B:
++   case OPC_ASHR_B:
+       return 0;
+ 
+    case OPC_ABSNEG_S:
+@@ -2193,17 +2196,24 @@ ir3_cat2_absneg(opc_t opc)
+ 
+    case OPC_AND_B:
+    case OPC_OR_B:
+-   case OPC_NOT_B:
+    case OPC_XOR_B:
+-   case OPC_BFREV_B:
+    case OPC_CLZ_B:
++      if (compiler->gen >= 5) /* todo: check on a3xx */
++         return IR3_REG_BNOT;
++      return 0;
++
+    case OPC_SHL_B:
+    case OPC_SHR_B:
+-   case OPC_ASHR_B:
+-   case OPC_MGEN_B:
+    case OPC_GETBIT_B:
++      if (src_n == 0 && compiler->gen >= 6)
++         return IR3_REG_BNOT;
++      return 0;
++
++   case OPC_BFREV_B:
+    case OPC_CBITS_B:
+-      return IR3_REG_BNOT;
++      if (compiler->gen >= 6)
++         return IR3_REG_BNOT;
++      return 0;
+ 
+    default:
+       return 0;
+diff --git a/src/freedreno/ir3/ir3.h b/src/freedreno/ir3/ir3.h
+index be5915e20f2..b7a5209f4b2 100644
+--- a/src/freedreno/ir3/ir3.h
++++ b/src/freedreno/ir3/ir3.h
+@@ -1902,7 +1902,8 @@ ir3_cat2_int(opc_t opc)
+ }
+ 
+ /* map cat2 instruction to valid abs/neg flags: */
+-unsigned ir3_cat2_absneg(opc_t opc);
++unsigned ir3_cat2_absneg(struct ir3_compiler *compiler, opc_t opc,
++                         unsigned src_n);
+ 
+ /* map cat3 instructions to valid abs/neg flags: */
+ unsigned ir3_cat3_absneg(struct ir3_compiler *compiler, opc_t opc,
+diff --git a/src/freedreno/ir3/ir3_compiler.c b/src/freedreno/ir3/ir3_compiler.c
+index 2f35c19f235..7a43363cddb 100644
+--- a/src/freedreno/ir3/ir3_compiler.c
++++ b/src/freedreno/ir3/ir3_compiler.c
+@@ -390,6 +390,7 @@ ir3_compiler_create(struct fd_device *dev, const struct fd_dev_id *dev_id,
+       compiler->nir_options.force_indirect_unrolling = nir_var_all,
+       compiler->nir_options.lower_device_index_to_zero = true;
+       compiler->nir_options.instance_id_includes_base_index = true;
++      /* pre-6xx doesn't have the BNOT modifier support we use for nir_op_bitz. */
+       compiler->nir_options.has_bit_test = true;
+ 
+       if (dev_info->props.has_dp2acc || dev_info->props.has_dp4acc) {
+
+From 89d4072eea40b81fc91019572eb9ca376ad8922d Mon Sep 17 00:00:00 2001
+From: Emma Anholt <anholt@igalia.com>
+Date: Tue, 20 Oct 2026 13:11:56 -0700
+Subject: [PATCH 3/6] ir3: Reject BNOT as a src flag on cat4 instructions.
+
+This looks like just an oversight.  No effect on the current code.
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/45464>
+(cherry picked from commit 222377b38bae8c06c7a6630bccda255e2a198e6d)
+---
+ src/freedreno/ir3/ir3.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/freedreno/ir3/ir3.c b/src/freedreno/ir3/ir3.c
+index 1f42cab863b..5d48bd4dc60 100644
+--- a/src/freedreno/ir3/ir3.c
++++ b/src/freedreno/ir3/ir3.c
+@@ -1896,7 +1896,7 @@ ir3_valid_flags(struct ir3_instruction *instr, unsigned n, unsigned flags)
+       /* TODO double check if this is still the case on a4xx */
+       if (flags & (IR3_REG_CONST | IR3_REG_IMMED))
+          return false;
+-      if (flags & (IR3_REG_SABS | IR3_REG_SNEG))
++      if (flags & (IR3_REG_SABS | IR3_REG_SNEG | IR3_REG_BNOT))
+          return false;
+       break;
+    case 5:
+
+From 623bcb8797085d7c64ea47541e82f3701d4befe5 Mon Sep 17 00:00:00 2001
+From: Emma Anholt <anholt@igalia.com>
+Date: Wed, 21 Oct 2026 09:23:31 -0700
+Subject: [PATCH 4/6] ir3: Give is_same_type_mov() an option to allow src mods
+ or not.
+
+3/5 callers don't want src mods, and one of them had actually been missed.
+The checks in the callers were going to get worse with BNOT folding.
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/45464>
+(cherry picked from commit 1e24fd20a9b34e62086db5fdc5cc5fee5f655003)
+---
+ src/freedreno/ir3/ir3.h              |  6 ++++--
+ src/freedreno/ir3/ir3_alias.c        | 16 ++++++----------
+ src/freedreno/ir3/ir3_compiler_nir.c |  3 ++-
+ src/freedreno/ir3/ir3_cp.c           |  9 +++------
+ src/freedreno/ir3/ir3_postsched.c    |  4 ++--
+ 5 files changed, 17 insertions(+), 21 deletions(-)
+
+diff --git a/src/freedreno/ir3/ir3.h b/src/freedreno/ir3/ir3.h
+index b7a5209f4b2..0ef2ce22b1d 100644
+--- a/src/freedreno/ir3/ir3.h
++++ b/src/freedreno/ir3/ir3.h
+@@ -1289,10 +1289,10 @@ is_same_type_reg(struct ir3_register *dst, struct ir3_register *src)
+ 
+ /* Is it a non-transformative (ie. not type changing) mov?  This can
+  * also include absneg.s/absneg.f, which for the most part can be
+- * treated as a mov (single src argument).
++ * treated as a mov (single src argument) with source modifiers.
+  */
+ static inline bool
+-is_same_type_mov(struct ir3_instruction *instr)
++is_same_type_mov(struct ir3_instruction *instr, bool allow_src_mods)
+ {
+    struct ir3_register *dst;
+ 
+@@ -1308,6 +1308,8 @@ is_same_type_mov(struct ir3_instruction *instr)
+       break;
+    case OPC_ABSNEG_F:
+    case OPC_ABSNEG_S:
++      if (!allow_src_mods)
++         return false;
+       if (instr->flags & IR3_INSTR_SAT)
+          return false;
+       /* If the type of dest reg and src reg are different,
+diff --git a/src/freedreno/ir3/ir3_alias.c b/src/freedreno/ir3/ir3_alias.c
+index 5e925daf267..98037927cfe 100644
+--- a/src/freedreno/ir3/ir3_alias.c
++++ b/src/freedreno/ir3/ir3_alias.c
+@@ -43,16 +43,12 @@ can_alias_srcs_of_def(struct ir3_register *src)
+    if (def_instr->opc == OPC_META_COLLECT) {
+       return true;
+    }
+-   if (def_instr->opc == OPC_MOV) {
+-      /* We haven't seen any indication that aliasing supports the address
+-       * register, nor does it seem important to do so based on how many fossils
+-       * it took to find a case of it being attempted during alias setup.
+-       */
+-      return is_same_type_mov(def_instr) &&
+-             !(def_instr->srcs[0]->flags & (IR3_REG_SHARED | IR3_REG_RELATIV));
+-   }
+-
+-   return false;
++   /* We haven't seen any indication that aliasing supports the address
++    * register, nor does it seem important to do so based on how many fossils
++    * it took to find a case of it being attempted during alias setup.
++    */
++   return is_same_type_mov(def_instr, false) &&
++          !(def_instr->srcs[0]->flags & (IR3_REG_SHARED | IR3_REG_RELATIV));
+ }
+ 
+ static bool
+diff --git a/src/freedreno/ir3/ir3_compiler_nir.c b/src/freedreno/ir3/ir3_compiler_nir.c
+index 293ac0020dd..949cf448e5d 100644
+--- a/src/freedreno/ir3/ir3_compiler_nir.c
++++ b/src/freedreno/ir3/ir3_compiler_nir.c
+@@ -1276,7 +1276,8 @@ emit_intrinsic_load_ubo(struct ir3_context *ctx, nir_intrinsic_instr *intr,
+ 
+    /* First src is ubo index, which could either be an immed or not: */
+    src0 = ir3_get_src(ctx, &intr->src[0])[0];
+-   if (is_same_type_mov(src0) && (src0->srcs[0]->flags & IR3_REG_IMMED)) {
++   if (is_same_type_mov(src0, false) &&
++       (src0->srcs[0]->flags & IR3_REG_IMMED)) {
+       base_lo = create_uniform(b, ubo + (src0->srcs[0]->iim_val * ptrsz));
+       base_hi = create_uniform(b, ubo + (src0->srcs[0]->iim_val * ptrsz) + 1);
+    } else {
+diff --git a/src/freedreno/ir3/ir3_cp.c b/src/freedreno/ir3/ir3_cp.c
+index dbca0a83211..5e87e4a17d0 100644
+--- a/src/freedreno/ir3/ir3_cp.c
++++ b/src/freedreno/ir3/ir3_cp.c
+@@ -44,7 +44,7 @@ static bool
+ is_eligible_mov(struct ir3_instruction *instr,
+                 struct ir3_instruction *dst_instr, bool allow_flags)
+ {
+-   if (is_same_type_mov(instr)) {
++   if (is_same_type_mov(instr, allow_flags)) {
+       struct ir3_register *dst = instr->dsts[0];
+       struct ir3_register *src = instr->srcs[0];
+       struct ir3_instruction *src_instr = ssa(src);
+@@ -62,10 +62,6 @@ is_eligible_mov(struct ir3_instruction *instr,
+       if (src->flags & IR3_REG_ARRAY)
+          return false;
+ 
+-      if (!allow_flags)
+-         if (src->flags & IR3_REG_SRC_MODS)
+-            return false;
+-
+       return true;
+    }
+    return false;
+@@ -351,7 +347,8 @@ reg_cp(struct ir3_cp_ctx *ctx, struct ir3_instruction *instr,
+       } else if (try_swap_cat3_two_srcs(instr, n, new_flags)) {
+          return true;
+       }
+-   } else if ((is_same_type_mov(src) || is_const_mov(src) || is_const_vec(src)) &&
++   } else if ((is_same_type_mov(src, true) || is_const_mov(src) ||
++               is_const_vec(src)) &&
+               /* cannot collapse const/immed/etc into control flow: */
+               opc_cat(instr->opc) != 0) {
+       /* immed/const/etc cases, which require some special handling: */
+diff --git a/src/freedreno/ir3/ir3_postsched.c b/src/freedreno/ir3/ir3_postsched.c
+index f46dddfd5a9..4c7863d0aa8 100644
+--- a/src/freedreno/ir3/ir3_postsched.c
++++ b/src/freedreno/ir3/ir3_postsched.c
+@@ -799,7 +799,7 @@ sched_block(struct ir3_postsched_ctx *ctx, struct ir3_block *block)
+ static bool
+ is_self_mov(struct ir3_instruction *instr)
+ {
+-   if (!is_same_type_mov(instr))
++   if (!is_same_type_mov(instr, false))
+       return false;
+ 
+    if (instr->dsts[0]->num != instr->srcs[0]->num)
+@@ -812,7 +812,7 @@ is_self_mov(struct ir3_instruction *instr)
+       return false;
+ 
+    if (instr->srcs[0]->flags &
+-       (IR3_REG_CONST | IR3_REG_IMMED | IR3_REG_RELATIV | IR3_REG_SRC_MODS))
++       (IR3_REG_CONST | IR3_REG_IMMED | IR3_REG_RELATIV))
+       return false;
+ 
+    return true;
+
+From 7b03a03ec19f0c5eea01434eec9057098e310651 Mon Sep 17 00:00:00 2001
+From: Emma Anholt <anholt@igalia.com>
+Date: Wed, 21 Oct 2026 09:34:29 -0700
+Subject: [PATCH 5/6] ir3: Add support for copy-propagating BNOT into src mods.
+
+Totals from 3312 (0.22% of 1513223) affected shaders:
+Instrs: 4983208 -> 4981302 (-0.04%); split: -0.17%, +0.14%
+CodeSize: 8724760 -> 8710184 (-0.17%); split: -0.25%, +0.09%
+NOPs: 1135054 -> 1139685 (+0.41%); split: -0.41%, +0.81%
+MOVs: 269560 -> 269661 (+0.04%); split: -0.57%, +0.60%
+COVs: 96309 -> 96488 (+0.19%); split: -0.01%, +0.19%
+(ss): 145791 -> 145114 (-0.46%); split: -0.64%, +0.17%
+(sy): 80476 -> 80436 (-0.05%); split: -0.23%, +0.18%
+(ss)-stall: 514764 -> 514559 (-0.04%); split: -0.28%, +0.24%
+(sy)-stall: 1766402 -> 1766994 (+0.03%); split: -0.22%, +0.25%
+STPs: 7576 -> 7577 (+0.01%)
+LDPs: 15843 -> 15845 (+0.01%)
+Preamble Instrs: 573170 -> 573047 (-0.02%)
+Cat0: 1273251 -> 1277844 (+0.36%); split: -0.37%, +0.73%
+Cat1: 399414 -> 400932 (+0.38%); split: -0.45%, +0.83%
+Cat2: 1947861 -> 1939761 (-0.42%); split: -0.42%, +0.01%
+Cat6: 113384 -> 113387 (+0.00%)
+Cat7: 144813 -> 144893 (+0.06%); split: -0.06%, +0.11%
+
+Generated-by: LLM
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/45464>
+(cherry picked from commit 8eda1cc0360e9d42d4c538d739eab1a372e783f8)
+---
+ src/freedreno/ir3/ir3.h    | 20 ++++++++++----------
+ src/freedreno/ir3/ir3_cp.c |  2 ++
+ 2 files changed, 12 insertions(+), 10 deletions(-)
+
+diff --git a/src/freedreno/ir3/ir3.h b/src/freedreno/ir3/ir3.h
+index 0ef2ce22b1d..67cd7aaac1d 100644
+--- a/src/freedreno/ir3/ir3.h
++++ b/src/freedreno/ir3/ir3.h
+@@ -1288,7 +1288,7 @@ is_same_type_reg(struct ir3_register *dst, struct ir3_register *src)
+ }
+ 
+ /* Is it a non-transformative (ie. not type changing) mov?  This can
+- * also include absneg.s/absneg.f, which for the most part can be
++ * also include absneg.s/absneg.f/not.b, which for the most part can be
+  * treated as a mov (single src argument) with source modifiers.
+  */
+ static inline bool
+@@ -1300,11 +1300,6 @@ is_same_type_mov(struct ir3_instruction *instr, bool allow_src_mods)
+    case OPC_MOV:
+       if (instr->cat1.src_type != instr->cat1.dst_type)
+          return false;
+-      /* If the type of dest reg and src reg are different,
+-       * it shouldn't be considered as same type mov
+-       */
+-      if (!is_same_type_reg(instr->dsts[0], instr->srcs[0]))
+-         return false;
+       break;
+    case OPC_ABSNEG_F:
+    case OPC_ABSNEG_S:
+@@ -1312,16 +1307,21 @@ is_same_type_mov(struct ir3_instruction *instr, bool allow_src_mods)
+          return false;
+       if (instr->flags & IR3_INSTR_SAT)
+          return false;
+-      /* If the type of dest reg and src reg are different,
+-       * it shouldn't be considered as same type mov
+-       */
+-      if (!is_same_type_reg(instr->dsts[0], instr->srcs[0]))
++      break;
++   case OPC_NOT_B:
++      if (!allow_src_mods)
+          return false;
+       break;
+    default:
+       return false;
+    }
+ 
++   /* If the type of dest reg and src reg are different,
++    * it shouldn't be considered as same type mov
++    */
++   if (!is_same_type_reg(instr->dsts[0], instr->srcs[0]))
++      return false;
++
+    dst = instr->dsts[0];
+ 
+    /* mov's that write to a0 or p0.x are special: */
+diff --git a/src/freedreno/ir3/ir3_cp.c b/src/freedreno/ir3/ir3_cp.c
+index 5e87e4a17d0..07c7006a3c9 100644
+--- a/src/freedreno/ir3/ir3_cp.c
++++ b/src/freedreno/ir3/ir3_cp.c
+@@ -93,6 +93,8 @@ combine_flags(unsigned *dstflags, struct ir3_instruction *src)
+       *dstflags ^= IR3_REG_SNEG;
+    if (srcflags & IR3_REG_BNOT)
+       *dstflags ^= IR3_REG_BNOT;
++   if (src->opc == OPC_NOT_B)
++      *dstflags ^= IR3_REG_BNOT;
+ 
+    *dstflags &= ~(IR3_REG_SSA | IR3_REG_SHARED);
+    *dstflags |= srcflags & IR3_REG_SSA;
+
+From d615913d3db79a0b1b8d10660aae182b5d420078 Mon Sep 17 00:00:00 2001
+From: Emma Anholt <anholt@igalia.com>
+Date: Fri, 9 Oct 2026 17:02:45 -0700
+Subject: [PATCH 6/6] ir3: Allow (neg) copy propagation into some more bit ops
+ on 6xx+.
+
+This matches the behavior documented in the cat2.xml.
+
+Stats (which will improve slightly with another upcoming MR)
+
+Totals from 245 (0.02% of 1513223) affected shaders:
+Instrs: 639134 -> 636173 (-0.46%); split: -0.53%, +0.06%
+CodeSize: 1613334 -> 1607336 (-0.37%); split: -0.45%, +0.08%
+NOPs: 70487 -> 70358 (-0.18%); split: -2.17%, +1.98%
+MOVs: 26424 -> 26415 (-0.03%); split: -0.36%, +0.33%
+(ss): 13528 -> 13381 (-1.09%); split: -2.11%, +1.02%
+(sy): 6058 -> 6077 (+0.31%); split: -1.04%, +1.35%
+(ss)-stall: 52162 -> 51529 (-1.21%); split: -1.35%, +0.13%
+(sy)-stall: 137637 -> 138629 (+0.72%); split: -0.98%, +1.70%
+Cat0: 83522 -> 83395 (-0.15%); split: -1.83%, +1.68%
+Cat1: 40966 -> 40959 (-0.02%); split: -0.23%, +0.21%
+Cat2: 262146 -> 259420 (-1.04%)
+Cat7: 40370 -> 40269 (-0.25%); split: -0.79%, +0.54%
+
+Assisted-by: LLM
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/45464>
+(cherry picked from commit 1e4254967a81ad0cd7cd739556f4d241111702e7)
+---
+ src/freedreno/ir3/ir3.c | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/src/freedreno/ir3/ir3.c b/src/freedreno/ir3/ir3.c
+index 5d48bd4dc60..2b07dd226a2 100644
+--- a/src/freedreno/ir3/ir3.c
++++ b/src/freedreno/ir3/ir3.c
+@@ -2188,7 +2188,6 @@ ir3_cat2_absneg(struct ir3_compiler *compiler, opc_t opc, unsigned src_n)
+    case OPC_CLZ_S:
+    case OPC_NOT_B:
+    case OPC_MGEN_B:
+-   case OPC_ASHR_B:
+       return 0;
+ 
+    case OPC_ABSNEG_S:
+@@ -2204,6 +2203,15 @@ ir3_cat2_absneg(struct ir3_compiler *compiler, opc_t opc, unsigned src_n)
+ 
+    case OPC_SHL_B:
+    case OPC_SHR_B:
++      if (compiler->gen >= 6)
++         return src_n == 0 ? IR3_REG_BNOT : IR3_REG_SNEG;
++      return 0;
++
++   case OPC_ASHR_B:
++      if (compiler->gen >= 6 && src_n == 1)
++         return IR3_REG_SNEG;
++      return 0;
++
+    case OPC_GETBIT_B:
+       if (src_n == 0 && compiler->gen >= 6)
+          return IR3_REG_BNOT;

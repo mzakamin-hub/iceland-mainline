@@ -66,14 +66,6 @@
 %bcond placebo 1
 %endif
 
-%if 0%{?el10}
-# Disable temporarily while we want for liblc3 to be upgraded
-# Cf. https://issues.redhat.com/browse/RHEL-127169
-%bcond lc3 0
-%else
-%bcond lc3 1
-%endif
-
 # For using an alternative build of EVC codecs
 %bcond evc_main 0
 
@@ -96,19 +88,19 @@
 # FIXME: GCC says there's incompatible pointer casts going on in libavdevice...
 %global build_type_safety_c 2
 
-%global av_codec_soversion 62
-%global av_device_soversion 62
-%global av_filter_soversion 11
-%global av_format_soversion 62
-%global av_util_soversion 60
-%global swresample_soversion 6
-%global swscale_soversion 9
+%global av_codec_soversion 63
+%global av_device_soversion 63
+%global av_filter_soversion 12
+%global av_format_soversion 63
+%global av_util_soversion 61
+%global swresample_soversion 7
+%global swscale_soversion 10
 
 Name:           ffmpeg
 %global pkg_name %{name}%{?pkg_suffix}
 
-Version:        8.1.3
-Release:        1%{?dist}.iceland4
+Version:        9.0.2
+Release:        3%{?dist}.iceland5
 Summary:        A complete solution to record, convert and stream audio and video
 License:        GPL-3.0-or-later
 URL:            https://ffmpeg.org/
@@ -127,17 +119,22 @@ Patch1:         ffmpeg-codec-choice.patch
 Patch2:         ffmpeg-allow-fdk-aac-free.patch
 # Allow to build with decklink
 Patch3:         ffmpeg-allow-decklink.patch
-
-# Add upstream commit to address firefox vulkan direct-export rendering issue
-Patch11:         https://git.ffmpeg.org/gitweb/ffmpeg.git/patch/25e187f8494966377a4b9d077260ce7b501a911c#/ffmpeg-vulkan-direct-export.patch
+# VapourSynth R79 renamed libvapoursynth-script to libvsscript
+Patch4:         ffmpeg-vapoursynth-lib-rename.patch
+# fix backward seeking in H.264
+# https://bugzilla.redhat.com/show_bug.cgi?id=2547586
+Patch5:         https://code.ffmpeg.org/FFmpeg/FFmpeg/commit/883e8a6336b2651f7be79a6a9aa5f3cc22937948.patch#/ffmpeg-openh264-flush-callback.patch
+# fix H.264/HEVC streamcopy timestamps without native decoders
+# https://bugzilla.redhat.com/show_bug.cgi?id=2483137
+Patch6:         https://code.ffmpeg.org/FFmpeg/FFmpeg/pulls/24968.patch#/ffmpeg-fix-streamcopy-pts.patch
 
 # Add first_dts getter to libavformat for Chromium
 # See: https://bugzilla.redhat.com/show_bug.cgi?id=2240127
 # Reference: https://crbug.com/1306560
 Patch1002:      ffmpeg-chromium.patch
 
-# iceland (private, local only): V4L2 M2M decoders export DRM PRIME frames
-# (Lukas Rusak's series as carried by LibreELEC, commit c09fd1f614, FFmpeg 8.1)
+# iceland (OnePlus Pad 4): V4L2 M2M decoders export DRM PRIME frames
+# (Lukas Rusak's series as carried by LibreELEC, commit c09fd1f614; rebased onto 9.0.2: one include-context line)
 # so that Firefox's V4L2 path can use the Iris decoder zero-copy.
 Patch2001:      ffmpeg-v4l2-drmprime.patch
 # iceland: Firefox sets no codec timebase -> keep pts (else every frame pts = AV_NOPTS_VALUE)
@@ -146,6 +143,8 @@ Patch2002:      ffmpeg-v4l2m2m-timebase.patch
 Patch2003:      ffmpeg-v4l2m2m-flush-after-drain.patch
 # iceland: same-format source change (every seek on iris): resume after its LAST buffer, EOS only while draining
 Patch2004:      ffmpeg-v4l2m2m-source-change-last.patch
+# iceland: FFmpeg 9 removed AVCodec.pix_fmts -> CODEC_PIXFMTS_ARRAY + one list for ff_get_format()
+Patch2005:      ffmpeg-v4l2m2m-ffmpeg9-pixfmts.patch
 
 
 Requires:       libavcodec%{?pkg_suffix}%{_isa} = %{version}-%{release}
@@ -166,6 +165,7 @@ BuildRequires:  game-music-emu-devel
 BuildRequires:  gcc
 BuildRequires:  git-core
 BuildRequires:  gnupg2
+BuildRequires:  glslc
 BuildRequires:  gsm-devel
 BuildRequires:  ladspa-devel
 BuildRequires:  lame-devel
@@ -187,7 +187,13 @@ BuildRequires:  pkgconfig(codec2)
 BuildRequires:  pkgconfig(dav1d)
 BuildRequires:  pkgconfig(dvdnav)
 BuildRequires:  pkgconfig(dvdread)
+%if 0%{?fedora} > 44
+# Lower nv-codec-headers to support older cards
+# https://bugzilla.redhat.com/show_bug.cgi?id=2521662#c3
+BuildRequires:  nv-codec-headers13.0
+%else
 BuildRequires:  pkgconfig(ffnvcodec)
+%endif
 BuildRequires:  pkgconfig(flac)
 BuildRequires:  pkgconfig(fontconfig)
 BuildRequires:  pkgconfig(freetype2)
@@ -198,9 +204,7 @@ BuildRequires:  pkgconfig(gnutls)
 BuildRequires:  pkgconfig(harfbuzz)
 BuildRequires:  pkgconfig(libilbc)
 BuildRequires:  pkgconfig(jack)
-%if %{with lc3}
 BuildRequires:  pkgconfig(lc3) >= 1.1.0
-%endif
 %if %{with lcms2}
 BuildRequires:  pkgconfig(lcms2) >= 2.13
 %endif
@@ -246,7 +250,6 @@ BuildRequires:  pkgconfig(opus)
 BuildRequires:  pkgconfig(rav1e)
 BuildRequires:  pkgconfig(rubberband)
 BuildRequires:  pkgconfig(sdl2)
-BuildRequires:  pkgconfig(shaderc) >= 2019.1
 BuildRequires:  pkgconfig(smbclient)
 BuildRequires:  pkgconfig(snappy)
 BuildRequires:  pkgconfig(soxr)
@@ -256,7 +259,7 @@ BuildRequires:  pkgconfig(SvtAv1Enc) >= 0.9.0
 BuildRequires:  pkgconfig(tesseract)
 BuildRequires:  pkgconfig(theora)
 BuildRequires:  pkgconfig(twolame)
-BuildRequires:  pkgconfig(vapoursynth)
+BuildRequires:  pkgconfig(vapoursynth) >= 79
 BuildRequires:  pkgconfig(vdpau)
 BuildRequires:  pkgconfig(vidstab)
 BuildRequires:  pkgconfig(vorbis)
@@ -800,9 +803,7 @@ cp -a doc/examples/{*.c,Makefile,README} _doc/examples/
     --enable-libklvanc \
     --disable-liblensfun \
     --disable-liblcevc-dec \
-%if %{with lc3}
     --enable-liblc3 \
-%endif
     --enable-libmodplug \
     --enable-libmp3lame \
     --enable-libmysofa \
@@ -829,7 +830,6 @@ cp -a doc/examples/{*.c,Makefile,README} _doc/examples/
     --enable-librtmp \
 %endif
     --enable-librubberband \
-    --enable-libshaderc \
     --disable-libshine \
     --enable-libsmbclient \
     --enable-libsnappy \
@@ -995,17 +995,9 @@ rm -rf %{buildroot}%{_datadir}
 
 
 %changelog
-* Fri Oct 23 2026 iceland local build - 8.1.3-1.iceland4
-- v4l2m2m: finish a same-format source change at its LAST buffer, EOS event only while draining,
-  never return empty capture buffers as frames
-
-* Fri Oct 23 2026 iceland local build - 8.1.3-1.iceland3
-- v4l2m2m: restart the capture queue on a flush after drain (loop / seek after EOS)
-
-* Fri Oct 23 2026 iceland local build - 8.1.3-1.iceland2
-- v4l2m2m: keep pts when the caller sets no timebase (Firefox V4L2 path)
-
-* Thu Oct 22 2026 iceland local build - 8.1.3-1.iceland1
-- Add h264_v4l2m2m and hevc_v4l2m2m decoder wrappers to enable_decoders
-- Add the v4l2m2m DRM PRIME output series (LibreELEC v4l2-drmprime)
+* Sat Nov 07 2026 iceland local build - 9.0.2-3.iceland5
+- Rebase of 8.1.3-1.iceland4 onto Fedora 45's 9.0.2-3: add h264_v4l2m2m and
+  hevc_v4l2m2m to enable_decoders, the v4l2m2m DRM PRIME output series and the
+  pts / flush-after-drain / source-change fixes (Patch2001-2004)
+- Patch2005: FFmpeg 9 pixel format list for the v4l2m2m decoders (AVCodec.pix_fmts removed)
 - the earlier changelog entries are Fedora's: https://src.fedoraproject.org/rpms/ffmpeg

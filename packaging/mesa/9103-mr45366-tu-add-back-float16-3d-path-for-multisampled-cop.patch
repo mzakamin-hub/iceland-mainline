@@ -1,4 +1,4 @@
-From 53f527d411607c1eec3e7dca901909681a77dbaf Mon Sep 17 00:00:00 2001
+From cf628d1b6ca555f2511819af80515ac5aaab4ee7 Mon Sep 17 00:00:00 2001
 From: Karmjit Mahil <karmjit.mahil@igalia.com>
 Date: Mon, 19 Oct 2026 11:41:20 +0100
 Subject: [PATCH] tu: Add back float16 3D path for multisampled copies
@@ -9,13 +9,15 @@ and the float16 specific path to preserve NaNs.
 This reverts commit 6237388454045996f58719ad33cd943e55e26a64
 
 Signed-off-by: Karmjit Mahil <karmjit.mahil@igalia.com>
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/45366>
+(cherry picked from commit 64245a20b78824634008b240c3f97c29a353ebe3)
 ---
  src/freedreno/vulkan/tu_clear_blit.cc | 38 ++++++++++++++++++++-------
  src/freedreno/vulkan/tu_device.h      |  1 +
  2 files changed, 30 insertions(+), 9 deletions(-)
 
 diff --git a/src/freedreno/vulkan/tu_clear_blit.cc b/src/freedreno/vulkan/tu_clear_blit.cc
-index 714b103b..4b611ba0 100644
+index 714b103b843..4b611ba0eeb 100644
 --- a/src/freedreno/vulkan/tu_clear_blit.cc
 +++ b/src/freedreno/vulkan/tu_clear_blit.cc
 @@ -997,7 +997,7 @@ build_blit_fs_shader(bool zscale, bool swap_coords)
@@ -128,7 +130,7 @@ index 714b103b..4b611ba0 100644
        blit_param = R3D_COPY;
     }
 diff --git a/src/freedreno/vulkan/tu_device.h b/src/freedreno/vulkan/tu_device.h
-index 5ef943a6..cf48f0d1 100644
+index 5ef943a684d..cf48f0d1831 100644
 --- a/src/freedreno/vulkan/tu_device.h
 +++ b/src/freedreno/vulkan/tu_device.h
 @@ -52,6 +52,7 @@ enum global_shader {

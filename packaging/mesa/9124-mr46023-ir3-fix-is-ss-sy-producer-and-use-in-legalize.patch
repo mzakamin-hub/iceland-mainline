@@ -1,0 +1,198 @@
+From 937385a18575e73c8f6423c7d9a9c22376baed56 Mon Sep 17 00:00:00 2001
+From: Job Noorman <jnoorman@igalia.com>
+Date: Fri, 6 Nov 2026 16:26:22 +0100
+Subject: [PATCH 1/5] ir3: fix is_{ss,sy}_producer for local atomics
+
+Local atomics synchronize their result using (ss). However,
+is_ss_producer returns false for local atomics. This means we may end up
+in a situation where WAR hazards on its sources are erroneously
+synchronized using (sy).
+
+Signed-off-by: Job Noorman <jnoorman@igalia.com>
+Fixes: ce5c0c21c44 ("ir3/legalize: don't add (ss) for WAR hazards synced with (sy)")
+---
+ src/freedreno/ir3/ir3.h | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/src/freedreno/ir3/ir3.h b/src/freedreno/ir3/ir3.h
+index 67cd7aaac1d..0482607216e 100644
+--- a/src/freedreno/ir3/ir3.h
++++ b/src/freedreno/ir3/ir3.h
+@@ -2146,7 +2146,8 @@ is_ss_producer(struct ir3_instruction *instr)
+    if (instr->block->in_early_preamble && writes_addr1(instr))
+       return true;
+ 
+-   return is_sfu(instr) || is_local_mem_load(instr) || instr->opc == OPC_SHFL;
++   return is_sfu(instr) || is_local_mem_load(instr) ||
++          is_local_atomic(instr->opc) || instr->opc == OPC_SHFL;
+ }
+ 
+ static inline bool
+@@ -2196,7 +2197,7 @@ is_sy_producer(struct ir3_instruction *instr)
+ {
+    return is_tex_or_prefetch(instr) ||
+       (is_load(instr) && !is_local_mem_load(instr)) ||
+-      is_atomic(instr->opc);
++      (is_atomic(instr->opc) && !is_local_atomic(instr->opc));
+ }
+ 
+ static inline bool
+
+From a873f62ee4e9f37e06a0c44a67599debc03130b5 Mon Sep 17 00:00:00 2001
+From: Job Noorman <jnoorman@igalia.com>
+Date: Fri, 6 Nov 2026 16:26:22 +0100
+Subject: [PATCH 2/5] ir3: fix is_ss_producer for resinfo/resbase
+
+Signed-off-by: Job Noorman <jnoorman@igalia.com>
+---
+ src/freedreno/ir3/ir3.h | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/src/freedreno/ir3/ir3.h b/src/freedreno/ir3/ir3.h
+index 0482607216e..151f111715f 100644
+--- a/src/freedreno/ir3/ir3.h
++++ b/src/freedreno/ir3/ir3.h
+@@ -2146,6 +2146,11 @@ is_ss_producer(struct ir3_instruction *instr)
+    if (instr->block->in_early_preamble && writes_addr1(instr))
+       return true;
+ 
++   if ((instr->opc == OPC_RESINFO || instr->opc == OPC_RESBASE) &&
++       !has_dummy_dst(instr)) {
++      return true;
++   }
++
+    return is_sfu(instr) || is_local_mem_load(instr) ||
+           is_local_atomic(instr->opc) || instr->opc == OPC_SHFL;
+ }
+
+From 1bb5b86b6696d7504fb22d982400cf686770b922 Mon Sep 17 00:00:00 2001
+From: Job Noorman <jnoorman@igalia.com>
+Date: Fri, 6 Nov 2026 16:26:22 +0100
+Subject: [PATCH 3/5] ir3: fix is_ss_producer for non-ALU instruction writing
+ uGPR
+
+Certain instruction (e.g., ldc.u) write uGPR without needing (ss).
+
+Signed-off-by: Job Noorman <jnoorman@igalia.com>
+---
+ src/freedreno/ir3/ir3.h | 11 ++++++++---
+ 1 file changed, 8 insertions(+), 3 deletions(-)
+
+diff --git a/src/freedreno/ir3/ir3.h b/src/freedreno/ir3/ir3.h
+index 151f111715f..0627ecd8ef0 100644
+--- a/src/freedreno/ir3/ir3.h
++++ b/src/freedreno/ir3/ir3.h
+@@ -2138,9 +2138,14 @@ bool is_scalar_alu(struct ir3_instruction *instr,
+ static inline bool
+ is_ss_producer(struct ir3_instruction *instr)
+ {
+-   foreach_dst (dst, instr) {
+-      if (dst->flags & (IR3_REG_SHARED | IR3_REG_UNIFORM))
+-         return true;
++   /* Non-ALU instructions (e.g., ldc.u) may write to shared registers without
++    * needing (ss).
++    */
++   if (is_alu(instr)) {
++      foreach_dst (dst, instr) {
++         if (dst->flags & (IR3_REG_SHARED | IR3_REG_UNIFORM))
++            return true;
++      }
+    }
+ 
+    if (instr->block->in_early_preamble && writes_addr1(instr))
+
+From 1a2af7bbf4b66b66d141465c03a9917550dec131 Mon Sep 17 00:00:00 2001
+From: Job Noorman <jnoorman@igalia.com>
+Date: Fri, 6 Nov 2026 16:26:22 +0100
+Subject: [PATCH 4/5] ir3/legalize: use is_{ss,sy}_producer instead of custom
+ logic
+
+The previous commits updated these helpers to be in line with what
+legalize does which means we can now drop the custom logic there.
+
+Signed-off-by: Job Noorman <jnoorman@igalia.com>
+---
+ src/freedreno/ir3/ir3_legalize.c | 30 +++++++++---------------------
+ 1 file changed, 9 insertions(+), 21 deletions(-)
+
+diff --git a/src/freedreno/ir3/ir3_legalize.c b/src/freedreno/ir3/ir3_legalize.c
+index 8e8fe5e339d..4323b527cb8 100644
+--- a/src/freedreno/ir3/ir3_legalize.c
++++ b/src/freedreno/ir3/ir3_legalize.c
+@@ -232,9 +232,6 @@ sync_update(struct ir3_legalize_state *state, struct ir3_compiler *compiler,
+ 
+    bool n_is_scalar_alu = is_scalar_alu(n, compiler);
+ 
+-   if (is_sfu(n) || n->opc == OPC_SHFL)
+-      regmask_set(&state->needs_ss, n->dsts[0]);
+-
+    foreach_dst (dst, n) {
+       if (dst->flags & IR3_REG_SHARED) {
+          if (n_is_scalar_alu) {
+@@ -252,25 +249,16 @@ sync_update(struct ir3_legalize_state *state, struct ir3_compiler *compiler,
+       }
+    }
+ 
+-   if (is_tex_or_prefetch(n) && !has_dummy_dst(n)) {
+-      regmask_set(&state->needs_sy, n->dsts[0]);
+-   } else if ((n->opc == OPC_RESINFO || n->opc == OPC_RESBASE) && !has_dummy_dst(n)) {
++   /* The scalar ALU case for ss-producers is handled above. */
++   if (!n_is_scalar_alu && is_ss_producer(n)) {
+       regmask_set(&state->needs_ss, n->dsts[0]);
+-   } else if (is_load(n)) {
+-      if (is_local_mem_load(n))
+-         regmask_set(&state->needs_ss, n->dsts[0]);
+-      else
+-         regmask_set(&state->needs_sy, n->dsts[0]);
+-   } else if (is_atomic(n->opc)) {
+-      if (is_bindless_atomic(n->opc)) {
+-         regmask_set(&state->needs_sy, n->srcs[2]);
+-      } else if (is_global_a3xx_atomic(n->opc) ||
+-                 is_global_a6xx_atomic(n->opc)) {
+-         regmask_set(&state->needs_sy, n->dsts[0]);
+-      } else {
+-         regmask_set(&state->needs_ss, n->dsts[0]);
+-      }
+-   } else if (n->opc == OPC_PUSH_CONSTS_LOAD_MACRO) {
++   }
++
++   if (is_sy_producer(n)) {
++      regmask_set(&state->needs_sy, n->dsts[0]);
++   }
++
++   if (n->opc == OPC_PUSH_CONSTS_LOAD_MACRO) {
+       unsigned const_dst = n->push_consts.dst_base;
+       unsigned const_size = n->push_consts.src_size * 2;
+       BITSET_SET_COUNT(state->needs_ss_for_const, const_dst, const_size);
+
+From 0269943c8abeb3ad6e126673854a97b95a454945 Mon Sep 17 00:00:00 2001
+From: Job Noorman <jnoorman@igalia.com>
+Date: Fri, 6 Nov 2026 16:26:22 +0100
+Subject: [PATCH 5/5] ir3/validate: no instruction should be both (ss) and (sy)
+ producer
+
+This is a validation of the is_{ss,sy}_producer helpers and not of
+instructions but we might as well put it here.
+
+Signed-off-by: Job Noorman <jnoorman@igalia.com>
+---
+ src/freedreno/ir3/ir3_validate.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/src/freedreno/ir3/ir3_validate.c b/src/freedreno/ir3/ir3_validate.c
+index 8a29d767b60..77e5441066d 100644
+--- a/src/freedreno/ir3/ir3_validate.c
++++ b/src/freedreno/ir3/ir3_validate.c
+@@ -267,6 +267,12 @@ validate_instr(struct ir3_validate_ctx *ctx, struct ir3_instruction *instr)
+ {
+    struct ir3_register *last_reg = NULL;
+ 
++   /* This is a validation of these helpers and not of instructions but we might
++    * as well put it here. No instruction should be both a (ss) and (sy)
++    * producer at the same time.
++    */
++   validate_assert(ctx, !(is_ss_producer(instr) && is_sy_producer(instr)));
++
+    validate_rpt(ctx, instr);
+ 
+    /* Use alias-group-aware iterator to make sure the src number will be the

@@ -1,0 +1,64 @@
+From a6e63fb8deeab6cce71e000ddd4949878a78085a Mon Sep 17 00:00:00 2001
+From: Fabricio Akio <fabricioakio@gmail.com>
+Date: Mon, 19 Oct 2026 10:22:11 -0300
+Subject: [PATCH] freedreno: Record the batch's write when a query ends
+
+fd_acc_end_query() emits the write of the query's available flag into
+the current batch without recording the batch as a writer of the
+query's buffer. Getting the result of a query no draw resumed then
+neither flushes nor waits on that batch, and the queries issued before
+it may not be available yet, as occlusion_query_order checks. Record
+the write as fd_acc_query_resume() does.
+
+Assisted-by: LLM
+Signed-off-by: Fabricio Akio <fabricioakio@gmail.com>
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/45554>
+(cherry picked from commit e7371b0711bb1cd38c39d1c05e5578c445cc6bca)
+---
+ src/freedreno/ci/freedreno-a530-fails.txt           | 1 -
+ src/freedreno/ci/freedreno-a618-fails.txt           | 1 -
+ src/gallium/drivers/freedreno/freedreno_query_acc.c | 7 +++++++
+ 3 files changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/src/freedreno/ci/freedreno-a530-fails.txt b/src/freedreno/ci/freedreno-a530-fails.txt
+index 9bf8c7cafd9..c1cc5530c1f 100644
+--- a/src/freedreno/ci/freedreno-a530-fails.txt
++++ b/src/freedreno/ci/freedreno-a530-fails.txt
+@@ -48,7 +48,6 @@ spec@arb_draw_indirect@gl_vertexid used with gldrawelementsindirect,Fail
+ spec@arb_enhanced_layouts@linker@component-layout@intrastage-vs,Fail
+ spec@arb_enhanced_layouts@linker@component-layout@vs-to-fs,Fail
+ spec@arb_map_buffer_alignment@arb_map_buffer_alignment-map-invalidate-range,Fail
+-spec@arb_occlusion_query@occlusion_query_order,Fail
+ spec@arb_point_sprite@arb_point_sprite-interactions 1.0,Fail
+ spec@arb_texture_rectangle@1-1-linear-texture,Fail
+ spec@arb_timer_query@query gl_timestamp,Fail
+diff --git a/src/freedreno/ci/freedreno-a618-fails.txt b/src/freedreno/ci/freedreno-a618-fails.txt
+index 529070c27f7..ca88cb85ab2 100644
+--- a/src/freedreno/ci/freedreno-a618-fails.txt
++++ b/src/freedreno/ci/freedreno-a618-fails.txt
+@@ -185,7 +185,6 @@ spec@glsl-4.00@execution@built-in-functions@fs-op-div-dmat4-dmat4,Fail
+ # uprev Piglit in Mesa
+ glx@glx-swap-pixmap-bad,Fail
+ spec@!opengl 1.0@rasterpos@glsl_vs_ssbo,Fail
+-spec@arb_occlusion_query@occlusion_query_order,Fail
+ spec@arb_gpu_shader_fp64@execution@fs-indirect-temp-double-src,Crash
+ spec@khr_texture_compression_astc@miptree-gles srgb-fp,Fail
+ spec@khr_texture_compression_astc@miptree-gles srgb-fp@sRGB decode full precision,Fail
+diff --git a/src/gallium/drivers/freedreno/freedreno_query_acc.c b/src/gallium/drivers/freedreno/freedreno_query_acc.c
+index 51051c81b97..9dd20fa3cd0 100644
+--- a/src/gallium/drivers/freedreno/freedreno_query_acc.c
++++ b/src/gallium/drivers/freedreno/freedreno_query_acc.c
+@@ -122,6 +122,13 @@ fd_acc_end_query(struct fd_context *ctx, struct fd_query *q) assert_dt
+    struct fd_ringbuffer *ring = fd_batch_get_tile_epilogue(batch);
+    struct fd_resource *rsc = fd_resource(aq->prsc);
+ 
++   /* The batch writes the query's bo even if no draw resumed the query, so
++    * that waiting for its result waits for this batch:
++    */
++   fd_screen_lock(ctx->screen);
++   fd_batch_resource_write(batch, rsc);
++   fd_screen_unlock(ctx->screen);
++
+    if (ctx->screen->gen < 5) {
+       OUT_PKT3(ring, CP_MEM_WRITE, 3);
+       OUT_RELOC(ring, rsc->bo, 0, 0, 0);

@@ -1,5 +1,7 @@
 # libcamera with autofocus for the OnePlus Pad 4
 
+**Fedora 45 build (8 Nov 2026):** `libcamera-0.7.2-5.fc45.iceland_af2`: Fedora 45's `libcamera.spec` (0.7.2-5, with Fedora's own `0002-fix-ov01a10-flickering.patch`) plus the same four autofocus patches (Patch90-93) as the Fedora 44 build described below.
+
 `libcamera-0.7.1-3.fc44.iceland_af1`: Fedora 44's `libcamera.spec` (0.7.1-3) plus four patches that give the simple
 pipeline handler (the one the Pad 4's SmartSens sensors use, with the software ISP) lens control and autofocus.
 

@@ -1,0 +1,274 @@
+From 25605d4f0f346367b82559342c683c16e980c200 Mon Sep 17 00:00:00 2001
+From: Michael Niedermayer <michael@niedermayer.cc>
+Date: Thu, 8 Oct 2026 04:59:41 +0000
+Subject: [PATCH 1/2] avcodec: export reorder delay when H.264/HEVC decoders
+ are disabled
+
+Matroska supplies presentation timestamps without decoding timestamps.
+Without the native decoders, the H.264 parser only triggers demux.c's
+one-frame B-picture heuristic, while HEVC is not parsed at all. Reorder
+depths larger than those guesses produce invalid DTS and cause streamcopy
+to modify PTS.
+
+Export the SPS reorder bound from the parsers in these configurations,
+and allow Matroska to use the HEVC parser when its native decoder is
+absent. Preserve a larger delay already reported by another component.
+Keep native-decoder builds unchanged so H.264 can still refine its delay
+from observed picture order where appropriate.
+
+This follows the parser-based approach proposed by tyan0 in #23365.
+There is no need to force MAX_REORDER_DELAY in demux.c for these streams.
+Keep the B-picture heuristic from overriding a parser-provided zero HEVC
+reorder bound: low-delay B slices need not reorder, and inventing a delay
+mid-stream produces a missing DTS followed by duplicate DTS on MP4 remux.
+
+Fixes #23365.
+
+Assisted-by: Fairy
+---
+ libavcodec/h264_parser.c  | 8 ++++++++
+ libavcodec/hevc/parser.c  | 9 +++++++++
+ libavformat/demux.c       | 5 ++++-
+ libavformat/matroskadec.c | 3 ++-
+ 4 files changed, 23 insertions(+), 2 deletions(-)
+
+diff --git a/libavcodec/h264_parser.c b/libavcodec/h264_parser.c
+index 1bd0be38a53..8b77757d3b3 100644
+--- a/libavcodec/h264_parser.c
++++ b/libavcodec/h264_parser.c
+@@ -27,6 +27,8 @@
+ 
+ #define UNCHECKED_BITSTREAM_READER 1
+ 
++#include "config_components.h"
++
+ #include <stdint.h>
+ 
+ #include "libavutil/attributes.h"
+@@ -385,6 +387,12 @@ static inline int parse_nal_units(AVCodecParserContext *s,
+             p->ps.sps = p->ps.pps->sps;
+             sps       = p->ps.sps;
+ 
++#if !CONFIG_H264_DECODER
++            // Use the SPS reorder bound when the decoder cannot refine it.
++            avctx->has_b_frames = FFMAX(avctx->has_b_frames,
++                                       sps->num_reorder_frames);
++#endif
++
+             // heuristic to detect non marked keyframes
+             if (p->ps.sps->ref_frame_count <= 1 && p->ps.pps->ref_count[0] <= 1 && s->pict_type == AV_PICTURE_TYPE_I)
+                 s->key_frame = 1;
+diff --git a/libavcodec/hevc/parser.c b/libavcodec/hevc/parser.c
+index 47a1ac70d00..0830e7089db 100644
+--- a/libavcodec/hevc/parser.c
++++ b/libavcodec/hevc/parser.c
+@@ -20,6 +20,8 @@
+  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+  */
+ 
++#include "config_components.h"
++
+ #include "libavutil/common.h"
+ #include "libavutil/mem.h"
+ 
+@@ -95,6 +97,13 @@ static int hevc_parse_slice_header(AVCodecParserContext *s, H2645NAL *nal,
+     avctx->profile  = sps->ptl.general_ptl.profile_idc;
+     avctx->level    = sps->ptl.general_ptl.level_idc;
+ 
++#if !CONFIG_HEVC_DECODER
++    // Without the native decoder, provide the delay needed for DTS generation.
++    avctx->has_b_frames =
++        FFMAX(avctx->has_b_frames,
++              sps->temporal_layer[sps->max_sub_layers - 1].num_reorder_pics);
++#endif
++
+     if (sps->vps->vps_timing_info_present_flag) {
+         num = sps->vps->vps_num_units_in_tick;
+         den = sps->vps->vps_time_scale;
+diff --git a/libavformat/demux.c b/libavformat/demux.c
+index 97eaa5f9bcc..81c606f8a40 100644
+--- a/libavformat/demux.c
++++ b/libavformat/demux.c
+@@ -1022,8 +1022,11 @@ static void compute_pkt_fields(AVFormatContext *s, AVStream *st,
+     if ((s->flags & AVFMT_FLAG_IGNDTS) && pkt->pts != AV_NOPTS_VALUE)
+         pkt->dts = AV_NOPTS_VALUE;
+ 
++    /* Without the native HEVC decoder, the parser has already supplied the
++     * SPS reorder bound. B slices do not necessarily imply reordering. */
+     if (pc && pc->pict_type == AV_PICTURE_TYPE_B
+-        && !sti->avctx->has_b_frames)
++        && !sti->avctx->has_b_frames
++        && (CONFIG_HEVC_DECODER || sti->avctx->codec_id != AV_CODEC_ID_HEVC))
+         //FIXME Set low_delay = 0 when has_b_frames = 1
+         sti->avctx->has_b_frames = 1;
+ 
+diff --git a/libavformat/matroskadec.c b/libavformat/matroskadec.c
+index bceb4f7e17e..e05c3fe4f0f 100644
+--- a/libavformat/matroskadec.c
++++ b/libavformat/matroskadec.c
+@@ -3058,7 +3058,8 @@ static int mkv_parse_video(MatroskaTrack *track, AVStream *st,
+         bytestream_put_le32(&cropping, track->video.pixel_cropl);
+         bytestream_put_le32(&cropping, track->video.pixel_cropr);
+     }
+-    if (par->codec_id != AV_CODEC_ID_HEVC)
++    // The HEVC parser supplies the reorder delay when the decoder is disabled.
++    if (!CONFIG_HEVC_DECODER || par->codec_id != AV_CODEC_ID_HEVC)
+         sti->need_parsing = AVSTREAM_PARSE_HEADERS;
+ 
+     if (track->default_duration) {
+-- 
+2.54.0
+
+
+From 83b532813a88048c6b28592b885c2fb233461e41 Mon Sep 17 00:00:00 2001
+From: Michael Niedermayer <michael@niedermayer.cc>
+Date: Thu, 8 Oct 2026 04:59:41 +0000
+Subject: [PATCH 2/2] fate/matroska: cover streamcopy without native H.264/HEVC
+ decoders
+
+Remux existing MP4 samples to Matroska, then streamcopy to framecrc.
+Verify the reconstructed DTS, preserved PTS and packet payloads when
+the native decoders are disabled. The H.264 sample also exercises the
+level-derived reorder bound without explicit bitstream restrictions.
+
+The MP4-based tests fail before the parser reorder-delay fix and pass with
+it, with no decoders enabled and with libopenh264 enabled.
+
+Also remux eight frames from the existing AMP_F_Hisilicon_3 HEVC
+conformance sample, using setts to supply timestamps. Its low-delay B
+slices have an SPS reorder bound of zero. Check that the B-picture
+heuristic does not invent a delay mid-stream, which would produce a
+missing DTS followed by duplicate DTS on streamcopy.
+
+Assisted-by: Fairy
+---
+ tests/fate/matroska.mak                       | 15 +++++++++
+ tests/ref/fate/matroska-h264-remux-nodec      | 33 +++++++++++++++++++
+ tests/ref/fate/matroska-hevc-remux-nodec      | 28 ++++++++++++++++
+ .../fate/matroska-hevc-remux-nodec-lowdelay   | 16 +++++++++
+ 4 files changed, 92 insertions(+)
+ create mode 100644 tests/ref/fate/matroska-h264-remux-nodec
+ create mode 100644 tests/ref/fate/matroska-hevc-remux-nodec
+ create mode 100644 tests/ref/fate/matroska-hevc-remux-nodec-lowdelay
+
+diff --git a/tests/fate/matroska.mak b/tests/fate/matroska.mak
+index f165ce19476..e831e6cc428 100644
+--- a/tests/fate/matroska.mak
++++ b/tests/fate/matroska.mak
+@@ -1,3 +1,18 @@
++# Exercise parser-provided reorder delays without the native decoders.
++ifndef CONFIG_H264_DECODER
++FATE_MATROSKA-$(call REMUX, MATROSKA, MOV_DEMUXER H264_PARSER) += fate-matroska-h264-remux-nodec
++fate-matroska-h264-remux-nodec: CMD = transcode mov $(TARGET_SAMPLES)/h264/h264_3bf_pyramid_nobsrestriction.mp4 matroska "-map 0:v:0 -c copy" "-map 0:v:0 -c copy"
++endif
++
++ifndef CONFIG_HEVC_DECODER
++FATE_MATROSKA-$(call REMUX, MATROSKA, MOV_DEMUXER HEVC_PARSER) += fate-matroska-hevc-remux-nodec
++fate-matroska-hevc-remux-nodec: CMD = transcode mov $(TARGET_SAMPLES)/hevc/dv84.mov matroska "-map 0:v:0 -c copy -frames:v 20" "-map 0:v:0 -c copy"
++
++# Low-delay B slices must retain the SPS reorder bound of zero.
++FATE_MATROSKA-$(call REMUX, MATROSKA, HEVC_DEMUXER HEVC_PARSER EXTRACT_EXTRADATA_BSF SETTS_BSF) += fate-matroska-hevc-remux-nodec-lowdelay
++fate-matroska-hevc-remux-nodec-lowdelay: CMD = transcode hevc $(TARGET_SAMPLES)/hevc-conformance/AMP_F_Hisilicon_3.bit matroska "-map 0:v:0 -c copy -frames:v 8 -bsf:v setts=pts=N:dts=N:time_base=1/25" "-map 0:v:0 -c copy" "" "" "" "-r 25"
++endif
++
+ FATE_MATROSKA-$(call FRAMECRC, MATROSKA,, ZLIB) += fate-matroska-prores-zlib
+ fate-matroska-prores-zlib: CMD = framecrc -i $(TARGET_SAMPLES)/mkv/prores_zlib.mkv -c:v copy
+ 
+diff --git a/tests/ref/fate/matroska-h264-remux-nodec b/tests/ref/fate/matroska-h264-remux-nodec
+new file mode 100644
+index 00000000000..a44b0db872e
+--- /dev/null
++++ b/tests/ref/fate/matroska-h264-remux-nodec
+@@ -0,0 +1,33 @@
++3ddeff9d725b3f8f25bd3c705ed5df4e *tests/data/fate/matroska-h264-remux-nodec.matroska
++55337 tests/data/fate/matroska-h264-remux-nodec.matroska
++#extradata 0:       38, 0xbef609bd
++#tb 0: 1/1000
++#media_type 0: video
++#codec_id 0: h264
++#dimensions 0: 320x240
++#sar 0: 1/1
++0,       -280,          0,       40,     5628, 0x5f78e7d8
++0,       -240,        160,       40,     3516, 0xd1c8d0c8, F=0x0
++0,       -200,         80,       40,     2192, 0x19fa319b, F=0x0
++0,       -160,         40,       40,     1561, 0xf97cfce6, F=0x0
++0,       -120,        120,       40,     1598, 0xc03005c0, F=0x0
++0,        -80,        320,       40,     3217, 0x2b472fec, F=0x0
++0,        -40,        240,       40,     1920, 0xe85fbc36, F=0x0
++0,          0,        200,       40,     1572, 0xefc81615, F=0x0
++0,         40,        280,       40,     1467, 0x3724dec5, F=0x0
++0,         80,        480,       40,     2989, 0x5820d06d, F=0x0
++0,        120,        400,       40,     1896, 0x5d0aadba, F=0x0
++0,        160,        360,       40,     1471, 0xe422e476, F=0x0
++0,        200,        440,       40,     1478, 0x39bbe5d8, F=0x0
++0,        240,        640,       40,     2693, 0x9007492a, F=0x0
++0,        280,        560,       40,     2098, 0x19e51843, F=0x0
++0,        320,        520,       40,     1573, 0xbdfc1ca3, F=0x0
++0,        360,        600,       40,     1562, 0x71390e2b, F=0x0
++0,        400,        800,       40,     2879, 0x7761851a, F=0x0
++0,        440,        720,       40,     1860, 0x67c89627, F=0x0
++0,        480,        680,       40,     1529, 0x8ad5ee49, F=0x0
++0,        520,        760,       40,     1485, 0xe3a6dc4e, F=0x0
++0,        560,        960,       40,     2794, 0xbfaf8827, F=0x0
++0,        600,        880,       40,     2175, 0x589626f3, F=0x0
++0,        640,        840,       40,     1713, 0x28884797, F=0x0
++0,        680,        920,       40,     1758, 0x653c625b, F=0x0
+diff --git a/tests/ref/fate/matroska-hevc-remux-nodec b/tests/ref/fate/matroska-hevc-remux-nodec
+new file mode 100644
+index 00000000000..12d3bcf559e
+--- /dev/null
++++ b/tests/ref/fate/matroska-hevc-remux-nodec
+@@ -0,0 +1,28 @@
++aee64ecba0664c6fd1c8b1c212ddefe1 *tests/data/fate/matroska-hevc-remux-nodec.matroska
++721746 tests/data/fate/matroska-hevc-remux-nodec.matroska
++#extradata 0:      551, 0xb1ddcd66
++#tb 0: 1/1000
++#media_type 0: video
++#codec_id 0: hevc
++#dimensions 0: 1920x1080
++#sar 0: 0/1
++0,        -67,          0,       33,    63375, 0xc76606ab
++0,        -34,        133,       33,    46706, 0x0e08a7e5, F=0x0
++0,          0,         67,       33,    29766, 0x753c031a, F=0x0
++0,         33,         33,       33,    19409, 0x4b948b6c, F=0x0
++0,         67,        100,       33,    21086, 0x1b9412ce, F=0x0
++0,        100,        267,       33,    62043, 0xc2356b56, F=0x0
++0,        133,        200,       33,    36175, 0x0a7df38c, F=0x0
++0,        167,        167,       33,    16028, 0xa57fcbe9, F=0x0
++0,        200,        233,       33,    15428, 0x9a91f357, F=0x0
++0,        233,        400,       33,    66072, 0xa542b6d7, F=0x0
++0,        267,        333,       33,    34985, 0xbfd8ff45, F=0x0
++0,        300,        300,       33,    16036, 0xfc39c6ea, F=0x0
++0,        333,        367,       33,    19893, 0x7e746f4e, F=0x0
++0,        367,        533,       33,    77576, 0xeba2e5c8, F=0x0
++0,        400,        467,       33,    35400, 0xbe179462, F=0x0
++0,        433,        433,       33,    15962, 0x7703dcd8, F=0x0
++0,        467,        500,       33,    16136, 0x78a74880, F=0x0
++0,        500,        667,       33,    74990, 0xb6fc1da7, F=0x0
++0,        533,        600,       33,    36594, 0xc3c61c3e, F=0x0
++0,        567,        567,       33,    16524, 0xb297a886, F=0x0
+diff --git a/tests/ref/fate/matroska-hevc-remux-nodec-lowdelay b/tests/ref/fate/matroska-hevc-remux-nodec-lowdelay
+new file mode 100644
+index 00000000000..2fc2c3cba52
+--- /dev/null
++++ b/tests/ref/fate/matroska-hevc-remux-nodec-lowdelay
+@@ -0,0 +1,16 @@
++062aa6a836da7b9379884d188bd4a99f *tests/data/fate/matroska-hevc-remux-nodec-lowdelay.matroska
++145718 tests/data/fate/matroska-hevc-remux-nodec-lowdelay.matroska
++#extradata 0:      117, 0x06e9224b
++#tb 0: 1/1000
++#media_type 0: video
++#codec_id 0: hevc
++#dimensions 0: 1920x1080
++#sar 0: 0/1
++0,          0,          0,       40,   115313, 0x96fd269d
++0,         40,         40,       40,      960, 0x90a4dbe3, F=0x0
++0,         80,         80,       40,     2341, 0x1a499011, F=0x0
++0,        120,        120,       40,     1470, 0x8f6adb63, F=0x0
++0,        160,        160,       40,    20789, 0x7fa5a3f9, F=0x0
++0,        200,        200,       40,      942, 0xbeb1c85b, F=0x0
++0,        240,        240,       40,     1992, 0xa04ee30b, F=0x0
++0,        280,        280,       40,     1263, 0xa6f85de5, F=0x0
+-- 
+2.54.0
+

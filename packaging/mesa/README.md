@@ -1,5 +1,7 @@
 # Mesa for the OnePlus Pad 4 (Adreno 840)
 
+**Fedora 45 build (8 Nov 2026):** `mesa-26.3.0~rc3^git20261104.25248e6-1.fc45.iceland1`, Fedora 45's `mesa.spec` with Mesa's `staging/26.3` at `25248e6` (after 26.3.0-rc3; source `mesa-26.3.0-rc3-git20261104.25248e6.tar.xz`, a `git archive` as described below) and the 30 patches `9101-*` to `9130-*`: freedreno / turnip / ir3 / vulkan merge requests for the A8xx, each file with its author and MR number (9128 carries a one-word rename after 9116). They replace the seven `9001-*` to `9007-*` patches of the Fedora 44 build, which the text below still describes.
+
 `mesa-26.3.0~rc1~git20261019.e282ea8c-1.fc44.iceland1`, the Mesa build the project's tablet runs. It is Fedora 44's
 `mesa.spec` (dist-git f44 `4d53ade0`, 26.2.5-1) with only the version and source changed, plus seven patches for the
 A840 (gen8) GPU taken from merge requests that were still open upstream on 20 Oct 2026.

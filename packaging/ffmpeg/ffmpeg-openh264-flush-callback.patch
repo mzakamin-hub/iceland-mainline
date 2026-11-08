@@ -1,0 +1,82 @@
+From 883e8a6336b2651f7be79a6a9aa5f3cc22937948 Mon Sep 17 00:00:00 2001
+From: Scott Kidder <scott@kidder.io>
+Date: Wed, 20 May 2026 17:17:24 -0700
+Subject: [PATCH] avcodec/libopenh264dec: implement flush callback
+
+Cisco's ISVCDecoder retains DPB and reference state across
+avcodec_flush_buffers(), causing the next IDR to be accepted but
+subsequent P-frames to fail decode after a seek or loop. Cisco's
+API does not expose a non-destructive reset; tear down and rebuild
+the decoder via the existing close/init callbacks.
+
+The .flush callback is void and cannot report a re-init failure, so
+svc_decode_frame() guards against a NULL decoder left behind by a
+failed re-init. svc_decode_init() now also tears the decoder back
+down on an Initialize() failure so that path leaves the same clean
+NULL state the guard expects and does not leak the ISVCDecoder.
+
+Signed-off-by: Scott Kidder <scott@kidder.io>
+---
+ libavcodec/libopenh264dec.c | 23 ++++++++++++++++++++++-
+ 1 file changed, 22 insertions(+), 1 deletion(-)
+
+diff --git a/libavcodec/libopenh264dec.c b/libavcodec/libopenh264dec.c
+index b6a9bba2dc7..c9b24596534 100644
+--- a/libavcodec/libopenh264dec.c
++++ b/libavcodec/libopenh264dec.c
+@@ -42,12 +42,22 @@ static av_cold int svc_decode_close(AVCodecContext *avctx)
+ {
+     SVCContext *s = avctx->priv_data;
+ 
+-    if (s->decoder)
++    if (s->decoder) {
+         WelsDestroyDecoder(s->decoder);
++        s->decoder = NULL;
++    }
+ 
+     return 0;
+ }
+ 
++static av_cold int svc_decode_init(AVCodecContext *avctx);
++
++static void svc_decode_flush(AVCodecContext *avctx)
++{
++    svc_decode_close(avctx);
++    svc_decode_init(avctx);
++}
++
+ static av_cold int svc_decode_init(AVCodecContext *avctx)
+ {
+     SVCContext *s = avctx->priv_data;
+@@ -75,6 +85,7 @@ static av_cold int svc_decode_init(AVCodecContext *avctx)
+ 
+     if ((*s->decoder)->Initialize(s->decoder, &param) != cmResultSuccess) {
+         av_log(avctx, AV_LOG_ERROR, "Initialize failed\n");
++        svc_decode_close(avctx);
+         return AVERROR_UNKNOWN;
+     }
+ 
+@@ -95,6 +106,15 @@ static int svc_decode_frame(AVCodecContext *avctx, AVFrame *avframe,
+     int opt;
+ #endif
+ 
++    /* svc_decode_flush() tears the decoder down and re-initializes it. If that
++     * re-init failed (e.g. WelsCreateDecoder/Initialize OOM) s->decoder is left
++     * NULL; the void flush callback cannot report this, so guard here to turn a
++     * NULL dereference into a recoverable error. */
++    if (!s->decoder) {
++        av_log(avctx, AV_LOG_ERROR, "decoder not initialized\n");
++        return AVERROR(EINVAL);
++    }
++
+     if (!avpkt->data) {
+ #if OPENH264_VER_AT_LEAST(1, 9)
+         int end_of_stream = 1;
+@@ -162,6 +182,7 @@ const FFCodec ff_libopenh264_decoder = {
+     .init           = svc_decode_init,
+     FF_CODEC_DECODE_CB(svc_decode_frame),
+     .close          = svc_decode_close,
++    .flush          = svc_decode_flush,
+     .p.capabilities = AV_CODEC_CAP_DELAY | AV_CODEC_CAP_DR1,
+     .caps_internal  = FF_CODEC_CAP_SETS_PKT_DTS |
+                       FF_CODEC_CAP_INIT_CLEANUP,

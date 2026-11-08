@@ -1,0 +1,560 @@
+From 05298538b0358fd5cde3b0e7e7a55d2f065316eb Mon Sep 17 00:00:00 2001
+From: Job Noorman <jnoorman@igalia.com>
+Date: Thu, 22 Oct 2026 09:54:09 +0200
+Subject: [PATCH 1/5] ir3/lower_copies: add mark_done helper
+
+Signed-off-by: Job Noorman <jnoorman@igalia.com>
+---
+ src/freedreno/ir3/ir3_lower_parallelcopy.c | 19 +++++++++++++------
+ 1 file changed, 13 insertions(+), 6 deletions(-)
+
+diff --git a/src/freedreno/ir3/ir3_lower_parallelcopy.c b/src/freedreno/ir3/ir3_lower_parallelcopy.c
+index 60e062ae52a..9a39525ba8c 100644
+--- a/src/freedreno/ir3/ir3_lower_parallelcopy.c
++++ b/src/freedreno/ir3/ir3_lower_parallelcopy.c
+@@ -264,6 +264,18 @@ entry_blocked(struct copy_entry *entry, struct copy_ctx *ctx)
+    return false;
+ }
+ 
++static void
++mark_done(struct copy_entry *entry, struct copy_ctx *ctx)
++{
++   for (unsigned j = 0; j < copy_entry_size(entry); j++) {
++      if (!entry->src.flags)
++         ctx->physreg_use_count[entry->src.reg + j]--;
++      ctx->physreg_dst[entry->dst + j] = NULL;
++   }
++
++   entry->done = true;
++}
++
+ static void
+ split_32bit_copy(struct copy_ctx *ctx, struct copy_entry *entry)
+ {
+@@ -326,14 +338,9 @@ _handle_copies(struct ir3_compiler *compiler, struct ir3_instruction *instr,
+       for (unsigned i = 0; i < ctx->entry_count; i++) {
+          struct copy_entry *entry = &ctx->entries[i];
+          if (!entry->done && !entry_blocked(entry, ctx)) {
+-            entry->done = true;
+             progress = true;
+             do_copy(compiler, instr, entry);
+-            for (unsigned j = 0; j < copy_entry_size(entry); j++) {
+-               if (!entry->src.flags)
+-                  ctx->physreg_use_count[entry->src.reg + j]--;
+-               ctx->physreg_dst[entry->dst + j] = NULL;
+-            }
++            mark_done(entry, ctx);
+          }
+       }
+ 
+
+From 27097e278d3154288f1a0f7baafdcc79050f91a7 Mon Sep 17 00:00:00 2001
+From: Job Noorman <jnoorman@igalia.com>
+Date: Thu, 22 Oct 2026 09:54:09 +0200
+Subject: [PATCH 2/5] ir3/lower_copies: make physreg_dst a bool array
+
+Even though we stored pointers to copy_entry there, we only used it to
+check whether a pending copy_entry exists that writes a physreg.
+Moreover, since we started sorting entries, the pointers here wouldn't
+be valid anymore making them a potential footgun. Just make the array
+store bool.
+
+Signed-off-by: Job Noorman <jnoorman@igalia.com>
+---
+ src/freedreno/ir3/ir3_lower_parallelcopy.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/src/freedreno/ir3/ir3_lower_parallelcopy.c b/src/freedreno/ir3/ir3_lower_parallelcopy.c
+index 9a39525ba8c..974715b9e83 100644
+--- a/src/freedreno/ir3/ir3_lower_parallelcopy.c
++++ b/src/freedreno/ir3/ir3_lower_parallelcopy.c
+@@ -246,8 +246,8 @@ struct copy_ctx {
+     */
+    unsigned physreg_use_count[RA_MAX_FILE_SIZE];
+ 
+-   /* For each physreg, the pending copy_entry that uses it as a dest. */
+-   struct copy_entry *physreg_dst[RA_MAX_FILE_SIZE];
++   /* For each physreg, whether it is the dst of a pending copy_entry. */
++   bool physreg_dst[RA_MAX_FILE_SIZE];
+ 
+    struct copy_entry entries[RA_MAX_FILE_SIZE];
+    unsigned entry_count;
+@@ -270,7 +270,7 @@ mark_done(struct copy_entry *entry, struct copy_ctx *ctx)
+    for (unsigned j = 0; j < copy_entry_size(entry); j++) {
+       if (!entry->src.flags)
+          ctx->physreg_use_count[entry->src.reg + j]--;
+-      ctx->physreg_dst[entry->dst + j] = NULL;
++      ctx->physreg_dst[entry->dst + j] = false;
+    }
+ 
+    entry->done = true;
+@@ -318,7 +318,7 @@ _handle_copies(struct ir3_compiler *compiler, struct ir3_instruction *instr,
+ 
+          /* Copies should not have overlapping destinations. */
+          assert(!ctx->physreg_dst[entry->dst + j]);
+-         ctx->physreg_dst[entry->dst + j] = entry;
++         ctx->physreg_dst[entry->dst + j] = true;
+       }
+    }
+ 
+
+From aba97de1b34960fb314856ed4f0f518f66857448 Mon Sep 17 00:00:00 2001
+From: Job Noorman <jnoorman@igalia.com>
+Date: Thu, 22 Oct 2026 09:54:09 +0200
+Subject: [PATCH 3/5] ir3/lower_copies: filter-out self copies earlier
+
+This already happens when resolving cycles so isn't strictly necessary.
+However, there's no point wasting earlier CPU cycles on them.
+
+Signed-off-by: Job Noorman <jnoorman@igalia.com>
+---
+ src/freedreno/ir3/ir3_lower_parallelcopy.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/src/freedreno/ir3/ir3_lower_parallelcopy.c b/src/freedreno/ir3/ir3_lower_parallelcopy.c
+index 974715b9e83..90df95873ad 100644
+--- a/src/freedreno/ir3/ir3_lower_parallelcopy.c
++++ b/src/freedreno/ir3/ir3_lower_parallelcopy.c
+@@ -312,6 +312,13 @@ _handle_copies(struct ir3_compiler *compiler, struct ir3_instruction *instr,
+ 
+    for (unsigned i = 0; i < ctx->entry_count; i++) {
+       struct copy_entry *entry = &ctx->entries[i];
++
++      /* Filter-out self copies. */
++      if (!entry->src.flags && entry->dst == entry->src.reg) {
++         entry->done = true;
++         continue;
++      }
++
+       for (unsigned j = 0; j < copy_entry_size(entry); j++) {
+          if (!entry->src.flags)
+             ctx->physreg_use_count[entry->src.reg + j]++;
+
+From 53c129bac1816ae0561ac25529d8f369e7cd9b35 Mon Sep 17 00:00:00 2001
+From: Job Noorman <jnoorman@igalia.com>
+Date: Thu, 22 Oct 2026 09:54:09 +0200
+Subject: [PATCH 4/5] ir3/lower_copies: move acyclic copy resolution to a
+ helper
+
+Signed-off-by: Job Noorman <jnoorman@igalia.com>
+---
+ src/freedreno/ir3/ir3_lower_parallelcopy.c | 73 ++++++++++++----------
+ 1 file changed, 40 insertions(+), 33 deletions(-)
+
+diff --git a/src/freedreno/ir3/ir3_lower_parallelcopy.c b/src/freedreno/ir3/ir3_lower_parallelcopy.c
+index 90df95873ad..10f61aa2385 100644
+--- a/src/freedreno/ir3/ir3_lower_parallelcopy.c
++++ b/src/freedreno/ir3/ir3_lower_parallelcopy.c
+@@ -303,45 +303,13 @@ cmp_half_last(const void *ptr1, const void *ptr2)
+ }
+ 
+ static void
+-_handle_copies(struct ir3_compiler *compiler, struct ir3_instruction *instr,
++resolve_copies(struct ir3_compiler *compiler, struct ir3_instruction *instr,
+                struct copy_ctx *ctx)
+ {
+-   /* Set up the bookkeeping */
+-   memset(ctx->physreg_dst, 0, sizeof(ctx->physreg_dst));
+-   memset(ctx->physreg_use_count, 0, sizeof(ctx->physreg_use_count));
+-
+-   for (unsigned i = 0; i < ctx->entry_count; i++) {
+-      struct copy_entry *entry = &ctx->entries[i];
+-
+-      /* Filter-out self copies. */
+-      if (!entry->src.flags && entry->dst == entry->src.reg) {
+-         entry->done = true;
+-         continue;
+-      }
+-
+-      for (unsigned j = 0; j < copy_entry_size(entry); j++) {
+-         if (!entry->src.flags)
+-            ctx->physreg_use_count[entry->src.reg + j]++;
+-
+-         /* Copies should not have overlapping destinations. */
+-         assert(!ctx->physreg_dst[entry->dst + j]);
+-         ctx->physreg_dst[entry->dst + j] = true;
+-      }
+-   }
+-
+    bool progress = true;
+    while (progress) {
+       progress = false;
+ 
+-      /* Step 1: resolve paths in the transfer graph. This means finding
+-       * copies whose destination aren't blocked by something else and then
+-       * emitting them, continuing this process until every copy is blocked
+-       * and there are only cycles left.
+-       *
+-       * TODO: We should note that src is also available in dst to unblock
+-       * cycles that src is involved in.
+-       */
+-
+       for (unsigned i = 0; i < ctx->entry_count; i++) {
+          struct copy_entry *entry = &ctx->entries[i];
+          if (!entry->done && !entry_blocked(entry, ctx)) {
+@@ -377,6 +345,45 @@ _handle_copies(struct ir3_compiler *compiler, struct ir3_instruction *instr,
+          }
+       }
+    }
++}
++
++static void
++_handle_copies(struct ir3_compiler *compiler, struct ir3_instruction *instr,
++               struct copy_ctx *ctx)
++{
++   /* Set up the bookkeeping */
++   memset(ctx->physreg_dst, 0, sizeof(ctx->physreg_dst));
++   memset(ctx->physreg_use_count, 0, sizeof(ctx->physreg_use_count));
++
++   for (unsigned i = 0; i < ctx->entry_count; i++) {
++      struct copy_entry *entry = &ctx->entries[i];
++
++      /* Filter-out self copies. */
++      if (!entry->src.flags && entry->dst == entry->src.reg) {
++         entry->done = true;
++         continue;
++      }
++
++      for (unsigned j = 0; j < copy_entry_size(entry); j++) {
++         if (!entry->src.flags)
++            ctx->physreg_use_count[entry->src.reg + j]++;
++
++         /* Copies should not have overlapping destinations. */
++         assert(!ctx->physreg_dst[entry->dst + j]);
++         ctx->physreg_dst[entry->dst + j] = true;
++      }
++   }
++
++   /* Step 1: resolve paths in the transfer graph. This means finding
++    * copies whose destination aren't blocked by something else and then
++    * emitting them, continuing this process until every copy is blocked
++    * and there are only cycles left.
++    *
++    * TODO: We should note that src is also available in dst to unblock
++    * cycles that src is involved in.
++    */
++
++   resolve_copies(compiler, instr, ctx);
+ 
+    /* Step 3: resolve cycles through swapping.
+     *
+
+From 2b1a2f5cac62ca9cba6bbc83d1045008d6871a94 Mon Sep 17 00:00:00 2001
+From: Job Noorman <jnoorman@igalia.com>
+Date: Thu, 22 Oct 2026 09:54:09 +0200
+Subject: [PATCH 5/5] ir3/lower_copies: don't split partially blocked copies
+
+If partially unblocked copies are part of a cycle, they can be resolved
+using the existing cycle resolution algorithm. If they are not, the half
+copy they are blocked on will eventually get resolved which will unblock
+the partially blocked copy. In either case, splitting them is
+unnecessary.
+
+It turns out that splitting 32-bit copies is also the biggest source of
+half copies to and/or from the unaddressable range. Those copies are the
+most expensive as they need multiple instructions. Avoiding those makes
+a huge difference in some pathological shaders.
+
+Totals from 8 (0.00% of 176258) affected shaders:
+Instrs: 116956 -> 109392 (-6.47%)
+CodeSize: 169990 -> 163016 (-4.10%); split: -4.10%, +0.00%
+NOPs: 26701 -> 23693 (-11.27%); split: -11.29%, +0.02%
+MOVs: 10080 -> 9688 (-3.89%)
+COVs: 2045 -> 1971 (-3.62%)
+(ss): 3612 -> 3609 (-0.08%)
+(ss)-stall: 4599 -> 4602 (+0.07%); split: -0.02%, +0.09%
+(sy)-stall: 126523 -> 126595 (+0.06%); split: -0.04%, +0.09%
+Cat0: 28792 -> 25784 (-10.45%); split: -10.47%, +0.02%
+Cat1: 34095 -> 29831 (-12.51%)
+Cat2: 25732 -> 25440 (-1.13%)
+
+ABSOLUTE IMPROVEMENTS - Instrs                                  Before     After      Delta      Percentage
+parallel-rdp/uber_subgroup/21d170ef7d1c1782/cs/0                24253      20994      -3259      -13.44%
+parallel-rdp/uber_subgroup/b4bd3a1806ca4f65/cs/0                22881      20751      -2130      -9.31%
+parallel-rdp/uber_subgroup/520406f40241abf8/cs/0                17243      16466      -777       -4.51%
+parallel-rdp/uber_subgroup/be5d8737c7662e73/cs/0                21701      20937      -764       -3.52%
+parallel-rdp/uber_subgroup/b4d24c5227a0de12/cs/0                17139      16539      -600       -3.50%
+closed/turnip_fossils/control_no_msaa/a8122f77b0fa7a4d/fs/0     338        321        -17        -5.03%
+closed/turnip_fossils/control_msaa4x/a8122f77b0fa7a4d/fs/0      338        321        -17        -5.03%
+
+Signed-off-by: Job Noorman <jnoorman@igalia.com>
+---
+ src/freedreno/ir3/ir3_lower_parallelcopy.c | 215 ++++++++++++++++-----
+ 1 file changed, 168 insertions(+), 47 deletions(-)
+
+diff --git a/src/freedreno/ir3/ir3_lower_parallelcopy.c b/src/freedreno/ir3/ir3_lower_parallelcopy.c
+index 10f61aa2385..5291151e018 100644
+--- a/src/freedreno/ir3/ir3_lower_parallelcopy.c
++++ b/src/freedreno/ir3/ir3_lower_parallelcopy.c
+@@ -253,6 +253,76 @@ struct copy_ctx {
+    unsigned entry_count;
+ };
+ 
++typedef BITSET_DECLARE(reg_bitset, RA_MAX_FILE_SIZE);
++
++/* Calculate which entries are part of a cycle in the transfer graph.
++ * in_cycle[i] will be true iff ctx->entries[i] is part of a cycle.
++ *
++ * Preconditions: every node should be either 1) blocked, or if not, 2) have src
++ * that is not the dst of a blocked node.
++ */
++static void
++calc_cycles(struct copy_ctx *ctx, reg_bitset *in_cycle)
++{
++   BITSET_ONES(*in_cycle);
++
++   /* For each physreg which index in ctx->entries writes to it. ~0 if none. */
++   unsigned physreg_dst[RA_MAX_FILE_SIZE];
++   memset(physreg_dst, ~0, sizeof(physreg_dst));
++
++   for (unsigned i = 0; i < ctx->entry_count; i++) {
++      struct copy_entry *entry = &ctx->entries[i];
++
++      if (entry->done) {
++         continue;
++      }
++
++      for (unsigned j = 0; j < copy_entry_size(entry); j++) {
++         physreg_dst[entry->dst + j] = i;
++      }
++   }
++
++   bool progress = true;
++
++   while (progress) {
++      progress = false;
++
++      for (unsigned i = 0; i < ctx->entry_count; i++) {
++         struct copy_entry *entry = &ctx->entries[i];
++
++         if (entry->done || !BITSET_TEST(*in_cycle, i)) {
++            continue;
++         }
++
++         /* An entry is part of a cycle if its src is written from a another
++          * node in the cycle. Conversely, a node is not part of a cycle if its
++          * src is either 1) not written at all, or 2) written by a node that's
++          * not part of a cycle. We calculate this here.
++          *
++          * Note that in general, a node is also not part of a cycle if its dst
++          * is not blocked (or only blocked by nodes that are not part of a
++          * cycle). We don't have to check that here due to our preconditions.
++          */
++         bool written_in_cycle = false;
++
++         if (!entry->src.flags) {
++            for (unsigned j = 0; j < copy_entry_size(entry); j++) {
++               unsigned src = entry->src.reg + j;
++
++               if (physreg_dst[src] != ~0) {
++                  written_in_cycle |= BITSET_TEST(*in_cycle, physreg_dst[src]);
++               }
++            }
++         }
++
++         if (!written_in_cycle) {
++            BITSET_CLEAR(*in_cycle, i);
++            progress = true;
++         }
++      }
++   }
++}
++
+ static bool
+ entry_blocked(struct copy_entry *entry, struct copy_ctx *ctx)
+ {
+@@ -276,23 +346,6 @@ mark_done(struct copy_entry *entry, struct copy_ctx *ctx)
+    entry->done = true;
+ }
+ 
+-static void
+-split_32bit_copy(struct copy_ctx *ctx, struct copy_entry *entry)
+-{
+-   assert(!entry->done);
+-   assert(!(entry->src.flags & (IR3_REG_IMMED | IR3_REG_CONST)));
+-   assert(copy_entry_size(entry) == 2);
+-   struct copy_entry *new_entry = &ctx->entries[ctx->entry_count++];
+-
+-   new_entry->dst = entry->dst + 1;
+-   new_entry->src.flags = entry->src.flags;
+-   new_entry->src.reg = entry->src.reg + 1;
+-   new_entry->done = false;
+-   entry->flags |= IR3_REG_HALF;
+-   new_entry->flags = entry->flags;
+-   ctx->physreg_dst[entry->dst + 1] = new_entry;
+-}
+-
+ static int
+ cmp_half_last(const void *ptr1, const void *ptr2)
+ {
+@@ -318,32 +371,6 @@ resolve_copies(struct ir3_compiler *compiler, struct ir3_instruction *instr,
+             mark_done(entry, ctx);
+          }
+       }
+-
+-      if (progress)
+-         continue;
+-
+-      /* Step 2: Find partially blocked copies and split them. In the
+-       * mergedregs case, we can 32-bit copies which are only blocked on one
+-       * 16-bit half, and splitting them helps get things moving.
+-       *
+-       * We can skip splitting copies if the source isn't a register,
+-       * however, because it does not unblock anything and therefore doesn't
+-       * contribute to making forward progress with step 1. These copies
+-       * should still be resolved eventually in step 1 because they can't be
+-       * part of a cycle.
+-       */
+-      for (unsigned i = 0; i < ctx->entry_count; i++) {
+-         struct copy_entry *entry = &ctx->entries[i];
+-         if (entry->done || entry->flags & IR3_REG_HALF)
+-            continue;
+-
+-         if (((ctx->physreg_use_count[entry->dst] == 0 ||
+-               ctx->physreg_use_count[entry->dst + 1] == 0)) &&
+-             !(entry->src.flags & (IR3_REG_IMMED | IR3_REG_CONST))) {
+-            split_32bit_copy(ctx, entry);
+-            progress = true;
+-         }
+-      }
+    }
+ }
+ 
+@@ -385,7 +412,7 @@ _handle_copies(struct ir3_compiler *compiler, struct ir3_instruction *instr,
+ 
+    resolve_copies(compiler, instr, ctx);
+ 
+-   /* Step 3: resolve cycles through swapping.
++   /* Step 2: resolve cycles through swapping.
+     *
+     * At this point, the transfer graph should consist of only cycles.
+     * The reason is that, given any physreg n_1 that's the source of a
+@@ -428,16 +455,35 @@ _handle_copies(struct ir3_compiler *compiler, struct ir3_instruction *instr,
+    qsort(ctx->entries, ctx->entry_count, sizeof(ctx->entries[0]),
+          cmp_half_last);
+ 
++   /* There might be some nodes that aren't part of a cycle but are blocked by
++    * one. This may happen when a full reg is read in a cycle but only one
++    * half (n_1_l) is written in that cycle and the other half (n_1_h) is
++    * written outside of it:
++    *
++    * n_1_h <- non-cycle nodes
++    * n_1_l [full src]-> ... -> n_i
++    *   ^                        |
++    *   |------------------------|
++    *
++    * We should resolve the cycle first which will unblock the non-cycle nodes.
++    * These can then be resolved as usual.
++    *
++    * Note: precondition 1) is met because we just called resolve_copies.
++    */
++   reg_bitset in_cycle;
++   calc_cycles(ctx, &in_cycle);
++
+    for (unsigned i = 0; i < ctx->entry_count; i++) {
+       struct copy_entry *entry = &ctx->entries[i];
+-      if (entry->done)
++      if (entry->done || !BITSET_TEST(in_cycle, i))
+          continue;
+ 
++      assert(entry_blocked(entry, ctx));
+       assert(!entry->src.flags);
+ 
+       /* catch trivial copies */
+       if (entry->dst == entry->src.reg) {
+-         entry->done = true;
++         mark_done(entry, ctx);
+          continue;
+       }
+ 
+@@ -450,14 +496,89 @@ _handle_copies(struct ir3_compiler *compiler, struct ir3_instruction *instr,
+        */
+       for (unsigned j = 0; j < ctx->entry_count; j++) {
+          struct copy_entry *blocking = &ctx->entries[j];
++         if (blocking->done || blocking->src.flags)
++            continue;
+          if (blocking->src.reg >= entry->dst &&
+              blocking->src.reg < entry->dst + copy_entry_size(entry)) {
++            unsigned old_blocking_reg = blocking->src.reg;
+             blocking->src.reg =
+                entry->src.reg + (blocking->src.reg - entry->dst);
++
++            /* Update use count of the old and new src. Note that this isn't
++             * strictly necessary for the copy resolving algorithm but we need
++             * it for the entry_blocked() assert above.
++             */
++            for (unsigned j = 0; j < copy_entry_size(blocking); j++) {
++               ctx->physreg_use_count[old_blocking_reg + j]--;
++               ctx->physreg_use_count[blocking->src.reg + j]++;
++            }
++         }
++      }
++
++      mark_done(entry, ctx);
++
++      /* Unconditional swapping is only valid because the node's src is later
++       * written with its correct value (which has to happen because it's part
++       * of a cycle). However, in the case where a full src has only one of its
++       * halves written, we have to make sure we properly restore the other
++       * half's original value. We do that here by adding a new copy_entry for
++       * it.
++       *
++       * For example, the following copies: (*)
++       * r0.y <- r0.x
++       * hr0.y <- hr0.z
++       *
++       * will result in this after swapping the first:
++       * swap r0.y, r0.x
++       * hr0.y <- hr0.x
++       *
++       * Note how hr0.x got overwritten by the swap even though no copy entry
++       * actually writes to it. We fix this by adding the following entry which
++       * restores its original value:
++       * hr0.x <- hr0.z
++       */
++      if (!(entry->flags & IR3_REG_HALF)) {
++         bool src0_written = ctx->physreg_dst[entry->src.reg];
++         bool src1_written = ctx->physreg_dst[entry->src.reg + 1];
++         assert(src0_written || src1_written);
++
++         if (!src0_written || !src1_written) {
++            struct copy_entry restore = {
++               .dst = src1_written ? entry->src.reg : entry->src.reg + 1,
++               .src = {.reg = src1_written ? entry->dst : entry->dst + 1},
++               .flags = entry->flags | IR3_REG_HALF,
++            };
++
++            /* ctx->entries has space for one entry per possible dst physreg.
++             * `restore` has a dst that is not written to and has never been
++             * written to by a (now done) entry since that entry would then be
++             * blocked on the cycle and still be pending. Therefore, we should
++             * have enough space left for `restore`.
++             */
++            assert(ctx->entry_count < ARRAY_SIZE(ctx->entries));
++
++            ctx->entries[ctx->entry_count++] = restore;
++            ctx->physreg_use_count[restore.src.reg]++;
++            ctx->physreg_dst[restore.dst] = true;
+          }
+       }
+ 
+-      entry->done = true;
++      /* Swapping may cause entries that were part of a cycle to not be anymore
++       * so we have to recalculate the cycles. The example (*) above shows a
++       * case where this happens.
++       *
++       * Note: precondition 2) is met because we initially met 1) (see above)
++       * and the only new copy we created has a src that has already been
++       * handled and doesn't have any nodes associated with it anymore.
++       */
++      calc_cycles(ctx, &in_cycle);
++   }
++
++   /* Step 3: resolve non-cyclic copies that were blocked on cycles. */
++   resolve_copies(compiler, instr, ctx);
++
++   for (unsigned i = 0; i < ctx->entry_count; i++) {
++      assert(ctx->entries[i].done);
+    }
+ }
+ 

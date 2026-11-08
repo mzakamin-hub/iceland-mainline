@@ -1,0 +1,77 @@
+From e6f2528b07299bbc66a00d1d3b1f32ff3a4398e4 Mon Sep 17 00:00:00 2001
+From: Dmitry Baryshkov <dmitry.baryshkov@oss.qualcomm.com>
+Date: Wed, 28 Oct 2026 23:48:11 +0200
+Subject: [PATCH 1/2] freedreno: round up the NV12 chroma plane size
+
+For odd widths or heights the UV plane of a single-BO NV12 resource is
+sized from width0 / 2 and height0 / 2, one chroma sample short of what
+4:2:0 needs. With UBWC this also gives a different layout than the one
+the display controller and the video codecs use, which round up: at
+some sizes the UV metadata is a page smaller, so the scanout fetches
+the chroma from the wrong offset, and at widths of 128n + 1 the UV
+pitch is 128 bytes narrower than the Y pitch.
+
+Round the chroma plane up, as DRM and V4L2 do for subsampled planes.
+
+Fixes: 266f1d948a4a ("freedreno: allocate NV12 Y and UV planes into a single GEM BO")
+Cc: mesa-stable
+Assisted-by: LLM
+Signed-off-by: Dmitry Baryshkov <dmitry.baryshkov@oss.qualcomm.com>
+---
+ src/gallium/drivers/freedreno/freedreno_resource.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/gallium/drivers/freedreno/freedreno_resource.c b/src/gallium/drivers/freedreno/freedreno_resource.c
+index 29134ba1337..2b498f6baf1 100644
+--- a/src/gallium/drivers/freedreno/freedreno_resource.c
++++ b/src/gallium/drivers/freedreno/freedreno_resource.c
+@@ -1517,8 +1517,8 @@ fd_resource_create_with_modifiers(struct pipe_screen *pscreen,
+         tmpl->format == PIPE_FORMAT_Y8_U8V8_420_UNORM)) {
+       struct pipe_resource uv_tmpl = *tmpl;
+       uv_tmpl.format = PIPE_FORMAT_R8G8_UNORM;
+-      uv_tmpl.width0 = tmpl->width0 / 2;
+-      uv_tmpl.height0 = tmpl->height0 / 2;
++      uv_tmpl.width0 = DIV_ROUND_UP(tmpl->width0, 2);
++      uv_tmpl.height0 = DIV_ROUND_UP(tmpl->height0, 2);
+ 
+       uint32_t uv_size = 0;
+       uv_prsc = fd_resource_allocate_and_resolve(pscreen, &uv_tmpl, modifiers, count, &uv_size);
+
+From b39942def326447fb4b780ad167d2f34d1e5fe8b Mon Sep 17 00:00:00 2001
+From: Dmitry Baryshkov <dmitry.baryshkov@oss.qualcomm.com>
+Date: Sun, 1 Nov 2026 00:10:38 +0200
+Subject: [PATCH 2/2] dri: round up the subsampled plane size on dma-buf import
+
+When a planar YUV dma-buf with an odd width or height is imported, the
+subsampled planes are created with the size shifted down, one chroma
+sample short of what the producer allocated. This results in the
+information loss. This contradics with the other code handling
+dimensions. FOr example, util_format_get_plane_width/height() rounds up.
+In the kernel, drm_format_info_plane_width/height() also rounds
+dimensions up.
+
+Round the plane size up, as util_format_get_plane_width() and DRM do.
+
+Fixes: ecd6fce2611e ("mesa/st: support lowering multi-planar YUV")
+Cc: mesa-stable
+Assisted-by: LLM
+Signed-off-by: Dmitry Baryshkov <dmitry.baryshkov@oss.qualcomm.com>
+---
+ src/gallium/frontends/dri/dri2.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/gallium/frontends/dri/dri2.c b/src/gallium/frontends/dri/dri2.c
+index 4846d9c1c7e..b8b732c2bd8 100644
+--- a/src/gallium/frontends/dri/dri2.c
++++ b/src/gallium/frontends/dri/dri2.c
+@@ -750,8 +750,8 @@ dri_create_image_from_winsys(struct dri_screen *screen,
+       struct pipe_resource *tex;
+ 
+       templ.next = img->texture;
+-      templ.width0 = width >> map->planes[i].width_shift;
+-      templ.height0 = height >> map->planes[i].height_shift;
++      templ.width0 = DIV_ROUND_UP(width, 1 << map->planes[i].width_shift);
++      templ.height0 = DIV_ROUND_UP(height, 1 << map->planes[i].height_shift);
+       if (use_lowered)
+          templ.format = map->planes[i].dri_format;
+       else

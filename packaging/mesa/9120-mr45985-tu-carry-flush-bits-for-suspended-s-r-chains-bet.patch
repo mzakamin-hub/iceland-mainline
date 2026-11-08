@@ -1,0 +1,68 @@
+From 92c020ce60eb6fb0c40a6ad8f911e0642490eee9 Mon Sep 17 00:00:00 2001
+From: Danylo Piliaiev <dpiliaiev@igalia.com>
+Date: Wed, 4 Nov 2026 12:10:31 +0100
+Subject: [PATCH] tu: Carry flush bits for suspended s/r chains between command
+ buffers
+
+Flush bits emitted before a S/R chain that is split between several
+command buffers are lost. Because flushes recorded before
+vkCmdBeginRendering() were left in the original command buffer's pending
+flush bits and never emitted.
+
+Carry the leftover flush bits of the command buffer that begins the chain
+over to the command buffer that renders it, so they are emitted together
+at the start of the render pass, the same as for a render pass that isn't
+suspended.
+
+Fixes "Mortal Shell 2"
+
+Assisted-by: LLM
+Signed-off-by: Danylo Piliaiev <dpiliaiev@igalia.com>
+---
+ src/freedreno/vulkan/tu_cmd_buffer.cc        | 10 ++++++++++
+ src/freedreno/vulkan/tu_dynamic_rendering.cc |  3 +++
+ 2 files changed, 13 insertions(+)
+
+diff --git a/src/freedreno/vulkan/tu_cmd_buffer.cc b/src/freedreno/vulkan/tu_cmd_buffer.cc
+index 97dead60f9e..db0658897e7 100644
+--- a/src/freedreno/vulkan/tu_cmd_buffer.cc
++++ b/src/freedreno/vulkan/tu_cmd_buffer.cc
+@@ -6688,6 +6688,11 @@ tu_CmdExecuteCommands(VkCommandBuffer commandBuffer,
+                tu_append_post_chain(cmd, secondary);
+                cmd->state.suspended_pass = secondary->state.suspended_pass;
+ 
++               /* The secondary ended inside the render pass, so it didn't emit the flushes requested by barriers
++                * before the chain began.
++                */
++               cmd->state.cache.flush_bits |= secondary->state.cache.flush_bits;
++
+                switch (cmd->state.suspend_resume) {
+                case SR_NONE:
+                   cmd->state.suspend_resume = SR_IN_CHAIN;
+@@ -6728,7 +6733,12 @@ tu_CmdExecuteCommands(VkCommandBuffer commandBuffer,
+       tu_cache_init(cache);
+       cache->pending_flush_bits |= retained_pending_flush_bits;
+    } else {
++      /* Keep the flushes of a chain that is still suspended, they are emitted when the chain is rendered. */
++      BITMASK_ENUM(tu_cmd_flush_bits) chain_flush_bits = 0;
++      if (cmd->state.suspend_resume == SR_IN_CHAIN || cmd->state.suspend_resume == SR_IN_CHAIN_AFTER_PRE_CHAIN)
++         chain_flush_bits = cmd->state.cache.flush_bits;
+       tu_cache_init(&cmd->state.cache);
++      cmd->state.cache.flush_bits |= chain_flush_bits;
+    }
+ }
+ 
+diff --git a/src/freedreno/vulkan/tu_dynamic_rendering.cc b/src/freedreno/vulkan/tu_dynamic_rendering.cc
+index 7101bbd10c8..3c94006b5a3 100644
+--- a/src/freedreno/vulkan/tu_dynamic_rendering.cc
++++ b/src/freedreno/vulkan/tu_dynamic_rendering.cc
+@@ -188,6 +188,9 @@ tu_insert_dynamic_cmdbufs(struct tu_device *dev,
+           * for tu_cmd_render().
+           */
+          tu_restore_suspended_pass(cmd_buffer, old_cmds[i]);
++
++         /* Take over the flushes requested by barriers before the chain began. */
++         cmd_buffer->state.cache.flush_bits |= old_cmds[i]->state.cache.flush_bits;
+          FALLTHROUGH;
+       }
+       case SR_IN_PRE_CHAIN:

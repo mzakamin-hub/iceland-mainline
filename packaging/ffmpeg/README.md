@@ -1,5 +1,7 @@
 # ffmpeg-free with V4L2 hardware decoding for the OnePlus Pad 4
 
+**Fedora 45 build (8 Nov 2026):** `ffmpeg-free-9.0.2-3.fc45.iceland5`: Fedora 45's `ffmpeg` spec and patches (9.0.2-3) with the h264 / hevc V4L2 memory-to-memory decoders enabled, the DRM PRIME output patch rebased, the three v4l2m2m patches, and `ffmpeg-v4l2m2m-ffmpeg9-pixfmts.patch` (FFmpeg 9 removed `AVCodec.pix_fmts`). The text below describes the Fedora 44 build.
+
 `ffmpeg-free-8.1.3-1.fc44.iceland4`: Fedora 44's `ffmpeg` (ffmpeg-free) spec with the V4L2 memory-to-memory decoder
 path made usable on the Pad 4's Iris video codec (H.264 / HEVC / VP9 / AV1 decode through `*_v4l2m2m`).
 

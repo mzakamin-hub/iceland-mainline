@@ -166,10 +166,10 @@ h263
 h263_v4l2m2m # hardware
 h263i
 h263p
-h264_v4l2m2m # hardware (iceland, private: Iris via V4L2 M2M)
+h264_v4l2m2m # hardware (iceland: Iris via V4L2 M2M)
 hap
 hca
-hevc_v4l2m2m # hardware (iceland, private: Iris via V4L2 M2M)
+hevc_v4l2m2m # hardware (iceland: Iris via V4L2 M2M)
 hcom
 hdr
 hnm4_video

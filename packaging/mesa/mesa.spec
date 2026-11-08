@@ -59,8 +59,7 @@
 %global with_libunwind 1
 %global with_lmsensors 1
 %global with_virtio    1
-# iceland: Mesa 26.3 removed the anti-lag Vulkan layer (meson option gone); conditional taken from
-# Fedora rawhide's spec, left undefined here
+# iceland: Mesa 26.3 removed the anti-lag Vulkan layer (meson option and src/vulkan/anti-lag-layer gone)
 # %%global with_vulkan_layers_anti_lag 1
 %endif
 
@@ -83,10 +82,12 @@
 
 Name:           mesa
 Summary:        Mesa graphics libraries
-# iceland (OnePlus Pad 4): Mesa staging/26.3 snapshot, commit e282ea8c6deffedc9f18243c8814f06fe78bc23a
-# (2026-10-19, VERSION 26.3.0-rc1, no mesa-26.3.0-rc1 tag yet on 2026-10-20). "~git" sorts it below a
-# real 26.3.0~rc1 and above every 26.2.x; ".iceland1" marks the local build.
-Version:        26.3.0~rc1~git20261019.e282ea8c
+# iceland (OnePlus Pad 4, Adreno 840 / gen8): Fedora 45's mesa.spec (dist-git f45 13d08919, 26.2.6) with the
+# version, the source and the patches changed; one build option added (-Dfreedreno-kmds=msm,virtio, see %%build).
+# Base: Mesa staging/26.3 at 25248e6d (2026-11-04) = 26.3.0-rc3 + 137 commits (26.3.0 not tagged yet).
+# 26.3.0~rc3^git... sorts above 26.3.0~rc3 and the earlier 26.3.0~rc1~git20261019.e282ea8c iceland builds and
+# below the 26.3.0 release. ".iceland1" marks the local build.
+Version:        26.3.0~rc3^git20261104.25248e6
 Release:        1%{?dist}.iceland1
 License:        MIT AND BSD-3-Clause AND SGI-B-2.0
 URL:            https://mesa3d.org
@@ -94,27 +95,31 @@ URL:            https://mesa3d.org
 # The "Version" field for release candidates has the format: A.B.C~rcX
 # However, the tarball has the format: A.B.C-rcX.
 # The "ver" variable contains the version in the second format.
-%global ver %{gsub %version ~ -}
+# iceland: written out for the snapshot ('^' is a pattern anchor in %%gsub); keep in step with Version
+%global ver 26.3.0-rc3-git20261104.25248e6
 
-# iceland: not on archive.mesa3d.org: "git archive" of e282ea8c (gitlab.freedesktop.org/mesa/mesa, branch
-# staging/26.3) + subprojects/venus-protocol-1.1.3 (tag v1.1.3, ca19b635, .git removed): 26.3 needs
-# venus-protocol == 1.1.3 for the virtio Vulkan driver and %%meson does not download wraps
+# iceland: "git archive --prefix=mesa-%%{ver}/" of staging/26.3 at 25248e6de63639c3d3258abb7b3b1c9b0fd66e65
+# (https://gitlab.freedesktop.org/mesa/mesa.git), xz -9
 Source0:        mesa-%{ver}.tar.xz
 # src/gallium/auxiliary/postprocess/pp_mlaa* have an ... interestingly worded license.
 # Source1 contains email correspondence clarifying the license terms.
 # Fedora opts to ignore the optional part of clause 2 and treat that code as 2 clause BSD.
 Source1:        Mesa-MLAA-License-Clarification-Email.txt
+# iceland: 26.3 needs venus-protocol 1.1.3 (subprojects/venus-protocol.wrap is a wrap-git) for the virtio Vulkan
+# driver; a git archive does not bundle it and %%meson does not download wraps. Unpacked in %%prep.
+%global venus_protocol_ver 1.1.3
+Source2:        https://gitlab.freedesktop.org/virgl/venus-protocol/-/archive/v%{venus_protocol_ver}/venus-protocol-v%{venus_protocol_ver}.tar.gz
 
 # In CentOS/RHEL, Rust crates required to build NVK are vendored.
 # The minimum target versions are obtained from the .wrap files
 # https://gitlab.freedesktop.org/mesa/mesa/-/tree/main/subprojects
 # but we generally want the latest compatible versions
 %global rust_paste_ver 1.0.15
-%global rust_proc_macro2_ver 1.0.106
-%global rust_quote_ver 1.0.44
-%global rust_syn_ver 2.0.115
-%global rust_unicode_ident_ver 1.0.23
-%global rustc_hash_ver 2.1.1
+%global rust_proc_macro2_ver 1.0.107
+%global rust_quote_ver 1.0.47
+%global rust_syn_ver 2.0.119
+%global rust_unicode_ident_ver 1.0.26
+%global rustc_hash_ver 2.1.3
 Source10:       https://crates.io/api/v1/crates/paste/%{rust_paste_ver}/download#/paste-%{rust_paste_ver}.tar.gz
 Source11:       https://crates.io/api/v1/crates/proc-macro2/%{rust_proc_macro2_ver}/download#/proc-macro2-%{rust_proc_macro2_ver}.tar.gz
 Source12:       https://crates.io/api/v1/crates/quote/%{rust_quote_ver}/download#/quote-%{rust_quote_ver}.tar.gz
@@ -122,31 +127,80 @@ Source13:       https://crates.io/api/v1/crates/syn/%{rust_syn_ver}/download#/sy
 Source14:       https://crates.io/api/v1/crates/unicode-ident/%{rust_unicode_ident_ver}/download#/unicode-ident-%{rust_unicode_ident_ver}.tar.gz
 Source15:       https://crates.io/api/v1/crates/rustc-hash/%{rustc_hash_ver}/download#/rustc-hash-%{rustc_hash_ver}.tar.gz
 
-# iceland: A840 / gen8 fixes on top of staging/26.3 e282ea8c: open upstream merge requests (not on main yet; main
-# had no freedreno / turnip / ir3 fix past staging/26.3 on 2026-10-20). One file per MR, "git format-patch" of the MR
-# head as applied in order; authors and commit messages kept.
-# !44352 (head 92843af4, 7 commits): tu/a8xx split large indirect (count) draws over several CP_DRAW_INDIRECT_MULTI
-#   packets - large indirect draws trigger GPU faults on A8xx
-Patch9001:      9001-mr44352-tu-a8xx-split-large-indirect-draws.patch
-# !45204 (6d726032): tu texel buffer emulation bounds check unsigned - imageStore(-1) wrote before the buffer view
-Patch9002:      9002-mr45204-tu-texel-buffer-emulation-bounds.patch
-# !45369 (1bc42a55): tu drop the BO reference taken by get_vis_stream_patchpoint_cs() - BO leak per command buffer
-Patch9003:      9003-mr45369-tu-vis-stream-bo-reference.patch
-# !45366 (c8cb51f7): tu float16 3D path for multisampled copies back - A2D cannot copy MSAA, NaNs must survive
-Patch9004:      9004-mr45366-tu-float16-3d-path-msaa-copies.patch
-# !45243 (43680407, 2 commits): tu inline uniform block fixes (zero-sized blocks, reserved bindings; VK-CTS)
-Patch9005:      9005-mr45243-tu-inline-uniform-block-fixes.patch
-# !44365 (68cb1556, 2 commits): nir/ir3 32-bit udiv wrong quotient when the hardware rcp rounds up (seen on a830
-#   = gen8, a690, x2-90); BACKPORT: the ir3_nir.c hunks re-applied on 26.3's context (variable 'progress'), same lines
-Patch9006:      9006-mr44365-nir-ir3-udiv-rcp-rounding.patch
-# !43899 (978d2d1a, Cc mesa-stable): tu evict the depth CCU before sysmem depth clears (colour / depth CCU aliasing);
-#   its src/freedreno/ci/*-fails.txt hunk left out (CI expectations only, did not apply)
-Patch9007:      9007-mr43899-tu-sysmem-depth-clear-ccu.patch
+# iceland: Adreno 840 (a8xx / gen8) and shared ir3 / turnip / freedreno work not in staging/26.3 (2026-11-07):
+# one file per merge request, "git format-patch" of the commits as applied in this order on 25248e6d (merged
+# MRs: the commits as merged on main; open MRs: the MR head). Authors and messages kept. All apply with
+# patch -p1 --fuzz=0 in this order. Drop a patch once its MR is in the 26.3.x tag being built.
+# -- merged on main, not in 26.3 --
+# !45525 (open, the 26.3 backport of !44352, merged on main 22 Oct): tu/a8xx split large indirect (count) draws -
+#   large indirect draws fault on A8xx (was 9001)
+Patch9101:      9101-mr45525-26-3-backport-tu-a8xx-split-large-indirect-draws.patch
+# !45369: tu drop the BO reference taken by get_vis_stream_patchpoint_cs() - BO leak per command buffer (was 9003)
+Patch9102:      9102-mr45369-tu-drop-reference-taken-with-get-vis-stream-patc.patch
+# !45366: tu float16 3D path for multisampled copies (was 9004)
+Patch9103:      9103-mr45366-tu-add-back-float16-3d-path-for-multisampled-cop.patch
+# !45416: tu / freedreno hull shader programming (tessellation; was 9010)
+Patch9104:      9104-mr45416-tu-freedreno-modify-hull-shader-programming.patch
+# !45342: tu 4x8 integer dot products reported as accelerated (dp4acc; llama.cpp int-dot kernels; was 9009)
+Patch9105:      9105-mr45342-tu-mark-signed-4x8-integer-dot-products-as-accel.patch
+# !45554: freedreno record the batch's write when a query ends (was 9011)
+Patch9106:      9106-mr45554-freedreno-record-the-batch-s-write-when-a-query.patch
+# !45506: tu GL behaviour for the primitives-generated query (zink; was 9012)
+Patch9107:      9107-mr45506-tu-have-gl-behavior-for-primitive-generated-quer.patch
+# !45464: ir3 source-modifier copy propagation + the IR3_REG_BNOT flags fix (replaces the closed !45434 ashr.b
+#   miscompile fix); its tu/ci trace-checksum commit left out
+Patch9108:      9108-mr45464-ir3-better-copy-prop-for-source-modifiers.patch
+# !45517: ir3/ra DOUBLE_ONLY register limit unit
+Patch9109:      9109-mr45517-ir3-ra-fix-double-only-register-limit-unit.patch
+# !45559: vulkan runtime / tu (+ radv, lavapipe) per-binding pNext data in pBindings order
+Patch9110:      9110-mr45559-vulkan-sort-per-binding-pnext-data-in-vk-create.patch
+# !45601: tu software multiview with indirect draws; freedreno OpenCL subgroup size (CI-expectation commit left out)
+Patch9111:      9111-mr45601-tu-ir3-fix-a702-regressions.patch
+# !43899: tu drop the CCU depth invalidation on occlusion query end (the merged version; was 9007, an earlier MR
+#   head); its src/freedreno/ci/freedreno-a750-fails.txt hunk left out
+Patch9112:      9112-mr43899-turnip-drop-ccu-depth-invalidation-on-occlusion.patch
+# !45882: freedreno take only the in-fence as the explicit-sync hint (flicker / corruption)
+Patch9113:      9113-mr45882-freedreno-take-only-in-fence-as-a-hint-for-expli.patch
+# !45918: tu/lrz A8XX LRZ pitch alignment 32 + partial LRZ fast-clear fix (gen8 rendering corruption)
+Patch9114:      9114-mr45918-tu-lrz-fix-partial-lrz-fast-clear-on-a8xx.patch
+# !45981: ir3 OpQuantizeToF16 flushes FP16 subnormals
+Patch9115:      9115-mr45981-freedreno-ir3-lower-fp32-to-fp16-for-subnormals.patch
+# !46027: ir3 fold fsat into (sat) only on cat2/3 float instructions (miscompile)
+Patch9116:      9116-mr46027-ir3-only-fold-fsat-to-sat-on-cat2-3-float-instru.patch
+# -- open merge requests (MR heads of 2026-11-07) --
+# !45243: tu inline uniform block fixes (was 9005)
+Patch9117:      9117-mr45243-tu-inline-uniform-block-fixes.patch
+# !44365: nir/ir3 32-bit udiv wrong quotient when rcp rounds up (seen on a830 / gen8; was 9006)
+Patch9118:      9118-mr44365-nir-ir3-fix-32-bit-udiv-when-rcp-rounds-up.patch
+# !45937: tu WFI before reading just-written registers (A8XX: all register-read packets; multisample CTS)
+Patch9119:      9119-mr45937-tu-wfi-before-reading-registers-that-were-just-w.patch
+# !45985: tu carry flush bits for suspend/resume chains split over command buffers
+Patch9120:      9120-mr45985-tu-carry-flush-bits-for-suspended-s-r-chains-bet.patch
+# !45926: tu wait for VM_BIND unmap completion before freeing (msm VM_BIND memory churn)
+Patch9121:      9121-mr45926-tu-wait-for-vm-bind-unmap-completion-before-free.patch
+# !45904: tu sample counts across GMEM preemption (occlusion queries / autotune with preemption on)
+Patch9122:      9122-mr45904-tu-preserve-sample-counts-across-gmem-preemption.patch
+# !45928: ir3 merge_sets_interfere per-set dominance stacks (pipeline compile time)
+Patch9123:      9123-mr45928-ir3-keep-separate-dominance-stacks-in-merge-sets.patch
+# !46023: ir3 is_{ss,sy}_producer fixes and their use in legalize (local atomics sync)
+Patch9124:      9124-mr46023-ir3-fix-is-ss-sy-producer-and-use-in-legalize.patch
+# !45958: freedreno/ir3 api_wavesize DOUBLE_ONLY for GL non-compute shaders on gen6+ (GPU hang in subgroup tests)
+Patch9125:      9125-mr45958-freedreno-ir3-set-api-wavesize-double-only-for-g.patch
+# !45727: dri / freedreno round up the NV12 chroma plane (odd sizes, UBWC layout = display / video)
+Patch9126:      9126-mr45727-freedreno-round-up-the-nv12-chroma-plane-size.patch
+# -- general freedreno / turnip / ir3 performance + correctness (open MRs, owner request 7 Nov) --
+# !44712: ir3/lower_copies keep partially blocked copies whole (author: -6.47% instrs on the affected shaders)
+Patch9127:      9127-mr44712-ir3-lower-copies-don-t-split-partially-blocked-c.patch
+# !37924: ir3 opt_absneg pass (author: -0.35% code size on 5% of shaders)
+Patch9128:      9128-mr37924-ir3-add-opt-absneg-pass.patch
+# !43714: tu no flush for sysmem resolves when there are no resolve attachments (dynamic rendering over-flush)
+Patch9129:      9129-mr43714-tu-don-t-flush-for-sysmem-resolves-if-there-are.patch
+# !43272: tu synchronize no-rast-order and rast-order draws (VK_EXT_rasterization_order_attachment_access)
+Patch9130:      9130-mr43272-tu-synchronize-access-between-no-rast-order-and.patch
 
 BuildRequires:  meson >= 1.3.0
 BuildRequires:  gcc
 BuildRequires:  gcc-c++
-BuildRequires:  libstdc++-static
 BuildRequires:  gettext
 %if 0%{?with_hardware}
 BuildRequires:  kernel-headers
@@ -332,7 +386,12 @@ Provides:       libgbm-devel%{?_isa} = %{?epoch:%{epoch}:}%{version}-%{release}
 %package libOpenCL
 Summary:        Mesa OpenCL runtime library
 Requires:       (ocl-icd%{?_isa} or OpenCL-ICD-Loader%{?_isa})
+# iceland: f44 variant of the same spec: Fedora 44's spec requires plain libclc
+%if 0%{?fedora} >= 45
+Requires:       libclc22%{?_isa}
+%else
 Requires:       libclc%{?_isa}
+%endif
 Requires:       %{name}-libgbm%{?_isa} = %{?epoch:%{epoch}:}%{version}-%{release}
 Requires:       opencl-filesystem
 
@@ -377,6 +436,9 @@ The drivers with support for the Vulkan API.
 %prep
 %autosetup -n %{name}-%{ver} -p1
 cp %{SOURCE1} docs/
+# iceland: venus-protocol for the virtio Vulkan driver (see Source2)
+mkdir -p subprojects/venus-protocol-%{venus_protocol_ver}
+tar -xzf %{SOURCE2} -C subprojects/venus-protocol-%{venus_protocol_ver} --strip-components=1
 
 # Extract Rust crates meson cache directory
 %if 0%{?vendor_nvk_crates}
@@ -473,6 +535,9 @@ rewrite_wrap_file rustc-hash
   -Dgallium-rusticl=true \
 %endif
   -Dvulkan-drivers=%{?vulkan_drivers} \
+%if 0%{?with_freedreno}
+  -Dfreedreno-kmds=msm,virtio \
+%endif
   -Dvulkan-layers=device-select%{?with_vulkan_layers_anti_lag:,anti-lag} \
   -Dgles1=enabled \
   -Dgles2=enabled \
@@ -735,6 +800,8 @@ ln -s libGLX_mesa.so.0 %{buildroot}%{_libdir}/libGLX_system.so.0
 %if 0%{?with_vulkan_hw}
 %{_libdir}/libvulkan_radeon.so
 %{_datadir}/drirc.d/00-radv-defaults.conf
+# iceland: new in 26.3 (not in Fedora's 26.2 %%files)
+%{_datadir}/drirc.d/01-radv-performance.conf
 %{_datadir}/vulkan/icd.d/radeon_icd.*.json
 %if 0%{?with_nvk}
 %{_libdir}/libvulkan_nouveau.so
@@ -776,11 +843,20 @@ ln -s libGLX_mesa.so.0 %{buildroot}%{_libdir}/libGLX_system.so.0
 %endif
 
 %changelog
-* Tue Oct 20 2026 mzak <mzak.amin@gmail.com> - 26.3.0~rc1~git20261019.e282ea8c-1.iceland1
-- Mesa staging/26.3 snapshot e282ea8c (26.3.0-rc1 not tagged yet) on Fedora 44's
-  mesa.spec (f44 4d53ade0, 26.2.5-1): version and source only; anti-lag layer
-  dropped (removed upstream in 26.3); venus-protocol 1.1.3 bundled in the tarball
-  (OnePlus Pad 4, Adreno 840 gen8 fixes)
-- A840 / gen8 patches from open MRs: !44352 (a8xx large indirect draws fault),
-  !45204, !45369, !45366, !45243, !44365 (ir3 udiv, backport), !43899
-- the earlier changelog entries are Fedora's: https://src.fedoraproject.org/rpms/mesa
+* Sat Nov 07 2026 mzak <mzak.amin@gmail.com> - 26.3.0~rc3^git20261104.25248e6-1.iceland1
+- Fedora 45's mesa.spec (f45 13d08919, 26.2.6) for Mesa staging/26.3 25248e6d
+  (26.3.0-rc3 + 137 commits; 26.3.0 not tagged yet): version and source; anti-lag
+  layer off (removed in 26.3); venus-protocol 1.1.3 as Source2;
+  01-radv-performance.conf packaged (new in 26.3); libclc / libclc22 by release
+- -Dfreedreno-kmds=msm,virtio: the freedreno / turnip virtio (native context)
+  backend for VM guests
+- 30 patches 9101-9130 (Adreno 840 / gen8, ir3, turnip): merged on main and not
+  in 26.3: !45525 (26.3 backport of !44352), !45369, !45366, !45416, !45342,
+  !45554, !45506, !45464, !45517, !45559, !45601, !43899, !45882, !45918, !45981,
+  !46027; open: !45243, !44365, !45937, !45985, !45926, !45904, !45928, !46023,
+  !45958, !45727; general ir3 / turnip perf + correctness (open): !44712, !37924,
+  !43714, !43272 (9127-9130)
+- dropped: !45204 and !45717 (in 26.3)
+- the earlier changelog entries are Fedora's (%%autochangelog of
+  https://src.fedoraproject.org/rpms/mesa) and the iceland builds of
+  26.3.0~rc1~git20261019.e282ea8c (f44)

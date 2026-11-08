@@ -31,6 +31,7 @@ av1_amf
 av1_nvenc
 av1_qsv
 av1_vaapi
+av1_vulkan
 bitpacked # trivial
 bmp # trivial
 cinepak
@@ -45,6 +46,7 @@ dvdsub
 dvvideo
 exr
 ffv1
+ffv1_vulkan
 ffvhuff # trivial+zlib
 flac # libFLAC
 flashsv
@@ -61,6 +63,7 @@ h264_nvenc # hardware
 h264_qsv # hardware
 h264_v4l2m2m # hardware
 h264_vaapi # hardware
+h264_vulkan # hardware
 hap
 hdr
 hevc_amf # hardware
@@ -68,6 +71,7 @@ hevc_nvenc # hardware
 hevc_qsv # hardware
 hevc_v4l2m2m # hardware
 hevc_vaapi # hardware
+hevc_vulkan # hardware
 huffyuv # trivial+zlib
 ilbc # ilbc
 jpeg2000
@@ -153,6 +157,7 @@ ppm # trivial
 prores
 prores_aw
 prores_ks
+prores_ks_vulkan
 qoi
 qtrle
 r10k # trivial

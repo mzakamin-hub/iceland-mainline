@@ -1,4 +1,4 @@
-From 5d61261e8d97d945df19cee91e5ef7d267cb8a11 Mon Sep 17 00:00:00 2001
+From 132093e98cb8f8fcfaebe0c8a344b07fd6072474 Mon Sep 17 00:00:00 2001
 From: Nicholas Iquan Gaspard <anders.cs99g@g2.nctu.edu.tw>
 Date: Wed, 9 Sep 2026 20:55:25 -0700
 Subject: [PATCH 1/2] nir/lower_idiv: add an fp32 correction path for 32-bit
@@ -24,7 +24,7 @@ Assisted-by: Claude Code
  2 files changed, 66 insertions(+), 5 deletions(-)
 
 diff --git a/src/compiler/nir/nir.h b/src/compiler/nir/nir.h
-index 44fba83c..55effcff 100644
+index ff240f7b442..ac93c786d4a 100644
 --- a/src/compiler/nir/nir.h
 +++ b/src/compiler/nir/nir.h
 @@ -6721,6 +6721,12 @@ typedef struct nir_lower_idiv_options {
@@ -41,7 +41,7 @@ index 44fba83c..55effcff 100644
  
  bool nir_lower_idiv(nir_shader *shader, const nir_lower_idiv_options *options);
 diff --git a/src/compiler/nir/nir_lower_idiv.c b/src/compiler/nir/nir_lower_idiv.c
-index 043ce561..9565e637 100644
+index 043ce561f8f..9565e6379f0 100644
 --- a/src/compiler/nir/nir_lower_idiv.c
 +++ b/src/compiler/nir/nir_lower_idiv.c
 @@ -64,9 +64,58 @@ emit_udiv(nir_builder *bld, nir_def *numer, nir_def *denom, bool modulo)
@@ -139,7 +139,7 @@ index 043ce561..9565e637 100644
  
  static bool
 
-From e15e15bb8ba9f81ed11dbb2ad060be9a7597666c Mon Sep 17 00:00:00 2001
+From e7564c64c31c094fffb94e243b65c3956f0de66c Mon Sep 17 00:00:00 2001
 From: Nicholas Iquan Gaspard <anders.cs99g@g2.nctu.edu.tw>
 Date: Wed, 9 Sep 2026 14:01:23 -0700
 Subject: [PATCH 2/2] ir3: use the fp32 udiv correction path
@@ -173,7 +173,7 @@ Assisted-by: Claude Code
  1 file changed, 5 insertions(+)
 
 diff --git a/src/freedreno/ir3/ir3_nir.c b/src/freedreno/ir3/ir3_nir.c
-index e5159187..2deba08c 100644
+index 6e6f09e7b08..1bd51df31eb 100644
 --- a/src/freedreno/ir3/ir3_nir.c
 +++ b/src/freedreno/ir3/ir3_nir.c
 @@ -812,6 +812,10 @@ ir3_finalize_nir(struct ir3_compiler *compiler,

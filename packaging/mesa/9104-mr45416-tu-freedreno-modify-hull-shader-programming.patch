@@ -1,0 +1,99 @@
+From 02016cf12b61e2bd2e3443122bac5e8040aecdf2 Mon Sep 17 00:00:00 2001
+From: Sahitya Kandru <kandru@qti.qualcomm.com>
+Date: Mon, 19 Oct 2026 12:06:20 +0530
+Subject: [PATCH 1/2] tu: modify hull shader programming
+
+PC_HS_PARAM_0 was earlier emitted with tcs_vertices_out. Replaced the same
+with max of patch_control_points and tcs_vertices_out.
+
+Signed-off-by: Sahitya Kandru <kandru@qti.qualcomm.com>
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/45416>
+(cherry picked from commit af60682ce52f86f073a37692f59b2f2e26ff500b)
+---
+ src/freedreno/vulkan/tu_pipeline.cc | 6 ++++--
+ src/freedreno/vulkan/tu_shader.cc   | 4 ----
+ 2 files changed, 4 insertions(+), 6 deletions(-)
+
+diff --git a/src/freedreno/vulkan/tu_pipeline.cc b/src/freedreno/vulkan/tu_pipeline.cc
+index f220400137a..5b5dbab8edc 100644
+--- a/src/freedreno/vulkan/tu_pipeline.cc
++++ b/src/freedreno/vulkan/tu_pipeline.cc
+@@ -1207,12 +1207,12 @@ tu6_patch_control_points_size(struct tu_device *dev,
+    if (dev->physical_device->info->props.load_shader_consts_via_preamble) {
+ #define EMIT_CONST_DWORDS(const_dwords) (6 + const_dwords + 4)
+       return EMIT_CONST_DWORDS(4) +
+-         EMIT_CONST_DWORDS(HS_PARAMS_SIZE) + 2 + 2;
++         EMIT_CONST_DWORDS(HS_PARAMS_SIZE) + 2 + 2 + 2;
+ #undef EMIT_CONST_DWORDS
+    } else {
+ #define EMIT_CONST_DWORDS(const_dwords) (4 + const_dwords)
+       return EMIT_CONST_DWORDS(4) +
+-         EMIT_CONST_DWORDS(HS_PARAMS_SIZE) + 2 + 2;
++         EMIT_CONST_DWORDS(HS_PARAMS_SIZE) + 2 + 2 + 2;
+ #undef EMIT_CONST_DWORDS
+    }
+ }
+@@ -1267,6 +1267,8 @@ tu6_emit_patch_control_points(struct tu_cs *cs,
+    const uint32_t wavesize = 64;
+    const uint32_t vs_hs_local_mem_size = 16384;
+ 
++   tu_cs_emit_regs(cs, PC_HS_PARAM_0(CHIP, MAX2(tcs->variant->tess.tcs_vertices_out, patch_control_points)));
++
+    uint32_t max_patches_per_wave;
+    if (dev->physical_device->info->props.tess_use_shared) {
+       /* HS invocations for a patch are always within the same wave,
+diff --git a/src/freedreno/vulkan/tu_shader.cc b/src/freedreno/vulkan/tu_shader.cc
+index 78de211f44e..8bfc3b70c86 100644
+--- a/src/freedreno/vulkan/tu_shader.cc
++++ b/src/freedreno/vulkan/tu_shader.cc
+@@ -2965,10 +2965,6 @@ tu6_emit_hs(struct tu_cs *cs,
+    tu_cs_emit_pkt4(cs, REG_A6XX_VFD_CNTL_2, 1);
+    tu_cs_emit(cs, A6XX_VFD_CNTL_2_REGID_HSRELPATCHID(hs_rel_patch_regid) |
+                   A6XX_VFD_CNTL_2_REGID_INVOCATIONID(hs_invocation_regid));
+-
+-   if (hs) {
+-      tu_cs_emit_regs(cs, PC_HS_PARAM_0(CHIP, hs->tess.tcs_vertices_out));
+-   }
+ }
+ TU_GENX(tu6_emit_hs);
+ 
+
+From dba2170328a82c7fc9e26e087291de2b72c739de Mon Sep 17 00:00:00 2001
+From: Sahitya Kandru <kandru@qti.qualcomm.com>
+Date: Tue, 20 Oct 2026 21:00:26 +0530
+Subject: [PATCH 2/2] freedreno: modify hs programming in gallium
+
+PC_HS_PARAM_0 was earlier emitted with tcs_vertices_out. Replaced the same
+with max of patch_control_points and tcs_vertices_out.
+
+Signed-off-by: Sahitya Kandru <kandru@qti.qualcomm.com>
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/45416>
+(cherry picked from commit 63edd5e7321c8929f2dffe972d5c86a19740170a)
+---
+ src/gallium/drivers/freedreno/a6xx/fd6_program.cc | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/src/gallium/drivers/freedreno/a6xx/fd6_program.cc b/src/gallium/drivers/freedreno/a6xx/fd6_program.cc
+index 874a676512e..8c94b0e3061 100644
+--- a/src/gallium/drivers/freedreno/a6xx/fd6_program.cc
++++ b/src/gallium/drivers/freedreno/a6xx/fd6_program.cc
+@@ -997,10 +997,6 @@ emit_vpc(fd_crb &crb, const struct program_builder *b)
+       .viewidloc = linkage.viewid_loc,
+    ));
+ 
+-   if (b->hs) {
+-      crb.add(PC_HS_PARAM_0(CHIP, b->hs->tess.tcs_vertices_out));
+-   }
+-
+    if (b->gs) {
+       uint32_t vertices_out, invocations, vec4_size;
+       uint32_t prev_stage_output_size =
+@@ -1346,6 +1342,8 @@ setup_stateobj(fd_cs &cs, const struct program_builder *b)
+       const uint32_t wavesize = 64;
+       const uint32_t vs_hs_local_mem_size = 16384;
+ 
++      crb.add(PC_HS_PARAM_0(CHIP, MAX2(patch_control_points, b->hs->tess.tcs_vertices_out)));
++
+       uint32_t max_patches_per_wave;
+       if (b->ctx->screen->info->props.tess_use_shared) {
+          /* HS invocations for a patch are always within the same wave,

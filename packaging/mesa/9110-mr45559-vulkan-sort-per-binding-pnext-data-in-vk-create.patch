@@ -1,0 +1,1094 @@
+From 8b14d18923d1d2074fb4d426c50ebdfd6d808a6d Mon Sep 17 00:00:00 2001
+From: Danylo Piliaiev <dpiliaiev@igalia.com>
+Date: Thu, 22 Oct 2026 18:21:56 +0200
+Subject: [PATCH 1/4] vulkan: sort per-binding pNext data in
+ vk_create_sorted_bindings
+
+Drivers sort pBindings and then read pBindingFlags and
+pMutableDescriptorTypeLists by the sorted position, which is wrong.
+
+The spec indexes these arrays by the position in pBindings, which
+doesn't have to be sorted by binding number:
+
+  VkDescriptorSetLayoutBindingFlagsCreateInfo:
+    "Otherwise, the descriptor set layout binding at
+     VkDescriptorSetLayoutCreateInfo::pBindings[i] uses the flags in
+     pBindingFlags[i]."
+
+  VkMutableDescriptorTypeCreateInfoEXT:
+    "Otherwise, the descriptor set layout binding at
+     VkDescriptorSetLayoutCreateInfo::pBindings[i] uses the descriptor
+     type lists in
+     VkMutableDescriptorTypeCreateInfoEXT::pMutableDescriptorTypeLists[i]."
+
+Example:
+
+  pBindings = {
+     { .binding = 1, .descriptorType = MUTABLE_EXT },
+     { .binding = 0, .descriptorType = UNIFORM_BUFFER },
+  };
+  pMutableDescriptorTypeLists = {
+     { STORAGE_BUFFER, SAMPLED_IMAGE },  // pBindings[0], binding 1
+     { },                                // pBindings[1], binding 0
+  };
+
+After sorting, binding 1 is at position 1, so reading
+pMutableDescriptorTypeLists[1] gives it the empty list.
+
+Make vk_create_sorted_bindings take the whole create info and return
+a vk_sorted_bindings with the bindings, binding flags and mutable type
+lists, all in the sorted order, and all valid to access.
+
+This commit just changes API and doesn't fix anything. The fixes
+would be in the follow up commits.
+
+Assisted-by: LLM
+Signed-off-by: Danylo Piliaiev <dpiliaiev@igalia.com>
+Acked-by: Icenowy Zheng <zhengxingda@iscas.ac.cn>
+Reviewed-by: Konstantin Seurer <konstantin.seurer@gmail.com>
+Reviewed-by: Samuel Pitoiset <samuel.pitoiset@gmail.com>
+Reviewed-by: Yiwei Zhang <zzyiwei@chromium.org>
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/45559>
+(cherry picked from commit 644e6dfa1ccacd89fed940d6ddd4db3e77e27b2c)
+---
+ src/amd/vulkan/radv_descriptor_set.c          |  18 +--
+ src/broadcom/vulkan/v3dv_descriptor_set.c     |  21 +--
+ src/freedreno/vulkan/tu_descriptor_set.cc     |  20 +--
+ .../frontends/lavapipe/lvp_descriptor_set.c   |  11 +-
+ src/imagination/vulkan/pvr_descriptor_set.c   |  33 +----
+ src/microsoft/vulkan/dzn_descriptor_set.c     |  10 +-
+ .../vulkan/panvk_vX_descriptor_set_layout.c   |  43 +++---
+ src/vulkan/runtime/vk_descriptors.c           | 130 +++++++++---------
+ src/vulkan/runtime/vk_descriptors.h           |  27 +++-
+ 9 files changed, 157 insertions(+), 156 deletions(-)
+
+diff --git a/src/amd/vulkan/radv_descriptor_set.c b/src/amd/vulkan/radv_descriptor_set.c
+index 63063b6da24..bfd2ab6ddb3 100644
+--- a/src/amd/vulkan/radv_descriptor_set.c
++++ b/src/amd/vulkan/radv_descriptor_set.c
+@@ -83,14 +83,15 @@ radv_CreateDescriptorSetLayout(VkDevice _device, const VkDescriptorSetLayoutCrea
+    } else
+       set_layout->ycbcr_sampler_offsets_offset = 0;
+ 
+-   VkDescriptorSetLayoutBinding *bindings = NULL;
+-   VkResult result =
+-      vk_create_sorted_bindings(pCreateInfo->pBindings, pCreateInfo->bindingCount, &bindings, NULL, NULL);
++   struct vk_sorted_bindings *sorted;
++   VkResult result = vk_create_sorted_bindings(&device->vk, pCreateInfo, pAllocator, &sorted);
+    if (result != VK_SUCCESS) {
+       vk_descriptor_set_layout_unref(&device->vk, &set_layout->vk);
+       return vk_error(device, result);
+    }
+ 
++   const VkDescriptorSetLayoutBinding *bindings = sorted->bindings;
++
+    set_layout->binding_count = num_bindings;
+    set_layout->dynamic_shader_stages = 0;
+    set_layout->has_immutable_samplers = false;
+@@ -233,7 +234,7 @@ radv_CreateDescriptorSetLayout(VkDevice _device, const VkDescriptorSetLayoutCrea
+       }
+    }
+ 
+-   free(bindings);
++   vk_destroy_sorted_bindings(&device->vk, pAllocator, sorted);
+ 
+    set_layout->dynamic_offset_count = dynamic_offset_count;
+ 
+@@ -256,14 +257,15 @@ radv_GetDescriptorSetLayoutSupport(VkDevice _device, const VkDescriptorSetLayout
+    VK_FROM_HANDLE(radv_device, device, _device);
+    const struct radv_physical_device *pdev = radv_device_physical(device);
+ 
+-   VkDescriptorSetLayoutBinding *bindings = NULL;
+-   VkResult result =
+-      vk_create_sorted_bindings(pCreateInfo->pBindings, pCreateInfo->bindingCount, &bindings, NULL, NULL);
++   struct vk_sorted_bindings *sorted;
++   VkResult result = vk_create_sorted_bindings(&device->vk, pCreateInfo, NULL, &sorted);
+    if (result != VK_SUCCESS) {
+       pSupport->supported = false;
+       return;
+    }
+ 
++   const VkDescriptorSetLayoutBinding *bindings = sorted->bindings;
++
+    const VkDescriptorSetLayoutBindingFlagsCreateInfo *variable_flags =
+       vk_find_struct_const(pCreateInfo->pNext, DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO);
+    VkDescriptorSetVariableDescriptorCountLayoutSupport *variable_count =
+@@ -363,7 +365,7 @@ radv_GetDescriptorSetLayoutSupport(VkDevice _device, const VkDescriptorSetLayout
+       }
+    }
+ 
+-   free(bindings);
++   vk_destroy_sorted_bindings(&device->vk, NULL, sorted);
+ 
+    pSupport->supported = supported;
+ }
+diff --git a/src/broadcom/vulkan/v3dv_descriptor_set.c b/src/broadcom/vulkan/v3dv_descriptor_set.c
+index 64e7754cdac..e24f2d8af8c 100644
+--- a/src/broadcom/vulkan/v3dv_descriptor_set.c
++++ b/src/broadcom/vulkan/v3dv_descriptor_set.c
+@@ -720,15 +720,16 @@ v3dv_CreateDescriptorSetLayout(VkDevice _device,
+ 
+    assert(pCreateInfo->bindingCount == 0 || num_bindings > 0);
+ 
+-   VkDescriptorSetLayoutBinding *bindings = NULL;
+-   VkResult result = vk_create_sorted_bindings(pCreateInfo->pBindings,
+-                                               pCreateInfo->bindingCount, &bindings,
+-                                               NULL, NULL);
++   struct vk_sorted_bindings *sorted;
++   VkResult result =
++      vk_create_sorted_bindings(&device->vk, pCreateInfo, pAllocator, &sorted);
+    if (result != VK_SUCCESS) {
+       v3dv_descriptor_set_layout_destroy(device, set_layout);
+       return vk_error(device, result);
+    }
+ 
++   const VkDescriptorSetLayoutBinding *bindings = sorted->bindings;
++
+    set_layout->binding_count = num_bindings;
+    set_layout->flags = pCreateInfo->flags;
+    set_layout->shader_stages = 0;
+@@ -825,7 +826,7 @@ v3dv_CreateDescriptorSetLayout(VkDevice _device,
+       }
+    }
+ 
+-   free(bindings);
++   vk_destroy_sorted_bindings(&device->vk, pAllocator, sorted);
+ 
+    set_layout->descriptor_count = descriptor_count;
+    set_layout->dynamic_offset_count = dynamic_offset_count;
+@@ -1404,14 +1405,16 @@ v3dv_GetDescriptorSetLayoutSupport(
+    VkDescriptorSetLayoutSupport *pSupport)
+ {
+    V3DV_FROM_HANDLE(v3dv_device, device, _device);
+-   VkDescriptorSetLayoutBinding *bindings = NULL;
+-   VkResult result = vk_create_sorted_bindings(
+-      pCreateInfo->pBindings, pCreateInfo->bindingCount, &bindings, NULL, NULL);
++   struct vk_sorted_bindings *sorted;
++   VkResult result =
++      vk_create_sorted_bindings(&device->vk, pCreateInfo, NULL, &sorted);
+    if (result != VK_SUCCESS) {
+       pSupport->supported = false;
+       return;
+    }
+ 
++   const VkDescriptorSetLayoutBinding *bindings = sorted->bindings;
++
+    bool supported = true;
+ 
+    uint32_t desc_host_size = sizeof(struct v3dv_descriptor);
+@@ -1436,7 +1439,7 @@ v3dv_GetDescriptorSetLayoutSupport(
+       bo_size += binding->descriptorCount * desc_bo_size;
+    }
+ 
+-   free(bindings);
++   vk_destroy_sorted_bindings(&device->vk, NULL, sorted);
+ 
+    pSupport->supported = supported;
+ }
+diff --git a/src/freedreno/vulkan/tu_descriptor_set.cc b/src/freedreno/vulkan/tu_descriptor_set.cc
+index 18b9299a3c9..790dd00e354 100644
+--- a/src/freedreno/vulkan/tu_descriptor_set.cc
++++ b/src/freedreno/vulkan/tu_descriptor_set.cc
+@@ -169,14 +169,16 @@ tu_CreateDescriptorSetLayout(
+    struct vk_ycbcr_conversion_state *ycbcr_samplers =
+       reinterpret_cast<struct vk_ycbcr_conversion_state *>(&samplers[immutable_sampler_count]);
+ 
+-   VkDescriptorSetLayoutBinding *bindings = NULL;
+-   VkResult result = vk_create_sorted_bindings(
+-      pCreateInfo->pBindings, pCreateInfo->bindingCount, &bindings, NULL, NULL);
++   struct vk_sorted_bindings *sorted;
++   VkResult result =
++      vk_create_sorted_bindings(&device->vk, pCreateInfo, pAllocator, &sorted);
+    if (result != VK_SUCCESS) {
+       vk_descriptor_set_layout_unref(&device->vk, &set_layout->vk);
+       return vk_error(device, result);
+    }
+ 
++   const VkDescriptorSetLayoutBinding *bindings = sorted->bindings;
++
+    set_layout->binding_count = num_bindings;
+    set_layout->shader_stages = 0;
+    set_layout->has_immutable_samplers = false;
+@@ -284,7 +286,7 @@ tu_CreateDescriptorSetLayout(
+       set_layout->shader_stages |= binding->stageFlags;
+    }
+ 
+-   free(bindings);
++   vk_destroy_sorted_bindings(&device->vk, pAllocator, sorted);
+ 
+    set_layout->dynamic_offset_size = dynamic_offset_size;
+ 
+@@ -335,14 +337,16 @@ tu_GetDescriptorSetLayoutSupport(
+ {
+    VK_FROM_HANDLE(tu_device, device, _device);
+ 
+-   VkDescriptorSetLayoutBinding *bindings = NULL;
+-   VkResult result = vk_create_sorted_bindings(
+-      pCreateInfo->pBindings, pCreateInfo->bindingCount, &bindings, NULL, NULL);
++   struct vk_sorted_bindings *sorted;
++   VkResult result =
++      vk_create_sorted_bindings(&device->vk, pCreateInfo, NULL, &sorted);
+    if (result != VK_SUCCESS) {
+       pSupport->supported = false;
+       return;
+    }
+ 
++   const VkDescriptorSetLayoutBinding *bindings = sorted->bindings;
++
+    const VkDescriptorSetLayoutBindingFlagsCreateInfo *variable_flags =
+       vk_find_struct_const(
+          pCreateInfo->pNext,
+@@ -434,7 +438,7 @@ tu_GetDescriptorSetLayoutSupport(
+    }
+ 
+ out:
+-   free(bindings);
++   vk_destroy_sorted_bindings(&device->vk, NULL, sorted);
+ 
+    pSupport->supported = supported;
+ }
+diff --git a/src/gallium/frontends/lavapipe/lvp_descriptor_set.c b/src/gallium/frontends/lavapipe/lvp_descriptor_set.c
+index 03b0435bcb5..58c7fa9d7fa 100644
+--- a/src/gallium/frontends/lavapipe/lvp_descriptor_set.c
++++ b/src/gallium/frontends/lavapipe/lvp_descriptor_set.c
+@@ -150,15 +150,16 @@ VKAPI_ATTR VkResult VKAPI_CALL lvp_CreateDescriptorSetLayout(
+    set_layout->shader_stages = 0;
+    set_layout->size = 0;
+ 
+-   VkDescriptorSetLayoutBinding *bindings = NULL;
+-   VkResult result = vk_create_sorted_bindings(pCreateInfo->pBindings,
+-                                               pCreateInfo->bindingCount,
+-                                               &bindings, NULL, NULL);
++   struct vk_sorted_bindings *sorted;
++   VkResult result =
++      vk_create_sorted_bindings(&device->vk, pCreateInfo, pAllocator, &sorted);
+    if (result != VK_SUCCESS) {
+       vk_descriptor_set_layout_unref(&device->vk, &set_layout->vk);
+       return vk_error(device, result);
+    }
+ 
++   const VkDescriptorSetLayoutBinding *bindings = sorted->bindings;
++
+    uint32_t uniform_block_size = 0;
+ 
+    uint32_t dynamic_offset_count = 0;
+@@ -228,7 +229,7 @@ VKAPI_ATTR VkResult VKAPI_CALL lvp_CreateDescriptorSetLayout(
+    for (uint32_t i = 0; i < pCreateInfo->bindingCount; i++)
+       set_layout->binding[i].uniform_block_offset += set_layout->size;
+ 
+-   free(bindings);
++   vk_destroy_sorted_bindings(&device->vk, pAllocator, sorted);
+ 
+    set_layout->dynamic_offset_count = dynamic_offset_count;
+ 
+diff --git a/src/imagination/vulkan/pvr_descriptor_set.c b/src/imagination/vulkan/pvr_descriptor_set.c
+index 7a50b8e0cc7..c3cc2d1471d 100644
+--- a/src/imagination/vulkan/pvr_descriptor_set.c
++++ b/src/imagination/vulkan/pvr_descriptor_set.c
+@@ -119,29 +119,12 @@ VkResult pvr_CreateDescriptorSetLayout(
+    VkDescriptorSetLayout *pSetLayout)
+ {
+    VK_FROM_HANDLE(pvr_device, device, _device);
+-   VkDescriptorSetLayoutBinding *bindings;
+    uint32_t binding_count = 0;
+    uint32_t immutable_sampler_count = 0;
+    uint32_t dynamic_buffer_count = 0;
+    uint32_t descriptor_count = 0;
+    VkResult result = VK_SUCCESS;
+-   const VkDescriptorSetLayoutBindingFlagsCreateInfo *binding_flags_create_info =
+-      NULL;
+-   VkDescriptorBindingFlags *binding_flags = NULL;
+-
+-   assert(pCreateInfo->sType ==
+-          VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO);
+-
+-   vk_foreach_struct_const (sType, ext, pCreateInfo->pNext) {
+-      switch (sType) {
+-      case VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO:
+-         binding_flags_create_info =
+-            (const VkDescriptorSetLayoutBindingFlagsCreateInfo *)ext;
+-         break;
+-      default:
+-         vk_debug_ignored_stype(sType);
+-      }
+-   }
++   struct vk_sorted_bindings *sorted;
+ 
+    for (unsigned u = 0; u < pCreateInfo->bindingCount; ++u) {
+       const VkDescriptorSetLayoutBinding *binding = &pCreateInfo->pBindings[u];
+@@ -154,15 +137,12 @@ VkResult pvr_CreateDescriptorSetLayout(
+          dynamic_buffer_count += binding->descriptorCount;
+    }
+ 
+-   result = vk_create_sorted_bindings(pCreateInfo->pBindings,
+-                                      pCreateInfo->bindingCount,
+-                                      &bindings,
+-                                      binding_flags_create_info,
+-                                      &binding_flags);
++   result = vk_create_sorted_bindings(&device->vk, pCreateInfo, pAllocator, &sorted);
+ 
+    if (result != VK_SUCCESS)
+       return vk_error(device, result);
+ 
++   const VkDescriptorSetLayoutBinding *bindings = sorted->bindings;
+    if (bindings)
+       binding_count = bindings[pCreateInfo->bindingCount - 1].binding + 1;
+ 
+@@ -219,7 +199,7 @@ VkResult pvr_CreateDescriptorSetLayout(
+ 
+       layout_binding->type = binding->descriptorType;
+ 
+-      layout_binding->flags = binding_flags ? binding_flags[b] : 0;
++      layout_binding->flags = sorted->flags[b];
+ 
+       layout_binding->descriptor_count = binding->descriptorCount;
+       layout_binding->stage_flags = binding->stageFlags;
+@@ -242,15 +222,14 @@ VkResult pvr_CreateDescriptorSetLayout(
+ 
+    assert(dynamic_buffer_count == dynamic_buffer_idx);
+ 
+-   free(bindings);
+-   free(binding_flags);
++   vk_destroy_sorted_bindings(&device->vk, pAllocator, sorted);
+ 
+    *pSetLayout = pvr_descriptor_set_layout_to_handle(layout);
+ 
+    return VK_SUCCESS;
+ 
+ err_free_bindings:
+-   free(bindings);
++   vk_destroy_sorted_bindings(&device->vk, pAllocator, sorted);
+ 
+    return result;
+ }
+diff --git a/src/microsoft/vulkan/dzn_descriptor_set.c b/src/microsoft/vulkan/dzn_descriptor_set.c
+index c8821c9a502..30b30f95e76 100644
+--- a/src/microsoft/vulkan/dzn_descriptor_set.c
++++ b/src/microsoft/vulkan/dzn_descriptor_set.c
+@@ -261,16 +261,16 @@ dzn_descriptor_set_layout_create(struct dzn_device *device,
+       }
+    }
+ 
+-   VkDescriptorSetLayoutBinding *ordered_bindings;
++   struct vk_sorted_bindings *sorted;
+    VkResult ret =
+-      vk_create_sorted_bindings(pCreateInfo->pBindings,
+-                                pCreateInfo->bindingCount,
+-                                &ordered_bindings, NULL, NULL);
++      vk_create_sorted_bindings(&device->vk, pCreateInfo, pAllocator, &sorted);
+    if (ret != VK_SUCCESS) {
+       vk_descriptor_set_layout_destroy(&device->vk, &set_layout->vk);
+       return ret;
+    }
+ 
++   const VkDescriptorSetLayoutBinding *ordered_bindings = sorted->bindings;
++
+    assert(binding_count ==
+           (pCreateInfo->bindingCount ?
+            (ordered_bindings[pCreateInfo->bindingCount - 1].binding + 1) : 0));
+@@ -443,7 +443,7 @@ dzn_descriptor_set_layout_create(struct dzn_device *device,
+       }
+    }
+ 
+-   free(ordered_bindings);
++   vk_destroy_sorted_bindings(&device->vk, pAllocator, sorted);
+ 
+    *out = dzn_descriptor_set_layout_to_handle(set_layout);
+    return VK_SUCCESS;
+diff --git a/src/panfrost/vulkan/panvk_vX_descriptor_set_layout.c b/src/panfrost/vulkan/panvk_vX_descriptor_set_layout.c
+index ecd1b3cf498..d256de4ef82 100644
+--- a/src/panfrost/vulkan/panvk_vX_descriptor_set_layout.c
++++ b/src/panfrost/vulkan/panvk_vX_descriptor_set_layout.c
+@@ -93,18 +93,22 @@ panvk_per_arch(CreateDescriptorSetLayout)(
+    const VkAllocationCallbacks *pAllocator, VkDescriptorSetLayout *pSetLayout)
+ {
+    VK_FROM_HANDLE(panvk_device, device, _device);
+-   VkDescriptorSetLayoutBinding *bindings = NULL;
+    unsigned num_bindings = 0;
+    VkResult result;
+-   const VkDescriptorSetLayoutBindingFlagsCreateInfo *binding_flags_info =
+-      vk_find_struct_const(pCreateInfo->pNext,
+-                           DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO);
+-   VkDescriptorBindingFlags *sorted_binding_flags = NULL;
++   struct vk_sorted_bindings *sorted;
++
++   result = vk_create_sorted_bindings(&device->vk, pCreateInfo, pAllocator, &sorted);
++   if (result != VK_SUCCESS)
++      return panvk_error(device, result);
++
++   const VkDescriptorSetLayoutBinding *bindings = sorted->bindings;
++   if (sorted->count) {
++      num_bindings = bindings[sorted->count - 1].binding + 1;
++   }
+ 
+    unsigned immutable_sampler_count = 0;
+-   for (uint32_t j = 0; j < pCreateInfo->bindingCount; j++) {
+-      const VkDescriptorSetLayoutBinding *binding = &pCreateInfo->pBindings[j];
+-      num_bindings = MAX2(num_bindings, binding->binding + 1);
++   for (uint32_t j = 0; j < sorted->count; j++) {
++      const VkDescriptorSetLayoutBinding *binding = &bindings[j];
+ 
+       /* From the Vulkan 1.1.97 spec for VkDescriptorSetLayoutBinding:
+        *
+@@ -121,17 +125,6 @@ panvk_per_arch(CreateDescriptorSetLayout)(
+          immutable_sampler_count += binding->descriptorCount;
+    }
+ 
+-   if (pCreateInfo->bindingCount) {
+-      result = vk_create_sorted_bindings(pCreateInfo->pBindings,
+-                                         pCreateInfo->bindingCount, &bindings,
+-                                         binding_flags_info,
+-                                         &sorted_binding_flags);
+-      if (result != VK_SUCCESS)
+-         return panvk_error(device, result);
+-
+-      num_bindings = bindings[pCreateInfo->bindingCount - 1].binding + 1;
+-   }
+-
+    VK_MULTIALLOC(ma);
+    VK_MULTIALLOC_DECL(&ma, struct panvk_descriptor_set_layout, layout, 1);
+    VK_MULTIALLOC_DECL(&ma, struct panvk_descriptor_set_binding_layout,
+@@ -140,7 +133,7 @@ panvk_per_arch(CreateDescriptorSetLayout)(
+                       immutable_sampler_count);
+ 
+    if (!vk_descriptor_set_layout_multizalloc(&device->vk, &ma, pCreateInfo)) {
+-      free(bindings);
++      vk_destroy_sorted_bindings(&device->vk, pAllocator, sorted);
+       return panvk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
+    }
+ 
+@@ -151,7 +144,7 @@ panvk_per_arch(CreateDescriptorSetLayout)(
+    unsigned desc_idx = 0;
+    unsigned dyn_buf_idx = 0;
+    uint32_t dyn_ssbos = 0;
+-   for (unsigned i = 0; i < pCreateInfo->bindingCount; i++) {
++   for (unsigned i = 0; i < sorted->count; i++) {
+       const VkDescriptorSetLayoutBinding *binding = &bindings[i];
+       struct panvk_descriptor_set_binding_layout *binding_layout =
+          &layout->bindings[binding->binding];
+@@ -160,10 +153,7 @@ panvk_per_arch(CreateDescriptorSetLayout)(
+          continue;
+ 
+       binding_layout->type = binding->descriptorType;
+-
+-      if (sorted_binding_flags) {
+-         binding_layout->flags = sorted_binding_flags[i];
+-      }
++      binding_layout->flags = sorted->flags[i];
+ 
+       if (binding_layout->type == VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK) {
+          binding_layout->desc_count =
+@@ -242,8 +232,7 @@ panvk_per_arch(CreateDescriptorSetLayout)(
+ 
+    _mesa_blake3_final(&hash_ctx, layout->vk.blake3);
+ 
+-   free(bindings);
+-   free(sorted_binding_flags);
++   vk_destroy_sorted_bindings(&device->vk, pAllocator, sorted);
+    *pSetLayout = panvk_descriptor_set_layout_to_handle(layout);
+ 
+    return VK_SUCCESS;
+diff --git a/src/vulkan/runtime/vk_descriptors.c b/src/vulkan/runtime/vk_descriptors.c
+index eb82c14a4f8..2977fef1083 100644
+--- a/src/vulkan/runtime/vk_descriptors.c
++++ b/src/vulkan/runtime/vk_descriptors.c
+@@ -27,87 +27,91 @@
+ #include "vk_descriptors.h"
+ #include "vk_common_entrypoints.h"
+ #include "util/macros.h"
+-
+-struct binding_with_flags {
+-   VkDescriptorSetLayoutBinding binding;
+-   VkDescriptorBindingFlags flags;
+-};
++#include "util/u_qsort.h"
++#include "vk_alloc.h"
++#include "vk_device.h"
++#include "vk_util.h"
+ 
+ static int
+-binding_compare(const void* av, const void *bv)
++binding_index_compare(const void *av, const void *bv, void *data)
+ {
+-   const struct binding_with_flags *a = (const struct binding_with_flags*)av;
+-   const struct binding_with_flags *b = (const struct binding_with_flags*)bv;
+- 
+-   return (a->binding.binding < b->binding.binding) ? -1 :
+-          (a->binding.binding > b->binding.binding) ? 1 : 0;
++   const VkDescriptorSetLayoutBinding *bindings = data;
++   uint32_t a = bindings[*(const uint32_t *)av].binding;
++   uint32_t b = bindings[*(const uint32_t *)bv].binding;
++
++   return (a > b) - (a < b);
+ }
+- 
++
+ VkResult
+-vk_create_sorted_bindings(const VkDescriptorSetLayoutBinding *bindings, unsigned count,
+-                          VkDescriptorSetLayoutBinding **sorted_bindings,
+-                          const VkDescriptorSetLayoutBindingFlagsCreateInfo *binding_flags_info,
+-                          VkDescriptorBindingFlags **sorted_binding_flags)
++vk_create_sorted_bindings(struct vk_device *device,
++                          const VkDescriptorSetLayoutCreateInfo *create_info,
++                          const VkAllocationCallbacks *alloc,
++                          struct vk_sorted_bindings **sorted_out)
+ {
+-   struct binding_with_flags *bwfs;
+-   unsigned index;
+-
+-   if (!count) {
+-      *sorted_bindings = NULL;
+-      if (sorted_binding_flags)
+-         *sorted_binding_flags = NULL;
+-      return VK_SUCCESS;
+-   }
+-
+-   *sorted_bindings = malloc(count * sizeof(VkDescriptorSetLayoutBinding));
+-   if (!*sorted_bindings)
++   const uint32_t count = create_info->bindingCount;
++   const VkDescriptorSetLayoutBindingFlagsCreateInfo *flags_info =
++      vk_find_struct_const(create_info->pNext,
++                           DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO);
++   const VkMutableDescriptorTypeCreateInfoEXT *mutable_info =
++      vk_find_struct_const(create_info->pNext,
++                           MUTABLE_DESCRIPTOR_TYPE_CREATE_INFO_EXT);
++
++   assert(!flags_info || !flags_info->bindingCount ||
++          flags_info->bindingCount == count);
++
++   VK_MULTIALLOC(ma);
++   VK_MULTIALLOC_DECL(&ma, struct vk_sorted_bindings, sorted, 1);
++   VK_MULTIALLOC_DECL(&ma, VkDescriptorSetLayoutBinding, bindings, count);
++   VK_MULTIALLOC_DECL(&ma, VkDescriptorBindingFlags, flags, count);
++   VK_MULTIALLOC_DECL(&ma, VkMutableDescriptorTypeListEXT, mutable_type_lists,
++                      count);
++   VK_MULTIALLOC_DECL(&ma, uint32_t, indices, count);
++
++   *sorted_out = NULL;
++   if (!vk_multialloc_zalloc2(&ma, &device->alloc, alloc,
++                              VK_SYSTEM_ALLOCATION_SCOPE_COMMAND))
+       return VK_ERROR_OUT_OF_HOST_MEMORY;
+ 
+-   if (binding_flags_info && !binding_flags_info->bindingCount)
+-      binding_flags_info = NULL;
+-
+-   if (binding_flags_info) {
+-      assert(sorted_binding_flags);
+-      assert(binding_flags_info->bindingCount == count);
++   for (uint32_t i = 0; i < count; i++)
++      indices[i] = i;
+ 
+-      *sorted_binding_flags = malloc(count * sizeof(VkDescriptorBindingFlags));
+-      if (!*sorted_binding_flags) {
+-         free(*sorted_bindings);
+-         return VK_ERROR_OUT_OF_HOST_MEMORY;
+-      }
+-   }
++   if (count > 1)
++      util_qsort_r(indices, count, sizeof(*indices), binding_index_compare,
++                   (void *)create_info->pBindings);
+ 
+-   bwfs = malloc(count * sizeof(struct binding_with_flags));
+-   if (!bwfs) {
+-      if (binding_flags_info)
+-         free(*sorted_binding_flags);
+-      free(*sorted_bindings);
+-      return VK_ERROR_OUT_OF_HOST_MEMORY;
+-   }
++   for (uint32_t i = 0; i < count; i++) {
++      const uint32_t pbindings_idx = indices[i];
+ 
+-   for (index = 0; index < count; index++) {
+-      memcpy(&bwfs[index].binding, &bindings[index],
+-             sizeof(VkDescriptorSetLayoutBinding));
+-      if (binding_flags_info)
+-         bwfs[index].flags = binding_flags_info->pBindingFlags[index];
+-      else
+-         bwfs[index].flags = 0;
+-   }
++      bindings[i] = create_info->pBindings[pbindings_idx];
+ 
+-   qsort(bwfs, count, sizeof(struct binding_with_flags), binding_compare);
++      if (flags_info && pbindings_idx < flags_info->bindingCount)
++         flags[i] = flags_info->pBindingFlags[pbindings_idx];
+ 
+-   for (index = 0; index < count; index++) {
+-      memcpy(&(*sorted_bindings)[index], &bwfs[index].binding,
+-             sizeof(VkDescriptorSetLayoutBinding));
+-      if (binding_flags_info)
+-         (*sorted_binding_flags)[index] = bwfs[index].flags;
++      if (bindings[i].descriptorType == VK_DESCRIPTOR_TYPE_MUTABLE_EXT) {
++         assert(mutable_info &&
++                pbindings_idx < mutable_info->mutableDescriptorTypeListCount);
++         mutable_type_lists[i] =
++            mutable_info->pMutableDescriptorTypeLists[pbindings_idx];
++      }
+    }
+ 
+-   free(bwfs);
+- 
++   sorted->count = count;
++   sorted->bindings = bindings;
++   sorted->flags = flags;
++   sorted->mutable_type_lists = mutable_type_lists;
++   *sorted_out = sorted;
++
+    return VK_SUCCESS;
+ }
+ 
++void
++vk_destroy_sorted_bindings(struct vk_device *device,
++                           const VkAllocationCallbacks *alloc,
++                           struct vk_sorted_bindings *sorted)
++{
++   vk_free2(&device->alloc, alloc, sorted);
++}
++
+ /*
+  * For drivers that don't have mutable state in buffers, images, image views, or
+  * samplers, there's no need to save/restore anything to get the same
+diff --git a/src/vulkan/runtime/vk_descriptors.h b/src/vulkan/runtime/vk_descriptors.h
+index 033e274335c..c47f0be4b02 100644
+--- a/src/vulkan/runtime/vk_descriptors.h
++++ b/src/vulkan/runtime/vk_descriptors.h
+@@ -31,11 +31,30 @@ extern "C" {
+ 
+ #include <vulkan/vulkan_core.h>
+ 
++struct vk_sorted_bindings {
++   uint32_t count;
++   const VkDescriptorSetLayoutBinding *bindings;
++   /* 0 if not provided by VkDescriptorSetLayoutBindingFlagsCreateInfo */
++   const VkDescriptorBindingFlags *flags;
++   /* Only valid for VK_DESCRIPTOR_TYPE_MUTABLE_EXT bindings, empty otherwise */
++   const VkMutableDescriptorTypeListEXT *mutable_type_lists;
++};
++
++struct vk_device;
++
++/* alloc may be NULL, in which case device->alloc is used. The result must be
++ * freed with vk_destroy_sorted_bindings() using the same alloc.
++ */
+ VkResult
+-vk_create_sorted_bindings(const VkDescriptorSetLayoutBinding *bindings, unsigned count,
+-                          VkDescriptorSetLayoutBinding **sorted_bindings,
+-                          const VkDescriptorSetLayoutBindingFlagsCreateInfo *binding_flags_info,
+-                          VkDescriptorBindingFlags **sorted_binding_flags);
++vk_create_sorted_bindings(struct vk_device *device,
++                          const VkDescriptorSetLayoutCreateInfo *create_info,
++                          const VkAllocationCallbacks *alloc,
++                          struct vk_sorted_bindings **sorted);
++
++void
++vk_destroy_sorted_bindings(struct vk_device *device,
++                           const VkAllocationCallbacks *alloc,
++                           struct vk_sorted_bindings *sorted);
+ 
+ #ifdef __cplusplus
+ }
+
+From 22ea8e6f646fd2a6f9a6f76f7942adfdc678b845 Mon Sep 17 00:00:00 2001
+From: Danylo Piliaiev <dpiliaiev@igalia.com>
+Date: Fri, 23 Oct 2026 17:44:25 +0200
+Subject: [PATCH 2/4] tu: use pBindings order for binding flags and mutable
+ type lists
+
+The spec indexes these arrays by the position in pBindings, which
+doesn't have to be sorted by binding number:
+
+  VkDescriptorSetLayoutBindingFlagsCreateInfo:
+    "Otherwise, the descriptor set layout binding at
+     VkDescriptorSetLayoutCreateInfo::pBindings[i] uses the flags in
+     pBindingFlags[i]."
+
+  VkMutableDescriptorTypeCreateInfoEXT:
+    "Otherwise, the descriptor set layout binding at
+     VkDescriptorSetLayoutCreateInfo::pBindings[i] uses the descriptor
+     type lists in
+     VkMutableDescriptorTypeCreateInfoEXT::pMutableDescriptorTypeLists[i]."
+
+Example:
+
+  pBindings = {
+     { .binding = 1, .descriptorType = MUTABLE_EXT },
+     { .binding = 0, .descriptorType = UNIFORM_BUFFER },
+  };
+  pMutableDescriptorTypeLists = {
+     { STORAGE_BUFFER, SAMPLED_IMAGE },  // pBindings[0], binding 1
+     { },                                // pBindings[1], binding 0
+  };
+
+After sorting, binding 1 is at position 1, so reading
+pMutableDescriptorTypeLists[1] gives it the empty list.
+
+The mutable binding gets size 0 and overlaps the next binding.
+
+Use the sorted flags and mutable type lists from
+vk_create_sorted_bindings. Also take the immutable sampler count from
+the sorted binding instead of pBindings[j].
+
+Assisted-by: LLM
+Signed-off-by: Danylo Piliaiev <dpiliaiev@igalia.com>
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/45559>
+(cherry picked from commit 0f5ba03ea0bbf0f2a3a7d15c8214823af8a5ba3e)
+---
+ src/freedreno/vulkan/tu_descriptor_set.cc | 41 ++++++-----------------
+ 1 file changed, 10 insertions(+), 31 deletions(-)
+
+diff --git a/src/freedreno/vulkan/tu_descriptor_set.cc b/src/freedreno/vulkan/tu_descriptor_set.cc
+index 790dd00e354..0a9140b6a66 100644
+--- a/src/freedreno/vulkan/tu_descriptor_set.cc
++++ b/src/freedreno/vulkan/tu_descriptor_set.cc
+@@ -115,14 +115,6 @@ tu_CreateDescriptorSetLayout(
+ 
+    assert(pCreateInfo->sType ==
+           VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO);
+-   const VkDescriptorSetLayoutBindingFlagsCreateInfo *variable_flags =
+-      vk_find_struct_const(
+-         pCreateInfo->pNext,
+-         DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO);
+-   const VkMutableDescriptorTypeCreateInfoEXT *mutable_info =
+-      vk_find_struct_const(
+-         pCreateInfo->pNext,
+-         MUTABLE_DESCRIPTOR_TYPE_CREATE_INFO_EXT);
+ 
+    uint32_t num_bindings = 0;
+    uint32_t immutable_sampler_count = 0;
+@@ -190,6 +182,7 @@ tu_CreateDescriptorSetLayout(
+    for (uint32_t j = 0; j < pCreateInfo->bindingCount; j++) {
+       const VkDescriptorSetLayoutBinding *binding = bindings + j;
+       uint32_t b = binding->binding;
++      const VkDescriptorBindingFlags binding_flags = sorted->flags[j];
+ 
+       set_layout->binding[b].type = binding->descriptorType;
+       set_layout->binding[b].array_size =
+@@ -206,9 +199,7 @@ tu_CreateDescriptorSetLayout(
+           */
+          (pCreateInfo->flags &
+           VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT) ||
+-         (variable_flags && j < variable_flags->bindingCount &&
+-          (variable_flags->pBindingFlags[j] &
+-           VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT));
++         (binding_flags & VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT);
+ 
+       bool has_subsampled_sampler = false;
+       if ((binding->descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER ||
+@@ -224,7 +215,7 @@ tu_CreateDescriptorSetLayout(
+          samplers_offset += sizeof(struct tu_sampler) * binding->descriptorCount;
+ 
+          bool has_ycbcr_sampler = false;
+-         for (unsigned i = 0; i < pCreateInfo->pBindings[j].descriptorCount; ++i) {
++         for (unsigned i = 0; i < binding->descriptorCount; ++i) {
+             VK_FROM_HANDLE(tu_sampler, sampler,
+                            binding->pImmutableSamplers[i]);
+             if (sampler->vk.ycbcr_conversion)
+@@ -255,7 +246,7 @@ tu_CreateDescriptorSetLayout(
+           * largest descriptor type that the binding can mutate to.
+           */
+          set_layout->binding[b].size =
+-            mutable_descriptor_size(device, &mutable_info->pMutableDescriptorTypeLists[j]);
++            mutable_descriptor_size(device, &sorted->mutable_type_lists[j]);
+       } else {
+          set_layout->binding[b].size =
+             descriptor_size(device, binding, binding->descriptorType,
+@@ -265,9 +256,7 @@ tu_CreateDescriptorSetLayout(
+       if (binding->descriptorType == VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK)
+          set_layout->has_inline_uniforms = true;
+ 
+-      if (variable_flags && j < variable_flags->bindingCount &&
+-          (variable_flags->pBindingFlags[j] &
+-           VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT)) {
++      if (binding_flags & VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT) {
+          assert(!binding->pImmutableSamplers); /* Terribly ill defined  how
+                                                   many samplers are valid */
+          assert(binding->binding == num_bindings - 1);
+@@ -347,18 +336,10 @@ tu_GetDescriptorSetLayoutSupport(
+ 
+    const VkDescriptorSetLayoutBinding *bindings = sorted->bindings;
+ 
+-   const VkDescriptorSetLayoutBindingFlagsCreateInfo *variable_flags =
+-      vk_find_struct_const(
+-         pCreateInfo->pNext,
+-         DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO);
+    VkDescriptorSetVariableDescriptorCountLayoutSupport *variable_count =
+       vk_find_struct(
+          pSupport->pNext,
+          DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_LAYOUT_SUPPORT);
+-   const VkMutableDescriptorTypeCreateInfoEXT *mutable_info =
+-      vk_find_struct_const(
+-         pCreateInfo->pNext,
+-         MUTABLE_DESCRIPTOR_TYPE_CREATE_INFO_EXT);
+ 
+    if (variable_count) {
+       variable_count->maxVariableDescriptorCount = 0;
+@@ -368,6 +349,7 @@ tu_GetDescriptorSetLayoutSupport(
+    uint64_t size = 0;
+    for (uint32_t i = 0; i < pCreateInfo->bindingCount; i++) {
+       const VkDescriptorSetLayoutBinding *binding = bindings + i;
++      const VkDescriptorBindingFlags binding_flags = sorted->flags[i];
+ 
+       uint64_t descriptor_sz;
+ 
+@@ -375,7 +357,7 @@ tu_GetDescriptorSetLayoutSupport(
+          descriptor_sz = 0;
+       } else if (binding->descriptorType == VK_DESCRIPTOR_TYPE_MUTABLE_EXT) {
+          const VkMutableDescriptorTypeListEXT *list =
+-            &mutable_info->pMutableDescriptorTypeLists[i];
++            &sorted->mutable_type_lists[i];
+ 
+          for (uint32_t j = 0; j < list->descriptorTypeCount; j++) {
+             /* Don't support the input attachement and combined image sampler type
+@@ -387,8 +369,7 @@ tu_GetDescriptorSetLayoutSupport(
+             }
+          }
+ 
+-         descriptor_sz =
+-            mutable_descriptor_size(device, &mutable_info->pMutableDescriptorTypeLists[i]);
++         descriptor_sz = mutable_descriptor_size(device, list);
+       } else {
+          bool has_subsampled_sampler = false;
+          if ((binding->descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER ||
+@@ -427,10 +408,8 @@ tu_GetDescriptorSetLayoutSupport(
+          supported = false;
+       }
+ 
+-      if (variable_flags && i < variable_flags->bindingCount &&
+-          variable_count &&
+-          (variable_flags->pBindingFlags[i] &
+-           VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT)) {
++      if (variable_count &&
++          (binding_flags & VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT)) {
+          variable_count->maxVariableDescriptorCount =
+             MIN2(UINT32_MAX, max_count);
+       }
+
+From 5f911bf67a4904a9c17b7c5c2fd5c8612ba017f5 Mon Sep 17 00:00:00 2001
+From: Danylo Piliaiev <dpiliaiev@igalia.com>
+Date: Fri, 23 Oct 2026 17:44:58 +0200
+Subject: [PATCH 3/4] radv: use pBindings order for binding flags and mutable
+ type lists
+
+The spec indexes these arrays by the position in pBindings, which
+doesn't have to be sorted by binding number:
+
+  VkDescriptorSetLayoutBindingFlagsCreateInfo:
+    "Otherwise, the descriptor set layout binding at
+     VkDescriptorSetLayoutCreateInfo::pBindings[i] uses the flags in
+     pBindingFlags[i]."
+
+  VkMutableDescriptorTypeCreateInfoEXT:
+    "Otherwise, the descriptor set layout binding at
+     VkDescriptorSetLayoutCreateInfo::pBindings[i] uses the descriptor
+     type lists in
+     VkMutableDescriptorTypeCreateInfoEXT::pMutableDescriptorTypeLists[i]."
+
+Example:
+
+  pBindings = {
+     { .binding = 1, .descriptorType = MUTABLE_EXT },
+     { .binding = 0, .descriptorType = UNIFORM_BUFFER },
+  };
+  pMutableDescriptorTypeLists = {
+     { STORAGE_BUFFER, SAMPLED_IMAGE },  // pBindings[0], binding 1
+     { },                                // pBindings[1], binding 0
+  };
+
+After sorting, binding 1 is at position 1, so reading
+pMutableDescriptorTypeLists[1] gives it the empty list.
+
+This gives wrong binding sizes, alignment and variable descriptor
+count.
+
+Use the sorted flags and mutable type lists from
+vk_create_sorted_bindings.
+
+Assisted-by: LLM
+Signed-off-by: Danylo Piliaiev <dpiliaiev@igalia.com>
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/45559>
+(cherry picked from commit f7d41851c7819bb1ba8592cf0ba58e8788b04b44)
+---
+ src/amd/vulkan/radv_descriptor_set.c | 34 ++++++++++------------------
+ 1 file changed, 12 insertions(+), 22 deletions(-)
+
+diff --git a/src/amd/vulkan/radv_descriptor_set.c b/src/amd/vulkan/radv_descriptor_set.c
+index bfd2ab6ddb3..7cf0bfe4da9 100644
+--- a/src/amd/vulkan/radv_descriptor_set.c
++++ b/src/amd/vulkan/radv_descriptor_set.c
+@@ -22,10 +22,6 @@ radv_CreateDescriptorSetLayout(VkDevice _device, const VkDescriptorSetLayoutCrea
+    struct radv_descriptor_set_layout *set_layout;
+ 
+    assert(pCreateInfo->sType == VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO);
+-   const VkDescriptorSetLayoutBindingFlagsCreateInfo *variable_flags =
+-      vk_find_struct_const(pCreateInfo->pNext, DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO);
+-   const VkMutableDescriptorTypeCreateInfoEXT *mutable_info =
+-      vk_find_struct_const(pCreateInfo->pNext, MUTABLE_DESCRIPTOR_TYPE_CREATE_INFO_EXT);
+ 
+    uint32_t num_bindings = 0;
+    uint32_t immutable_sampler_count = 0;
+@@ -104,9 +100,8 @@ radv_CreateDescriptorSetLayout(VkDevice _device, const VkDescriptorSetLayoutCrea
+       uint32_t last_alignment = radv_descriptor_alignment(bindings[pCreateInfo->bindingCount - 1].descriptorType);
+       if (bindings[pCreateInfo->bindingCount - 1].descriptorType == VK_DESCRIPTOR_TYPE_MUTABLE_EXT) {
+          uint64_t mutable_size = 0, mutable_align = 0;
+-         radv_mutable_descriptor_type_size_alignment(
+-            device, &mutable_info->pMutableDescriptorTypeLists[pCreateInfo->bindingCount - 1], &mutable_size,
+-            &mutable_align);
++         radv_mutable_descriptor_type_size_alignment(device, &sorted->mutable_type_lists[pCreateInfo->bindingCount - 1],
++                                                     &mutable_size, &mutable_align);
+          last_alignment = mutable_align;
+       }
+ 
+@@ -116,6 +111,7 @@ radv_CreateDescriptorSetLayout(VkDevice _device, const VkDescriptorSetLayoutCrea
+    for (unsigned pass = 0; pass < 2; ++pass) {
+       for (uint32_t j = 0; j < pCreateInfo->bindingCount; j++) {
+          const VkDescriptorSetLayoutBinding *binding = bindings + j;
++         const VkDescriptorBindingFlags binding_flags = sorted->flags[j];
+          uint32_t b = binding->binding;
+          uint32_t alignment = radv_descriptor_alignment(binding->descriptorType);
+          uint32_t descriptor_count = binding->descriptorCount;
+@@ -167,8 +163,8 @@ radv_CreateDescriptorSetLayout(VkDevice _device, const VkDescriptorSetLayoutCrea
+             break;
+          case VK_DESCRIPTOR_TYPE_MUTABLE_EXT: {
+             uint64_t mutable_size = 0, mutable_align = 0;
+-            radv_mutable_descriptor_type_size_alignment(device, &mutable_info->pMutableDescriptorTypeLists[j],
+-                                                        &mutable_size, &mutable_align);
++            radv_mutable_descriptor_type_size_alignment(device, &sorted->mutable_type_lists[j], &mutable_size,
++                                                        &mutable_align);
+             assert(mutable_size && mutable_align);
+             set_layout->binding[b].size = mutable_size;
+             alignment = mutable_align;
+@@ -195,8 +191,7 @@ radv_CreateDescriptorSetLayout(VkDevice _device, const VkDescriptorSetLayoutCrea
+          set_layout->binding[b].dynamic_offset_offset = dynamic_offset_count;
+          set_layout->binding[b].has_ycbcr_sampler = has_ycbcr_sampler;
+ 
+-         if (variable_flags && j < variable_flags->bindingCount &&
+-             (variable_flags->pBindingFlags[j] & VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT)) {
++         if (binding_flags & VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT) {
+             assert(!binding->pImmutableSamplers); /* Terribly ill defined  how many samplers are valid */
+             assert(binding->binding == num_bindings - 1);
+ 
+@@ -266,12 +261,8 @@ radv_GetDescriptorSetLayoutSupport(VkDevice _device, const VkDescriptorSetLayout
+ 
+    const VkDescriptorSetLayoutBinding *bindings = sorted->bindings;
+ 
+-   const VkDescriptorSetLayoutBindingFlagsCreateInfo *variable_flags =
+-      vk_find_struct_const(pCreateInfo->pNext, DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO);
+    VkDescriptorSetVariableDescriptorCountLayoutSupport *variable_count =
+       vk_find_struct(pSupport->pNext, DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_LAYOUT_SUPPORT);
+-   const VkMutableDescriptorTypeCreateInfoEXT *mutable_info =
+-      vk_find_struct_const(pCreateInfo->pNext, MUTABLE_DESCRIPTOR_TYPE_CREATE_INFO_EXT);
+    if (variable_count) {
+       variable_count->maxVariableDescriptorCount = 0;
+    }
+@@ -281,9 +272,8 @@ radv_GetDescriptorSetLayoutSupport(VkDevice _device, const VkDescriptorSetLayout
+       uint32_t last_alignment = radv_descriptor_alignment(bindings[pCreateInfo->bindingCount - 1].descriptorType);
+       if (bindings[pCreateInfo->bindingCount - 1].descriptorType == VK_DESCRIPTOR_TYPE_MUTABLE_EXT) {
+          uint64_t mutable_size = 0, mutable_align = 0;
+-         radv_mutable_descriptor_type_size_alignment(
+-            device, &mutable_info->pMutableDescriptorTypeLists[pCreateInfo->bindingCount - 1], &mutable_size,
+-            &mutable_align);
++         radv_mutable_descriptor_type_size_alignment(device, &sorted->mutable_type_lists[pCreateInfo->bindingCount - 1],
++                                                     &mutable_size, &mutable_align);
+          last_alignment = mutable_align;
+       }
+ 
+@@ -295,6 +285,7 @@ radv_GetDescriptorSetLayoutSupport(VkDevice _device, const VkDescriptorSetLayout
+    for (unsigned pass = 0; pass < 2; ++pass) {
+       for (uint32_t i = 0; i < pCreateInfo->bindingCount; i++) {
+          const VkDescriptorSetLayoutBinding *binding = bindings + i;
++         const VkDescriptorBindingFlags binding_flags = sorted->flags[i];
+ 
+          uint64_t descriptor_size = 0;
+          uint64_t descriptor_alignment = radv_descriptor_alignment(binding->descriptorType);
+@@ -327,8 +318,8 @@ radv_GetDescriptorSetLayoutSupport(VkDevice _device, const VkDescriptorSetLayout
+             descriptor_count = 1;
+             break;
+          case VK_DESCRIPTOR_TYPE_MUTABLE_EXT:
+-            if (!radv_mutable_descriptor_type_size_alignment(device, &mutable_info->pMutableDescriptorTypeLists[i],
+-                                                             &descriptor_size, &descriptor_alignment)) {
++            if (!radv_mutable_descriptor_type_size_alignment(device, &sorted->mutable_type_lists[i], &descriptor_size,
++                                                             &descriptor_alignment)) {
+                supported = false;
+             }
+             break;
+@@ -357,8 +348,7 @@ radv_GetDescriptorSetLayoutSupport(VkDevice _device, const VkDescriptorSetLayout
+          if (max_count < descriptor_count) {
+             supported = false;
+          }
+-         if (variable_flags && i < variable_flags->bindingCount && variable_count &&
+-             (variable_flags->pBindingFlags[i] & VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT)) {
++         if (variable_count && (binding_flags & VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT)) {
+             variable_count->maxVariableDescriptorCount = MIN2(UINT32_MAX, max_count);
+          }
+          size += descriptor_count * descriptor_size;
+
+From b7c75c607d57c212fe3012129f9372cb48457cb0 Mon Sep 17 00:00:00 2001
+From: Danylo Piliaiev <dpiliaiev@igalia.com>
+Date: Fri, 23 Oct 2026 17:45:22 +0200
+Subject: [PATCH 4/4] lavapipe: use pBindings order for mutable type lists
+
+The spec indexes these arrays by the position in pBindings, which
+doesn't have to be sorted by binding number:
+
+  VkDescriptorSetLayoutBindingFlagsCreateInfo:
+    "Otherwise, the descriptor set layout binding at
+     VkDescriptorSetLayoutCreateInfo::pBindings[i] uses the flags in
+     pBindingFlags[i]."
+
+  VkMutableDescriptorTypeCreateInfoEXT:
+    "Otherwise, the descriptor set layout binding at
+     VkDescriptorSetLayoutCreateInfo::pBindings[i] uses the descriptor
+     type lists in
+     VkMutableDescriptorTypeCreateInfoEXT::pMutableDescriptorTypeLists[i]."
+
+Example:
+
+  pBindings = {
+     { .binding = 1, .descriptorType = MUTABLE_EXT },
+     { .binding = 0, .descriptorType = UNIFORM_BUFFER },
+  };
+  pMutableDescriptorTypeLists = {
+     { STORAGE_BUFFER, SAMPLED_IMAGE },  // pBindings[0], binding 1
+     { },                                // pBindings[1], binding 0
+  };
+
+After sorting, binding 1 is at position 1, so reading
+pMutableDescriptorTypeLists[1] gives it the empty list.
+
+The mutable binding gets the wrong descriptor size.
+
+Use the sorted mutable type lists from vk_create_sorted_bindings.
+
+Assisted-by: LLM
+Signed-off-by: Danylo Piliaiev <dpiliaiev@igalia.com>
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/45559>
+(cherry picked from commit 718040255b1d1af3a17b4ad2e5512ec632afd594)
+---
+ src/gallium/frontends/lavapipe/lvp_descriptor_set.c | 7 ++-----
+ 1 file changed, 2 insertions(+), 5 deletions(-)
+
+diff --git a/src/gallium/frontends/lavapipe/lvp_descriptor_set.c b/src/gallium/frontends/lavapipe/lvp_descriptor_set.c
+index 58c7fa9d7fa..282f98cd1f4 100644
+--- a/src/gallium/frontends/lavapipe/lvp_descriptor_set.c
++++ b/src/gallium/frontends/lavapipe/lvp_descriptor_set.c
+@@ -108,9 +108,6 @@ VKAPI_ATTR VkResult VKAPI_CALL lvp_CreateDescriptorSetLayout(
+    VK_FROM_HANDLE(lvp_device, device, _device);
+    struct lvp_descriptor_set_layout *set_layout;
+ 
+-   const VkMutableDescriptorTypeCreateInfoEXT *mutable_info =
+-      vk_find_struct_const(pCreateInfo->pNext, MUTABLE_DESCRIPTOR_TYPE_CREATE_INFO_EXT);
+-
+    assert(pCreateInfo->sType == VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO);
+    uint32_t num_bindings = 0;
+    uint32_t immutable_sampler_count = 0;
+@@ -207,9 +204,9 @@ VKAPI_ATTR VkResult VKAPI_CALL lvp_CreateDescriptorSetLayout(
+       set_layout->binding[b].max_plane_count = max_plane_count;
+ 
+       uint32_t descriptor_size = lvp_get_descriptor_size(binding->descriptorType);
+-      if (binding->descriptorType == VK_DESCRIPTOR_TYPE_MUTABLE_EXT && mutable_info) {
++      if (binding->descriptorType == VK_DESCRIPTOR_TYPE_MUTABLE_EXT) {
+          descriptor_size = 0;
+-         const VkMutableDescriptorTypeListEXT *type_list = &mutable_info->pMutableDescriptorTypeLists[j];
++         const VkMutableDescriptorTypeListEXT *type_list = &sorted->mutable_type_lists[j];
+          for (uint32_t k = 0; k < type_list->descriptorTypeCount; k++)
+             descriptor_size = MAX2(descriptor_size, lvp_get_descriptor_size(type_list->pDescriptorTypes[k]));
+       }

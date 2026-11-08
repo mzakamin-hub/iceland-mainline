@@ -1,6 +1,6 @@
 Name:    libcamera
-Version: 0.7.1
-Release: 3%{?dist}.iceland_af1
+Version: 0.7.2
+Release: 5%{?dist}.iceland_af2
 Summary: A library to support complex camera ISPs
 # see .reuse/dep5 and COPYING for details
 License: LGPL-2.1-or-later
@@ -12,8 +12,9 @@ Source2: qcam.metainfo.xml
 Source3: 70-libcamera.rules
 
 Patch01: 0001-disable-rpi-pisp.patch
-# OnePlus Pad 4 (afnxp): contrast-detect autofocus in the simple pipeline + soft ISP
-# 0001-0003 from Osilvfe/libcamera caihong-camera (2f4cf4a413, 9afba3cd3d, 1b79c8179a), 0004 ours
+Patch02: 0002-fix-ov01a10-flickering.patch
+# OnePlus Pad 4 (iceland): contrast-detect autofocus for the simple pipeline + soft ISP
+# 90-92 from Osilvfe/libcamera (2f4cf4a413, 9afba3cd3d, 1b79c8179a), 93 ours; same as 0.7.1-3.iceland_af1
 Patch90: 0001-pipeline-simple-add-native-manual-focus-control.patch
 Patch91: 0002-software_isp-report-a-luminance-gradient-focus-metri.patch
 Patch92: 0003-pipeline-simple-add-contrast-detect-autofocus.patch
@@ -33,13 +34,10 @@ BuildRequires: gnutls-devel
 BuildRequires: pkgconfig(gstreamer-video-1.0)
 BuildRequires: pkgconfig(gstreamer-allocators-1.0)
 BuildRequires: libatomic
+BuildRequires: pkgconfig(libdw)
 BuildRequires: libevent-devel
 BuildRequires: libjpeg-turbo-devel
 BuildRequires: libtiff-devel
-%if ! 0%{?rhel}
-BuildRequires: libunwind-devel
-BuildRequires: pkgconfig(libdw)
-%endif
 BuildRequires: libyaml-devel
 BuildRequires: libyuv-devel
 BuildRequires: lttng-ust-devel
@@ -125,8 +123,6 @@ Python bindings for %{name}
 %autosetup -p1 -n %{name}-v%{version}
 
 %build
-# cam/qcam crash with LTO
-%global _lto_cflags %{nil}
 export CFLAGS="%{optflags} -Wno-deprecated-declarations"
 # Set also max-devirt-targets=1 to prevent compilation errors,
 # maybe due to https://gcc.gnu.org/bugzilla/show_bug.cgi?id=120345.
@@ -137,7 +133,7 @@ export CXXFLAGS="%{optflags} -Wno-deprecated-declarations --param=max-devirt-tar
 %meson \
     -Dv4l2=enabled \
     -Dlc-compliance=disabled \
-    %{?rhel:-Dlibunwind=disabled} \
+    -Dlibunwind=disabled \
     -Dtest=true \
     -Ddocumentation=disabled \
     -Drpi-awb-nn=disabled \
@@ -208,8 +204,8 @@ install -D -m 644 %SOURCE3 %{buildroot}/%{_udevrulesdir}/
 %{python3_sitearch}/*
 
 %changelog
-* Thu Oct 22 2026 mzak <mzak.amin@gmail.com> - 0.7.1-3.iceland_af1
-- OnePlus Pad 4: autofocus for the simple pipeline (lens control, soft ISP focus
-  metric, contrast-detect AF; continuous by default, LIBCAMERA_SIMPLE_AF_MODE /
-  LIBCAMERA_SIMPLE_AF_RANGE)
+* Sat Nov 07 2026 mzak <mzak.amin@gmail.com> - 0.7.2-5.iceland_af2
+- OnePlus Pad 4: the autofocus patches of 0.7.1-3.iceland_af1 on Fedora's 0.7.2-5
+  (lens control, soft ISP focus metric, contrast-detect AF; continuous by default,
+  LIBCAMERA_SIMPLE_AF_MODE / LIBCAMERA_SIMPLE_AF_RANGE)
 - the earlier changelog entries are Fedora's: https://src.fedoraproject.org/rpms/libcamera

@@ -1,0 +1,40 @@
+From cef3b39f15237caf241b279b399a4ba936e9123b Mon Sep 17 00:00:00 2001
+From: Connor Abbott <cwabbott0@gmail.com>
+Date: Wed, 12 Aug 2026 14:55:09 -0400
+Subject: [PATCH] tu: Don't flush for sysmem resolves if there are no resolves
+
+We were accidentally flushing way too much because in the
+dynamic-rendering case we always set resolve_attachments, even if all
+the resolve attachments were NULL.
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/43714>
+---
+ src/freedreno/vulkan/tu_cmd_buffer.cc | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/src/freedreno/vulkan/tu_cmd_buffer.cc b/src/freedreno/vulkan/tu_cmd_buffer.cc
+index 31c62b3e8ad..8cf7fee8926 100644
+--- a/src/freedreno/vulkan/tu_cmd_buffer.cc
++++ b/src/freedreno/vulkan/tu_cmd_buffer.cc
+@@ -1919,7 +1919,21 @@ tu6_emit_sysmem_resolves(struct tu_cmd_buffer *cmd,
+                          struct tu_cs *cs,
+                          const struct tu_subpass *subpass)
+ {
++   /* Every slot can be UNUSED if there are no resolves. Don't pay the flushes
++    * below for an empty one.
++    */
++   bool any_resolves = false;
+    if (subpass->resolve_attachments) {
++      for (unsigned i = 0; i < subpass->resolve_count; i++) {
++         if (subpass->resolve_attachments[i].attachment !=
++             VK_ATTACHMENT_UNUSED) {
++            any_resolves = true;
++            break;
++         }
++      }
++   }
++
++   if (any_resolves) {
+       /* From the documentation for vkCmdNextSubpass, section 7.4 "Render Pass
+        * Commands":
+        *
