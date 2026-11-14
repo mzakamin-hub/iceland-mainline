@@ -7,7 +7,7 @@
 # A working row without an entry here is listed with its internal note, cleaned of run ids; build.py warns about it.
 # Keep the entries in sync when a matrix-*.py script adds, renames or re-words a working row.
 
-PUBLIC_STATUS = ("Fedora 45 is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel); the project's tablet runs KDE Plasma 6, the install image sets up GNOME 50. Current versions: kernel 7.4.0-rc1-iceland-00704 (q91k, the patch queue on Linux v7.4-rc1; iceland-linux branch iceland-7.4-rc1, release q91k), iceland-device 0.28-51, iceland-firmware 11.A.38-6, U-Boot install build v7. The project's packages are signed with RPM-GPG-KEY-iceland.")
+PUBLIC_STATUS = ("Fedora 45 is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel); the project's tablet runs KDE Plasma 6, the install image sets up GNOME 50. Current versions: kernel 7.4.0-rc1-iceland-00743 (q91n, the patch queue on Linux v7.4-rc1; iceland-linux branch iceland-7.4-rc1, release q91n), iceland-device 0.28-51, iceland-firmware 11.A.38-6, U-Boot install build v7. The project's packages are signed with RPM-GPG-KEY-iceland.")
 
 PUBLIC = {
 # Boot & platform
@@ -22,7 +22,7 @@ PUBLIC = {
     "Boots a “fedora” partition if there is one, else the Fedora image in userdata.",
 "Linux 7.4 base (linux-next) through EFI": (
     "Linux (7.4 base)",
-    "Linux with the Pad 4 patch queue on Linux v7.4-rc1 (current kernel 7.4.0-rc1-iceland-00704, q91k, iceland-linux branch iceland-7.4-rc1 and its q91k release) boots through U-Boot's EFI, Fedora's shim and GRUB. Since q91c: GPU recovery without deadlock, Night Light, faster sleep on cover close, Bluetooth / Wi-Fi robustness fixes and the USB connector temperature."),
+    "Linux with the Pad 4 patch queue on Linux v7.4-rc1 (current kernel 7.4.0-rc1-iceland-00743, q91n, iceland-linux branch iceland-7.4-rc1 and its q91n release) boots through U-Boot's EFI, Fedora's shim and GRUB. Since q91c: GPU recovery without deadlock, Night Light, faster sleep on cover close, Bluetooth / Wi-Fi robustness fixes and the USB connector temperature; q91n adds 25 security fixes from mainline and Qualcomm remoteproc / smem bounds checks."),
 "Internal storage (UFS 4)":
     "UFS 4 with 4 KiB blocks in MCQ mode (9 hardware queues per LUN), about 2.3 GB/s direct read. The installed "
     "root is btrfs (zstd compression) in userdata; with iceland-device 0.28-32's device-mapper option "
@@ -248,7 +248,7 @@ PUBLIC = {
     "GNOME Camera (Snapshot) works with both cameras (40 of 40 open / close cycles clean).",
 # Software & packaging
 "Kernel package (kernel-iceland)": 
-    "kernel-iceland RPMs (current 7.4.0~rc1.iceland.00704) install and update with dnf on the installed system; the GRUB menu keeps the previous kernels. The camera and backlight modules are included; no firmware is inside. The source RPM carries the whole patch queue.",
+    "kernel-iceland RPMs (current 7.4.0~rc1.iceland.00743) install and update with dnf on the installed system; the GRUB menu keeps the previous kernels. The camera and backlight modules are included; no firmware is inside. The source RPM carries the whole patch queue.",
 "Device package (iceland-device 0.28-32)": (
     "Device package (iceland-device)",
     "iceland-device 0.28-51 carries the tablet's settings: the battery guard, the thermal policy, the sound profile (speakers, headphones, DisplayPort audio, the microphones and the PipeWire clock domains), the memory settings, the sensor and Bluetooth address services, the cover detector, the power-key handling, the GPU firmware choice, the refresh-rate switch, the power-saving boot options, the Fedora release pin with the one hold file, the signing key, automatic brightness by default and the device-mapper option that lets TRIM reach the flash."),

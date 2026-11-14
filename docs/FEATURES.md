@@ -1,6 +1,6 @@
 # OnePlus Pad 4 mainline: what works
 
-Status 8 Nov 2026. Fedora 45 is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel); the project's tablet runs KDE Plasma 6, the install image sets up GNOME 50. Current versions: kernel 7.4.0-rc1-iceland-00704 (q91k, the patch queue on Linux v7.4-rc1; iceland-linux branch iceland-7.4-rc1, release q91k), iceland-device 0.28-51, iceland-firmware 11.A.38-6, U-Boot install build v7. The project's packages are signed with RPM-GPG-KEY-iceland.
+Status 14 Nov 2026. Fedora 45 is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel); the project's tablet runs KDE Plasma 6, the install image sets up GNOME 50. Current versions: kernel 7.4.0-rc1-iceland-00743 (q91n, the patch queue on Linux v7.4-rc1; iceland-linux branch iceland-7.4-rc1, release q91n), iceland-device 0.28-51, iceland-firmware 11.A.38-6, U-Boot install build v7. The project's packages are signed with RPM-GPG-KEY-iceland.
 
 This list shows the 112 features that work today, sorted by functionality. Features that are still being worked on are not listed.
 
@@ -10,7 +10,7 @@ This list shows the 112 features that work today, sorted by functionality. Featu
 |---|---|
 | U-Boot (install build and RAM boot) | The stock boot loader (ABL) starts U-Boot from boot_b, and U-Boot starts Fedora through EFI. The install build (v7 since 17 Oct 2026) shows a power-on boot menu on the keys (Fedora, BlissROM on the dual-boot layout, or the boot loader's fastboot), boots Fedora by default and never resets or powers off by itself. A RAM-boot build gives display, USB fastboot, UFS read and EFI, with fastboot flashing compiled out. |
 | U-Boot boot setting for single or dual boot | Boots a “fedora” partition if there is one, else the Fedora image in userdata. |
-| Linux (7.4 base) | Linux with the Pad 4 patch queue on Linux v7.4-rc1 (current kernel 7.4.0-rc1-iceland-00704, q91k, iceland-linux branch iceland-7.4-rc1 and its q91k release) boots through U-Boot's EFI, Fedora's shim and GRUB. Since q91c: GPU recovery without deadlock, Night Light, faster sleep on cover close, Bluetooth / Wi-Fi robustness fixes and the USB connector temperature. |
+| Linux (7.4 base) | Linux with the Pad 4 patch queue on Linux v7.4-rc1 (current kernel 7.4.0-rc1-iceland-00743, q91n, iceland-linux branch iceland-7.4-rc1 and its q91n release) boots through U-Boot's EFI, Fedora's shim and GRUB. Since q91c: GPU recovery without deadlock, Night Light, faster sleep on cover close, Bluetooth / Wi-Fi robustness fixes and the USB connector temperature; q91n adds 25 security fixes from mainline and Qualcomm remoteproc / smem bounds checks. |
 | Internal storage (UFS 4) | UFS 4 with 4 KiB blocks in MCQ mode (9 hardware queues per LUN), about 2.3 GB/s direct read. The installed root is btrfs (zstd compression) in userdata; with iceland-device 0.28-32's device-mapper option (iceland.carrier.map=dm) TRIM reaches the flash (fstrim, btrfs discard=async). The LUNs use the none I/O scheduler. |
 | Hardware watchdog | qcom_wdt with a 30 s timeout, fed by systemd: a hung system reboots by itself. |
 | System cache (LLCC) and memory error counters | The system cache driver (qcom-llcc) binds, and EDAC reports the memory error counters (no errors recorded). |
@@ -155,7 +155,7 @@ This list shows the 112 features that work today, sorted by functionality. Featu
 
 | Feature | What works |
 |---|---|
-| Kernel package (kernel-iceland) | kernel-iceland RPMs (current 7.4.0~rc1.iceland.00704) install and update with dnf on the installed system; the GRUB menu keeps the previous kernels. The camera and backlight modules are included; no firmware is inside. The source RPM carries the whole patch queue. |
+| Kernel package (kernel-iceland) | kernel-iceland RPMs (current 7.4.0~rc1.iceland.00743) install and update with dnf on the installed system; the GRUB menu keeps the previous kernels. The camera and backlight modules are included; no firmware is inside. The source RPM carries the whole patch queue. |
 | Device package (iceland-device) | iceland-device 0.28-51 carries the tablet's settings: the battery guard, the thermal policy, the sound profile (speakers, headphones, DisplayPort audio, the microphones and the PipeWire clock domains), the memory settings, the sensor and Bluetooth address services, the cover detector, the power-key handling, the GPU firmware choice, the refresh-rate switch, the power-saving boot options, the Fedora release pin with the one hold file, the signing key, automatic brightness by default and the device-mapper option that lets TRIM reach the flash. |
 | Update policy and minimal package holds | Fedora updates normally, with a read-only snapshot before each transaction and a GRUB rollback entry. Kernels and the project's packages come only from the local repository and are signed with the project key (RPM-GPG-KEY-iceland, fingerprint FF9C6A4E64CB38F01035AD7F939BE983CCA25574); the release is pinned to Fedora 45. |
 | Full GNOME app set | Fedora 44 Workstation's default GNOME apps, the on-screen keyboard and GNOME Software with Flathub. Confirmed working by the owner on 22 Oct 2026. |

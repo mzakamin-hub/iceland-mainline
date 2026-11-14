@@ -38,6 +38,23 @@ Repos: [iceland-mainline](https://github.com/mzakamin-hub/iceland-mainline) ·
 - The feature matrix row "Headset over USB-C" is corrected to in progress: an analog headset needs the accessory-mode
   device tree, and listening with a headset is still to be done.
 
+## 2026-11-14 - kernel q91n: mainline security fixes
+
+- **Kernel q91n** (`7.4.0-rc1-iceland-00743`) is the newest release
+  ([q91n](https://github.com/mzakamin-hub/iceland-linux/releases/tag/q91n): kernel RPM, source RPM with the whole
+  queue, the optional headset DTB, `SHA256SUMS`; the file names carry `.` where the package version has `~`). It is
+  q91k plus:
+  - 25 security fixes from mainline: mac80211 use-after-free on an MLO link rollback and on TTLM disconnect, cfg80211
+    regulatory rule out-of-bounds read, TCP Fast Open and ipv6 raw socket use-after-free, TCP / ipv6 RCU frees,
+    GUP-fast bounds, memcg / THP / khugepaged / shmem / vma fixes, essiv, btrfs, netfilter SIP, Bluetooth CIS / CIG
+    length checks, smb client bounds;
+  - Qualcomm remoteproc / mdt_loader / smem bounds checks and the msm VM_BIND unmap fix;
+  - ath12k fixes for a firmware crash around resume.
+  Config and device trees are q91k's. The USB-PD 9 V change in the queue (series `0039-q91m-pd`) is included but not
+  yet checked with a PD charger.
+- Checked on the tablet with q91n: no new kernel warnings or error kinds against q91k; GPU recovery, Bluetooth, video
+  decode, the audio DSP and Wi-Fi reconnect as with q91k; 20 of 20 s2idle cycles with Wi-Fi back at once.
+
 ## 2026-11-08 - Fedora 45, kernel q91k, iceland-device 0.28-51, signed packages, Night Light, DexHid
 
 - **Fedora 45.** The project's tablet moved from Fedora 44 to Fedora 45 with dnf's offline upgrade. iceland-device
