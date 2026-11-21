@@ -1,4 +1,4 @@
-From 6ce5aa1292d770f39c6e21b21bdbed13dfa98b5b Mon Sep 17 00:00:00 2001
+From 4bcbeae4cda2d8a8362f3642a4507683e0ee76fd Mon Sep 17 00:00:00 2001
 From: Karmjit Mahil <karmjit.mahil@igalia.com>
 Date: Mon, 19 Oct 2026 12:48:45 +0100
 Subject: [PATCH] tu: Drop reference taken with get_vis_stream_patchpoint_cs()

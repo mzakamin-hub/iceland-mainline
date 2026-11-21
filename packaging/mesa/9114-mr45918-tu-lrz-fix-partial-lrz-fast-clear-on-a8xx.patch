@@ -1,4 +1,4 @@
-From 6cfdd2b3b9b9c23ecf062d8e451ab5c2a7b5abc3 Mon Sep 17 00:00:00 2001
+From 7b0a526fa45d475eaa161ec534986b9c4b45aa35 Mon Sep 17 00:00:00 2001
 From: Danylo Piliaiev <dpiliaiev@igalia.com>
 Date: Tue, 3 Nov 2026 15:28:38 +0100
 Subject: [PATCH 1/2] tu/lrz: Fix partial LRZ fast-clear on A8XX
@@ -180,7 +180,7 @@ index 199c7d13ea6..46147b75067 100644
            */
           assert(lrz->lrz_layer_size % clear_block_bytes == 0);
 
-From db696384b297fecde770133140fa2f14406ab8b0 Mon Sep 17 00:00:00 2001
+From 316a8a1a2329fa7b9ea9ac36cddecf3430d228e2 Mon Sep 17 00:00:00 2001
 From: Danylo Piliaiev <dpiliaiev@igalia.com>
 Date: Wed, 4 Nov 2026 11:41:41 +0100
 Subject: [PATCH 2/2] tu/lrz: Align LRZ pitch to 32 instead of 64 on A8XX

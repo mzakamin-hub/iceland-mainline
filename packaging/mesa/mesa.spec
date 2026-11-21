@@ -84,10 +84,11 @@ Name:           mesa
 Summary:        Mesa graphics libraries
 # iceland (OnePlus Pad 4, Adreno 840 / gen8): Fedora 45's mesa.spec (dist-git f45 13d08919, 26.2.6) with the
 # version, the source and the patches changed; one build option added (-Dfreedreno-kmds=msm,virtio, see %%build).
-# Base: Mesa staging/26.3 at 25248e6d (2026-11-04) = 26.3.0-rc3 + 137 commits (26.3.0 not tagged yet).
-# 26.3.0~rc3^git... sorts above 26.3.0~rc3 and the earlier 26.3.0~rc1~git20261019.e282ea8c iceland builds and
-# below the 26.3.0 release. ".iceland1" marks the local build.
-Version:        26.3.0~rc3^git20261104.25248e6
+# Base: Mesa staging/26.3 at 6cd33b7f (2026-11-20) = 26.3.1 + 49 commits (stable fixes, among them the turnip
+# descriptor-set UAF and alignment fixes 0f9dcc7f / f975da88).
+# 26.3.1^git... sorts above 26.3.1 (Fedora Rawhide) and the earlier 26.3.0~rc3^git20261104.25248e6 iceland build,
+# and below 26.3.2. ".iceland1" marks the local build.
+Version:        26.3.1^git20261120.6cd33b7
 Release:        1%{?dist}.iceland1
 License:        MIT AND BSD-3-Clause AND SGI-B-2.0
 URL:            https://mesa3d.org
@@ -96,9 +97,9 @@ URL:            https://mesa3d.org
 # However, the tarball has the format: A.B.C-rcX.
 # The "ver" variable contains the version in the second format.
 # iceland: written out for the snapshot ('^' is a pattern anchor in %%gsub); keep in step with Version
-%global ver 26.3.0-rc3-git20261104.25248e6
+%global ver 26.3.1-git20261120.6cd33b7
 
-# iceland: "git archive --prefix=mesa-%%{ver}/" of staging/26.3 at 25248e6de63639c3d3258abb7b3b1c9b0fd66e65
+# iceland: "git archive --prefix=mesa-%%{ver}/" of staging/26.3 at 6cd33b7f68ee04c5270215591b2d29535af291bd
 # (https://gitlab.freedesktop.org/mesa/mesa.git), xz -9
 Source0:        mesa-%{ver}.tar.xz
 # src/gallium/auxiliary/postprocess/pp_mlaa* have an ... interestingly worded license.
@@ -127,10 +128,15 @@ Source13:       https://crates.io/api/v1/crates/syn/%{rust_syn_ver}/download#/sy
 Source14:       https://crates.io/api/v1/crates/unicode-ident/%{rust_unicode_ident_ver}/download#/unicode-ident-%{rust_unicode_ident_ver}.tar.gz
 Source15:       https://crates.io/api/v1/crates/rustc-hash/%{rustc_hash_ver}/download#/rustc-hash-%{rustc_hash_ver}.tar.gz
 
-# iceland: Adreno 840 (a8xx / gen8) and shared ir3 / turnip / freedreno work not in staging/26.3 (2026-11-07):
-# one file per merge request, "git format-patch" of the commits as applied in this order on 25248e6d (merged
+# iceland: Adreno 840 (a8xx / gen8) and shared ir3 / turnip / freedreno work not in staging/26.3 (2026-11-21):
+# one file per merge request, "git format-patch" of the commits as applied in this order on 6cd33b7f (merged
 # MRs: the commits as merged on main; open MRs: the MR head). Authors and messages kept. All apply with
-# patch -p1 --fuzz=0 in this order. Drop a patch once its MR is in the 26.3.x tag being built.
+# patch -p1 --fuzz=0 in this order. Numbers 9101-9130 = the same MR as in the 26.3.0~rc3^git20261104 build;
+# 9126 (!45727) dropped: both commits are in 26.3.1. New items (9131+) carry a text header (MR, author, URL,
+# head sha, review state on 21 Nov 2026) before the first mail; patch(1) skips it.
+# Not taken on purpose: !46240 (gen8 VPC GMEM cache rework, main only): alone it hangs every A840 app, it needs
+# !46551 (main only); both stay out with the 26.3 base. !46016 (X2-90 sysmem depth CCU FULL): the A840 table is
+# unchanged; an env-gated opt-in A840 variant exists as a separate patch and is not part of this package.
 # -- merged on main, not in 26.3 --
 # !45525 (open, the 26.3 backport of !44352, merged on main 22 Oct): tu/a8xx split large indirect (count) draws -
 #   large indirect draws fault on A8xx (was 9001)
@@ -149,12 +155,14 @@ Patch9106:      9106-mr45554-freedreno-record-the-batch-s-write-when-a-query.pat
 Patch9107:      9107-mr45506-tu-have-gl-behavior-for-primitive-generated-quer.patch
 # !45464: ir3 source-modifier copy propagation + the IR3_REG_BNOT flags fix (replaces the closed !45434 ashr.b
 #   miscompile fix); its tu/ci trace-checksum commit left out
+#   (its commit "ir3: Give is_same_type_mov() an option..." is in 26.3.1 and left out here: 5 of 6)
 Patch9108:      9108-mr45464-ir3-better-copy-prop-for-source-modifiers.patch
 # !45517: ir3/ra DOUBLE_ONLY register limit unit
 Patch9109:      9109-mr45517-ir3-ra-fix-double-only-register-limit-unit.patch
 # !45559: vulkan runtime / tu (+ radv, lavapipe) per-binding pNext data in pBindings order
 Patch9110:      9110-mr45559-vulkan-sort-per-binding-pnext-data-in-vk-create.patch
 # !45601: tu software multiview with indirect draws; freedreno OpenCL subgroup size (CI-expectation commit left out)
+#   ("freedreno: keep the real subgroup size for OpenCL kernels" is in 26.3.1; only the tu commit remains)
 Patch9111:      9111-mr45601-tu-ir3-fix-a702-regressions.patch
 # !43899: tu drop the CCU depth invalidation on occlusion query end (the merged version; was 9007, an earlier MR
 #   head); its src/freedreno/ci/freedreno-a750-fails.txt hunk left out
@@ -166,28 +174,31 @@ Patch9114:      9114-mr45918-tu-lrz-fix-partial-lrz-fast-clear-on-a8xx.patch
 # !45981: ir3 OpQuantizeToF16 flushes FP16 subnormals
 Patch9115:      9115-mr45981-freedreno-ir3-lower-fp32-to-fp16-for-subnormals.patch
 # !46027: ir3 fold fsat into (sat) only on cat2/3 float instructions (miscompile)
+#   (2 of 3 commits are in 26.3.1; only "ir3: rename is_sat_compatible to sat_is_fsat" remains, 9128 uses
+#   the new name)
 Patch9116:      9116-mr46027-ir3-only-fold-fsat-to-sat-on-cat2-3-float-instru.patch
-# -- open merge requests (MR heads of 2026-11-07) --
-# !45243: tu inline uniform block fixes (was 9005)
+# -- merged on main since 7 Nov: refreshed from the merged commits --
+# !45243 (merged on main 9 Nov; refreshed from main, same diff as the 7 Nov MR head): tu inline uniform block fixes
 Patch9117:      9117-mr45243-tu-inline-uniform-block-fixes.patch
-# !44365: nir/ir3 32-bit udiv wrong quotient when rcp rounds up (seen on a830 / gen8; was 9006)
+# !44365 (merged on main 13 Nov; refreshed, same diff): nir/ir3 32-bit udiv wrong quotient when rcp rounds up
 Patch9118:      9118-mr44365-nir-ir3-fix-32-bit-udiv-when-rcp-rounds-up.patch
-# !45937: tu WFI before reading just-written registers (A8XX: all register-read packets; multisample CTS)
+# !45937 (merged on main 9 Nov; refreshed, same diff): tu WFI before reading just-written registers (A8XX)
 Patch9119:      9119-mr45937-tu-wfi-before-reading-registers-that-were-just-w.patch
-# !45985: tu carry flush bits for suspend/resume chains split over command buffers
+# !45985 (merged on main 10 Nov in a NEW form, refreshed): "tu: Emit pending flushes when ending a command buffer
+#   in a s/r chain" replaces the 7 Nov MR head "Carry flush bits for suspended s/r chains"
 Patch9120:      9120-mr45985-tu-carry-flush-bits-for-suspended-s-r-chains-bet.patch
+# -- open merge requests (heads unchanged since 7 Nov) / !45958 merged 8 Nov --
 # !45926: tu wait for VM_BIND unmap completion before freeing (msm VM_BIND memory churn)
 Patch9121:      9121-mr45926-tu-wait-for-vm-bind-unmap-completion-before-free.patch
 # !45904: tu sample counts across GMEM preemption (occlusion queries / autotune with preemption on)
-Patch9122:      9122-mr45904-tu-preserve-sample-counts-across-gmem-preemption.patch
+Patch9122:      9122-mr45904-turnip-preserve-sample-counts-across-gmem-preemp.patch
 # !45928: ir3 merge_sets_interfere per-set dominance stacks (pipeline compile time)
 Patch9123:      9123-mr45928-ir3-keep-separate-dominance-stacks-in-merge-sets.patch
 # !46023: ir3 is_{ss,sy}_producer fixes and their use in legalize (local atomics sync)
 Patch9124:      9124-mr46023-ir3-fix-is-ss-sy-producer-and-use-in-legalize.patch
-# !45958: freedreno/ir3 api_wavesize DOUBLE_ONLY for GL non-compute shaders on gen6+ (GPU hang in subgroup tests)
+# !45958 (merged on main 8 Nov; refreshed from main, the merged diff differs from the 7 Nov MR head):
+#   freedreno/ir3 api_wavesize DOUBLE_ONLY for GL non-compute shaders on gen6+ (GPU hang in subgroup tests)
 Patch9125:      9125-mr45958-freedreno-ir3-set-api-wavesize-double-only-for-g.patch
-# !45727: dri / freedreno round up the NV12 chroma plane (odd sizes, UBWC layout = display / video)
-Patch9126:      9126-mr45727-freedreno-round-up-the-nv12-chroma-plane-size.patch
 # -- general freedreno / turnip / ir3 performance + correctness (open MRs, owner request 7 Nov) --
 # !44712: ir3/lower_copies keep partially blocked copies whole (author: -6.47% instrs on the affected shaders)
 Patch9127:      9127-mr44712-ir3-lower-copies-don-t-split-partially-blocked-c.patch
@@ -197,6 +208,31 @@ Patch9128:      9128-mr37924-ir3-add-opt-absneg-pass.patch
 Patch9129:      9129-mr43714-tu-don-t-flush-for-sysmem-resolves-if-there-are.patch
 # !43272: tu synchronize no-rast-order and rast-order draws (VK_EXT_rasterization_order_attachment_access)
 Patch9130:      9130-mr43272-tu-synchronize-access-between-no-rast-order-and.patch
+# -- additions of 21 Nov 2026: pending A840 merge requests (incl. the early-preamble FPS one); none approved upstream yet --
+# !46456 (Artem Peshkov, head ad9b0c537750): tu/a8xx: reset LRZ control after flush
+Patch9131:      9131-mr46456-tu-a8xx-reset-lrz-control-after-flush.patch
+# !46139 (Danylo Piliaiev, head 1551118c8971): tu/a8xx: Use SUBPASS_FENCE before reading resolved into sysmem input attachments in gmem
+Patch9132:      9132-mr46139-tu-a8xx-use-subpass-fence-before-reading-resolve.patch
+# !46146 (Dhruv Mark Collins, head 5bcf6f450280): turnip: Emit GPU-patched vis stream packets into IB2s
+Patch9133:      9133-mr46146-turnip-emit-gpu-patched-vis-stream-packets-into.patch
+# !46147 (Dhruv Mark Collins, head 33f0b69d0f5e): turnip: Fix the FDM aspect guard and bound the FDM offset LRZ padding
+Patch9134:      9134-mr46147-turnip-fix-the-fdm-aspect-guard-and-bound-the-fd.patch
+# !46194 (Karmjit Mahil, head 1556c4c5db76): tu: Update input attachment idx when MSRTSS internal is used
+Patch9135:      9135-mr46194-tu-update-input-attachment-idx-when-msrtss-inter.patch
+# !46592 (Artem Peshkov, head d9e92f5ba2f2): tu: mark dynamic descriptor sizes of empty shaders unknown
+Patch9136:      9136-mr46592-tu-mark-dynamic-descriptor-sizes-of-empty-shader.patch
+# !46182 (TobiasWienand, head 347da075a10b): ir3/array_to_ssa: don't resolve readers to deleted phis
+Patch9137:      9137-mr46182-ir3-array-to-ssa-don-t-resolve-readers-to-delete.patch
+# !46556 (Artem Peshkov, head e47af2439bbc): ir3: keep the preamble early on GPUs with early preamble
+Patch9138:      9138-mr46556-ir3-keep-the-preamble-early-on-gpus-with-early-p.patch
+# !46398 (Job Noorman, head 1c0f791f925e): ir3/sched: allow a0.x/a1.x writes to be scheduled earlier
+Patch9139:      9139-mr46398-ir3-sched-allow-a0-x-a1-x-writes-to-be-scheduled.patch
+# !46589 (Artem Peshkov, head 42024ea762ef): freedreno/a8xx: use the A8xx compute workgroup tile height
+Patch9140:      9140-mr46589-freedreno-a8xx-use-the-a8xx-compute-workgroup-ti.patch
+# armada PR #894 (0016, MIT, Armada contributors; not in Mesa upstream): freedreno/a8xx: wait for ZPASS_DONE sample count writes
+Patch9141:      9141-armada0016-freedreno-a8xx-wait-for-zpass-done-sample-count.patch
+# armada PR #894 (0017, MIT, Armada contributors; not in Mesa upstream): freedreno/a8xx: emit an RB_DONE_TS event after each draw
+Patch9142:      9142-armada0017-freedreno-a8xx-emit-an-rb-done-ts-event-after-ea.patch
 
 BuildRequires:  meson >= 1.3.0
 BuildRequires:  gcc
@@ -843,6 +879,17 @@ ln -s libGLX_mesa.so.0 %{buildroot}%{_libdir}/libGLX_system.so.0
 %endif
 
 %changelog
+* Sat Nov 21 2026 mzak <mzak.amin@gmail.com> - 26.3.1^git20261120.6cd33b7-1.iceland1
+- Rebase onto Mesa staging/26.3 6cd33b7f (26.3.1 + 49 stable fixes)
+- drop !45727 (in 26.3.1); drop the parts of !45464, !45601, !46027 that are in 26.3.1
+- refresh !45243, !44365, !45937, !45985, !45958 from their commits merged on main
+- add open MRs: !46456, !46139 (A840 correctness); !46146, !46147, !46194,
+  !46592, !46182 (CTS fixes); !46556 (early preamble), !46398 (ir3 a0/a1
+  scheduling), !46589 (a8xx compute workgroup tile height)
+- add armada PR #894 0016 / 0017: freedreno A8xx ZPASS_DONE wait and RB_DONE_TS
+  after each draw (GL hang fixes, MIT, Armada contributors)
+- not taken: !46240 + !46551 (main only), !46016 (opt-in patch kept outside)
+
 * Sat Nov 07 2026 mzak <mzak.amin@gmail.com> - 26.3.0~rc3^git20261104.25248e6-1.iceland1
 - Fedora 45's mesa.spec (f45 13d08919, 26.2.6) for Mesa staging/26.3 25248e6d
   (26.3.0-rc3 + 137 commits; 26.3.0 not tagged yet): version and source; anti-lag

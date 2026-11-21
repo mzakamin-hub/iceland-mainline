@@ -1,4 +1,4 @@
-From cf628d1b6ca555f2511819af80515ac5aaab4ee7 Mon Sep 17 00:00:00 2001
+From f162717eae6ac495c794ad9ba46997b048cb9279 Mon Sep 17 00:00:00 2001
 From: Karmjit Mahil <karmjit.mahil@igalia.com>
 Date: Mon, 19 Oct 2026 11:41:20 +0100
 Subject: [PATCH] tu: Add back float16 3D path for multisampled copies

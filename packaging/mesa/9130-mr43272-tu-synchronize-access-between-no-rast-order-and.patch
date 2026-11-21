@@ -1,4 +1,4 @@
-From 8d45a7fe5a81bf4d337ebc99ce93f5725d353914 Mon Sep 17 00:00:00 2001
+From f9a976b7c5a6824b6008a8611d9e590a622d5c57 Mon Sep 17 00:00:00 2001
 From: Danylo Piliaiev <dpiliaiev@igalia.com>
 Date: Tue, 28 Jul 2026 14:40:57 +0200
 Subject: [PATCH] tu: Synchronize access between no-rast-order and rast-order
@@ -33,10 +33,10 @@ Signed-off-by: Danylo Piliaiev <dpiliaiev@igalia.com>
  1 file changed, 14 insertions(+)
 
 diff --git a/src/freedreno/vulkan/tu_cmd_buffer.cc b/src/freedreno/vulkan/tu_cmd_buffer.cc
-index 8cf7fee8926..066ae97fd76 100644
+index b9598fd0055..d56e4f9f506 100644
 --- a/src/freedreno/vulkan/tu_cmd_buffer.cc
 +++ b/src/freedreno/vulkan/tu_cmd_buffer.cc
-@@ -8716,6 +8716,20 @@ tu6_draw_common(struct tu_cmd_buffer *cmd,
+@@ -8711,6 +8711,20 @@ tu6_draw_common(struct tu_cmd_buffer *cmd,
     if (cmd->state.dirty & TU_CMD_DIRTY_FS)
        tu_flush_dynamic_input_attachments<CHIP>(cmd);
  

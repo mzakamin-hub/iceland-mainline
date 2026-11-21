@@ -1,0 +1,732 @@
+OnePlus Pad 4 (Adreno 840) Mesa package: Mesa MR !46398
+Title:  ir3/sched: allow a0.x/a1.x writes to be scheduled earlier
+Author: Job Noorman
+URL:    https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/46398
+Head:   1c0f791f925e6afdb800b676e59c8592e83eb095 (MR state opened, target main, checked 21 Nov 2026)
+Review: none (author is the ir3 developer Job Noorman; design discussion with Rob Clark)
+Apply:  applies on staging/26.3 6cd33b7f68ee after the patches before it, without conflict or backport
+
+From 746209ff449be32d8e068946d02832284bbb5160 Mon Sep 17 00:00:00 2001
+From: Job Noorman <jnoorman@igalia.com>
+Date: Tue, 17 Nov 2026 16:49:53 +0100
+Subject: [PATCH 1/8] ir3: fix printing of mova/mova1
+
+Use the mova/mova1 mnemonics (like (dis)assembly) and print address
+registers as a0.x/a1.x.
+
+Signed-off-by: Job Noorman <jnoorman@igalia.com>
+---
+ src/freedreno/ir3/instr-a3xx.h |  1 +
+ src/freedreno/ir3/ir3_print.c  | 28 ++++++++++++++++++++++++----
+ 2 files changed, 25 insertions(+), 4 deletions(-)
+
+diff --git a/src/freedreno/ir3/instr-a3xx.h b/src/freedreno/ir3/instr-a3xx.h
+index 83539f250fe..c8573486aef 100644
+--- a/src/freedreno/ir3/instr-a3xx.h
++++ b/src/freedreno/ir3/instr-a3xx.h
+@@ -528,6 +528,7 @@ regid(int num, int comp)
+ /* special registers: */
+ #define REG_A0 61 /* address register */
+ #define REG_A0_X regid(REG_A0, 0)
++#define REG_A1_X regid(REG_A0, 1)
+ #define REG_P0 62 /* predicate register */
+ #define REG_P0_X regid(REG_P0, 0) /* p0.x */
+ 
+diff --git a/src/freedreno/ir3/ir3_print.c b/src/freedreno/ir3/ir3_print.c
+index e1f60e7eeda..8735f22aae0 100644
+--- a/src/freedreno/ir3/ir3_print.c
++++ b/src/freedreno/ir3/ir3_print.c
+@@ -122,7 +122,11 @@ print_instr_name(struct log_stream *stream, struct ir3_instruction *instr,
+       }
+    } else if (opc_cat(instr->opc) == 1) {
+       if (instr->opc == OPC_MOV) {
+-         if (instr->cat1.src_type == instr->cat1.dst_type)
++         if (writes_addr0(instr))
++            mesa_log_stream_printf(stream, "mova");
++         else if (writes_addr1(instr))
++            mesa_log_stream_printf(stream, "mova1");
++         else if (instr->cat1.src_type == instr->cat1.dst_type)
+             mesa_log_stream_printf(stream, "mov");
+          else
+             mesa_log_stream_printf(stream, "cov");
+@@ -177,7 +181,8 @@ print_instr_name(struct log_stream *stream, struct ir3_instruction *instr,
+       }
+ 
+       if (instr->opc != OPC_MOVMSK && instr->opc != OPC_SCAN_MACRO &&
+-          instr->opc != OPC_PUSH_CONSTS_LOAD_MACRO) {
++          instr->opc != OPC_PUSH_CONSTS_LOAD_MACRO && !writes_addr0(instr) &&
++          !writes_addr1(instr)) {
+          mesa_log_stream_printf(stream, ".%s%s",
+                                 type_name(instr->cat1.src_type),
+                                 type_name(instr->cat1.dst_type));
+@@ -320,14 +325,23 @@ print_ssa_name(struct log_stream *stream, struct ir3_register *reg, bool dst)
+    if (reg->num != INVALID_REG && !(reg->flags & IR3_REG_ARRAY)) {
+       const char *prefix = "r";
+       unsigned num = reg_num(reg);
++      unsigned comp = reg_comp(reg);
+ 
+       if (reg->flags & IR3_REG_PREDICATE) {
+          prefix = "p";
+          num = 0;
++      } else if (reg->num == REG_A0_X) {
++         prefix = "a";
++         num = 0;
++         comp = 0;
++      } else if (reg->num == REG_A1_X) {
++         prefix = "a";
++         num = 1;
++         comp = 0;
+       }
+ 
+       mesa_log_stream_printf(stream, "(" SYN_REG("%s%u.%c") ")", prefix, num,
+-                             "xyzw"[reg_comp(reg)]);
++                             "xyzw"[comp]);
+    }
+ }
+ 
+@@ -381,8 +395,10 @@ print_reg_name(struct log_stream *stream, struct ir3_instruction *instr,
+       mesa_log_stream_printf(stream, "u");
+    if (reg->flags & IR3_REG_SHARED)
+       mesa_log_stream_printf(stream, "s");
+-   if (reg->flags & IR3_REG_HALF)
++   if ((reg->flags & IR3_REG_HALF) && reg->num != REG_A0_X &&
++       reg->num != REG_A1_X) {
+       mesa_log_stream_printf(stream, "h");
++   }
+    if (reg->flags & IR3_REG_PREDICATE)
+       mesa_log_stream_printf(stream, "p");
+ 
+@@ -420,6 +436,10 @@ print_reg_name(struct log_stream *stream, struct ir3_instruction *instr,
+       else if (reg->flags & IR3_REG_RT)
+          mesa_log_stream_printf(stream, SYN_RT("rt%u.%c"), reg_num(reg),
+                                 "xyzw"[reg_comp(reg)]);
++      else if (reg->num == REG_A0_X)
++         mesa_log_stream_printf(stream, SYN_REG("a0.x"));
++      else if (reg->num == REG_A1_X)
++         mesa_log_stream_printf(stream, SYN_REG("a1.x"));
+       else
+          mesa_log_stream_printf(stream, SYN_REG("r%u.%c"), reg_num(reg),
+                                 "xyzw"[reg_comp(reg)]);
+
+From d4a63ee20351575587c6b5e98e84ced1834b5414 Mon Sep 17 00:00:00 2001
+From: Job Noorman <jnoorman@igalia.com>
+Date: Tue, 17 Nov 2026 16:49:53 +0100
+Subject: [PATCH 2/8] ir3/sched: remove references to predicate registers
+
+Those haven't been handled by ir3_sched for a while now.
+
+Signed-off-by: Job Noorman <jnoorman@igalia.com>
+---
+ src/freedreno/ir3/ir3_sched.c | 31 +++++++++++++------------------
+ 1 file changed, 13 insertions(+), 18 deletions(-)
+
+diff --git a/src/freedreno/ir3/ir3_sched.c b/src/freedreno/ir3/ir3_sched.c
+index 3f7bb6fb5ed..53bccbe228a 100644
+--- a/src/freedreno/ir3/ir3_sched.c
++++ b/src/freedreno/ir3/ir3_sched.c
+@@ -51,12 +51,12 @@
+  *
+  * There are a few special cases that need to be handled, since sched
+  * is currently independent of register allocation.  Usages of address
+- * register (a0.x) or predicate register (p0.x) must be serialized.  Ie.
+- * if you have two pairs of instructions that write the same special
+- * register and then read it, then those pairs cannot be interleaved.
+- * To solve this, when we are in such a scheduling "critical section",
+- * and we encounter a conflicting write to a special register, we try
+- * to schedule any remaining instructions that use that value first.
++ * registers (a0.x/a1.x) must be serialized.  Ie. if you have two
++ * pairs of instructions that write the same special register and then
++ * read it, then those pairs cannot be interleaved. To solve this,
++ * when we are in such a scheduling "critical section", and we
++ * encounter a conflicting write to a special register, we try to
++ * schedule any remaining instructions that use that value first.
+  *
+  * TODO we can detect too-large live_values here.. would be a good place
+  * to "spill" cheap things, like move from uniform/immed.  (Constructing
+@@ -431,7 +431,7 @@ could_sched(struct ir3_sched_ctx *ctx,
+ }
+ 
+ /* Check if instruction is ok to schedule.  Make sure it is not blocked
+- * by use of addr/predicate register, etc.
++ * by use of addr register, etc.
+  */
+ static bool
+ check_instr(struct ir3_sched_ctx *ctx, struct ir3_sched_notes *notes,
+@@ -440,7 +440,7 @@ check_instr(struct ir3_sched_ctx *ctx, struct ir3_sched_notes *notes,
+    assert(!is_scheduled(instr));
+ 
+    if (instr == ctx->split) {
+-      /* Don't schedule instructions created by splitting a a0.x/a1.x/p0.x
++      /* Don't schedule instructions created by splitting a a0.x/a1.x
+        * write until another "normal" instruction has been scheduled.
+        */
+       return false;
+@@ -452,9 +452,6 @@ check_instr(struct ir3_sched_ctx *ctx, struct ir3_sched_notes *notes,
+    /* For instructions that write address register we need to
+     * make sure there is at least one instruction that uses the
+     * addr value which is otherwise ready.
+-    *
+-    * NOTE if any instructions use pred register and have other
+-    * src args, we would need to do the same for writes_pred()..
+     */
+    if (writes_addr0(instr) && instr->uses) {
+       struct ir3 *ir = instr->block->shader;
+@@ -494,9 +491,8 @@ check_instr(struct ir3_sched_ctx *ctx, struct ir3_sched_notes *notes,
+          return false;
+    }
+ 
+-   /* if this is a write to address/predicate register, and that
+-    * register is currently in use, we need to defer until it is
+-    * free:
++   /* if this is a write to address register, and that register is currently in
++    * use, we need to defer until it is free:
+     */
+    if (writes_addr0(instr) && ctx->addr0) {
+       assert(ctx->addr0 != instr);
+@@ -1169,7 +1165,7 @@ sched_block(struct ir3_sched_ctx *ctx, struct ir3_block *block)
+ {
+    ctx->block = block;
+ 
+-   /* addr/pred writes are per-block: */
++   /* addr writes are per-block: */
+    ctx->addr0 = NULL;
+    ctx->addr1 = NULL;
+    ctx->sy_delay = 0;
+@@ -1246,9 +1242,8 @@ sched_block(struct ir3_sched_ctx *ctx, struct ir3_block *block)
+          struct ir3 *ir = block->shader;
+ 
+          /* nothing available to schedule.. if we are blocked on
+-          * address/predicate register conflict, then break the
+-          * deadlock by cloning the instruction that wrote that
+-          * reg:
++          * address register conflict, then break the deadlock
++          * by cloning the instruction that wrote that reg:
+           */
+          if (notes.addr0_conflict) {
+             new_instr =
+
+From 24a0360d99a7b74ca1b87fcb417ffde7717a4709 Mon Sep 17 00:00:00 2001
+From: Job Noorman <jnoorman@igalia.com>
+Date: Tue, 17 Nov 2026 16:49:53 +0100
+Subject: [PATCH 3/8] ir3/sched: print some more debug info
+
+Signed-off-by: Job Noorman <jnoorman@igalia.com>
+---
+ src/freedreno/ir3/ir3_sched.c | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/src/freedreno/ir3/ir3_sched.c b/src/freedreno/ir3/ir3_sched.c
+index 53bccbe228a..0099c9091c4 100644
+--- a/src/freedreno/ir3/ir3_sched.c
++++ b/src/freedreno/ir3/ir3_sched.c
+@@ -891,9 +891,12 @@ dump_state(struct ir3_sched_ctx *ctx)
+    if (!SCHED_DEBUG)
+       return;
+ 
++   struct ir3_sched_notes notes;
++
+    foreach_sched_node (n, &ctx->dag->heads) {
+-      di(n->instr, "maxdel=%3d le=%d del=%u ", n->max_delay,
+-         live_effect(n->instr), node_delay(ctx, n));
++      di(n->instr, "maxdel=%3d le=%d del=%u should_defer=%u check_instr=%u",
++         n->max_delay, live_effect(n->instr), node_delay(ctx, n),
++         should_defer(ctx, n->instr), check_instr(ctx, &notes, n->instr));
+ 
+       util_dynarray_foreach (&n->dag.edges, struct dag_edge, edge) {
+          struct ir3_sched_node *child = (struct ir3_sched_node *)edge->child;
+
+From 1549cdb31e5fce17bc54dd634d7702ea7fde679a Mon Sep 17 00:00:00 2001
+From: Job Noorman <jnoorman@igalia.com>
+Date: Tue, 17 Nov 2026 16:49:53 +0100
+Subject: [PATCH 4/8] ir3/sched: move split_addr up in its file
+
+We need it earlier in a later commit.
+
+Signed-off-by: Job Noorman <jnoorman@igalia.com>
+---
+ src/freedreno/ir3/ir3_sched.c | 116 +++++++++++++++++-----------------
+ 1 file changed, 58 insertions(+), 58 deletions(-)
+
+diff --git a/src/freedreno/ir3/ir3_sched.c b/src/freedreno/ir3/ir3_sched.c
+index 0099c9091c4..b2768ef308e 100644
+--- a/src/freedreno/ir3/ir3_sched.c
++++ b/src/freedreno/ir3/ir3_sched.c
+@@ -246,6 +246,64 @@ cycle_count(struct ir3_instruction *instr)
+    }
+ }
+ 
++static struct ir3_instruction *
++split_instr(struct ir3_sched_ctx *ctx, struct ir3_instruction *orig_instr)
++{
++   struct ir3_instruction *new_instr = ir3_instr_clone(orig_instr);
++   di(new_instr, "split instruction");
++   sched_node_init(ctx, new_instr);
++   return new_instr;
++}
++
++/* "spill" the address registers by remapping any unscheduled
++ * instructions which depend on the current address register
++ * to a clone of the instruction which wrote the address reg.
++ */
++static struct ir3_instruction *
++split_addr(struct ir3_sched_ctx *ctx, struct ir3_instruction **addr,
++           struct ir3_instruction **users, unsigned users_count)
++{
++   struct ir3_instruction *new_addr = NULL;
++   unsigned i;
++
++   assert(*addr);
++
++   for (i = 0; i < users_count; i++) {
++      struct ir3_instruction *indirect = users[i];
++
++      if (!indirect)
++         continue;
++
++      /* skip instructions already scheduled: */
++      if (is_scheduled(indirect))
++         continue;
++
++      /* remap remaining instructions using current addr
++       * to new addr:
++       */
++      if (indirect->address->def == (*addr)->dsts[0]) {
++         if (!new_addr) {
++            new_addr = split_instr(ctx, *addr);
++            /* original addr is scheduled, but new one isn't: */
++            new_addr->flags &= ~IR3_INSTR_MARK;
++            new_addr->uses = _mesa_pointer_set_create(ctx);
++         }
++         indirect->address->def = new_addr->dsts[0];
++         _mesa_set_add(new_addr->uses, indirect);
++         /* don't need to remove old dag edge since old addr is
++          * already scheduled:
++          */
++         sched_node_add_dep(ctx, indirect, new_addr, 0);
++         di(indirect, "new address");
++      }
++   }
++
++   /* all remaining indirects remapped to new addr: */
++   *addr = NULL;
++
++   return new_addr;
++}
++
+ static void
+ schedule(struct ir3_sched_ctx *ctx, struct ir3_instruction *instr)
+ {
+@@ -933,64 +991,6 @@ choose_instr(struct ir3_sched_ctx *ctx, struct ir3_sched_notes *notes)
+    return NULL;
+ }
+ 
+-static struct ir3_instruction *
+-split_instr(struct ir3_sched_ctx *ctx, struct ir3_instruction *orig_instr)
+-{
+-   struct ir3_instruction *new_instr = ir3_instr_clone(orig_instr);
+-   di(new_instr, "split instruction");
+-   sched_node_init(ctx, new_instr);
+-   return new_instr;
+-}
+-
+-/* "spill" the address registers by remapping any unscheduled
+- * instructions which depend on the current address register
+- * to a clone of the instruction which wrote the address reg.
+- */
+-static struct ir3_instruction *
+-split_addr(struct ir3_sched_ctx *ctx, struct ir3_instruction **addr,
+-           struct ir3_instruction **users, unsigned users_count)
+-{
+-   struct ir3_instruction *new_addr = NULL;
+-   unsigned i;
+-
+-   assert(*addr);
+-
+-   for (i = 0; i < users_count; i++) {
+-      struct ir3_instruction *indirect = users[i];
+-
+-      if (!indirect)
+-         continue;
+-
+-      /* skip instructions already scheduled: */
+-      if (is_scheduled(indirect))
+-         continue;
+-
+-      /* remap remaining instructions using current addr
+-       * to new addr:
+-       */
+-      if (indirect->address->def == (*addr)->dsts[0]) {
+-         if (!new_addr) {
+-            new_addr = split_instr(ctx, *addr);
+-            /* original addr is scheduled, but new one isn't: */
+-            new_addr->flags &= ~IR3_INSTR_MARK;
+-            new_addr->uses = _mesa_pointer_set_create(ctx);
+-         }
+-         indirect->address->def = new_addr->dsts[0];
+-         _mesa_set_add(new_addr->uses, indirect);
+-         /* don't need to remove old dag edge since old addr is
+-          * already scheduled:
+-          */
+-         sched_node_add_dep(ctx, indirect, new_addr, 0);
+-         di(indirect, "new address");
+-      }
+-   }
+-
+-   /* all remaining indirects remapped to new addr: */
+-   *addr = NULL;
+-
+-   return new_addr;
+-}
+-
+ static void
+ sched_node_init(struct ir3_sched_ctx *ctx, struct ir3_instruction *instr)
+ {
+
+From 9e136e3dbc588b3dfd4846d19c8bf9ab914fb167 Mon Sep 17 00:00:00 2001
+From: Job Noorman <jnoorman@igalia.com>
+Date: Tue, 17 Nov 2026 16:49:53 +0100
+Subject: [PATCH 5/8] ir3/sched: move some common code into split_addr
+
+A later commit will use split_addr for a different place so this will
+prevent some code duplication.
+
+Signed-off-by: Job Noorman <jnoorman@igalia.com>
+---
+ src/freedreno/ir3/ir3_sched.c | 26 +++++++++++---------------
+ 1 file changed, 11 insertions(+), 15 deletions(-)
+
+diff --git a/src/freedreno/ir3/ir3_sched.c b/src/freedreno/ir3/ir3_sched.c
+index b2768ef308e..c7452ef9fdd 100644
+--- a/src/freedreno/ir3/ir3_sched.c
++++ b/src/freedreno/ir3/ir3_sched.c
+@@ -301,6 +301,15 @@ split_addr(struct ir3_sched_ctx *ctx, struct ir3_instruction **addr,
+    /* all remaining indirects remapped to new addr: */
+    *addr = NULL;
+ 
++   assert(new_addr);
++   list_delinit(&new_addr->node);
++   list_addtail(&new_addr->node, &ctx->unscheduled_list);
++
++   /* If we produced a new instruction, do not schedule it next to
++    * guarantee progress.
++    */
++   ctx->split = new_addr;
++
+    return new_addr;
+ }
+ 
+@@ -1241,7 +1250,6 @@ sched_block(struct ir3_sched_ctx *ctx, struct ir3_block *block)
+           */
+          ctx->split = NULL;
+       } else {
+-         struct ir3_instruction *new_instr = NULL;
+          struct ir3 *ir = block->shader;
+ 
+          /* nothing available to schedule.. if we are blocked on
+@@ -1249,11 +1257,9 @@ sched_block(struct ir3_sched_ctx *ctx, struct ir3_block *block)
+           * by cloning the instruction that wrote that reg:
+           */
+          if (notes.addr0_conflict) {
+-            new_instr =
+-               split_addr(ctx, &ctx->addr0, ir->a0_users, ir->a0_users_count);
++            split_addr(ctx, &ctx->addr0, ir->a0_users, ir->a0_users_count);
+          } else if (notes.addr1_conflict) {
+-            new_instr =
+-               split_addr(ctx, &ctx->addr1, ir->a1_users, ir->a1_users_count);
++            split_addr(ctx, &ctx->addr1, ir->a1_users, ir->a1_users_count);
+          } else {
+             d("unscheduled_list:\n");
+             foreach_instr (instr, &ctx->unscheduled_list)
+@@ -1262,16 +1268,6 @@ sched_block(struct ir3_sched_ctx *ctx, struct ir3_block *block)
+             ctx->error = true;
+             return;
+          }
+-
+-         if (new_instr) {
+-            list_delinit(&new_instr->node);
+-            list_addtail(&new_instr->node, &ctx->unscheduled_list);
+-         }
+-
+-         /* If we produced a new instruction, do not schedule it next to
+-          * guarantee progress.
+-          */
+-         ctx->split = new_instr;
+       }
+    }
+ 
+
+From 2a2ae8f4cfc9a42284bc3bcca52e54929d0e74a9 Mon Sep 17 00:00:00 2001
+From: Job Noorman <jnoorman@igalia.com>
+Date: Tue, 17 Nov 2026 16:49:53 +0100
+Subject: [PATCH 6/8] ir3/sched: fix check for ready addr users
+
+The ready flag would be overwritten for each user so if the last user is
+not ready while some earlier one is, the check would fail.
+
+Signed-off-by: Job Noorman <jnoorman@igalia.com>
+---
+ src/freedreno/ir3/ir3_sched.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/src/freedreno/ir3/ir3_sched.c b/src/freedreno/ir3/ir3_sched.c
+index c7452ef9fdd..775dd1d73b0 100644
+--- a/src/freedreno/ir3/ir3_sched.c
++++ b/src/freedreno/ir3/ir3_sched.c
+@@ -532,6 +532,8 @@ check_instr(struct ir3_sched_ctx *ctx, struct ir3_sched_notes *notes,
+             continue;
+          has_users = true;
+          ready = could_sched(ctx, indirect, instr);
++         if (ready)
++            break;
+       }
+ 
+       /* nothing could be scheduled, so keep looking: */
+@@ -551,6 +553,8 @@ check_instr(struct ir3_sched_ctx *ctx, struct ir3_sched_notes *notes,
+             continue;
+          has_users = true;
+          ready = could_sched(ctx, indirect, instr);
++         if (ready)
++            break;
+       }
+ 
+       /* nothing could be scheduled, so keep looking: */
+
+From e2c1af8bfbabdb65899e37ff1bcb1aa3b195cab2 Mon Sep 17 00:00:00 2001
+From: Job Noorman <jnoorman@igalia.com>
+Date: Tue, 17 Nov 2026 16:49:53 +0100
+Subject: [PATCH 7/8] ir3/sched: add ir to ctx
+
+So that we don't have to chase it through instructions/blocks all the
+time.
+
+Signed-off-by: Job Noorman <jnoorman@igalia.com>
+---
+ src/freedreno/ir3/ir3_sched.c | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/src/freedreno/ir3/ir3_sched.c b/src/freedreno/ir3/ir3_sched.c
+index 775dd1d73b0..b2bf2aeff21 100644
+--- a/src/freedreno/ir3/ir3_sched.c
++++ b/src/freedreno/ir3/ir3_sched.c
+@@ -72,6 +72,7 @@
+  */
+ 
+ struct ir3_sched_ctx {
++   struct ir3 *ir;
+    struct ir3_compiler *compiler;
+    struct ir3_block *block; /* the current block */
+    struct dag *dag;
+@@ -521,7 +522,7 @@ check_instr(struct ir3_sched_ctx *ctx, struct ir3_sched_notes *notes,
+     * addr value which is otherwise ready.
+     */
+    if (writes_addr0(instr) && instr->uses) {
+-      struct ir3 *ir = instr->block->shader;
++      struct ir3 *ir = ctx->ir;
+       bool ready = false;
+       bool has_users = false;
+       for (unsigned i = 0; (i < ir->a0_users_count) && !ready; i++) {
+@@ -542,7 +543,7 @@ check_instr(struct ir3_sched_ctx *ctx, struct ir3_sched_notes *notes,
+    }
+ 
+    if (writes_addr1(instr) && instr->uses) {
+-      struct ir3 *ir = instr->block->shader;
++      struct ir3 *ir = ctx->ir;
+       bool ready = false;
+       bool has_users = false;
+       for (unsigned i = 0; (i < ir->a1_users_count) && !ready; i++) {
+@@ -591,7 +592,7 @@ check_instr(struct ir3_sched_ctx *ctx, struct ir3_sched_notes *notes,
+     * TODO we could handle this by false-deps now, probably.
+     */
+    if (is_kill_or_demote(instr)) {
+-      struct ir3 *ir = instr->block->shader;
++      struct ir3 *ir = ctx->ir;
+ 
+       for (unsigned i = 0; i < ir->baryfs_count; i++) {
+          struct ir3_instruction *baryf = ir->baryfs[i];
+@@ -1286,6 +1287,7 @@ ir3_sched(struct ir3 *ir)
+ {
+    struct ir3_sched_ctx *ctx = rzalloc(NULL, struct ir3_sched_ctx);
+ 
++   ctx->ir = ir;
+    ctx->compiler = ir->compiler;
+ 
+    foreach_block (block, &ir->block_list) {
+
+From 0b6f7c7fd9465e6c439fb14890512576d2151095 Mon Sep 17 00:00:00 2001
+From: Job Noorman <jnoorman@igalia.com>
+Date: Tue, 17 Nov 2026 16:49:53 +0100
+Subject: [PATCH 8/8] ir3/sched: allow a0.x/a1.x writes to be scheduled earlier
+
+We currently don't allow such writes to scheduled if the current address
+register has unscheduled users, unless necessary to break a cycle. It
+turns out that allowing them to be scheduled earlier can drastically
+reduce register pressure in some cases.
+
+For example, preambles often contain many sequential sequences like
+this:
+
+mova1 ...
+isam.v ..., a1.x
+; process SSBO values
+mova1 ...
+stc c[a1.x] ; store processed SSBO values
+
+If the a1.x value is the same for all isam.v but different for stc, we
+might end up with a huge register pressure because all the SSBO values
+pile up. Allowing the a1.x value needed by stc to be scheduled earlier,
+gives the scheduler the opportunity to reduce register pressure.
+
+This commit allows address writes to be scheduled earlier and splitting
+the current address register when that happens. Scheduling address
+writes too early is prevented by 1) making should_defer return true for
+them and 2) not allowing them to be scheduled before a certain number of
+users has been scheduled first.
+
+Totals from 7554 (4.29% of 176258) affected shaders:
+MaxWaves: 72534 -> 73212 (+0.93%); split: +0.95%, -0.02%
+Instrs: 10997465 -> 11004521 (+0.06%); split: -0.06%, +0.12%
+CodeSize: 21639718 -> 21504392 (-0.63%); split: -0.89%, +0.26%
+NOPs: 2106485 -> 2110654 (+0.20%); split: -0.25%, +0.45%
+MOVs: 454475 -> 457186 (+0.60%); split: -0.32%, +0.92%
+COVs: 112000 -> 112004 (+0.00%); split: -0.01%, +0.02%
+Full: 155422 -> 153009 (-1.55%); split: -1.57%, +0.01%
+(ss): 299468 -> 300410 (+0.31%); split: -0.11%, +0.43%
+(sy): 147100 -> 148398 (+0.88%); split: -0.11%, +0.99%
+(ss)-stall: 1217695 -> 1217176 (-0.04%); split: -0.19%, +0.15%
+(sy)-stall: 4031186 -> 4076718 (+1.13%); split: -0.17%, +1.30%
+STPs: 7303 -> 29 (-99.60%)
+LDPs: 7335 -> 29 (-99.60%)
+Preamble Instrs: 2497693 -> 2396297 (-4.06%); split: -6.32%, +2.26%
+Early Preamble: 2756 -> 3182 (+15.46%)
+Last helper: 3861683 -> 3863047 (+0.04%); split: -0.10%, +0.13%
+Last baryf: 117248 -> 117391 (+0.12%); split: -0.03%, +0.16%
+Cat0: 2327501 -> 2331936 (+0.19%); split: -0.22%, +0.41%
+Cat1: 567165 -> 569890 (+0.48%); split: -0.26%, +0.74%
+Cat2: 4143695 -> 4143476 (-0.01%); split: -0.01%, +0.00%
+Cat6: 40783 -> 40687 (-0.24%)
+Cat7: 346579 -> 346790 (+0.06%); split: -0.10%, +0.16%
+
+Signed-off-by: Job Noorman <jnoorman@igalia.com>
+---
+ src/freedreno/ir3/ir3_sched.c | 50 +++++++++++++++++++++++++++++++----
+ 1 file changed, 45 insertions(+), 5 deletions(-)
+
+diff --git a/src/freedreno/ir3/ir3_sched.c b/src/freedreno/ir3/ir3_sched.c
+index b2bf2aeff21..75243dad6a8 100644
+--- a/src/freedreno/ir3/ir3_sched.c
++++ b/src/freedreno/ir3/ir3_sched.c
+@@ -83,6 +83,8 @@ struct ir3_sched_ctx {
+    struct ir3_instruction *addr1;     /* current a1.x user, if any */
+    unsigned addr0_uses;               /* number of unscheduled uses of addr0 */
+    unsigned addr1_uses;               /* number of unscheduled uses of addr1 */
++   unsigned addr0_scheduled_uses;     /* number of scheduled uses of addr0 */
++   unsigned addr1_scheduled_uses;     /* number of scheduled uses of addr1 */
+ 
+    struct ir3_instruction *split; /* most-recently-split a0/a1 producer */
+ 
+@@ -324,7 +326,11 @@ schedule(struct ir3_sched_ctx *ctx, struct ir3_instruction *instr)
+    list_delinit(&instr->node);
+ 
+    if (writes_addr0(instr)) {
+-      assert(ctx->addr0 == NULL);
++      if (ctx->addr0) {
++         split_addr(ctx, &ctx->addr0, ctx->ir->a0_users,
++                    ctx->ir->a0_users_count);
++      }
++
+       if (instr->opc != OPC_MOV) {
+          /* If a0 is written but not actually used (i.e., bar in REUSEGPRMODE or
+           * alias-using texture instructions), we shouldn't keep track of the
+@@ -339,10 +345,16 @@ schedule(struct ir3_sched_ctx *ctx, struct ir3_instruction *instr)
+          ctx->addr0 = instr;
+          ctx->addr0_uses = instr->uses->entries;
+       }
++
++      ctx->addr0_scheduled_uses = 0;
+    }
+ 
+    if (writes_addr1(instr)) {
+-      assert(ctx->addr1 == NULL);
++      if (ctx->addr1) {
++         split_addr(ctx, &ctx->addr1, ctx->ir->a1_users,
++                    ctx->ir->a1_users_count);
++      }
++
+       if (instr->opc != OPC_MOV) {
+          /* See note above for a0. */
+          ctx->addr1 = NULL;
+@@ -351,6 +363,8 @@ schedule(struct ir3_sched_ctx *ctx, struct ir3_instruction *instr)
+          ctx->addr1 = instr;
+          ctx->addr1_uses = instr->uses->entries;
+       }
++
++      ctx->addr1_scheduled_uses = 0;
+    }
+ 
+    if (reads_addr0(instr)) {
+@@ -359,6 +373,9 @@ schedule(struct ir3_sched_ctx *ctx, struct ir3_instruction *instr)
+ 
+       if (--ctx->addr0_uses == 0) {
+          ctx->addr0 = NULL;
++         ctx->addr0_scheduled_uses = 0;
++      } else {
++         ctx->addr0_scheduled_uses++;
+       }
+    }
+ 
+@@ -368,6 +385,9 @@ schedule(struct ir3_sched_ctx *ctx, struct ir3_instruction *instr)
+ 
+       if (--ctx->addr1_uses == 0) {
+          ctx->addr1 = NULL;
++         ctx->addr1_scheduled_uses = 0;
++      } else {
++         ctx->addr1_scheduled_uses++;
+       }
+    }
+ 
+@@ -564,15 +584,30 @@ check_instr(struct ir3_sched_ctx *ctx, struct ir3_sched_notes *notes,
+    }
+ 
+    /* if this is a write to address register, and that register is currently in
+-    * use, we need to defer until it is free:
++    * use, we need to defer until it is free. Don't defer it indefinitely,
++    * though, as scheduling a new a0.x write might free up more instructions
++    * that can lower register pressure.
+     */
+-   if (writes_addr0(instr) && ctx->addr0) {
++   if (writes_addr0(instr) && ctx->addr0 && ctx->addr0_scheduled_uses < 4) {
+       assert(ctx->addr0 != instr);
+       notes->addr0_conflict = true;
+       return false;
+    }
+ 
+-   if (writes_addr1(instr) && ctx->addr1) {
++   /* Same as above but allow a1.x writes to be scheduled even earlier.
++    * Preambles often contain many sequential sequences like this:
++    * mova1 ...
++    * isam.v ..., a1.x
++    * ; process SSBO values
++    * mova1 ...
++    * stc c[a1.x] ; store processed SSBO values
++    *
++    * If the a1.x value is the same for all isam.v but different for stc, we
++    * might end up with a huge register pressure because all the SSBO values
++    * pile up. Experimentally, it was found that just allowing a1.x writes to be
++    * scheduled again immediately gives the best results.
++    */
++   if (writes_addr1(instr) && ctx->addr1 && ctx->addr1_scheduled_uses < 1) {
+       assert(ctx->addr1 != instr);
+       notes->addr1_conflict = true;
+       return false;
+@@ -744,6 +779,11 @@ should_defer(struct ir3_sched_ctx *ctx, struct ir3_instruction *instr)
+    if (ctx->ss_index - ctx->first_outstanding_ss_index >= 8 && is_ss_producer(instr))
+       return true;
+ 
++   if (writes_addr0(instr) && ctx->addr0)
++      return true;
++   if (writes_addr1(instr) && ctx->addr1)
++      return true;
++
+    return false;
+ }
+ 

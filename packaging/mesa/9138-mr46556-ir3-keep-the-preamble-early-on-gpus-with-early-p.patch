@@ -1,0 +1,264 @@
+OnePlus Pad 4 (Adreno 840) Mesa package: Mesa MR !46556
+Title:  ir3: keep the preamble early on GPUs with early preamble
+Author: Artem Peshkov
+URL:    https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/46556
+Head:   e47af2439bbca2d365125c0553fb783b04f5fe2d (MR state opened, target main, checked 21 Nov 2026)
+Review: none (Job Noorman 20 Nov: planned "split preambles" work would subsume this MR); commit message says Generated-by: LLM
+Apply:  applies on staging/26.3 6cd33b7f68ee after the patches before it, without conflict or backport
+
+From 7ce65ab844c500825091aa7249c7059930eecc3c Mon Sep 17 00:00:00 2001
+From: Artem Peshkov <slimstalker@gmail.com>
+Date: Thu, 19 Nov 2026 19:31:05 +0500
+Subject: [PATCH 1/2] nir/opt_preamble: add a can_move_instr_cb option
+
+Backends may only be able to execute a subset of instructions in their
+preamble, or executing some instruction there may make the preamble
+much more expensive (on Adreno, a single GPR write turns an early
+preamble into a late one). The existing callbacks cannot express this:
+avoid_instr_cb only stops an instruction from being the root of a
+rewrite, it can still be moved as part of a bigger expression.
+
+Add an optional callback which lets the backend keep an instruction,
+and everything depending on it, in the main shader.
+
+Generated-by: LLM
+---
+ src/compiler/nir/nir.h              | 7 +++++++
+ src/compiler/nir/nir_opt_preamble.c | 6 ++++++
+ 2 files changed, 13 insertions(+)
+
+diff --git a/src/compiler/nir/nir.h b/src/compiler/nir/nir.h
+index 577fa993165..0e678037d42 100644
+--- a/src/compiler/nir/nir.h
++++ b/src/compiler/nir/nir.h
+@@ -7421,6 +7421,13 @@ typedef struct nir_opt_preamble_options {
+     */
+    nir_instr_filter_cb avoid_instr_cb;
+ 
++   /* Optional. Return false for instructions which must stay in the main
++    * shader, e.g. because the backend can only execute a restricted set of
++    * operations in its preamble. Nothing depending on such an instruction
++    * can be moved either. load_const and undef are never passed.
++    */
++   nir_instr_filter_cb can_move_instr_cb;
++
+    const void *cb_data;
+ } nir_opt_preamble_options;
+ 
+diff --git a/src/compiler/nir/nir_opt_preamble.c b/src/compiler/nir/nir_opt_preamble.c
+index 86bc0498fd1..e09abe252c0 100644
+--- a/src/compiler/nir/nir_opt_preamble.c
++++ b/src/compiler/nir/nir_opt_preamble.c
+@@ -269,6 +269,12 @@ can_move_instr(nir_instr *instr, opt_preamble_ctx *ctx)
+    if (ctx->nonuniform_cf_nesting > 0 && !instr_can_speculate(instr))
+       return false;
+ 
++   if (ctx->options->can_move_instr_cb &&
++       instr->type != nir_instr_type_load_const &&
++       instr->type != nir_instr_type_undef &&
++       !ctx->options->can_move_instr_cb(instr, ctx->options->cb_data))
++      return false;
++
+    switch (instr->type) {
+    case nir_instr_type_tex: {
+       nir_tex_instr *tex = nir_instr_as_tex(instr);
+
+From 1be81b2c47760beda41af3e4356468dbbac1d432 Mon Sep 17 00:00:00 2001
+From: Artem Peshkov <slimstalker@gmail.com>
+Date: Thu, 19 Nov 2026 19:31:05 +0300
+Subject: [PATCH 2/2] ir3: keep the preamble early on GPUs with early preamble
+
+An early preamble requires that the preamble only writes shared
+registers and only contains speculatable loads. Otherwise it is
+executed as a late preamble by the first wave of every draw, while all
+other waves of the draw wait for it.
+
+On A840 (BeamNG.drive, Vulkan) almost every large preamble was late
+(FS: 244 late with 600 instructions on average, 91 early with 55), for
+three reasons:
+
+- nir_opt_preamble hoisted texture/image/SSBO instructions (isam,
+  getinfo, getsize, resinfo, sam), whose destination is always a GPR;
+- descriptor prefetches with an index that does not fit the 8-bit
+  immediate field (0x2000 here) need the index in a GPR, since cat6
+  cannot take a shared register source;
+- nir_opt_preamble hoisted load_ubo from descriptors that are not
+  ACCESS_CAN_SPECULATE, which is legal for a late preamble only.
+
+On GPUs with early preamble, don't move such instructions into the
+preamble, skip prefetches that need a GPR for the index, and skip
+non-speculatable prefetches unless the preamble already is
+non-speculatable.
+
+Early preambles go from 0 to 528 of 1114 shaders; the remaining late
+ones spill shared registers to GPRs. The frame goes from 28.35 ms to
+27.22 ms (render passes 13.1 ms -> 12.0 ms, compute unchanged), which
+matches IR3_SHADER_DEBUG=nopreamble while keeping uniform math hoisted.
+With the EARLYPREAMBLE bit forced off on the same build the frame is
+29.00 ms, so the gain comes from the early preamble itself.
+
+Generated-by: LLM
+---
+ src/freedreno/ir3/ir3_nir_opt_preamble.c | 117 +++++++++++++++++++++++
+ 1 file changed, 117 insertions(+)
+
+diff --git a/src/freedreno/ir3/ir3_nir_opt_preamble.c b/src/freedreno/ir3/ir3_nir_opt_preamble.c
+index 53bce135de5..5cc3330709e 100644
+--- a/src/freedreno/ir3/ir3_nir_opt_preamble.c
++++ b/src/freedreno/ir3/ir3_nir_opt_preamble.c
+@@ -278,6 +278,64 @@ avoid_instr(const nir_instr *instr, const void *data)
+    return intrin->intrinsic == nir_intrinsic_bindless_resource_ir3;
+ }
+ 
++/* An early preamble runs before any wave of the draw/dispatch is launched, even
++ * when no wave is launched at all, and has no GPRs. So it can only contain
++ * speculatable loads and instructions whose results live in shared registers.
++ * A single instruction that breaks this turns the whole preamble into a late
++ * one, where the first wave executes it while every other wave of the draw
++ * waits. That stall costs far more than hoisting the instruction saves, so on
++ * GPUs with early preamble keep such instructions (and everything derived from
++ * them) in the main shader:
++ *
++ * - texture/image/SSBO instructions, which always write GPRs;
++ * - loads that are not ACCESS_CAN_SPECULATE.
++ */
++static bool
++can_move_instr(const nir_instr *instr, const void *data)
++{
++   const struct ir3_shader_variant *v = data;
++
++   if (!v->compiler->info->props.has_early_preamble ||
++       (ir3_shader_debug & IR3_DBG_NOEARLYPREAMBLE))
++      return true;
++
++   if (instr->type == nir_instr_type_tex)
++      return false;
++
++   if (instr->type != nir_instr_type_intrinsic)
++      return true;
++
++   nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(instr);
++
++   /* An early preamble also runs for draws/dispatches that launch no waves,
++    * so it may only contain loads that are safe to speculate.
++    */
++   if (nir_intrinsic_has_access(intrin) &&
++       !(nir_intrinsic_access(intrin) & ACCESS_CAN_SPECULATE))
++      return false;
++
++   switch (intrin->intrinsic) {
++   case nir_intrinsic_image_levels:
++   case nir_intrinsic_bindless_image_levels:
++   case nir_intrinsic_image_samples:
++   case nir_intrinsic_bindless_image_samples:
++   case nir_intrinsic_image_size:
++   case nir_intrinsic_bindless_image_size:
++   case nir_intrinsic_image_load:
++   case nir_intrinsic_bindless_image_load:
++   case nir_intrinsic_image_samples_identical:
++   case nir_intrinsic_get_ssbo_size:
++   case nir_intrinsic_load_ssbo:
++   case nir_intrinsic_load_ssbo_ir3:
++      return false;
++   case nir_intrinsic_load_global_offset:
++      /* ldg.k writes the const file directly. */
++      return ir3_nir_can_lower_to_ldg_k(intrin);
++   default:
++      return true;
++   }
++}
++
+ bool
+ ir3_nir_opt_preamble(nir_shader *nir, struct ir3_shader_variant *v)
+ {
+@@ -303,6 +361,7 @@ ir3_nir_opt_preamble(nir_shader *nir, struct ir3_shader_variant *v)
+       .preamble_storage_size[nir_preamble_class_general] = max_size,
+       .instr_cost_cb = instr_cost,
+       .avoid_instr_cb = avoid_instr,
++      .can_move_instr_cb = can_move_instr,
+       .rewrite_cost_cb = rewrite_cost,
+       .cb_data = v,
+    };
+@@ -717,6 +776,42 @@ should_prefetch_descriptor(nir_def *desc)
+    return desc != NULL && ir3_bindless_resource(nir_src_for_ssa(desc));
+ }
+ 
++static bool
++preamble_impl_is_speculatable(nir_function_impl *preamble)
++{
++   nir_foreach_block (block, preamble) {
++      nir_foreach_instr (instr, block) {
++         if (instr->type != nir_instr_type_intrinsic)
++            continue;
++
++         nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(instr);
++         if (nir_intrinsic_has_access(intrin) &&
++             !(nir_intrinsic_access(intrin) & ACCESS_CAN_SPECULATE))
++            return false;
++      }
++   }
++
++   return true;
++}
++
++/* The prefetch instructions take the descriptor index either as an 8-bit
++ * immediate (cat6, and cat5 with a1.x) or in a normal register. Return
++ * whether no register is needed for this descriptor.
++ */
++static bool
++prefetch_index_is_immediate(nir_def *desc)
++{
++   if (!desc)
++      return true;
++
++   nir_intrinsic_instr *bindless = ir3_bindless_resource(nir_src_for_ssa(desc));
++   if (!bindless)
++      return true;
++
++   return nir_src_is_const(bindless->src[0]) &&
++          nir_src_as_uint(bindless->src[0]) < 256;
++}
++
+ /* Prefetch descriptors in the preamble. This is an optimization introduced on
+  * a7xx, mainly useful when the preamble is an early preamble, and replaces the
+  * use of CP_LOAD_STATE on a6xx to prefetch descriptors in HLSQ.
+@@ -736,6 +831,14 @@ ir3_nir_opt_prefetch_descriptors(nir_shader *nir, struct ir3_shader_variant *v)
+    bool progress = false;
+    struct prefetch_state state = {};
+ 
++   /* See below: on GPUs with early preamble, don't let a prefetch be the
++    * reason the preamble can't be early.
++    */
++   bool keep_early_preamble =
++      v->compiler->info->props.has_early_preamble &&
++      !(ir3_shader_debug & IR3_DBG_NOEARLYPREAMBLE) &&
++      (!preamble || preamble_impl_is_speculatable(preamble));
++
+    nir_def **preamble_defs =
+       calloc(const_state->allocs.consts[IR3_CONST_ALLOC_PREAMBLE].size_vec4 * 4,
+              sizeof(nir_def *));
+@@ -781,10 +884,24 @@ ir3_nir_opt_prefetch_descriptors(nir_shader *nir, struct ir3_shader_variant *v)
+              !ir3_def_is_rematerializable_for_preamble(descs[1], preamble_defs))
+             continue;
+ 
++         /* An early preamble has no GPRs: if the index of the descriptor has
++          * to be passed in a register, the prefetch turns the whole preamble
++          * into a late one, where every other wave waits for the first one to
++          * execute it. A prefetch is only a hint, so drop it instead.
++          */
++         if (keep_early_preamble &&
++             (!prefetch_index_is_immediate(descs[0]) ||
++              !prefetch_index_is_immediate(descs[1])))
++            continue;
++
+          bool is_speculatable =
+             (!descs[0] || is_descriptor_prefetch_speculatable(descs[0])) &&
+             (!descs[1] || is_descriptor_prefetch_speculatable(descs[1]));
+ 
++         /* Likewise, an early preamble must be speculatable as a whole. */
++         if (keep_early_preamble && !is_speculatable)
++            continue;
++
+          /* If the preamble hasn't been created then this descriptor isn't a
+           * duplicate and we will definitely insert an instruction, so create
+           * the preamble if it hasn't already been created.

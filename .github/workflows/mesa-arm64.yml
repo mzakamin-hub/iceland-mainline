@@ -1,0 +1,120 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Mesa for the OnePlus Pad 4 (Adreno 840): native aarch64 rpmbuild of packaging/mesa in a Fedora 45 container on a
+# GitHub-hosted arm64 runner. Source tarball made as packaging/mesa/README.md describes (git archive of the recorded
+# staging/26.3 commit, tree id checked), venus protocol + Rust crates via spectool, our patches from packaging/mesa.
+# Output: one artifact with the binary rpms, the src.rpm and SHA256SUMS (7 days). No secrets, no signing here.
+name: mesa-arm64
+
+on:
+  push:
+    branches: [ci/mesa-a840]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mesa-arm64-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MESA_URL: https://gitlab.freedesktop.org/mesa/mesa.git
+  MESA_BRANCH: staging/26.3
+  MESA_COMMIT: 6cd33b7f68ee04c5270215591b2d29535af291bd
+  MESA_TREE: 51fe67c75056eade1c70f356599b301a6ec2cd92
+  MESA_VER: 26.3.1-git20261120.6cd33b7
+
+jobs:
+  mesa:
+    runs-on: ubuntu-24.04-arm
+    container: fedora:45
+    timeout-minutes: 300
+    steps:
+      - name: Install rpm tools
+        run: dnf -y -q install git-core rpm-build rpmdevtools python3 'dnf-command(builddep)' xz
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Source tarball (git archive of the recorded commit)
+        run: |
+          set -euo pipefail
+          top="$RUNNER_TEMP/rpmbuild"; mkdir -p "$top/SOURCES"
+          src="$RUNNER_TEMP/mesa-src"; git init -q "$src"
+          if ! git -C "$src" fetch -q --depth 1 "$MESA_URL" "$MESA_COMMIT"; then
+            echo "fetch by commit refused: fetching $MESA_BRANCH instead"
+            git -C "$src" fetch -q --filter=blob:none "$MESA_URL" "+refs/heads/$MESA_BRANCH:refs/remotes/m/b"
+          fi
+          tree=$(git -C "$src" rev-parse "$MESA_COMMIT^{tree}")
+          [ "$tree" = "$MESA_TREE" ] || { echo "::error title=mesa::tree $tree != $MESA_TREE"; exit 1; }
+          [ "$(git -C "$src" show "$MESA_COMMIT:VERSION")" = 26.3.1 ]
+          git -C "$src" archive --prefix="mesa-$MESA_VER/" "$MESA_COMMIT" | xz -T0 -9 > "$top/SOURCES/mesa-$MESA_VER.tar.xz"
+          sha256sum "$top/SOURCES/mesa-$MESA_VER.tar.xz"
+          rm -rf "$src"
+
+      - name: Other sources (patches, MLAA text, venus protocol, crates)
+        run: |
+          set -euo pipefail
+          top="$RUNNER_TEMP/rpmbuild"; mkdir -p "$top/SPECS"
+          cp packaging/mesa/mesa.spec "$top/SPECS/"
+          cp packaging/mesa/*.patch packaging/mesa/Mesa-MLAA-License-Clarification-Email.txt "$top/SOURCES/"
+          spectool -g -C "$top/SOURCES" "$top/SPECS/mesa.spec"
+          # every Source / Patch of the spec must now be present
+          rpmspec -P "$top/SPECS/mesa.spec" | awk '/^(Source|Patch)[0-9]*:/ {print $2}' | sed 's|.*[/#]||' > "$RUNNER_TEMP/need.txt"
+          missing=0
+          while read -r f; do [ -s "$top/SOURCES/$f" ] || { echo "::error title=mesa::missing source $f"; missing=1; }; done < "$RUNNER_TEMP/need.txt"
+          [ "$missing" = 0 ]
+          echo "$(wc -l < "$RUNNER_TEMP/need.txt") sources / patches present"
+          (cd "$top/SOURCES" && sha256sum ./*)
+
+      - name: Build dependencies
+        run: dnf -y -q builddep "$RUNNER_TEMP/rpmbuild/SPECS/mesa.spec"
+
+      - name: rpmbuild -ba
+        run: |
+          set -o pipefail
+          top="$RUNNER_TEMP/rpmbuild"
+          echo "nproc $(nproc), $(awk '/^MemTotal:/ {print int($2/1024)}' /proc/meminfo) MiB"
+          rpmbuild -ba \
+            --define "_topdir $top" \
+            --define "_buildhost iceland-build.localdomain" \
+            --define "dist .fc45" \
+            --define "debug_package %{nil}" \
+            --define "_unpackaged_files_terminate_build 0" \
+            "$top/SPECS/mesa.spec" 2>&1 | tee "$RUNNER_TEMP/build.log"
+
+      - name: Build summary
+        if: always()
+        run: |
+          top="$RUNNER_TEMP/rpmbuild"
+          grep -nE '^\+ meson test|^(Ok|Fail|Expected Fail|Skipped|Timeout):|Executing\(%check\)' "$RUNNER_TEMP/build.log" | tail -20 || true
+          grep -A25 'Installed (but unpackaged) file(s) found' "$RUNNER_TEMP/build.log" | head -30 | sed 's/^/UNPACKAGED: /' || true
+          grep -E 'warning: |error: ' "$RUNNER_TEMP/build.log" | grep -vE '^\s*[0-9]+ \|' | tail -20 || true
+          tail -25 "$RUNNER_TEMP/build.log"
+
+      - name: Package sanity
+        run: |
+          set -euo pipefail
+          top="$RUNNER_TEMP/rpmbuild"; out="$GITHUB_WORKSPACE/_out"; mkdir -p "$out"
+          cp "$top"/RPMS/*/*.rpm "$top"/SRPMS/*.src.rpm "$out/"
+          cd "$out"
+          for r in ./*.rpm; do
+            printf '%-75s files %5s buildhost %s\n' "$(rpm -qp --qf '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}' "$r")" \
+              "$(rpm -qpl "$r" | wc -l)" "$(rpm -qp --qf '%{BUILDHOST}' "$r")"
+          done
+          bad=$(rpm -qp --qf '%{BUILDHOST}\n' ./*.rpm | grep -vxc iceland-build.localdomain || true)
+          [ "$bad" = 0 ] || { echo "::error title=mesa::$bad rpm(s) with another build host"; exit 1; }
+          rpm -qpl mesa-vulkan-drivers-*.aarch64.rpm | grep -E 'libvulkan_freedreno\.so|freedreno_icd'
+          rpm -qpl ./*.aarch64.rpm | grep -E 'libgallium-.*\.so|msm_dri\.so|kgsl_dri\.so' || echo "::warning title=mesa::no libgallium / msm_dri file found"
+          rpm -qp --provides mesa-vulkan-drivers-*.aarch64.rpm mesa-dri-drivers-*.aarch64.rpm
+          sha256sum ./*.rpm > SHA256SUMS
+          cat SHA256SUMS
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mesa-a840-fc45-aarch64-${{ github.sha }}
+          path: |
+            _out/*.rpm
+            _out/SHA256SUMS
+          retention-days: 7

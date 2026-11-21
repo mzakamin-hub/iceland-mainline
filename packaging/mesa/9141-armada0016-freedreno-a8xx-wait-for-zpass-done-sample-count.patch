@@ -1,0 +1,75 @@
+OnePlus Pad 4 (Adreno 840) Mesa package: armada A8xx GL hang fix
+Source:  https://github.com/armada-os/armada/pull/894 (merged 14 Nov 2026, head 1b42e4a9ba9a3093c0d9abb7b30022b681e7b2d0),
+         packages/mesa/patches/0016-freedreno-a8xx-wait-for-zpass-sample-counts.patch
+Author:  Armada contributors (Armada <armada@armadaos.dev>); tested by them on an AYN Odin 3 (Adreno 830)
+Licence: MIT, the licence of the Mesa freedreno code it modifies (Armada LICENSE.md: "Modifications to bundled
+         software are licensed under the terms of the software being modified"). Credit kept in the commit author.
+Review:  not in Mesa upstream; no Mesa MR. A8xx only (CHIP >= A8XX); freedreno GL (gallium) only, not turnip.
+Apply:   applies on staging/26.3 6cd33b7f68ee after the patches before it, without conflict or backport
+
+From 30599a645b3227ec2819c7a2911f8464830fd0c3 Mon Sep 17 00:00:00 2001
+From: Armada <armada@armadaos.dev>
+Date: Sat, 21 Nov 2026 21:40:45 +0200
+Subject: [PATCH] freedreno/a8xx: wait for ZPASS_DONE sample count writes
+
+On A830, the GPU can hang when it moves on after a ZPASS_DONE end event
+before the sample count write has landed. It only happens at high GPU
+clocks.
+
+Turnip waits for the sample count write after an occlusion query ends
+(emit_counter_barrier(): WFI, plus CP_BARRIER on A8xx). Freedreno has the
+same helper but only uses it for pipeline statistics queries. Use it after
+every ZPASS_DONE end event: in occlusion_pause(), in occlusion_resume()
+(which also writes one), and after the autotune end event.
+
+Only A8xx gets the barrier, so other GPUs see no change.
+---
+ src/gallium/drivers/freedreno/a6xx/fd6_gmem.cc  |  6 ++++++
+ src/gallium/drivers/freedreno/a6xx/fd6_query.cc | 10 ++++++++++
+ 2 files changed, 16 insertions(+)
+
+diff --git a/src/gallium/drivers/freedreno/a6xx/fd6_gmem.cc b/src/gallium/drivers/freedreno/a6xx/fd6_gmem.cc
+index 8df5ba814c7..3cd05358348 100644
+--- a/src/gallium/drivers/freedreno/a6xx/fd6_gmem.cc
++++ b/src/gallium/drivers/freedreno/a6xx/fd6_gmem.cc
+@@ -945,6 +945,12 @@ emit_common_fini(fd_cs &cs, struct fd_batch *batch)
+          .add(EV_DST_RAM_CP_EVENT_WRITE7_1(
+             results_ptr(at, result[result->idx].samples_start)
+          ));
++
++      /* See occlusion_pause(): wait for the sample count write on A8xx. */
++      if (CHIP >= A8XX) {
++         fd_pkt7(cs, CP_WAIT_FOR_IDLE, 0);
++         fd_pkt7(cs, CP_BARRIER, 1).add(1);
++      }
+    }
+ 
+    fd6_fence_write<CHIP>(cs, result->fence, results_ptr(at, fence));
+diff --git a/src/gallium/drivers/freedreno/a6xx/fd6_query.cc b/src/gallium/drivers/freedreno/a6xx/fd6_query.cc
+index bf196aa71bb..feffbf48a96 100644
+--- a/src/gallium/drivers/freedreno/a6xx/fd6_query.cc
++++ b/src/gallium/drivers/freedreno/a6xx/fd6_query.cc
+@@ -101,6 +101,10 @@ occlusion_resume(struct fd_acc_query *aq, struct fd_batch *batch)
+             .write_accum_sample_count_diff = true,
+          ))
+          .add(EV_DST_RAM_CP_EVENT_WRITE7_1(query_sample(aq, start)));
++
++      /* See occlusion_pause(). */
++      if (CHIP >= A8XX)
++         emit_counter_barrier<CHIP>(cs);
+    }
+ 
+    ctx->occlusion_queries_active++;
+@@ -180,6 +184,12 @@ occlusion_pause(struct fd_acc_query *aq, struct fd_batch *batch) assert_dt
+           * So we just give the start address in all cases.
+           */
+          .add(EV_DST_RAM_CP_EVENT_WRITE7_1(query_sample(aq, start)));
++
++      /* Like turnip, wait for the sample count write before going on. On
++       * A830 the CP hangs without it once the GPU clock is high enough.
++       */
++      if (CHIP >= A8XX)
++         emit_counter_barrier<CHIP>(cs);
+    }
+ 
+    assert(ctx->occlusion_queries_active > 0);

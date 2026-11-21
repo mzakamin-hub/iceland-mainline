@@ -1,4 +1,4 @@
-From fa2612fde33c9bbceb8c03e448392893787b1a8f Mon Sep 17 00:00:00 2001
+From 69099ca7e9e7444f956f29382cd18fbd58042035 Mon Sep 17 00:00:00 2001
 From: Karmjit Mahil <karmjit.mahil@igalia.com>
 Date: Wed, 21 Oct 2026 14:43:04 +0100
 Subject: [PATCH] tu: Have GL behavior for primitive generated query

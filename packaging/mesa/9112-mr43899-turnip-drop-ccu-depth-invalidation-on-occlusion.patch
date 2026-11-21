@@ -1,4 +1,4 @@
-From 49593f83bdbaea3159352687d56cfdff4f08abb2 Mon Sep 17 00:00:00 2001
+From 324eadf1c6b922919cfd58d51992fb670f597cff Mon Sep 17 00:00:00 2001
 From: Valentine Burley <valentine.burley@collabora.com>
 Date: Mon, 26 Oct 2026 09:42:43 +0100
 Subject: [PATCH] tu: Drop CCU depth invalidation on occlusion query end

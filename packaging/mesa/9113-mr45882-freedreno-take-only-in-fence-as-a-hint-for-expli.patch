@@ -1,4 +1,4 @@
-From 945fdbd8cff5a152899444cf804b6bbcb06144e7 Mon Sep 17 00:00:00 2001
+From 5b57f42c19105e24c06bacbc8a8c960d627eb2ec Mon Sep 17 00:00:00 2001
 From: Sahitya Kandru <kandru@qti.qualcomm.com>
 Date: Tue, 3 Nov 2026 17:04:17 +0530
 Subject: [PATCH] freedreno : Take only in fence as a hint for explicit sync

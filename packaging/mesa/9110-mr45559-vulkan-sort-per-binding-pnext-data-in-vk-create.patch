@@ -1,4 +1,4 @@
-From 8b14d18923d1d2074fb4d426c50ebdfd6d808a6d Mon Sep 17 00:00:00 2001
+From d1ab3c6b77076e1f88c5c08e90b48c88e41026b2 Mon Sep 17 00:00:00 2001
 From: Danylo Piliaiev <dpiliaiev@igalia.com>
 Date: Thu, 22 Oct 2026 18:21:56 +0200
 Subject: [PATCH 1/4] vulkan: sort per-binding pNext data in
@@ -186,10 +186,10 @@ index 64e7754cdac..e24f2d8af8c 100644
     pSupport->supported = supported;
  }
 diff --git a/src/freedreno/vulkan/tu_descriptor_set.cc b/src/freedreno/vulkan/tu_descriptor_set.cc
-index 18b9299a3c9..790dd00e354 100644
+index 36debef4dee..a69493ff9da 100644
 --- a/src/freedreno/vulkan/tu_descriptor_set.cc
 +++ b/src/freedreno/vulkan/tu_descriptor_set.cc
-@@ -169,14 +169,16 @@ tu_CreateDescriptorSetLayout(
+@@ -201,14 +201,16 @@ tu_CreateDescriptorSetLayout(
     struct vk_ycbcr_conversion_state *ycbcr_samplers =
        reinterpret_cast<struct vk_ycbcr_conversion_state *>(&samplers[immutable_sampler_count]);
  
@@ -209,7 +209,7 @@ index 18b9299a3c9..790dd00e354 100644
     set_layout->binding_count = num_bindings;
     set_layout->shader_stages = 0;
     set_layout->has_immutable_samplers = false;
-@@ -284,7 +286,7 @@ tu_CreateDescriptorSetLayout(
+@@ -316,7 +318,7 @@ tu_CreateDescriptorSetLayout(
        set_layout->shader_stages |= binding->stageFlags;
     }
  
@@ -218,7 +218,7 @@ index 18b9299a3c9..790dd00e354 100644
  
     set_layout->dynamic_offset_size = dynamic_offset_size;
  
-@@ -335,14 +337,16 @@ tu_GetDescriptorSetLayoutSupport(
+@@ -367,14 +369,16 @@ tu_GetDescriptorSetLayoutSupport(
  {
     VK_FROM_HANDLE(tu_device, device, _device);
  
@@ -238,7 +238,7 @@ index 18b9299a3c9..790dd00e354 100644
     const VkDescriptorSetLayoutBindingFlagsCreateInfo *variable_flags =
        vk_find_struct_const(
           pCreateInfo->pNext,
-@@ -434,7 +438,7 @@ tu_GetDescriptorSetLayoutSupport(
+@@ -466,7 +470,7 @@ tu_GetDescriptorSetLayoutSupport(
     }
  
  out:
@@ -362,7 +362,7 @@ index 7a50b8e0cc7..c3cc2d1471d 100644
     return result;
  }
 diff --git a/src/microsoft/vulkan/dzn_descriptor_set.c b/src/microsoft/vulkan/dzn_descriptor_set.c
-index c8821c9a502..30b30f95e76 100644
+index 480e0127bdf..4a01a0f3743 100644
 --- a/src/microsoft/vulkan/dzn_descriptor_set.c
 +++ b/src/microsoft/vulkan/dzn_descriptor_set.c
 @@ -261,16 +261,16 @@ dzn_descriptor_set_layout_create(struct dzn_device *device,
@@ -687,7 +687,7 @@ index 033e274335c..c47f0be4b02 100644
  #ifdef __cplusplus
  }
 
-From 22ea8e6f646fd2a6f9a6f76f7942adfdc678b845 Mon Sep 17 00:00:00 2001
+From 52defd691ea6941f60614a4fd99f4ff6345a9978 Mon Sep 17 00:00:00 2001
 From: Danylo Piliaiev <dpiliaiev@igalia.com>
 Date: Fri, 23 Oct 2026 17:44:25 +0200
 Subject: [PATCH 2/4] tu: use pBindings order for binding flags and mutable
@@ -736,10 +736,10 @@ Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/45559>
  1 file changed, 10 insertions(+), 31 deletions(-)
 
 diff --git a/src/freedreno/vulkan/tu_descriptor_set.cc b/src/freedreno/vulkan/tu_descriptor_set.cc
-index 790dd00e354..0a9140b6a66 100644
+index a69493ff9da..f1801ffc686 100644
 --- a/src/freedreno/vulkan/tu_descriptor_set.cc
 +++ b/src/freedreno/vulkan/tu_descriptor_set.cc
-@@ -115,14 +115,6 @@ tu_CreateDescriptorSetLayout(
+@@ -147,14 +147,6 @@ tu_CreateDescriptorSetLayout(
  
     assert(pCreateInfo->sType ==
            VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO);
@@ -754,7 +754,7 @@ index 790dd00e354..0a9140b6a66 100644
  
     uint32_t num_bindings = 0;
     uint32_t immutable_sampler_count = 0;
-@@ -190,6 +182,7 @@ tu_CreateDescriptorSetLayout(
+@@ -222,6 +214,7 @@ tu_CreateDescriptorSetLayout(
     for (uint32_t j = 0; j < pCreateInfo->bindingCount; j++) {
        const VkDescriptorSetLayoutBinding *binding = bindings + j;
        uint32_t b = binding->binding;
@@ -762,7 +762,7 @@ index 790dd00e354..0a9140b6a66 100644
  
        set_layout->binding[b].type = binding->descriptorType;
        set_layout->binding[b].array_size =
-@@ -206,9 +199,7 @@ tu_CreateDescriptorSetLayout(
+@@ -238,9 +231,7 @@ tu_CreateDescriptorSetLayout(
            */
           (pCreateInfo->flags &
            VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT) ||
@@ -773,7 +773,7 @@ index 790dd00e354..0a9140b6a66 100644
  
        bool has_subsampled_sampler = false;
        if ((binding->descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER ||
-@@ -224,7 +215,7 @@ tu_CreateDescriptorSetLayout(
+@@ -256,7 +247,7 @@ tu_CreateDescriptorSetLayout(
           samplers_offset += sizeof(struct tu_sampler) * binding->descriptorCount;
  
           bool has_ycbcr_sampler = false;
@@ -782,7 +782,7 @@ index 790dd00e354..0a9140b6a66 100644
              VK_FROM_HANDLE(tu_sampler, sampler,
                             binding->pImmutableSamplers[i]);
              if (sampler->vk.ycbcr_conversion)
-@@ -255,7 +246,7 @@ tu_CreateDescriptorSetLayout(
+@@ -287,7 +278,7 @@ tu_CreateDescriptorSetLayout(
            * largest descriptor type that the binding can mutate to.
            */
           set_layout->binding[b].size =
@@ -791,7 +791,7 @@ index 790dd00e354..0a9140b6a66 100644
        } else {
           set_layout->binding[b].size =
              descriptor_size(device, binding, binding->descriptorType,
-@@ -265,9 +256,7 @@ tu_CreateDescriptorSetLayout(
+@@ -297,9 +288,7 @@ tu_CreateDescriptorSetLayout(
        if (binding->descriptorType == VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK)
           set_layout->has_inline_uniforms = true;
  
@@ -802,7 +802,7 @@ index 790dd00e354..0a9140b6a66 100644
           assert(!binding->pImmutableSamplers); /* Terribly ill defined  how
                                                    many samplers are valid */
           assert(binding->binding == num_bindings - 1);
-@@ -347,18 +336,10 @@ tu_GetDescriptorSetLayoutSupport(
+@@ -379,18 +368,10 @@ tu_GetDescriptorSetLayoutSupport(
  
     const VkDescriptorSetLayoutBinding *bindings = sorted->bindings;
  
@@ -821,7 +821,7 @@ index 790dd00e354..0a9140b6a66 100644
  
     if (variable_count) {
        variable_count->maxVariableDescriptorCount = 0;
-@@ -368,6 +349,7 @@ tu_GetDescriptorSetLayoutSupport(
+@@ -400,6 +381,7 @@ tu_GetDescriptorSetLayoutSupport(
     uint64_t size = 0;
     for (uint32_t i = 0; i < pCreateInfo->bindingCount; i++) {
        const VkDescriptorSetLayoutBinding *binding = bindings + i;
@@ -829,7 +829,7 @@ index 790dd00e354..0a9140b6a66 100644
  
        uint64_t descriptor_sz;
  
-@@ -375,7 +357,7 @@ tu_GetDescriptorSetLayoutSupport(
+@@ -407,7 +389,7 @@ tu_GetDescriptorSetLayoutSupport(
           descriptor_sz = 0;
        } else if (binding->descriptorType == VK_DESCRIPTOR_TYPE_MUTABLE_EXT) {
           const VkMutableDescriptorTypeListEXT *list =
@@ -838,7 +838,7 @@ index 790dd00e354..0a9140b6a66 100644
  
           for (uint32_t j = 0; j < list->descriptorTypeCount; j++) {
              /* Don't support the input attachement and combined image sampler type
-@@ -387,8 +369,7 @@ tu_GetDescriptorSetLayoutSupport(
+@@ -419,8 +401,7 @@ tu_GetDescriptorSetLayoutSupport(
              }
           }
  
@@ -848,7 +848,7 @@ index 790dd00e354..0a9140b6a66 100644
        } else {
           bool has_subsampled_sampler = false;
           if ((binding->descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER ||
-@@ -427,10 +408,8 @@ tu_GetDescriptorSetLayoutSupport(
+@@ -459,10 +440,8 @@ tu_GetDescriptorSetLayoutSupport(
           supported = false;
        }
  
@@ -862,7 +862,7 @@ index 790dd00e354..0a9140b6a66 100644
              MIN2(UINT32_MAX, max_count);
        }
 
-From 5f911bf67a4904a9c17b7c5c2fd5c8612ba017f5 Mon Sep 17 00:00:00 2001
+From 3dc9075a56a7f37766c2936f8a3e582413a9023e Mon Sep 17 00:00:00 2001
 From: Danylo Piliaiev <dpiliaiev@igalia.com>
 Date: Fri, 23 Oct 2026 17:44:58 +0200
 Subject: [PATCH 3/4] radv: use pBindings order for binding flags and mutable
@@ -1021,7 +1021,7 @@ index bfd2ab6ddb3..7cf0bfe4da9 100644
           }
           size += descriptor_count * descriptor_size;
 
-From b7c75c607d57c212fe3012129f9372cb48457cb0 Mon Sep 17 00:00:00 2001
+From 3e23eaced7e4e245eddbdbbd7a2a7fff761aa3b1 Mon Sep 17 00:00:00 2001
 From: Danylo Piliaiev <dpiliaiev@igalia.com>
 Date: Fri, 23 Oct 2026 17:45:22 +0200
 Subject: [PATCH 4/4] lavapipe: use pBindings order for mutable type lists

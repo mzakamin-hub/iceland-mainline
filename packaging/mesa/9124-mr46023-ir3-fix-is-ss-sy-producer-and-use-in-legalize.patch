@@ -1,4 +1,4 @@
-From 937385a18575e73c8f6423c7d9a9c22376baed56 Mon Sep 17 00:00:00 2001
+From 48b4ac180dcbe875cccda21ac5f6ef3633c808ea Mon Sep 17 00:00:00 2001
 From: Job Noorman <jnoorman@igalia.com>
 Date: Fri, 6 Nov 2026 16:26:22 +0100
 Subject: [PATCH 1/5] ir3: fix is_{ss,sy}_producer for local atomics
@@ -38,7 +38,7 @@ index 67cd7aaac1d..0482607216e 100644
  
  static inline bool
 
-From a873f62ee4e9f37e06a0c44a67599debc03130b5 Mon Sep 17 00:00:00 2001
+From fd318becbe185bc08951714a5d111f6297496e93 Mon Sep 17 00:00:00 2001
 From: Job Noorman <jnoorman@igalia.com>
 Date: Fri, 6 Nov 2026 16:26:22 +0100
 Subject: [PATCH 2/5] ir3: fix is_ss_producer for resinfo/resbase
@@ -65,7 +65,7 @@ index 0482607216e..151f111715f 100644
            is_local_atomic(instr->opc) || instr->opc == OPC_SHFL;
  }
 
-From 1bb5b86b6696d7504fb22d982400cf686770b922 Mon Sep 17 00:00:00 2001
+From 06f3b108efc64ed62810f165562fa5c04c3b8b8b Mon Sep 17 00:00:00 2001
 From: Job Noorman <jnoorman@igalia.com>
 Date: Fri, 6 Nov 2026 16:26:22 +0100
 Subject: [PATCH 3/5] ir3: fix is_ss_producer for non-ALU instruction writing
@@ -101,7 +101,7 @@ index 151f111715f..0627ecd8ef0 100644
  
     if (instr->block->in_early_preamble && writes_addr1(instr))
 
-From 1a2af7bbf4b66b66d141465c03a9917550dec131 Mon Sep 17 00:00:00 2001
+From 814944adfca567de045c14ad524c8951d55d5708 Mon Sep 17 00:00:00 2001
 From: Job Noorman <jnoorman@igalia.com>
 Date: Fri, 6 Nov 2026 16:26:22 +0100
 Subject: [PATCH 4/5] ir3/legalize: use is_{ss,sy}_producer instead of custom
@@ -165,7 +165,7 @@ index 8e8fe5e339d..4323b527cb8 100644
        unsigned const_size = n->push_consts.src_size * 2;
        BITSET_SET_COUNT(state->needs_ss_for_const, const_dst, const_size);
 
-From 0269943c8abeb3ad6e126673854a97b95a454945 Mon Sep 17 00:00:00 2001
+From 2af400f0cc1d012d4f927063b3e2199427930edd Mon Sep 17 00:00:00 2001
 From: Job Noorman <jnoorman@igalia.com>
 Date: Fri, 6 Nov 2026 16:26:22 +0100
 Subject: [PATCH 5/5] ir3/validate: no instruction should be both (ss) and (sy)

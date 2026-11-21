@@ -1,0 +1,126 @@
+OnePlus Pad 4 (Adreno 840) Mesa package: Mesa MR !46589
+Title:  freedreno/a8xx: use the A8xx compute workgroup tile height
+Author: Artem Peshkov
+URL:    https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/46589
+Head:   42024ea762ef3058af98f7d2729bbda16bef5445 (MR state opened, target main, checked 21 Nov 2026)
+Review: none (no comments); commit message says Generated-by: LLM
+Apply:  applies on staging/26.3 6cd33b7f68ee after the patches before it, without conflict or backport
+
+From d86f9758f9bb66f7b03d0fbc030031cedb4f4a26 Mon Sep 17 00:00:00 2001
+From: Artem Peshkov <slimstalker@gmail.com>
+Date: Sat, 21 Nov 2026 18:01:32 +0500
+Subject: [PATCH] freedreno/a8xx: use the A8xx compute workgroup tile height
+
+Mesa reuses the A7xx WGTILEHEIGHT table on A8xx. Captures of the
+Qualcomm driver on A840 instead show 16 / p, where p is the largest
+power of two dividing local_size_y, capped at 16. The rule held for
+all 44 captured dispatches, including different local sizes and
+dispatch shapes, with and without shared memory and barriers.
+
+Use the A8xx rule in Turnip, Gallium freedreno and computerator for
+CHIP >= A8XX. Keep A7xx and older behavior unchanged.
+
+Reported A840 compute shader replays at 1200 MHz show
+up to 14.7% fewer GPU cycles per dispatch, with bit-identical outputs.
+The 74,276-test Vulkan CTS selection (all compute, 10% subgroups and
+10% memory_model) has identical results before and after the change.
+
+Generated-by: LLM
+---
+ src/freedreno/computerator/a6xx.cc            | 15 +++++++++----
+ src/freedreno/vulkan/tu_shader.cc             | 22 +++++++++++++++----
+ .../drivers/freedreno/a6xx/fd6_compute.cc     | 15 +++++++++----
+ 3 files changed, 40 insertions(+), 12 deletions(-)
+
+diff --git a/src/freedreno/computerator/a6xx.cc b/src/freedreno/computerator/a6xx.cc
+index ec187abd109..04169e7d280 100644
+--- a/src/freedreno/computerator/a6xx.cc
++++ b/src/freedreno/computerator/a6xx.cc
+@@ -216,10 +216,17 @@ cs_program_emit_regs(fd_cs &cs, struct kernel *kernel)
+          .threadsize = thrsz,
+       ));
+    } else {
+-      unsigned tile_height = (local_size[1] % 8 == 0)   ? 3
+-                             : (local_size[1] % 4 == 0) ? 5
+-                             : (local_size[1] % 2 == 0) ? 9
+-                                                        : 17;
++      unsigned tile_height;
++      if (CHIP >= A8XX) {
++         /* A8XX: 16 / p, p = largest power of two dividing local_size_y,
++          * clamped to 16. See tu_shader.cc. */
++         tile_height = 16 / MIN2((unsigned) (local_size[1] & -local_size[1]), 16u);
++      } else {
++         tile_height = (local_size[1] % 8 == 0)   ? 3
++                       : (local_size[1] % 4 == 0) ? 5
++                       : (local_size[1] % 2 == 0) ? 9
++                                                  : 17;
++      }
+ 
+       crb.add(SP_CS_WGE_CNTL(CHIP,
+          .linearlocalidregid = INVALID_REG,
+diff --git a/src/freedreno/vulkan/tu_shader.cc b/src/freedreno/vulkan/tu_shader.cc
+index ece319aadfc..3d0b82bfa83 100644
+--- a/src/freedreno/vulkan/tu_shader.cc
++++ b/src/freedreno/vulkan/tu_shader.cc
+@@ -2433,6 +2433,15 @@ tu6_emit_xs_constants(
+    }
+ }
+ 
++/* A8XX: the Qualcomm driver programs 16 / p, where p is the largest
++ * power of two dividing local_size_y, clamped to 16. A7XX uses 16 / p + 1
++ * with p clamped to 8. */
++static unsigned
++tu_a8xx_cs_wgtile_height(unsigned local_size_y)
++{
++   return 16 / MIN2(local_size_y & -local_size_y, 16u);
++}
++
+ template <chip CHIP>
+ static void
+ tu6_emit_cs_config(struct tu_cs *cs,
+@@ -2503,10 +2512,15 @@ tu6_emit_cs_config(struct tu_cs *cs,
+                                   .threadsize = thrsz));
+       }
+    } else {
+-      unsigned tile_height = (v->local_size[1] % 8 == 0)   ? 3
+-                             : (v->local_size[1] % 4 == 0) ? 5
+-                             : (v->local_size[1] % 2 == 0) ? 9
+-                                                           : 17;
++      unsigned tile_height;
++      if (CHIP >= A8XX) {
++         tile_height = tu_a8xx_cs_wgtile_height(v->local_size[1]);
++      } else {
++         tile_height = (v->local_size[1] % 8 == 0)   ? 3
++                       : (v->local_size[1] % 4 == 0) ? 5
++                       : (v->local_size[1] % 2 == 0) ? 9
++                                                     : 17;
++      }
+       crb.add(SP_CS_WGE_CNTL(CHIP, .linearlocalidregid = regid(63, 0),
+                              .threadsize = thrsz_cs,
+                              .workgrouprastorderzfirsten = true,
+diff --git a/src/gallium/drivers/freedreno/a6xx/fd6_compute.cc b/src/gallium/drivers/freedreno/a6xx/fd6_compute.cc
+index 59d7b9cecc1..4716f5cad9b 100644
+--- a/src/gallium/drivers/freedreno/a6xx/fd6_compute.cc
++++ b/src/gallium/drivers/freedreno/a6xx/fd6_compute.cc
+@@ -39,10 +39,17 @@ cs_program_emit_local_size(struct fd_screen *screen, fd_crb &crb,
+       .supports_double_threadsize ? thrsz : THREAD128;
+ 
+    if (CHIP >= A7XX) {
+-      unsigned tile_height = (local_size[1] % 8 == 0)   ? 3
+-                             : (local_size[1] % 4 == 0) ? 5
+-                             : (local_size[1] % 2 == 0) ? 9
+-                                                           : 17;
++      unsigned tile_height;
++      if (CHIP >= A8XX) {
++         /* A8XX: 16 / p, p = largest power of two dividing local_size_y,
++          * clamped to 16. See tu_shader.cc. */
++         tile_height = 16 / MIN2((unsigned) (local_size[1] & -local_size[1]), 16u);
++      } else {
++         tile_height = (local_size[1] % 8 == 0)   ? 3
++                       : (local_size[1] % 4 == 0) ? 5
++                       : (local_size[1] % 2 == 0) ? 9
++                                                  : 17;
++      }
+ 
+       crb.add(SP_CS_WGE_CNTL(CHIP,
+          .linearlocalidregid = INVALID_REG,

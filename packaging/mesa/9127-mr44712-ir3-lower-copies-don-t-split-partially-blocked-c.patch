@@ -1,4 +1,4 @@
-From 05298538b0358fd5cde3b0e7e7a55d2f065316eb Mon Sep 17 00:00:00 2001
+From 9b34cdd182ee7151bf7896022fc3212db871c5ca Mon Sep 17 00:00:00 2001
 From: Job Noorman <jnoorman@igalia.com>
 Date: Thu, 22 Oct 2026 09:54:09 +0200
 Subject: [PATCH 1/5] ir3/lower_copies: add mark_done helper
@@ -48,7 +48,7 @@ index 60e062ae52a..9a39525ba8c 100644
        }
  
 
-From 27097e278d3154288f1a0f7baafdcc79050f91a7 Mon Sep 17 00:00:00 2001
+From c3e0396f6c1d44684756cd8628700e4c36db3bab Mon Sep 17 00:00:00 2001
 From: Job Noorman <jnoorman@igalia.com>
 Date: Thu, 22 Oct 2026 09:54:09 +0200
 Subject: [PATCH 2/5] ir3/lower_copies: make physreg_dst a bool array
@@ -98,7 +98,7 @@ index 9a39525ba8c..974715b9e83 100644
     }
  
 
-From aba97de1b34960fb314856ed4f0f518f66857448 Mon Sep 17 00:00:00 2001
+From c57c4f391c9f3a85dcefbe8633ed87b960066651 Mon Sep 17 00:00:00 2001
 From: Job Noorman <jnoorman@igalia.com>
 Date: Thu, 22 Oct 2026 09:54:09 +0200
 Subject: [PATCH 3/5] ir3/lower_copies: filter-out self copies earlier
@@ -130,7 +130,7 @@ index 974715b9e83..90df95873ad 100644
           if (!entry->src.flags)
              ctx->physreg_use_count[entry->src.reg + j]++;
 
-From 53c129bac1816ae0561ac25529d8f369e7cd9b35 Mon Sep 17 00:00:00 2001
+From a7b29c8f3d7ca5e4bbba9af2ffb833c4c03f32dc Mon Sep 17 00:00:00 2001
 From: Job Noorman <jnoorman@igalia.com>
 Date: Thu, 22 Oct 2026 09:54:09 +0200
 Subject: [PATCH 4/5] ir3/lower_copies: move acyclic copy resolution to a
@@ -239,7 +239,7 @@ index 90df95873ad..10f61aa2385 100644
     /* Step 3: resolve cycles through swapping.
      *
 
-From 2b1a2f5cac62ca9cba6bbc83d1045008d6871a94 Mon Sep 17 00:00:00 2001
+From f7ffaf00e67598baac2c4f2d476d2e27dcdd7cb3 Mon Sep 17 00:00:00 2001
 From: Job Noorman <jnoorman@igalia.com>
 Date: Thu, 22 Oct 2026 09:54:09 +0200
 Subject: [PATCH 5/5] ir3/lower_copies: don't split partially blocked copies

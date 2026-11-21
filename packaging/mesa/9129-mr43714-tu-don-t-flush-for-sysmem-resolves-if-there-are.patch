@@ -1,4 +1,4 @@
-From cef3b39f15237caf241b279b399a4ba936e9123b Mon Sep 17 00:00:00 2001
+From 014bd66ffaf8a3326ed3bea398b70a09252c21a1 Mon Sep 17 00:00:00 2001
 From: Connor Abbott <cwabbott0@gmail.com>
 Date: Wed, 12 Aug 2026 14:55:09 -0400
 Subject: [PATCH] tu: Don't flush for sysmem resolves if there are no resolves
@@ -13,7 +13,7 @@ Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/43714>
  1 file changed, 14 insertions(+)
 
 diff --git a/src/freedreno/vulkan/tu_cmd_buffer.cc b/src/freedreno/vulkan/tu_cmd_buffer.cc
-index 31c62b3e8ad..8cf7fee8926 100644
+index c3a15fba837..b9598fd0055 100644
 --- a/src/freedreno/vulkan/tu_cmd_buffer.cc
 +++ b/src/freedreno/vulkan/tu_cmd_buffer.cc
 @@ -1919,7 +1919,21 @@ tu6_emit_sysmem_resolves(struct tu_cmd_buffer *cmd,

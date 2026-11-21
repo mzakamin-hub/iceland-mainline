@@ -1,0 +1,121 @@
+OnePlus Pad 4 (Adreno 840) Mesa package: Mesa MR !46139
+Title:  tu/a8xx: Use SUBPASS_FENCE before reading resolved into sysmem input attachments in gmem
+Author: Danylo Piliaiev
+URL:    https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/46139
+Head:   1551118c8971ea5f0458005eea6f4aeb08ce8b22 (MR state opened, target main, checked 21 Nov 2026)
+Review: discussed, no r-b (robclark / cwabbott0; robclark: failures were flaky and only on a840, SUBPASS_FENCE may paper over something else)
+Apply:  applies on staging/26.3 6cd33b7f68ee after the patches before it, without conflict or backport
+
+From 2426684343af24c0fe689cf722a608599371d221 Mon Sep 17 00:00:00 2001
+From: Danylo Piliaiev <dpiliaiev@igalia.com>
+Date: Mon, 2 Nov 2026 23:43:03 +0100
+Subject: [PATCH] tu/a8xx: Use SUBPASS_FENCE before reading resolved input
+ attachments
+
+On a8xx, a BY_REGION dependency between subpasses becomes
+SUBPASS_SLICE_FENCE. If the next subpass reads an input attachment
+from sysmem, an earlier subpass may have stored this attachment from
+GMEM to sysmem at the end of the subpass via CCU_RESOLVE.
+
+SUBPASS_SLICE_FENCE does not seem to wait for CCU_RESOLVE, so the
+shader can read stale data. SUBPASS_FENCE does seem to wait for it.
+
+The blob never emits SUBPASS_SLICE_FENCE here. It ends the GMEM pass
+at the resolve and starts a next one.
+
+Since we now use SUBPASS_FENCE on A8XX, change bool names to reflect
+that, otherwise it's confusing to emit both events under a more narrow
+event condition.
+
+Fixes tests on A840 in default and gmem:
+```
+dEQP-VK.pipeline.*.multisample.multisampled_render_to_single_sampled.input_attachments.render_to.*.{2x,4x}.ds_resolve_sample_zero.whole_framebuffer
+```
+
+Assisted-by: LLM
+Signed-off-by: Danylo Piliaiev <dpiliaiev@igalia.com>
+---
+ src/freedreno/vulkan/tu_cmd_buffer.cc | 25 +++++++++++++++++--------
+ src/freedreno/vulkan/tu_cmd_buffer.h  |  1 +
+ 2 files changed, 18 insertions(+), 8 deletions(-)
+
+diff --git a/src/freedreno/vulkan/tu_cmd_buffer.cc b/src/freedreno/vulkan/tu_cmd_buffer.cc
+index d56e4f9f506..7d0fab4c503 100644
+--- a/src/freedreno/vulkan/tu_cmd_buffer.cc
++++ b/src/freedreno/vulkan/tu_cmd_buffer.cc
+@@ -411,17 +411,17 @@ tu6_emit_flushes(struct tu_cmd_buffer *cmd_buffer,
+    bool emit_cache_invalidate_gmem =
+       (flushes & TU_CMD_FLAG_CACHE_INVALIDATE_GMEM) &&
+       !(flushes & TU_CMD_FLAG_CACHE_INVALIDATE);
+-   bool emit_subpass_slice_wait =
+-       (flushes & TU_CMD_FLAG_SUBPASS_SLICE_FENCE) &&
++   bool emit_subpass_wait =
++       (flushes & (TU_CMD_FLAG_SUBPASS_SLICE_FENCE |
++                   TU_CMD_FLAG_SUBPASS_FENCE)) &&
+         !(flushes & TU_CMD_FLAG_WAIT_FOR_IDLE);
+-   bool emit_subpass_slice_fence =
+-      emit_cache_invalidate_gmem || emit_subpass_slice_wait;
++   bool emit_subpass_fence = emit_cache_invalidate_gmem || emit_subpass_wait;
+ 
+    if (CHIP >= A7XX && (flushes & TU_CMD_FLAG_BLIT_CACHE_CLEAN) &&
+        /* On newer HW SUBPASS_FENCE implicitly waits for resolve events to
+         * finish, so we don't need this if we're emitting it.
+         */
+-       (!emit_subpass_slice_fence ||
++       (!emit_subpass_fence ||
+          !cmd_buffer->device->physical_device->info->props.subpass_fence_cleans_resolve))
+       /* On A7XX, blit cache flushes are required to ensure blit writes are visible
+        * via UCHE. This isn't necessary on A6XX, all writes should be visible implictly.
+@@ -441,7 +441,7 @@ tu6_emit_flushes(struct tu_cmd_buffer *cmd_buffer,
+       tu_emit_rt_workaround<CHIP>(cmd_buffer, cs);
+    if (flushes & TU_CMD_FLAG_WAIT_MEM_WRITES)
+       tu_cs_emit_pkt7(cs, CP_WAIT_MEM_WRITES, 0);
+-   if (emit_subpass_slice_fence) {
++   if (emit_subpass_fence) {
+       /* Emit the stronger flushes in sysmem mode. We need this from
+        * experimentation.
+        */
+@@ -449,13 +449,15 @@ tu6_emit_flushes(struct tu_cmd_buffer *cmd_buffer,
+                              CP_COND_REG_EXEC_0_SYSMEM);
+       if (emit_cache_invalidate_gmem)
+          tu_emit_event_write<CHIP>(cmd_buffer, cs, FD_CACHE_INVALIDATE);
+-      if (emit_subpass_slice_wait)
++      if (emit_subpass_wait)
+          tu_cs_emit_wfi(cs);
+       tu_cond_exec_end(cs);
+ 
+       if (CHIP >= A8XX) {
+          tu_emit_event_write<CHIP>(cmd_buffer, cs, FD_LABEL);
+-         tu_emit_event_write<CHIP>(cmd_buffer, cs, FD_SUBPASS_SLICE_FENCE);
++         tu_emit_event_write<CHIP>(cmd_buffer, cs,
++                                   (flushes & TU_CMD_FLAG_SUBPASS_FENCE) ?
++                                   FD_SUBPASS_FENCE : FD_SUBPASS_SLICE_FENCE);
+          tu_emit_event_write<CHIP>(cmd_buffer, cs, FD_LABEL);
+       } else {
+          tu_emit_event_write<CHIP>(cmd_buffer, cs, FD_SUBPASS_FENCE);
+@@ -6811,6 +6813,13 @@ tu_subpass_barrier(struct tu_cmd_buffer *cmd_buffer,
+    enum tu_stage src_stage = vk2tu_src_stage(cmd_buffer->device, src_stage_vk);
+    enum tu_stage dst_stage = vk2tu_dst_stage(cmd_buffer->device, dst_stage_vk);
+    tu_flush_for_stage<CHIP>(cache, src_stage, dst_stage, !barrier->non_fb_local);
++
++   /* An input attachment that is not in GMEM is read from sysmem, earlier subpass may have stored it with a CCU_RESOLVE
++    * event. SUBPASS_SLICE_FENCE does not seem to wait for CCU_RESOLVE, but SUBPASS_FENCE does.
++    */
++   if (barrier->read_only_input_attachments && (dst_flags & TU_ACCESS_UCHE_READ_GMEM) &&
++       (cache->flush_bits & TU_CMD_FLAG_SUBPASS_SLICE_FENCE))
++      cache->flush_bits |= TU_CMD_FLAG_SUBPASS_FENCE;
+ }
+ 
+ template <chip CHIP>
+diff --git a/src/freedreno/vulkan/tu_cmd_buffer.h b/src/freedreno/vulkan/tu_cmd_buffer.h
+index 7b5146ae69b..5dd63ae4069 100644
+--- a/src/freedreno/vulkan/tu_cmd_buffer.h
++++ b/src/freedreno/vulkan/tu_cmd_buffer.h
+@@ -241,6 +241,7 @@ enum tu_cmd_flush_bits {
+    TU_CMD_FLAG_WAIT_FOR_BR = 1 << 13,
+    TU_CMD_FLAG_CACHE_INVALIDATE_GMEM = 1 << 14,
+    TU_CMD_FLAG_SUBPASS_SLICE_FENCE = 1 << 15,
++   TU_CMD_FLAG_SUBPASS_FENCE = 1 << 16,
+ 
+    TU_CMD_FLAG_ALL_CLEAN =
+       TU_CMD_FLAG_CCU_CLEAN_DEPTH |

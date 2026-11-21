@@ -1,4 +1,4 @@
-From d788f2ed0ec37cc975ab48309d61e3e81b1dcdf4 Mon Sep 17 00:00:00 2001
+From 0b43219484ab210a3229459ca44ca0b09b936024 Mon Sep 17 00:00:00 2001
 From: Danylo Piliaiev <dpiliaiev@igalia.com>
 Date: Wed, 4 Nov 2026 17:13:04 +0100
 Subject: [PATCH] tu: WFI before reading registers that were just written
@@ -19,6 +19,8 @@ On A8XX fixes:
 
 Assisted-by: LLM
 Signed-off-by: Danylo Piliaiev <dpiliaiev@igalia.com>
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/45937>
+(cherry picked from commit 1c87c60187064c60a10378fa79e20debf0941f97)
 ---
  src/freedreno/vulkan/tu_clear_blit.cc | 12 ++++++------
  src/freedreno/vulkan/tu_cmd_buffer.cc | 15 +++++++++++----

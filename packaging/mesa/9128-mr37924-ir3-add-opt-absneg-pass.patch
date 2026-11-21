@@ -1,4 +1,4 @@
-From b42e15f21bfde58cab3d16dc0ff99d00588ddb41 Mon Sep 17 00:00:00 2001
+From 3aa3b2e54b077a87065aae1e116a62c8e3906e6b Mon Sep 17 00:00:00 2001
 From: Job Noorman <jnoorman@igalia.com>
 Date: Wed, 23 Sep 2026 10:21:48 +0200
 Subject: [PATCH 1/2] ir3: add float controls to instructions
@@ -20,10 +20,10 @@ Signed-off-by: Job Noorman <jnoorman@igalia.com>
  3 files changed, 18 insertions(+)
 
 diff --git a/src/freedreno/ir3/ir3.c b/src/freedreno/ir3/ir3.c
-index 2b07dd226a2..29cb18bf2fe 100644
+index 4446b3acc85..c1623a17ed4 100644
 --- a/src/freedreno/ir3/ir3.c
 +++ b/src/freedreno/ir3/ir3.c
-@@ -978,6 +978,7 @@ ir3_build_instr(struct ir3_builder *builder, opc_t opc, int ndst, int nsrc)
+@@ -973,6 +973,7 @@ ir3_build_instr(struct ir3_builder *builder, opc_t opc, int ndst, int nsrc)
        builder->cursor = ir3_after_instr(instr);
     }
  
@@ -79,7 +79,7 @@ index 0627ecd8ef0..401351d6839 100644
  is_bool(struct ir3_instruction *instr)
  {
 diff --git a/src/freedreno/ir3/ir3_compiler_nir.c b/src/freedreno/ir3/ir3_compiler_nir.c
-index 462185ecbec..b1fdc39ccfe 100644
+index 20268c6d5e2..c4a1cadfa60 100644
 --- a/src/freedreno/ir3/ir3_compiler_nir.c
 +++ b/src/freedreno/ir3/ir3_compiler_nir.c
 @@ -573,6 +573,7 @@ emit_alu(struct ir3_context *ctx, nir_alu_instr *alu)
@@ -90,7 +90,7 @@ index 462185ecbec..b1fdc39ccfe 100644
     unsigned dst_sz;
     unsigned dst_bitsize = ir3_bitsize(ctx, alu->def.bit_size);
     type_t dst_type = type_uint_size(dst_bitsize);
-@@ -4526,6 +4527,7 @@ emit_block(struct ir3_context *ctx, nir_block *nblock)
+@@ -4522,6 +4523,7 @@ emit_block(struct ir3_context *ctx, nir_block *nblock)
        ctx->cur_instr = instr;
        emit_instr(ctx, instr);
        ctx->cur_instr = NULL;
@@ -99,7 +99,7 @@ index 462185ecbec..b1fdc39ccfe 100644
           return;
     }
 
-From 554c5c931f6dd13033f4abc9ef5da0600782348a Mon Sep 17 00:00:00 2001
+From fa6454e83245618d6ca306d85ebd025695962bad Mon Sep 17 00:00:00 2001
 From: Job Noorman <jnoorman@igalia.com>
 Date: Wed, 23 Sep 2026 10:21:48 +0200
 Subject: [PATCH 2/2] ir3: add opt_absneg pass
@@ -156,10 +156,10 @@ index 401351d6839..3be4e07d5c5 100644
  bool ir3_insert_alias_tex(struct ir3 *ir);
  bool ir3_create_alias_rt(struct ir3 *ir, struct ir3_shader_variant *v);
 diff --git a/src/freedreno/ir3/ir3_compiler_nir.c b/src/freedreno/ir3/ir3_compiler_nir.c
-index b1fdc39ccfe..06ed8842888 100644
+index c4a1cadfa60..ce2c1036325 100644
 --- a/src/freedreno/ir3/ir3_compiler_nir.c
 +++ b/src/freedreno/ir3/ir3_compiler_nir.c
-@@ -6117,6 +6117,7 @@ ir3_compile_shader_nir(struct ir3_compiler *compiler,
+@@ -6113,6 +6113,7 @@ ir3_compile_shader_nir(struct ir3_compiler *compiler,
        progress |= IR3_PASS(ir, ir3_dce, so);
        progress |= IR3_PASS(ir, ir3_opt_predicates, so);
        progress |= IR3_PASS(ir, ir3_shared_fold);
@@ -169,7 +169,7 @@ index b1fdc39ccfe..06ed8842888 100644
     progress = IR3_PASS(ir, ir3_create_alias_tex_regs);
 diff --git a/src/freedreno/ir3/ir3_opt_absneg.c b/src/freedreno/ir3/ir3_opt_absneg.c
 new file mode 100644
-index 00000000000..a041d5dfafd
+index 00000000000..37e074bb23c
 --- /dev/null
 +++ b/src/freedreno/ir3/ir3_opt_absneg.c
 @@ -0,0 +1,201 @@

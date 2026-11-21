@@ -1,4 +1,4 @@
-From f54be1cfc171a59a7e0ac07ec83660363a10b805 Mon Sep 17 00:00:00 2001
+From bab440155b6a1fa337ae7a8e73956290f33d1769 Mon Sep 17 00:00:00 2001
 From: Dhruv Mark Collins <mark@igalia.com>
 Date: Mon, 26 Oct 2026 20:55:05 +0000
 Subject: [PATCH 1/3] tu/autotune: Count samples passed per tile in GMEM
@@ -21,7 +21,7 @@ Assisted-by: LLM
  1 file changed, 36 insertions(+), 3 deletions(-)
 
 diff --git a/src/freedreno/vulkan/tu_autotune.cc b/src/freedreno/vulkan/tu_autotune.cc
-index c7551c16434..4f572ebf668 100644
+index fd0b21f8b8a..624345a06af 100644
 --- a/src/freedreno/vulkan/tu_autotune.cc
 +++ b/src/freedreno/vulkan/tu_autotune.cc
 @@ -423,6 +423,8 @@ tu_autotune::get_cs_for_fence(uint32_t fence)
@@ -124,7 +124,7 @@ index c7551c16434..4f572ebf668 100644
           emit_metric_timestamp(cs, bo.iova + tile_gpu_data::offset(tile_index) + offsetof(tile_gpu_data, ts_end));
     }
 
-From de3abe218efe262210cacfcd8017df47d0d9ecab Mon Sep 17 00:00:00 2001
+From f951a28e2784ca51633e856dcf06eb42a00f6086 Mon Sep 17 00:00:00 2001
 From: Dhruv Mark Collins <mark@igalia.com>
 Date: Mon, 2 Nov 2026 21:37:44 +0000
 Subject: [PATCH 2/3] tu: Split the sample counting pair out of occlusion query
@@ -321,7 +321,7 @@ index 70e6c9dfcea..b889bfab53f 100644
  
     cmdbuf->state.occlusion_query_may_be_running = false;
 
-From 2849bff81bfcd58900eabb8106051e27b8c59097 Mon Sep 17 00:00:00 2001
+From c05b9c22710c6d4becb6e187bc33ad0223f5b129 Mon Sep 17 00:00:00 2001
 From: Dhruv Mark Collins <mark@igalia.com>
 Date: Mon, 2 Nov 2026 21:40:15 +0000
 Subject: [PATCH 3/3] tu: Count occlusion queries outside of render passes
@@ -352,7 +352,7 @@ Assisted-by: LLM
  4 files changed, 227 insertions(+), 46 deletions(-)
 
 diff --git a/src/freedreno/vulkan/tu_cmd_buffer.cc b/src/freedreno/vulkan/tu_cmd_buffer.cc
-index db0658897e7..31c62b3e8ad 100644
+index 86acda2b893..c3a15fba837 100644
 --- a/src/freedreno/vulkan/tu_cmd_buffer.cc
 +++ b/src/freedreno/vulkan/tu_cmd_buffer.cc
 @@ -25,6 +25,7 @@
@@ -408,7 +408,7 @@ index db0658897e7..31c62b3e8ad 100644
  
        cmd_buffer->state.occlusion_query_may_be_running =
           pBeginInfo->pInheritanceInfo->occlusionQueryEnable;
-@@ -6606,7 +6617,9 @@ tu_CmdExecuteCommands(VkCommandBuffer commandBuffer,
+@@ -6611,7 +6622,9 @@ tu_CmdExecuteCommands(VkCommandBuffer commandBuffer,
           case SR_NONE:
              assert(tu_cs_is_empty(&secondary->draw_cs));
              assert(tu_cs_is_empty(&secondary->draw_epilogue_cs));
@@ -418,7 +418,7 @@ index db0658897e7..31c62b3e8ad 100644
              TU_CALLX(cmd->device, tu_clone_trace)(cmd, &cmd->cs, &cmd->trace, &secondary->trace);
              break;
  
-@@ -6677,7 +6690,9 @@ tu_CmdExecuteCommands(VkCommandBuffer commandBuffer,
+@@ -6682,7 +6695,9 @@ tu_CmdExecuteCommands(VkCommandBuffer commandBuffer,
                 tu_reset_render_pass(cmd);
              }
  

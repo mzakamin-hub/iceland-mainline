@@ -1,4 +1,4 @@
-From 7c489b20b0a8a1a54e86ee5a44bc55e15d165bc1 Mon Sep 17 00:00:00 2001
+From ff530657623b7e645f4faff2eae5db861156f3c1 Mon Sep 17 00:00:00 2001
 From: Vamsi Chitta <vamschit@qti.qualcomm.com>
 Date: Wed, 2 Sep 2026 15:25:17 +0530
 Subject: [PATCH 1/7] tu: Split large indirect draws on A8xx
@@ -110,7 +110,7 @@ index b90e4e69eec..b2d1dd7380c 100644
     trace_end_draw(&cmd->rp_trace, cs);
  }
 
-From b8c7344fd0fe71805b1534061ac34777221ae522 Mon Sep 17 00:00:00 2001
+From c47d43d39f8c45046c984df415543e98dfa00a7d Mon Sep 17 00:00:00 2001
 From: Vamsi Chitta <vamschit@qti.qualcomm.com>
 Date: Wed, 2 Sep 2026 16:23:28 +0530
 Subject: [PATCH 2/7] tu: Split large indirect count draws on A8xx
@@ -312,7 +312,7 @@ index b2d1dd7380c..8b48c686288 100644
     trace_end_draw(&cmd->rp_trace, cs);
  }
 
-From 45c085aaa7731572c2cfbed475364c437eff7c16 Mon Sep 17 00:00:00 2001
+From e7936e2319ba9249ba475762be8b040c7de0e045 Mon Sep 17 00:00:00 2001
 From: Vamsi Chitta <vamschit@qti.qualcomm.com>
 Date: Wed, 23 Sep 2026 08:02:49 +0000
 Subject: [PATCH 3/7] nir: add draw_id_offset system value
@@ -331,7 +331,7 @@ Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/44352>
  4 files changed, 4 insertions(+)
 
 diff --git a/src/compiler/nir/nir_divergence_analysis.c b/src/compiler/nir/nir_divergence_analysis.c
-index 466d1888b4e..e31416e9249 100644
+index 3064006dc00..ec99e3716bf 100644
 --- a/src/compiler/nir/nir_divergence_analysis.c
 +++ b/src/compiler/nir/nir_divergence_analysis.c
 @@ -248,6 +248,7 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
@@ -355,7 +355,7 @@ index a86cdbe4d91..270fdc050fd 100644
     case nir_intrinsic_load_frag_coord:
     case nir_intrinsic_load_pixel_coord:
 diff --git a/src/compiler/nir/nir_intrinsics.py b/src/compiler/nir/nir_intrinsics.py
-index dd46072e5c3..c5827efe483 100644
+index 1c69db147ac..f0a3e3cb934 100644
 --- a/src/compiler/nir/nir_intrinsics.py
 +++ b/src/compiler/nir/nir_intrinsics.py
 @@ -1028,6 +1028,7 @@ system_value("base_vertex", 1)
@@ -367,10 +367,10 @@ index dd46072e5c3..c5827efe483 100644
  system_value("sample_pos", 2)
  # sample_pos_or_center is like sample_pos but does not imply per-sample
 diff --git a/src/compiler/nir/nir_opt_preamble.c b/src/compiler/nir/nir_opt_preamble.c
-index 8c9cdda90e5..f1e90b3f534 100644
+index 3796b80d212..86bc0498fd1 100644
 --- a/src/compiler/nir/nir_opt_preamble.c
 +++ b/src/compiler/nir/nir_opt_preamble.c
-@@ -185,6 +185,7 @@ can_move_intrinsic(nir_intrinsic_instr *instr, opt_preamble_ctx *ctx)
+@@ -184,6 +184,7 @@ can_move_intrinsic(nir_intrinsic_instr *instr, opt_preamble_ctx *ctx)
     case nir_intrinsic_load_base_vertex:
     case nir_intrinsic_load_first_vertex:
     case nir_intrinsic_load_draw_id:
@@ -379,7 +379,7 @@ index 8c9cdda90e5..f1e90b3f534 100644
  
     case nir_intrinsic_load_subgroup_size:
 
-From e0eb7b21ff75b10580e5798ff5f7b6535858a218 Mon Sep 17 00:00:00 2001
+From 25f87534d5c421f2a6f37675b9181ab5554fb447 Mon Sep 17 00:00:00 2001
 From: Vamsi Chitta <vamschit@qti.qualcomm.com>
 Date: Wed, 23 Sep 2026 08:20:05 +0000
 Subject: [PATCH 4/7] ir3: lower draw_id to use draw_id_offset
@@ -402,7 +402,7 @@ Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/44352>
  5 files changed, 34 insertions(+), 1 deletion(-)
 
 diff --git a/src/freedreno/ir3/ir3_compiler.h b/src/freedreno/ir3/ir3_compiler.h
-index d27433513bd..0be822258a6 100644
+index fbeffcc3101..5bc4302b62b 100644
 --- a/src/freedreno/ir3/ir3_compiler.h
 +++ b/src/freedreno/ir3/ir3_compiler.h
 @@ -56,6 +56,9 @@ struct ir3_compiler_options {
@@ -416,10 +416,10 @@ index d27433513bd..0be822258a6 100644
  
  struct ir3_compiler {
 diff --git a/src/freedreno/ir3/ir3_compiler_nir.c b/src/freedreno/ir3/ir3_compiler_nir.c
-index 49b4bdef3ec..293ac0020dd 100644
+index af8db3003b0..12ee805c0e6 100644
 --- a/src/freedreno/ir3/ir3_compiler_nir.c
 +++ b/src/freedreno/ir3/ir3_compiler_nir.c
-@@ -3039,6 +3039,9 @@ emit_intrinsic(struct ir3_context *ctx, nir_intrinsic_instr *intr)
+@@ -3033,6 +3033,9 @@ emit_intrinsic(struct ir3_context *ctx, nir_intrinsic_instr *intr)
     case nir_intrinsic_load_draw_id:
        dst[0] = create_driver_param(ctx, IR3_DP_VS(draw_id));
        break;
@@ -501,10 +501,10 @@ index 70bdda33090..87571bfbd93 100644
  #define IR3_DP_VS(name) dword_offsetof(struct ir3_driver_params_vs, name)
  
 diff --git a/src/freedreno/vulkan/tu_device.cc b/src/freedreno/vulkan/tu_device.cc
-index 4f15084ef42..c317ed1b034 100644
+index 28198219675..c6825818877 100644
 --- a/src/freedreno/vulkan/tu_device.cc
 +++ b/src/freedreno/vulkan/tu_device.cc
-@@ -3017,6 +3017,7 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
+@@ -3021,6 +3021,7 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
           .storage_8bit = physical_device->info->props.storage_8bit,
           .shared_push_consts = !TU_DEBUG(PUSH_CONSTS_PER_STAGE),
           .uche_trap_base = physical_device->uche_trap_base,
@@ -513,7 +513,7 @@ index 4f15084ef42..c317ed1b034 100644
        device->compiler = ir3_compiler_create(
           NULL, &physical_device->dev_id, physical_device->info, &ir3_options);
 
-From 8c4f50385a7b1d193853779207a3800be2ef7c86 Mon Sep 17 00:00:00 2001
+From 50dd0573d90f8dfd7315873684e3b22319aef1a0 Mon Sep 17 00:00:00 2001
 From: Vamsi Chitta <vamschit@qti.qualcomm.com>
 Date: Mon, 5 Oct 2026 22:39:37 +0530
 Subject: [PATCH 5/7] tu: rename skip_vfd to indirect in struct tu_vs_params
@@ -607,7 +607,7 @@ index 14c38d7f855..c262088df1d 100644
  };
  
 
-From bee00e3b62a44fafe0018d65236d0170aabc4390 Mon Sep 17 00:00:00 2001
+From 5e6714b2b384f74c1faa55444f7a954fa35bd45b Mon Sep 17 00:00:00 2001
 From: Vamsi Chitta <vamschit@qti.qualcomm.com>
 Date: Mon, 5 Oct 2026 23:16:38 +0530
 Subject: [PATCH 6/7] tu: split VS driver params constants setup and emission
@@ -728,7 +728,7 @@ index 3e31c6572ae..dee46776bbc 100644
  
     cmd->state.last_vs_params.vertex_offset = vertex_offset;
 
-From 9525213ccca9c679c9900c6c0b8a284def1c7040 Mon Sep 17 00:00:00 2001
+From 24b7c96e8b7ea7f468089db7f5886549195d8ca1 Mon Sep 17 00:00:00 2001
 From: Vamsi Chitta <vamschit@qti.qualcomm.com>
 Date: Tue, 6 Oct 2026 14:50:49 +0530
 Subject: [PATCH 7/7] tu: upload draw_id_offset through driver_params UBO

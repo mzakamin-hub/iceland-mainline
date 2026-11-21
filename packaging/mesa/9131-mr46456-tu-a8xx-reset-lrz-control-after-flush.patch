@@ -1,0 +1,47 @@
+OnePlus Pad 4 (Adreno 840) Mesa package: Mesa MR !46456
+Title:  tu/a8xx: reset LRZ control after flush
+Author: Artem Peshkov
+URL:    https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/46456
+Head:   ad9b0c5377504fa97c01aac9781f98a5a6430864 (MR state opened, target main, checked 21 Nov 2026)
+Review: none (no comments)
+Apply:  applies on staging/26.3 6cd33b7f68ee after the patches before it, without conflict or backport
+
+From 163b5191c1588ab43368f2d4898111ff6ff5b406 Mon Sep 17 00:00:00 2001
+From: Artem Peshkov <slimstalker@gmail.com>
+Date: Wed, 18 Nov 2026 20:30:22 +0500
+Subject: [PATCH] tu/a8xx: reset LRZ control after flush
+
+tu_lrz_tiling_end() enables LRZ control for the end-of-render-pass
+FD_LRZ_FLUSH, but leaves the control registers set afterwards.
+
+On A8xx and newer, reset GRAS_LRZ_CNTL and GRAS_LRZ_CNTL2 after the
+flush using tu6_write_lrz_cntl(). Avoid leaving the flush control
+state active when a subsequent render pass changes LRZ buffers.
+
+This follows the GRAS control cleanup in freedreno's fd6_lrz_inv().
+The change also covers sysmem render-pass end when
+tu_lrz_sysmem_end() delegates to tu_lrz_tiling_end().
+
+LRZ fast-clear remains enabled for use by subsequent render passes,
+which program their LRZ state again. No explicit WFI or additional
+LRZ flush is introduced.
+
+Generated-by: LLM
+---
+ src/freedreno/vulkan/tu_lrz.cc | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/freedreno/vulkan/tu_lrz.cc b/src/freedreno/vulkan/tu_lrz.cc
+index 1ae27c2475f..084fc5fa2f4 100644
+--- a/src/freedreno/vulkan/tu_lrz.cc
++++ b/src/freedreno/vulkan/tu_lrz.cc
+@@ -929,6 +929,9 @@ tu_lrz_tiling_end(struct tu_cmd_buffer *cmd, struct tu_cs *cs)
+    } else {
+       tu_emit_event_write<CHIP>(cmd, cs, FD_LRZ_FLUSH);
+    }
++
++   if (CHIP >= A8XX)
++      tu6_write_lrz_cntl<CHIP>(cmd, cs, {});
+ }
+ TU_GENX(tu_lrz_tiling_end);
+ 

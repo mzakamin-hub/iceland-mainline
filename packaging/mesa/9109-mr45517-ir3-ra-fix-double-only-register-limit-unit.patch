@@ -1,4 +1,4 @@
-From 767083a2317c14fb139303edcb3de0e5184ea2f0 Mon Sep 17 00:00:00 2001
+From a095548e4f2d36b81432336e4ff612507c509a61 Mon Sep 17 00:00:00 2001
 From: Danylo Piliaiev <dpiliaiev@igalia.com>
 Date: Thu, 22 Oct 2026 16:20:11 +0200
 Subject: [PATCH] ir3/ra: fix DOUBLE_ONLY register limit unit

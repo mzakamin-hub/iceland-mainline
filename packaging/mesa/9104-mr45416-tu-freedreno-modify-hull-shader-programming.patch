@@ -1,4 +1,4 @@
-From 02016cf12b61e2bd2e3443122bac5e8040aecdf2 Mon Sep 17 00:00:00 2001
+From 5ffa22c987f3cfd70e1fe881a9ca4518dd2d6a57 Mon Sep 17 00:00:00 2001
 From: Sahitya Kandru <kandru@qti.qualcomm.com>
 Date: Mon, 19 Oct 2026 12:06:20 +0530
 Subject: [PATCH 1/2] tu: modify hull shader programming
@@ -43,10 +43,10 @@ index f220400137a..5b5dbab8edc 100644
     if (dev->physical_device->info->props.tess_use_shared) {
        /* HS invocations for a patch are always within the same wave,
 diff --git a/src/freedreno/vulkan/tu_shader.cc b/src/freedreno/vulkan/tu_shader.cc
-index 78de211f44e..8bfc3b70c86 100644
+index f7688efba80..b275180cd3b 100644
 --- a/src/freedreno/vulkan/tu_shader.cc
 +++ b/src/freedreno/vulkan/tu_shader.cc
-@@ -2965,10 +2965,6 @@ tu6_emit_hs(struct tu_cs *cs,
+@@ -2974,10 +2974,6 @@ tu6_emit_hs(struct tu_cs *cs,
     tu_cs_emit_pkt4(cs, REG_A6XX_VFD_CNTL_2, 1);
     tu_cs_emit(cs, A6XX_VFD_CNTL_2_REGID_HSRELPATCHID(hs_rel_patch_regid) |
                    A6XX_VFD_CNTL_2_REGID_INVOCATIONID(hs_invocation_regid));
@@ -58,7 +58,7 @@ index 78de211f44e..8bfc3b70c86 100644
  TU_GENX(tu6_emit_hs);
  
 
-From dba2170328a82c7fc9e26e087291de2b72c739de Mon Sep 17 00:00:00 2001
+From bbfea830200055b2439ea19492089175358371a1 Mon Sep 17 00:00:00 2001
 From: Sahitya Kandru <kandru@qti.qualcomm.com>
 Date: Tue, 20 Oct 2026 21:00:26 +0530
 Subject: [PATCH 2/2] freedreno: modify hs programming in gallium

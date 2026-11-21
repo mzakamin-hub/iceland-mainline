@@ -1,4 +1,4 @@
-From 201e159182eba94921908202e0a3caa58a3def1e Mon Sep 17 00:00:00 2001
+From 8b56979d22bab48085dfd22e83063d0bb7465424 Mon Sep 17 00:00:00 2001
 From: Valentine Burley <valentine.burley@collabora.com>
 Date: Wed, 4 Nov 2026 14:32:01 +0100
 Subject: [PATCH] tu: Wait for VM_BIND unmap completion before freeing
