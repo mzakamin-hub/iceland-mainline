@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-2.0-or-later
-#   build-rpm.sh TOP OUT_DIR   (on Fedora 44 aarch64; TOP holds SPECS/ and SOURCES/, see mk-sensor-pkg.sh)
+#   build-rpm.sh TOP OUT_DIR   (on Fedora 45 aarch64; TOP holds SPECS/ and SOURCES/, see mk-sensor-pkg.sh)
 # Builds hexagonrpc, libssc and iio-sensor-proxy (SSC + the Pad 4 patches) in that order. libssc and libssc-devel
 # are installed in between: iio-sensor-proxy builds against them. The build dependencies must be installed
 # (the BuildRequires of the three specs). A failing test suite does not stop a build: it is built again without
@@ -23,7 +23,9 @@ one() { # $1 spec name
 bad=0
 one hexagonrpc || bad=1
 if one libssc; then
-	rpm -Uvh --force "$top"/RPMS/*/libssc-0*.rpm "$top"/RPMS/*/libssc-devel-*.rpm && one iio-sensor-proxy || bad=1
+	# rpm 6 (Fedora 45) refuses unsigned packages by default; the libssc just built here is unsigned:
+	# keep the digest check, drop only the signature requirement for this local install
+	rpm -Uvh --force --define "_pkgverify_level digest" "$top"/RPMS/*/libssc-0*.rpm "$top"/RPMS/*/libssc-devel-*.rpm && one iio-sensor-proxy || bad=1
 else
 	bad=1
 fi
