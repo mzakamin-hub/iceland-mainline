@@ -1,11 +1,13 @@
 #!/bin/bash
 # SPDX-License-Identifier: GPL-2.0-or-later
-# image/kiwi/tools/build-local-repo.sh - our packages for the kiwi build, as an rpm-md repository. Runs INSIDE a Fedora 44 aarch64
-# environment (the CI's fedora:44 container on the arm64 runner; on x86 a fedora:44 aarch64 container under qemu-user).
+# image/kiwi/tools/build-local-repo.sh - our packages for the kiwi build, as an rpm-md repository. Runs INSIDE a Fedora 45 aarch64
+# environment (the CI's fedora:45 container on the arm64 runner; on x86 a fedora:45 aarch64 container under qemu-user).
 #   build-local-repo.sh INPUT_DIR REPO_DIR
 # INPUT_DIR holds what the release pages publish (names as GitHub stores them: ~ and ^ become .) plus SHA256SUMS.pins:
 #   kernel-iceland-*.aarch64.rpm       binary (iceland-linux release; the kernel build is not repeated here)
 #   iceland-firmware-*.noarch.rpm      binary (iceland-firmware release)
+#   upower-*.aarch64.rpm, upower-libs-*.aarch64.rpm   binaries (iceland-mainline release; iceland-device 0.28-51
+#                                      requires upower >= 1.91.5-1.fc45.iceland2, which Fedora 45's upower is not)
 #   hexagonrpc-*.aarch64.rpm or hexagonrpc-*.src.rpm   (NOT published yet: see the report's gap list)
 #   libssc-*.src.rpm, iio-sensor-proxy-*.src.rpm       (iceland-mainline release) - rebuilt here, as the B run's sensrpm step
 #   iceland-device-*.src.rpm  or  iceland-pkg-*.tgz     (the release srpm, or the candidate tarball: build-rpm.sh)
@@ -28,30 +30,30 @@ dnf5 -y -q --setopt=install_weak_deps=False install rpm-build dnf5-plugins creat
 W=/tmp/iceland-localrepo; rm -rf "$W"; mkdir -p "$W" "$REPO"
 one() { ls "$IN"/$1 2>/dev/null | head -n 1; }
 # binaries as published
-for g in 'kernel-iceland-*.aarch64.rpm' 'iceland-firmware-*.noarch.rpm'; do
+for g in 'kernel-iceland-*.aarch64.rpm' 'iceland-firmware-*.noarch.rpm' 'upower-[0-9]*.aarch64.rpm' 'upower-libs-[0-9]*.aarch64.rpm'; do
 	f=$(one "$g"); [ -n "$f" ] || die "missing $g"; cp "$f" "$REPO/"; say "binary ${f##*/}"
 done
 # hexagonrpc: binary if given, else its srpm
 if f=$(one 'hexagonrpc-*.aarch64.rpm') && [ -n "$f" ]; then cp "$f" "$REPO/"; say "binary ${f##*/}"
 elif f=$(one 'hexagonrpc-*.src.rpm') && [ -n "$f" ]; then
 	dnf5 -y -q builddep "$f" > /dev/null || die "builddep hexagonrpc"
-	rpmbuild --rebuild --define "_topdir $W/hex" --define "dist .fc44" "$f" > "$W/hex.log" 2>&1 || die "hexagonrpc build (tail: $(tail -n 3 "$W/hex.log" | tr '\n' ' '))"
+	rpmbuild --rebuild --define "_topdir $W/hex" --define "dist .fc45" "$f" > "$W/hex.log" 2>&1 || die "hexagonrpc build (tail: $(tail -n 3 "$W/hex.log" | tr '\n' ' '))"
 	cp "$W"/hex/RPMS/aarch64/hexagonrpc-[0-9]*.aarch64.rpm "$REPO/"; say "built hexagonrpc"
 else die "no hexagonrpc rpm or srpm in the inputs"; fi
 # libssc (also for libssc-devel, which only the iio-sensor-proxy build needs) - the B run's sensrpm step
 l=$(one 'libssc-*.src.rpm'); [ -n "$l" ] || die "missing libssc srpm"
 dnf5 -y -q builddep "$l" > /dev/null || die "builddep libssc"
-rpmbuild --rebuild --nocheck --define "_topdir $W/ssc" --define "dist .fc44" "$l" > "$W/ssc.log" 2>&1 || die "libssc build"
+rpmbuild --rebuild --nocheck --define "_topdir $W/ssc" --define "dist .fc45" "$l" > "$W/ssc.log" 2>&1 || die "libssc build"
 dnf5 -y -q install "$W"/ssc/RPMS/aarch64/libssc-[0-9]*.aarch64.rpm "$W"/ssc/RPMS/aarch64/libssc-devel-*.aarch64.rpm > /dev/null || die "libssc-devel install"
 cp "$W"/ssc/RPMS/aarch64/libssc-[0-9]*.aarch64.rpm "$REPO/"; say "built libssc"
 i=$(one 'iio-sensor-proxy-*.src.rpm'); [ -n "$i" ] || die "missing iio-sensor-proxy srpm"
 dnf5 -y -q builddep "$i" > /dev/null || die "builddep iio-sensor-proxy"
-rpmbuild --rebuild --define "_topdir $W/iio" --define "dist .fc44" "$i" > "$W/iio.log" 2>&1 || die "iio-sensor-proxy build"
+rpmbuild --rebuild --define "_topdir $W/iio" --define "dist .fc45" "$i" > "$W/iio.log" 2>&1 || die "iio-sensor-proxy build"
 grep -q -e 'ssc-light-filter' -e '0003-ssc-light' "$W/iio.log" || die "iio-sensor-proxy built without patch 0003 (the light filter)"
 for r in "$W"/iio/RPMS/aarch64/iio-sensor-proxy-*.aarch64.rpm; do case "$r" in *debuginfo*|*debugsource*) ;; *) cp "$r" "$REPO/" ;; esac; done; say "built iio-sensor-proxy (patch 0003 applied)"
 # iceland-device: the release srpm, or the candidate tarball through its own build-rpm.sh (the B run's devrpm step)
 if d=$(one 'iceland-device-*.src.rpm') && [ -n "$d" ]; then
-	rpmbuild --rebuild --nodeps --define "_topdir $W/dev" --define "dist .fc44" "$d" > "$W/dev.log" 2>&1 || die "iceland-device build"
+	rpmbuild --rebuild --nodeps --define "_topdir $W/dev" --define "dist .fc45" "$d" > "$W/dev.log" 2>&1 || die "iceland-device build"
 	cp "$W"/dev/RPMS/noarch/iceland-device-*.noarch.rpm "$REPO/"
 elif t=$(one 'iceland-pkg-*.tgz') && [ -n "$t" ]; then
 	mkdir -p "$W/pkg"; tar -C "$W/pkg" -xzf "$t"

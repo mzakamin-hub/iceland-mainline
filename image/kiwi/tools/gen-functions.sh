@@ -9,8 +9,10 @@
 # The sensor registry stays (owner: generic, the same on every unit). In the PC / CI build iceland-firmware 11.A.38-4
 # owns every firmware / sensor-tree file including sensors/registry (gen_check proves it); on a tablet B run the
 # extractor's registry is counted, never a FAIL.
-GEN_DEVREL=${GEN_DEVREL:-0.28-20}; GEN_IIO=${GEN_IIO:-3.9-11.iceland1}; GEN_FW=${GEN_FW:-11.A.38-6}
-GEN_KREL=${GEN_KREL:-7.3.0~rc7.iceland.00453}
+# Fedora 45 build: iceland-device is rebuilt with dist .fc45; iio-sensor-proxy's release carries the dist before .iceland1
+# (GEN_IIO is its full release); iceland-firmware is the published binary, its dist stays the release's .fc44
+GEN_DEVREL=${GEN_DEVREL:-0.28-51}; GEN_IIO=${GEN_IIO:-3.9-13.fc45.iceland1}; GEN_FW=${GEN_FW:-11.A.38-6}
+GEN_KREL=${GEN_KREL:-7.4.0~rc1.iceland.00743}
 gen_clean() { # unit data and build residues out of the image ($MNT); prints what it removed (counts only)
 	local n=0 p m
 	for p in usr/lib/firmware/updates/.iceland-extracted etc/iceland/bdaddr etc/iceland/wifimac var/lib/systemd/random-seed \
@@ -57,8 +59,8 @@ gen_check() { # the generic image's invariants -> "PASS n" or "FAIL <what>"; nev
 	chk "$([ "$(readlink "$MNT/etc/systemd/system/systemd-repart.service" 2>/dev/null)" = /dev/null ] && echo 1 || echo 0)" repart-masked
 	chk "$([ -e "$MNT/var/lib/iceland/grown" ] && echo 1 || echo 0)" grow-stamp
 	chk "$(grep -q '^B150g generic image' "$MNT/etc/iceland/generic-image" 2>/dev/null && [ "$(wc -l < "$MNT/etc/iceland/generic-image")" = 1 ] && echo 0 || echo 1)" generic-image-marker
-	v=$(rpm --root "$MNT" -q --qf '%{VERSION}-%{RELEASE}' iceland-device 2>/dev/null); chk "$([ "$v" = "$GEN_DEVREL.fc44" ] && echo 0 || echo 1)" "iceland-device=${v:-absent}"
-	v=$(rpm --root "$MNT" -q --qf '%{VERSION}-%{RELEASE}' iio-sensor-proxy 2>/dev/null); chk "$([ "$v" = "$GEN_IIO.fc44" ] && echo 0 || echo 1)" "iio-sensor-proxy=${v:-absent}"
+	v=$(rpm --root "$MNT" -q --qf '%{VERSION}-%{RELEASE}' iceland-device 2>/dev/null); chk "$([ "$v" = "$GEN_DEVREL.fc45" ] && echo 0 || echo 1)" "iceland-device=${v:-absent}"
+	v=$(rpm --root "$MNT" -q --qf '%{VERSION}-%{RELEASE}' iio-sensor-proxy 2>/dev/null); chk "$([ "$v" = "$GEN_IIO" ] && echo 0 || echo 1)" "iio-sensor-proxy=${v:-absent}"
 	v=$(rpm --root "$MNT" -q --qf '%{VERSION}-%{RELEASE}' iceland-firmware 2>/dev/null); chk "$([ "$v" = "$GEN_FW.fc44" ] && echo 0 || echo 1)" "iceland-firmware=${v:-absent}"
 	v=$(rpm --root "$MNT" -q --qf '%{VERSION}\n' kernel-iceland 2>/dev/null | head -n 1); case "$v" in "$GEN_KREL".*) chk 0 x ;; *) chk 1 "kernel-iceland=${v:-absent}" ;; esac
 	chk "$(rpm --root "$MNT" -V iceland-firmware 2>/dev/null | grep -c .)" iceland-firmware-modified

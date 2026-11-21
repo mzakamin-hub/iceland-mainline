@@ -1,11 +1,12 @@
 #!/bin/bash
 # SPDX-License-Identifier: GPL-2.0-or-later
-# image/kiwi/build.sh - the generic install image, PC / CI side, end to end. Runs as root INSIDE a privileged Fedora 44 aarch64
+# image/kiwi/build.sh - the generic install image, PC / CI side, end to end. Runs as root INSIDE a privileged Fedora 45 aarch64
 # container (loop devices, mounts, chroot): natively on an arm64 host (GitHub ubuntu-24.04-arm), or on x86 under
 # qemu-user-static + binfmt (slow; see ci/README in the report). Never touches a tablet; publishes nothing.
 #   build.sh INPUT_DIR OUT_DIR
 # Steps (each prints one "build:" line; any FAIL stops the build):
-#   1 local repo   tools/build-local-repo.sh: our rpms (kernel / firmware as published, libssc / iio-sensor-proxy / device rebuilt)
+#   1 local repo   tools/build-local-repo.sh: our rpms (kernel / firmware / upower as published, libssc / iio-sensor-proxy /
+#                  hexagonrpc / device rebuilt)
 #   2 kiwi         kiwi-ng system build (desc/config.kiwi + config.sh + edit_boot_install.sh + root/)
 #   3 golden       tools/kiwi2golden.py: B149 partition names, the ESP as FAT32 / 4096, golden format
 #   4 small        mk-small.py: the minimum-size disk (grows at the first boot)

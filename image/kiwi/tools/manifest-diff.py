@@ -8,10 +8,11 @@ PC only, reads two files, writes the report to stdout.
 
 IMAGE_MANIFEST.tsv: NAME<TAB>EPOCH:VERSION-RELEASE<TAB>ARCH per line (image-check.sh writes it with rpm --root -qa).
 B149.json: golden-build-b149.json ("packages": name / evr / arch).
-FAIL when: a B149 name is missing from the image; the image has a name B149 lacks (unless listed in --allow, one name per
-line: e.g. a package Fedora split / renamed since B149); one of ours is not the version of ours.tsv; a floor is not met
+FAIL when: a B149 name is missing from the image or the image has a name B149 lacks (unless listed in --allow, one name
+per line: a package Fedora split / renamed / retired since B149, both of a rename's names; desc/manifest-allow.txt);
+one of ours is not the version of ours.tsv; a floor is not met
 (B149's floors: pipewire 1.6.9, wireplumber 0.5.18, ladspa-swh-plugins 0.4.17, qbootctl 0.2.2).
-INFO: Fedora packages at another version than B149 (expected: the build takes the Fedora 44 updates of its day, as every
+INFO: Fedora packages at another version than B149 (expected: the build takes the Fedora 45 updates of its day, as every
 B run's refresh did; the held set is ours only). Last line "MANIFEST-DIFF: PASS|FAIL (...)".
 """
 import json, re, sys
@@ -93,7 +94,7 @@ def diff(img_rows, ref_pkgs, ours, allow):
     for p in ref_pkgs:
         ref.setdefault(p["name"], []).append(p["evr"])
     out, fail = [], 0
-    missing = sorted(set(ref) - set(img) - {"gpg-pubkey"})
+    missing = sorted(set(ref) - set(img) - set(allow) - {"gpg-pubkey"})
     extra = sorted(set(img) - set(ref) - set(allow) - {"gpg-pubkey"})
     for n in missing:
         out.append("FAIL missing (in B149): %s" % n); fail += 1
@@ -117,7 +118,7 @@ def diff(img_rows, ref_pkgs, ours, allow):
             newer += 1
         elif c < 0:
             older += 1; out.append("INFO older than B149: %s %s < %s" % (n, a, b))
-    out.append("INFO Fedora packages newer than B149: %d, older: %d (the Fedora 44 updates of the build day)" % (newer, older))
+    out.append("INFO Fedora packages newer than B149: %d, older: %d (the Fedora 45 updates of the build day)" % (newer, older))
     out.append("MANIFEST-DIFF: %s (%d FAIL; image %d names, B149 %d names, missing %d, extra %d)" % (
         "PASS" if fail == 0 else "FAIL", fail, len(img), len(ref), len(missing), len(extra)))
     return fail, out
@@ -142,6 +143,9 @@ def selftest():
     t("same names, newer Fedora versions: PASS", f == 0)
     f, o = diff(img[:-1] + [("extra-pkg", "0:1-1", "noarch")], ref, {"iceland-device": "0.28-17"}, [])
     t("a missing name, an extra name, ours absent: 3 FAIL", f == 3)
+    f, o = diff([r for r in img if r[0] != "bash"] + [("bash-renamed", "0:5.3-2.fc45", "aarch64")], ref, {"iceland-device": "0.28-17"},
+                ["bash", "bash-renamed"])
+    t("a rename with both names allowed: PASS", f == 0)
     f, o = diff([("pipewire", "0:1.6.8-1.fc44", "aarch64")] + img[1:], ref, {}, [])
     t("a floor not met: FAIL", f == 1)
     print("SELFTEST %s" % ("PASS" if ok else "FAIL")); return 0 if ok else 1

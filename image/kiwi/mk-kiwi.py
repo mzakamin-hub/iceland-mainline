@@ -7,15 +7,17 @@ PC only; reads the B149 package manifest (names only: the package set is generic
 
   desc/config.kiwi         GENERATED (do not edit; edit TEMPLATE below and run this again)
   desc/packages-b149.txt   GENERATED: the Fedora package names of B149 that the description installs explicitly
+  desc/manifest-allow.txt  GENERATED: the names manifest-diff.py lets differ from B149 on Fedora 45 (F45_* below)
   desc/config.sh, desc/edit_boot_install.sh, desc/root/   hand-written (the B-run recipe's distro configuration)
 
 What the description reproduces (sources: wf/generic/recipe/tablet-b150g.sh = B149 recipe + B150g generic changes,
 wf/install/cand/image/mk-golden.py = the stage0 layout):
-  - Fedora 44 Workstation: the environment group + every Fedora package name of B149's manifest (1727 packages, our 6
-    names and gpg-pubkey out); Fedora's kernels, rescue initramfs, U-Boot images, Raspberry Pi files, the capsule updater,
+  - Fedora 45 Workstation: the environment group + every Fedora package name of B149's manifest (1727 packages, ours and
+    gpg-pubkey out; B149 was a Fedora 44 install: the names Fedora 45 no longer ships are left out, F45_GONE);
+    Fedora's kernels, rescue initramfs, U-Boot images, Raspberry Pi files, the capsule updater,
     gnome-boxes and the VM guest tools never go in (<ignore> = dnf --exclude; B149 removed the same list at build1a)
   - our packages from the local repository (priority 1 beats Fedora's 99): kernel-iceland, iceland-device, iceland-firmware,
-    iio-sensor-proxy, libssc, hexagonrpc (versions below; the build checks them, image-check.sh again in the image)
+    iio-sensor-proxy, libssc, hexagonrpc, upower (versions below; the build checks them, image-check.sh again in the image)
   - the layout: GPT in 4096-byte blocks (target_blocksize: the tablet's UFS LUNs), p1 ESP 500 MiB, p2 XBOOTLDR /boot ext4
     2000 MiB, p3 root-arm64 btrfs with the top-level subvolumes root / home / var (Fedora's layout, compress=zstd:1);
     kiwi 11 sets the discoverable partition types (esp / xbootldr / root-arm64) itself
@@ -34,16 +36,38 @@ MANIFEST = B + "/wf/install/priv/run/golden-build-b149.json"
 MIRROR = "https://dl.fedoraproject.org/pub/fedora/linux"
 LOCALREPO = "/work/localrepo"           # the build container's path (build.sh / the CI workflow bind it there)
 
-# ours (local repository). kernel-iceland: q89m = 7.3.0~rc7.iceland.00453 (the coordinator's target; the repo holds exactly
-# one build of it, the spec below names the version prefix so a rebuild with another git hash is refused by image-check)
+# ours (local repository). kernel-iceland: q91n = 7.4.0~rc1.iceland.00743 (the repo holds exactly one build of it, the spec
+# below names the version prefix so a rebuild with another git hash is refused by image-check). iceland-device 0.28-51
+# (>= 0.28-49: the Fedora 45 release pin, 51-iceland-fedora-45-pin.repo) needs libssc >= 2.iceland1 and our upower
+# (>= 1.91.5-1.fc45.iceland2; Fedora 45's 1.91.5-1.fc45 does not satisfy it): upower comes from the release as a binary.
+# iio-sensor-proxy's release carries the dist tag before .iceland1 since 3.9-13 (the full release is the prefix here).
 OURS = {
-    "kernel-iceland": "7.3.0~rc7.iceland.00453",
-    "iceland-device": "0.28-20",
+    "kernel-iceland": "7.4.0~rc1.iceland.00743",
+    "iceland-device": "0.28-51",
     "iceland-firmware": "11.A.38-6",
-    "iio-sensor-proxy": "3.9-11.iceland1",
-    "libssc": "0.4.4^8.git54dd13e-1.iceland1",
+    "iio-sensor-proxy": "3.9-13.fc45.iceland1",
+    "libssc": "0.4.4^8.git54dd13e-2.iceland1",
     "hexagonrpc": "0.5.0^19.git598b591-1.iceland2",
+    "upower": "1.91.5-1.fc45.iceland2",
 }
+# Fedora 45 against B149 (a Fedora 44 install). Read from Fedora 45's aarch64 metadata (fedora + updates) and a dry-run
+# resolve of this description with our release binaries, 21 Nov 2026.
+# B149 names that Fedora 45 ships under no name at all (dnf5 would stop at "No match"): left out of the description.
+# Their Obsoletes: elfutils-default-yama-scope -> elfutils-libs, gvfs-afp / gvfs-archive -> gvfs, the four ding-libs ->
+# libini_config; linux-atm-libs is retired.
+F45_GONE = ["elfutils-default-yama-scope", "gvfs-afp", "gvfs-archive", "libbasicobjects", "libcollection", "libpath_utils",
+            "libref_array", "linux-atm-libs"]
+# names the image may lack although B149 has them: F45_GONE + the ones Fedora 45 obsoletes / renames (NetworkManager-vpnc*
+# by NetworkManager 1.58, noopenh264 by openh264, protobuf-c by protobuf3-c, python3-inotify by python3-pyinotify)
+F45_ALLOW_MISSING = F45_GONE + ["NetworkManager-vpnc", "NetworkManager-vpnc-gnome", "noopenh264", "protobuf-c", "python3-inotify"]
+# names the image may have although B149 lacks them: Fedora 45's new dependencies and replacements, and iceland-device's
+# GNOME subpackage (iceland-device >= 0.28-40 splits it off; installed with gnome-shell)
+F45_ALLOW_EXTRA = ["NetworkManager-libreswan", "NetworkManager-libreswan-gnome", "boost-filesystem", "boost-log",
+                   "boost-serialization", "f45-backgrounds-base", "f45-backgrounds-gnome", "fips-provider", "iceland-device-gnome",
+                   "kmscon", "ldns", "libmediainfo", "libpisp", "libreswan", "libreswan-minimal", "libtsm", "libxml2_2.13", "libzen",
+                   "mozilla-openh264", "nettle3.10", "nss-tools", "oo7-daemon", "oo7-portal", "openh264", "pam_oo7", "pdfio",
+                   "protobuf-cpp", "protobuf3-c", "python3-libdnf5", "python3-pyinotify", "redhat-systemd-presets",
+                   "redhat-systemd-presets-common", "redhat-systemd-presets-desktop", "tinyxml2"]
 # never in the image: tablet-b150g.sh rm_list (built-ins) + iceland-left-out.list "remove" rows (same names, B149)
 IGNORE = ["kernel", "kernel-core", "kernel-modules", "kernel-modules-core", "kernel-modules-extra", "kernel-modules*",
           "dracut-config-rescue", "dracut-config-generic", "uboot-images-*", "bcm283x-firmware", "bcm283x-overlays",
@@ -57,23 +81,23 @@ BOOTSTRAP = ["filesystem", "basesystem", "setup", "glibc-all-langpacks", "dnf5",
 
 TEMPLATE = """<?xml version="1.0" encoding="utf-8"?>
 <!-- image/kiwi/desc/config.kiwi - GENERATED by image/kiwi/mk-kiwi.py (do not edit). Fedora Remix for OnePlus Pad 4, the GENERIC
-     install image (B150g content): Fedora 44 Workstation aarch64 + kernel-iceland / iceland-device / iceland-firmware and the
+     install image (B150g content): Fedora 45 Workstation aarch64 + kernel-iceland / iceland-device / iceland-firmware and the
      sensor packages, no unit data. Built with kiwi-ng on aarch64 (native runner) or under qemu-user (x86 host). -->
 <image schemaversion="8.5" name="Fedora-Remix-OnePlusPad4-generic">
     <description type="system">
         <author>OnePlus Pad 4 mainline project</author>
         <contact>https://github.com/mzakamin-hub/iceland-mainline</contact>
-        <specification>Fedora 44 Workstation for the OnePlus Pad 4 (iceland), generic: grows and provisions itself at the first boot</specification>
+        <specification>Fedora 45 Workstation for the OnePlus Pad 4 (iceland), generic: grows and provisions itself at the first boot</specification>
     </description>
     <preferences>
-        <version>44.150.0</version>
+        <version>45.150.0</version>
         <packagemanager>dnf5</packagemanager>
         <locale>en_US</locale>
         <keytable>us</keytable>
         <timezone>UTC</timezone>
         <rpm-excludedocs>false</rpm-excludedocs>
         <rpm-check-signatures>false</rpm-check-signatures>
-        <release-version>44</release-version>
+        <release-version>45</release-version>
         <type image="oem" filesystem="btrfs" firmware="uefi" efiparttable="gpt" target_blocksize="4096"
               efipartsize="500"
               bootpartition="true" bootpartsize="2000" bootfilesystem="ext4"
@@ -95,14 +119,16 @@ TEMPLATE = """<?xml version="1.0" encoding="utf-8"?>
     <repository type="rpm-md" alias="iceland-build-local" priority="1" package_gpgcheck="false" repository_gpgcheck="false">
         <source path="dir://{localrepo}"/>
     </repository>
+    <!-- the signing key from the build host's fedora-gpg-keys 45 (it keeps the keys in /usr/share/pki/rpm-gpg; its
+         /etc/pki/rpm-gpg is empty) -->
     <repository type="rpm-md" alias="fedora" priority="99" package_gpgcheck="true" repository_gpgcheck="false">
-        <source path="{mirror}/releases/44/Everything/aarch64/os/">
-            <signing key="file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-primary"/>
+        <source path="{mirror}/releases/45/Everything/aarch64/os/">
+            <signing key="file:///usr/share/pki/rpm-gpg/RPM-GPG-KEY-fedora-45-primary"/>
         </source>
     </repository>
     <repository type="rpm-md" alias="updates" priority="99" package_gpgcheck="true" repository_gpgcheck="false">
-        <source path="{mirror}/updates/44/Everything/aarch64/">
-            <signing key="file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-primary"/>
+        <source path="{mirror}/updates/45/Everything/aarch64/">
+            <signing key="file:///usr/share/pki/rpm-gpg/RPM-GPG-KEY-fedora-45-primary"/>
         </source>
     </repository>
     <packages type="bootstrap">
@@ -113,7 +139,7 @@ TEMPLATE = """<?xml version="1.0" encoding="utf-8"?>
         <namedCollection name="workstation-product-environment"/>
         <!-- ours, from iceland-build-local (versions checked by build.sh and image-check.sh) -->
 {ours}
-        <!-- B149's Fedora package names ({nfed} names; desc/packages-b149.txt) -->
+        <!-- B149's Fedora package names that Fedora 45 still ships ({nfed} names; desc/packages-b149.txt) -->
 {fedora}
         <!-- never installed (dnf -exclude): Fedora's kernels and rescue image, other boards' boot files, VM guest tools -->
 {ignore}
@@ -127,9 +153,9 @@ def gen(manifest, mirror, localrepo):
     names = sorted({p["name"] for p in d["packages"]})
     assert len(names) >= 1500, "manifest too small: %d" % len(names)
     rel = [n for n in names if n.startswith("fedora-release")]
-    fed = [n for n in names if n not in OURS and n != "gpg-pubkey"]
-    for n in OURS:
+    for n in list(OURS) + F45_ALLOW_MISSING:
         assert n in names, "B149 has no %s" % n
+    fed = [n for n in names if n not in OURS and n != "gpg-pubkey" and n not in F45_GONE]
     import fnmatch
     clash = [n for n in fed if any(fnmatch.fnmatch(n, g) for g in IGNORE)]
     assert not clash, "B149 has ignored packages installed: %r" % clash
@@ -147,7 +173,11 @@ def gen(manifest, mirror, localrepo):
     # the reference for manifest-diff.py in CI (names / versions / arch only; the private run dir is not in the repository)
     ref = json.dumps({"brun": d.get("brun"), "manifest_sha256": d.get("manifest_sha256"),
                       "packages": [{"name": p["name"], "evr": p["evr"], "arch": p["arch"]} for p in d["packages"]]}, indent=0) + "\n"
-    return {"config.kiwi": x, "packages-b149.txt": lst, "ours.tsv": ours, "b149-packages.json": ref}, len(fed)
+    allow = "# image/kiwi/desc/manifest-allow.txt - GENERATED by mk-kiwi.py: names that may differ from B149 on Fedora 45\n" + \
+        "# (image-check.sh passes this file to manifest-diff.py --allow; mk-kiwi.py F45_ALLOW_MISSING / F45_ALLOW_EXTRA)\n" + \
+        "".join("%s\n" % n for n in sorted(set(F45_ALLOW_MISSING) | set(F45_ALLOW_EXTRA)))
+    return {"config.kiwi": x, "packages-b149.txt": lst, "ours.tsv": ours, "b149-packages.json": ref,
+            "manifest-allow.txt": allow}, len(fed)
 
 
 def main():

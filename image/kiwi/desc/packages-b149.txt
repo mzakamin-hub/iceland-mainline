@@ -296,7 +296,6 @@ efi-filesystem
 efivar-libs
 elfutils
 elfutils-debuginfod-client
-elfutils-default-yama-scope
 elfutils-libelf
 elfutils-libs
 emacs-filesystem
@@ -582,8 +581,6 @@ gutenprint-cups
 gutenprint-libs
 gvfs
 gvfs-afc
-gvfs-afp
-gvfs-archive
 gvfs-client
 gvfs-fuse
 gvfs-goa
@@ -749,7 +746,6 @@ libavutil-free
 libb2
 libbabeltrace
 libbabeltrace2
-libbasicobjects
 libblkid
 libblockdev
 libblockdev-btrfs
@@ -786,7 +782,6 @@ libchewing
 libchromaprint
 libcloudproviders
 libcmis
-libcollection
 libcom_err
 libcomps
 libcue
@@ -939,7 +934,6 @@ libosinfo
 libpagemaker
 libpaper
 libpasswdqc
-libpath_utils
 libpcap
 libpciaccess
 libpfm
@@ -966,7 +960,6 @@ libqxp
 librabbitmq
 libraqm
 libraw1394
-libref_array
 libreoffice-calc
 libreoffice-core
 libreoffice-data
@@ -1100,7 +1093,6 @@ libzip
 libzmf
 libzstd
 lilv-libs
-linux-atm-libs
 linux-firmware
 linux-firmware-whence
 lksctp-tools
@@ -1612,7 +1604,6 @@ unbound-libs
 unicode-ucd
 unoconv
 unzip
-upower
 upower-libs
 uresourced
 uriparser
