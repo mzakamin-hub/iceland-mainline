@@ -20,7 +20,8 @@ wf/install/cand/image/mk-golden.py = the stage0 layout):
     iio-sensor-proxy, libssc, hexagonrpc, upower (versions below; the build checks them, image-check.sh again in the image)
   - the layout: GPT in 4096-byte blocks (target_blocksize: the tablet's UFS LUNs), p1 ESP 500 MiB, p2 XBOOTLDR /boot ext4
     2000 MiB, p3 root-arm64 btrfs with the top-level subvolumes root / home / var (Fedora's layout, compress=zstd:1);
-    kiwi 11 sets the discoverable partition types (esp / xbootldr / root-arm64) itself
+    kiwi sets the discoverable partition types (esp / xbootldr / root-arm64) itself: kiwi 11.1.1 (Fedora 44) always did,
+    kiwi 11.1.16 (Fedora 45 updates) only with apply_dps_codes="true" (else p2 / p3 keep t.linux 8300)
   - GRUB with BLS entries (kiwi's grub2 + shim on the ESP, as Fedora's own kiwi-built Workstation-Disk image that B149's
     stage0 was), the per-kernel device tree and $iceland_args (iceland-grub-setup; edit_boot_install.sh re-applies them
     after kiwi rewrote the entries' options)
@@ -99,7 +100,7 @@ TEMPLATE = """<?xml version="1.0" encoding="utf-8"?>
         <rpm-check-signatures>false</rpm-check-signatures>
         <release-version>45</release-version>
         <type image="oem" filesystem="btrfs" firmware="uefi" efiparttable="gpt" target_blocksize="4096"
-              efipartsize="500"
+              efipartsize="500" apply_dps_codes="true"
               bootpartition="true" bootpartsize="2000" bootfilesystem="ext4"
               btrfs_root_is_subvolume="true" btrfs_set_default_volume="false" fsmountoptions="compress=zstd:1"
               rootfs_label="fedora" devicepersistency="by-uuid" initrd_system="none"
