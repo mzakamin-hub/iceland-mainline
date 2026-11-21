@@ -69,7 +69,24 @@ jobs:
           (cd "$top/SOURCES" && sha256sum ./*)
 
       - name: Build dependencies
-        run: dnf -y -q builddep "$RUNNER_TEMP/rpmbuild/SPECS/mesa.spec"
+        run: |
+          top="$RUNNER_TEMP/rpmbuild"
+          dnf -y -q builddep "$top/SPECS/mesa.spec"
+          # the spec generates more BuildRequires at build time (%generate_buildrequires: cargo2rpm for the Rust
+          # crates); mock resolves them on its own, here: rpmbuild -br -> dnf builddep on the .buildreqs.nosrc.rpm,
+          # until rpmbuild -br no longer exits 11 ("more build dependencies needed")
+          for i in 1 2 3 4 5; do
+            rm -f "$top"/SRPMS/*.buildreqs.nosrc.rpm
+            set +e
+            rpmbuild -br --define "_topdir $top" --define "dist .fc45" "$top/SPECS/mesa.spec" > "$RUNNER_TEMP/br.log" 2>&1
+            rc=$?
+            set -e
+            echo "rpmbuild -br round $i: rc $rc"
+            [ "$rc" = 11 ] || break
+            dnf -y -q builddep "$top"/SRPMS/*.buildreqs.nosrc.rpm
+          done
+          [ "$rc" = 0 ] || [ "$rc" = 11 ] || { tail -30 "$RUNNER_TEMP/br.log"; exit 1; }
+          [ "$rc" = 0 ] || { echo "::error title=mesa::build dependencies still missing after 5 rounds"; tail -30 "$RUNNER_TEMP/br.log"; exit 1; }
 
       - name: rpmbuild -ba
         run: |
