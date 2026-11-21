@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Package builds in Fedora 44 containers on every push / pull request that touches the packaging:
+# Package builds in Fedora 45 containers on every push / pull request that touches the packaging:
 #   noarch    iceland-device (rpmbuild -ba with its BuildRequires: the noarch rpm + the src.rpm), src.rpms of the
 #             sensor packages, a parse of iceland-firmware.spec (that package is built in the iceland-firmware repository)
 #   aarch64   hexagonrpc, libssc, iio-sensor-proxy (rpmbuild -ba, native on the arm64 runner)
@@ -32,7 +32,7 @@ concurrency:
 jobs:
   noarch:
     runs-on: ubuntu-24.04
-    container: fedora:44
+    container: fedora:45
     timeout-minutes: 45
     steps:
       - name: Install rpm tools
@@ -68,7 +68,7 @@ jobs:
 
   aarch64:
     runs-on: ubuntu-24.04-arm
-    container: fedora:44
+    container: fedora:45
     timeout-minutes: 60
     steps:
       - name: Install rpm tools

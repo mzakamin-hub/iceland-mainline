@@ -24,7 +24,7 @@ BuildRequires:  pkgconfig(gio-unix-2.0)
 BuildRequires:  pkgconfig(qmi-glib) >= 1.33.4
 BuildRequires:  pkgconfig(libprotobuf-c)
 BuildRequires:  pkgconfig(gobject-introspection-1.0)
-BuildRequires:  protobuf-c-compiler
+BuildRequires:  /usr/bin/protoc-c
 BuildRequires:  protobuf-compiler
 
 %description
