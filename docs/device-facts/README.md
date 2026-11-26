@@ -3,8 +3,8 @@
 Status (14 Oct 2026): this folder is the index of the decoded stock facts. The raw captures are NOT published. Several
 of them hold unit data (identifiers, properties, network and device dumps, a live device tree), so only the decoded
 values below are kept in the repository. The files that are published here are `memory-map.txt` and
-`stock-display-power.md`. The stock values in this index are still the reference for the device tree; the 13 Oct install
-changed the layout of the tablet, not these stock values (see `reference/pad4-hardware-boot-partitions.md`, section 3).
+`stock-display-power.md`. The stock values in this index are still the reference for the device tree; installing Linux
+changes the tablet's partition contents, not these stock values.
 
 Source: the first capture run of 27 Sep 2026 (DSU GSI root; stopped after the GPIO dump; not published).
 Note: capture 1 used `od -tx4`, which prints each big-endian DT cell byte-swapped; values below are decoded.

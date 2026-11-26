@@ -10,7 +10,7 @@ manifest, and the device package fetches a release only against pinned sha256 va
 repository.
 
 Unit-specific data is never published: the sensor calibration registry, the Bluetooth and Wi-Fi addresses and the
-extraction record. The installer takes those from the tablet itself, read-only, when the system is set up.
+extraction record. A system for one tablet takes those from that tablet itself, read-only, when it is set up.
 
 Findings behind the table:
 
