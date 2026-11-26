@@ -30,8 +30,12 @@ _common() {
     udevadm trigger --action=add -s dma_heap >/dev/null 2>&1 || :
     udevadm trigger --action=change -s devfreq -s block -s power_supply >/dev/null 2>&1 || :
     systemctl kill -s HUP systemd-logind.service >/dev/null 2>&1 || :
+    # 0.28.53-22: iceland-cover-detect is NOT restarted here: a new process makes a new uinput lid device, and
+    # powerdevil / UPower of a running session stay bound to the old one (a closed cover would then not suspend). The
+    # new cover-detect runs from the next boot (or: systemctl restart iceland-cover-detect, then
+    # systemctl --user restart plasma-powerdevil in the session).
     systemctl try-restart upower.service iceland-battery-guard.service iceland-thermal.service \
-      iceland-cover-detect.service iceland-resleep.service irqbalance.service >/dev/null 2>&1 || :
+      iceland-resleep.service irqbalance.service >/dev/null 2>&1 || :
   fi
 }
 

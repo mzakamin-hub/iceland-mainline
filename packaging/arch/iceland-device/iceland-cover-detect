@@ -268,7 +268,34 @@ def main():
     while not os.path.exists("/dev/fastrpc-adsp"):
         time.sleep(2)                          # the sensor hub's node appears when the ADSP is up
     lid = Lid(); det = Detector(lid)
-    det.start()                                # GLib.Error -> exit 1 -> systemd restarts us
+    # 0.28.53-22: the uinput lid device lives as long as this process. A hub session that cannot be opened yet (the
+    # sensor hub not ready early in the boot, or after a resume) is retried HERE with backoff 1, 2, 4 .. 60 s, never
+    # by exiting: a restart by systemd made a NEW "iceland cover detector" device ~5 s later, while UPower /
+    # powerdevil stayed bound to the first one, so a closed cover was seen by logind but never suspended (tablet
+    # 26 Nov: lid device at 6.9 s, det.start() GLib.Error, restart at 12.2 s; powerdevil started at 10.6 s).
+    # Only a fatal error (no /dev/uinput, a bug) still ends the process (systemd restarts it: Restart=on-failure).
+    retry = {"id": 0, "delay": 1}
+
+    def try_start(why):
+        retry["id"] = 0
+        try:
+            det.start()                        # idempotent: opens only the sessions that are not open yet
+        except GLib.Error as e:
+            d = retry["delay"]; retry["delay"] = min(d * 2, 60)
+            log("%s: sensor hub session not ready (%s); next try in %d s" % (why, e.message, d))
+            retry["id"] = GLib.timeout_add_seconds(d, try_start, why)
+            return False
+        if retry["delay"] > 1:
+            log("%s: sensor hub sessions open" % why)
+        retry["delay"] = 1
+        return False
+
+    def cancel_retry():
+        if retry["id"]:
+            GLib.source_remove(retry["id"]); retry["id"] = 0
+        retry["delay"] = 1
+
+    try_start("start")
     bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
     inhibit = {"fd": None}
 
@@ -282,22 +309,16 @@ def main():
         except GLib.Error as e:
             log("no delay lock: %s" % e.message)
 
-    def reopen(tries=[0]):
-        try:
-            det.start(); tries[0] = 0; return False
-        except GLib.Error as e:
-            tries[0] += 1
-            log("reopen after resume failed (%d): %s" % (tries[0], e.message))
-            return tries[0] < 30
-
     def sleep_cb(_c, _s, _p, _i, _sig, params):
         if params.unpack()[0]:
+            cancel_retry()
             det.stop()
             if inhibit["fd"] is not None:
                 os.close(inhibit["fd"]); inhibit["fd"] = None
         else:
             take_delay()
-            GLib.timeout_add_seconds(3, reopen)   # after iceland-ssc-resume has started hexagonrpcd again
+            cancel_retry()                         # after iceland-ssc-resume has started hexagonrpcd again:
+            retry["id"] = GLib.timeout_add_seconds(3, try_start, "resume")
     bus.signal_subscribe("org.freedesktop.login1", "org.freedesktop.login1.Manager", "PrepareForSleep",
                          "/org/freedesktop/login1", None, Gio.DBusSignalFlags.NONE, sleep_cb)
     take_delay()

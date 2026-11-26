@@ -113,7 +113,11 @@ pkgver=0.28.53
 # iceland-droidloom-hook and the /run/iceland/droidloom-pacman.allow marker of iceland-droidloom-pacman); the tool stays
 # as an optional manual check (plan / install with the [droidloom] allow-list check). -hypr is rebuilt only because it
 # is a split package of this PKGBUILD (it is no longer installed on the tablet).
-pkgrel=21
+# pkgrel 22 (tablet 26 Nov: the cover closed -> no suspend after every boot): iceland-cover-detect keeps its uinput lid
+# device for the whole process life and retries the hub sessions in-process with backoff 1 .. 60 s (it exited on the
+# first GLib.Error; the systemd restart made a second lid device that powerdevil / UPower never saw); the install
+# script no longer try-restarts iceland-cover-detect (same reason); the new code runs from the next boot.
+pkgrel=22
 pkgdesc='OnePlus Pad 4 (iceland) device settings for Arch Linux ARM / Omarchy (port of iceland-device 0.28-53)'
 arch=(any)
 url='https://github.com/mzakamin-hub/iceland-mainline'
@@ -327,7 +331,7 @@ sha256sums=('SKIP'
             'cb62580969a9a86a1c242e8aeed54eba3258c340ff635fc2dfb78ba1048e400e'
             '524f8e1b77975bfa0c08e62942054a07ca6c79804ba608f843b1590e387c0272'
             'e835482f9406a35378f54dfe8848f8224a78515efc5398f91acf3b4566f612fe'
-            '2d2451b0db4125939a201b994ad87ec5465b16e37afe85afff63213b6d8c7024'
+            '86bf87a6b3a29007460088d982f1260fc8f3e7f898200cdf8a1dfd2bdbc4dbf4'
             '24adb8c44c0b77773c21da390e832536384ec3b8642ab9924ed4077f7efddfe6'
             'a7ddaade34ceafd18200aca4a90b57b853034bc2b83ab6f48417ca6010fc8680'
             '74abe9e8827cc0194aabf78ae1bbea3b1c08e320590360b6205d4ac143830a39'

@@ -1,5 +1,5 @@
-# Sources of iceland-device that are NOT in this repository (archives / build products): file, size, sha256.
-# The PKGBUILD's source=() / sha256sums=() pin them; make them as MAKE-TARS.txt says before makepkg.
+# Sources of iceland-device that are NOT in this repository (archives / images / build products): file, size, sha256.
+# The PKGBUILD's source=() / sha256sums=() pin them.
 common.tar	40960	4b820453d62e0f382ac76876fadeeac25de146734cd9efd353bb050be15532e0
 hypr.tar	184320	968548a7f9d6301c054bc086b1f453f611cd4d89a37a657bd2b52785db3a0961
 kde.tar	92160	37327998ae0006fbe9b53bc8c9d784da1ec68798d69ff346a043120c9c4552fa
