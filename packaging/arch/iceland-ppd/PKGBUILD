@@ -1,0 +1,74 @@
+# Maintainer: iceland project <noreply@iceland.invalid>
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-ppd: the OnePlus Pad 4 power profiles under power-profiles-daemon (OPEN-DECISIONS D7, owner 23 Nov 2026:
+# power-profiles-daemon instead of tuned + tuned-ppd). The four profile files are the Fedora tuned profiles of
+# iceland-device 0.28-53, unchanged (sha256 below = pkgbuilds/iceland-device/tuned/*/tuned.conf); iceland-ppd-hook
+# follows power-profiles-daemon's ActiveProfile (and AC / battery, resume) and writes their values; iceland-thermal
+# reads the active one through a drop-in. power-profiles-daemon itself: Arch's package since 1.0-4 (until 1.0-3 Omarchy's
+# omarchy-power-profiles-daemon, which provides power-profiles-daemon; its cpufreq driver handles scmi, so Power Saver / Balanced / Performance are all
+# offered on this SoC - Arch's own 0.30 has only its placeholder driver here: Power Saver + Balanced).
+pkgname=iceland-ppd
+pkgver=1.0
+# pkgrel 2 (24 Nov, device: "Found ordering cycle ... Job iceland-ppd-hook.service/start deleted"): the hook unit is
+# WantedBy=graphical.target; post_upgrade reenables it
+# pkgrel 3 (24 Nov): Omarchy's CPU floor off by a condition drop-in (50-iceland-floor-off.conf), no mask (a
+# masked unit failed Omarchy's migration 1794503281 and stopped omarchy-migrate); the install script removes an old mask
+# pkgrel 4 (kdeback P0.4, 26 Nov 2026: Omarchy out): power-profiles-daemon is Arch's own package again (Omarchy's
+# omarchy-power-profiles-daemon goes with Omarchy); Omarchy's CPU floor drop-in (50-iceland-floor-off.conf for
+# omarchy-powerprofiles-floor.service) is dropped. The dependency stays the plain name "power-profiles-daemon"
+# (Omarchy's build provides that name too, so -4 can be installed while Omarchy is still there); NOTE: Arch's 0.30
+# has no cpufreq driver for this SoC's scmi / qcom-cpufreq-hw, so it offers power-saver + balanced only (no
+# performance: iceland-performance is then reachable only with a later driver).
+pkgrel=4
+pkgdesc='OnePlus Pad 4: the iceland power profiles (ported tuned profiles) under power-profiles-daemon'
+arch=(any)
+url='https://github.com/mzakamin-hub/iceland-mainline'
+license=('GPL-2.0-or-later')
+depends=(power-profiles-daemon python python-gobject upower)
+conflicts=(tuned-ppd)
+install=iceland-ppd.install
+source=(iceland-ppd-hook iceland-ppd-hook.service 60-iceland-ppd.conf iceland-balanced.conf iceland-balanced-battery.conf iceland-performance.conf iceland-powersave.conf)
+sha256sums=('5d372026d5f9d2fd55a5cad6216f35090293399548ee046386cf68f2e15aebf8'
+            'd854eb31d00b3e3fe176ac130afce88a3ee3d0d5e76990f0c9d13404675b6cf2'
+            '8e99258a7c48e63b95a7df314def4a8a7f91f9ee4c1adbefd74e28481cea1808'
+            '89bf82069a4747c0a9107ce53583f4752b9365acc171e3bc94095adba2c7ae66'
+            'd29b8e61acbd3279f5b383241fa3f818ea7a09145f3c262cee3bbb31b92d3abd'
+            'b1909b33ccd4fcd9b555d466affa1d704919148cd906cca371ee2dfbc6865ab6'
+            '140f2b380cdea16d00b4b3ee34fd6f400c3ea953b16dcdc6d21d0ea7931c329c')
+check() {
+  cd "$srcdir"
+  local r=$srcdir/fakeroot p
+  for p in iceland-balanced iceland-balanced-battery iceland-performance iceland-powersave; do
+    install -Dm0644 $p.conf "$srcdir/profiles/$p/tuned.conf"
+  done
+  # a fake sysfs with the two cpufreq policies, the GPU devfreq node and the UFS knob
+  for p in policy0 policy6; do mkdir -p "$r/sys/devices/system/cpu/cpufreq/$p/schedutil"
+    for f in scaling_governor scaling_min_freq scaling_max_freq schedutil/rate_limit_us; do : > "$r/sys/devices/system/cpu/cpufreq/$p/$f"; done; done
+  : > "$r/sys/devices/system/cpu/cpufreq/boost"
+  mkdir -p "$r/sys/class/devfreq/3d00000.gpu" "$r/sys/devices/platform/soc@0/1d84000.ufs" "$r/proc/sys/kernel" "$r/proc/sys/vm" "$r/run/iceland"
+  : > "$r/sys/class/devfreq/3d00000.gpu/min_freq"; : > "$r/sys/class/devfreq/3d00000.gpu/max_freq"
+  : > "$r/sys/devices/platform/soc@0/1d84000.ufs/auto_hibern8"
+  : > "$r/proc/sys/kernel/sched_util_clamp_min_rt_default"; : > "$r/proc/sys/vm/dirty_writeback_centisecs"
+  python3 -m py_compile iceland-ppd-hook
+  # expected values per profile (TEST-PLAN PP1): policy0 / policy6 max, policy6 min, boost, GPU max, rate limit
+  t() { ICELAND_ROOT=$r ICELAND_PPD_PROFILES=$srcdir/profiles python3 iceland-ppd-hook --apply "$1" >/dev/null
+    local c=$r/sys/devices/system/cpu/cpufreq got
+    got="$(cat $c/policy0/scaling_max_freq) $(cat $c/policy6/scaling_max_freq) $(cat $c/policy6/scaling_min_freq) $(cat $c/boost) $(cat $r/sys/class/devfreq/3d00000.gpu/max_freq) $(cat $c/policy0/schedutil/rate_limit_us) $(cat $c/policy0/scaling_governor) $(cat $r/run/iceland/ppd-active-profile)"
+    [ "$got" = "$2" ] || { echo "check: $1 wrote '$got', expected '$2'"; return 1; }
+    echo "check: $1 OK ($got)"; }
+  t iceland-powersave        "3033600 3513600 768000 0 902000000 2000 schedutil iceland-powersave"
+  t iceland-balanced         "3628800 4396800 864000 0 1200000000 1000 schedutil iceland-balanced"
+  t iceland-balanced-battery "3628800 4396800 864000 0 1200000000 2000 schedutil iceland-balanced-battery"
+  t iceland-performance      "3628800 4608000 1747200 1 1200000000 45 schedutil iceland-performance"
+  [ "$(cat $r/sys/devices/platform/soc@0/1d84000.ufs/auto_hibern8)" = 150000 ]
+}
+package() {
+  cd "$srcdir"
+  install -Dm0755 iceland-ppd-hook "$pkgdir/usr/libexec/iceland/iceland-ppd-hook"
+  install -Dm0644 iceland-ppd-hook.service "$pkgdir/usr/lib/systemd/system/iceland-ppd-hook.service"
+  install -Dm0644 60-iceland-ppd.conf "$pkgdir/usr/lib/systemd/system/iceland-thermal.service.d/60-iceland-ppd.conf"
+  local p
+  for p in iceland-balanced iceland-balanced-battery iceland-performance iceland-powersave; do
+    install -Dm0644 $p.conf "$pkgdir/usr/share/iceland/power-profiles/$p/tuned.conf"
+  done
+}

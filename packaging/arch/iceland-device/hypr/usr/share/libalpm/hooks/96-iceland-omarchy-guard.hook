@@ -1,0 +1,12 @@
+# iceland-device-hypr: Omarchy's packages can bring back its Snapdragon-laptop settings; take them out again.
+[Trigger]
+Type = Package
+Operation = Install
+Operation = Upgrade
+Target = omarchy*
+Target = qcom-firmware-extract
+Target = iceland-device*
+[Action]
+Description = OnePlus Pad 4: removing Snapdragon-laptop settings that are wrong for this tablet...
+When = PostTransaction
+Exec = /usr/libexec/iceland/iceland-omarchy-guard

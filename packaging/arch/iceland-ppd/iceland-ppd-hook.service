@@ -1,0 +1,24 @@
+# iceland-ppd: the Pad 4 profile values after every power-profiles-daemon profile change (see iceland-ppd-hook)
+[Unit]
+Description=OnePlus Pad 4: apply the iceland power profile that power-profiles-daemon selects
+Wants=power-profiles-daemon.service
+After=power-profiles-daemon.service upower.service
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/iceland/iceland-ppd-hook
+Restart=on-failure
+RestartSec=5
+# writes cpufreq / devfreq / UFS sysfs knobs, /proc/sys and /run/iceland only
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+RestrictAddressFamilies=AF_UNIX
+MemoryMax=64M
+
+[Install]
+# pkgrel 2 (24 Nov): graphical.target, not multi-user.target. Arch's power-profiles-daemon.service is ordered
+# After=multi-user.target, and a target is ordered after the units it wants, so WantedBy=multi-user.target made a cycle
+# (multi-user.target -> this -> power-profiles-daemon -> multi-user.target) that systemd broke by DELETING this job:
+# the hook never ran on arch1. graphical.target comes after power-profiles-daemon, so no cycle.
+WantedBy=graphical.target

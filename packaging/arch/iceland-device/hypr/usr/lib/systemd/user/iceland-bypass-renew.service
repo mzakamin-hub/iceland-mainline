@@ -1,0 +1,7 @@
+# iceland-device-hypr: keep a Bypass Charging request alive while the session is unlocked (the KDE item did this)
+[Unit]
+Description=OnePlus Pad 4: renew Bypass Charging while unlocked
+ConditionEnvironment=HYPRLAND_INSTANCE_SIGNATURE
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/iceland-bypass renew

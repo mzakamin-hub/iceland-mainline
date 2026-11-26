@@ -1,0 +1,162 @@
+#!/usr/bin/python3 -I
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-kde-brightness-curve (iceland-device-kde 0.28-41; optimization scan 25 Oct 2026, item 10): give KWin's
+# automatic brightness the Pad 4's STOCK light-to-brightness curve, once per account, before the display manager.
+#
+# Why: KWin's built-in curve is one control point, {0 lux: brightness 1.0} (KDE/kwin src/core/backendoutput.cpp:22,
+# AutoBrightnessCurve()), so with automatic brightness on the panel starts at FULL brightness in any light and only a
+# slider move teaches the curve. The backlight is the largest screen-on load (2-3 W at 1305 of 4095, 9.2 W at 4095).
+#
+# The curve (stock OxygenOS 11.A.38, our own super carve, 25 Oct 2026; only the 11 numbers below are kept):
+#   lux -> nits   system_ext/etc/display_brightness_config_common.xml <lux_table id="52"> + <hbm_lux_table id="52">
+#                 (the table the panel file selects: my_product/vendor/etc/display_brightness_config_P_D.xml
+#                 <lux_table_mode>52 / <hbm_lux_table_mode>52):
+#                 0:4 2:6 4:15 6:21 8:27 10:36 15:52 35:98 60:100 100:113 260:139 500:144 1100:222 2000:335 3500:410
+#                 5000:500 7000:550 10000:600 20000:660 26667:700, HBM 30000:720 40000:780 50000:840 60000:900 70000:950
+#   nits <- level display_brightness_config_P_D.xml <brightness_table>: the 12-bit backlight level (the KTZ8869 scale
+#                 of our driver, max 4095) -> nits (level 410: 6.3, 819: 30.3, 1228: 74.7, 1638: 140.9, 2048: 229.0,
+#                 2457: 338.0, 2866: 466.8, 3276: 612.8, 3686: 775.9, 4095: 951.0)
+#   KWin's brightness b (0..1) is taken as the level b x 4095 (PowerDevil drives the backlight linearly: I). For
+#   b = 0, 0.1 .. 1.0 the curve holds the lux at which stock reaches that level's nits (linear between stock's points;
+#   b = 1.0 at stock's last HBM point). Stored in KWin's 11-value form (kwinoutputconfig.json "autoBrightnessCurve":
+#   the lux for brightness 0 %, 10 % .. 100 %), which current KWin imports as well (fromArray: "import from obsolete
+#   format") and then keeps as [lux, brightness] pairs. Stock at 10 lux: ~36 nits = b ~0.21.
+#
+# What it does, per local account (uid 1000-59999, a home with ~/.config/kwinoutputconfig.json that has an output
+# named DSI-*), ONCE (marker /var/lib/iceland/kde-curve/<user>-v1): copies the file to
+# /var/lib/iceland/kde-curve/<user>-kwinoutputconfig.json.before-v1, sets that output's autoBrightnessCurve, keeps the
+# owner, group and mode, replaces the file atomically. automaticBrightness itself is not touched (iceland-kde-defaults
+# turns it on once; the user's switch in System Settings stays). Skipped (no marker, again at the next boot): no file
+# yet (the account never ran Plasma), no DSI output in it, or the account's KWin runs (KWin writes the file at exit).
+# A curve learned afterwards (slider moves with automatic brightness on) is KWin's own and is never touched again.
+# Undo: copy the .before-v1 file back while the account is logged out (and keep the marker so it is not re-applied).
+#   iceland-kde-brightness-curve [--root DIR] [--dry-run] [--force USER]
+import json, os, pwd, shutil, sys, tempfile, time
+
+CURVE = [0.0, 2.08, 8.74, 24.85, 352.83, 1156.11, 2059.09, 4446.98, 12134.55, 39313.35, 70000.0]
+VERSION = "v1"
+
+
+def log(msg):
+    print("iceland-kde-brightness-curve: " + msg, flush=True)
+
+
+def kwin_running(root, uid):
+    if root != "/":
+        return False
+    for p in os.listdir("/proc"):
+        if not p.isdigit():
+            continue
+        try:
+            with open("/proc/%s/comm" % p) as f:
+                comm = f.read().strip()
+            if comm in ("kwin_wayland", "kwin_x11") and os.stat("/proc/" + p).st_uid == uid:
+                return True
+        except OSError:
+            pass
+    return False
+
+
+def users(root):
+    if root == "/":
+        return [(u.pw_name, u.pw_uid, u.pw_dir) for u in pwd.getpwall() if 1000 <= u.pw_uid < 60000]
+    out = []
+    try:
+        for line in open(os.path.join(root, "etc/passwd")):
+            f = line.rstrip("\n").split(":")
+            if len(f) >= 6 and f[2].isdigit() and 1000 <= int(f[2]) < 60000:
+                out.append((f[0], int(f[2]), f[5]))
+    except OSError:
+        pass
+    return out
+
+
+def apply(path, dry):
+    """set the curve on the DSI-* output(s) of one kwinoutputconfig.json; returns (changed, old curves)"""
+    with open(path, encoding="utf-8") as f:
+        doc = json.load(f)
+    old, hit = [], False
+    for sec in doc if isinstance(doc, list) else []:
+        if not isinstance(sec, dict) or sec.get("name") != "outputs":
+            continue
+        for o in sec.get("data", []):
+            if isinstance(o, dict) and str(o.get("connectorName", "")).startswith("DSI"):
+                hit = True
+                old.append(o.get("autoBrightnessCurve"))
+                o["autoBrightnessCurve"] = list(CURVE)
+    if not hit or dry:
+        return hit, old
+    st = os.stat(path)
+    fd, tmp = tempfile.mkstemp(prefix=".kwinoutputconfig.", dir=os.path.dirname(path), text=True)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(doc, f, indent=4)
+            f.write("\n")
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(tmp, st.st_mode & 0o7777)
+        os.chown(tmp, st.st_uid, st.st_gid)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+    return True, old
+
+
+def main(argv):
+    root, dry, force = "/", False, None
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a == "--root":
+            root = argv[i + 1]; i += 1
+        elif a == "--dry-run":
+            dry = True
+        elif a == "--force":
+            force = argv[i + 1]; i += 1
+        else:
+            log("unknown option %s" % a)
+            return 2
+        i += 1
+    state = os.path.join(root, "var/lib/iceland/kde-curve")
+    rc = 0
+    for name, uid, home in users(root):
+        if force and name != force:
+            continue
+        mark = os.path.join(state, "%s-%s" % (name, VERSION))
+        if os.path.exists(mark) and not force:
+            continue
+        cfg = os.path.join(root, home.lstrip("/"), ".config/kwinoutputconfig.json")
+        if not os.path.isfile(cfg):
+            continue
+        if kwin_running(root, uid):
+            log("%s: KWin runs for this account: not now (again at the next boot)" % name)
+            continue
+        try:
+            os.makedirs(state, mode=0o700, exist_ok=True)
+            bak = os.path.join(state, "%s-kwinoutputconfig.json.before-%s" % (name, VERSION))
+            if not dry and not os.path.exists(bak):
+                shutil.copy2(cfg, bak)
+                os.chmod(bak, 0o600)
+            hit, old = apply(cfg, dry)
+        except (OSError, ValueError) as e:
+            log("%s: %s not changed: %s" % (name, cfg, e))
+            rc = 1
+            continue
+        if not hit:
+            log("%s: no DSI output in %s yet: again at the next boot" % (name, cfg))
+            continue
+        msg = "%s: stock automatic-brightness curve set (%s)" % (name, "dry run" if dry else "backup " + bak)
+        log(msg)
+        if not dry:
+            with open(mark, "w") as f:
+                f.write("%s %s\ncurve=%s\nold=%s\n" % (time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), VERSION,
+                                                       ",".join("%g" % x for x in CURVE), json.dumps(old)))
+    return rc
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

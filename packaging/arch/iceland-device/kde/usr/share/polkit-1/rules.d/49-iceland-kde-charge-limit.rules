@@ -1,0 +1,13 @@
+// iceland-device-kde 0.28-36: ONE writer of the battery's charge-limit thresholds. UPower writes
+// charge_control_start_threshold / charge_control_end_threshold (80 / 85 %, 61-iceland-battery.hwdb) whenever its
+// switch is on ("Preserve Battery Health" in GNOME Settings, the "Charge limit" switch of the Bypass Charging item in
+// Plasma) and again at every UPower start; iceland-battery-guard follows the kernel's thresholds. Plasma's own
+// charge-limit setting (System Settings > Power Management, powerdevil's KAuth helper) would write other values that
+// UPower overwrites at the next boot: refused here, so the two never fight. Plasma still READS the thresholds
+// (getthreshold) and shows 80 / 85 %. Remove this file to let Plasma write them (then switch UPower's off).
+polkit.addRule(function(action, subject) {
+    if (action.id == "org.kde.powerdevil.chargethresholdhelper.setthreshold" ||
+        action.id == "org.kde.powerdevil.chargethresholdhelper.setconservationmode") {
+        return polkit.Result.NO;
+    }
+});

@@ -1,0 +1,30 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-bypass (iceland-device (0.28.53-20: moved from iceland-device-hypr, not tied to Hyprland / Omarchy)): Bypass Charging and the charge limit from a bar button or a terminal, the
+# Hyprland form of the KDE tray item / GNOME toggle. Talks to iceland-bypassd (org.iceland.Bypass, polkit
+# org.iceland.bypass.set: the active local session) and UPower, exactly the calls the plasmoid makes.
+#   iceland-bypass status|json      state (json: one line for a bar module)
+#   iceland-bypass on [THRESHOLD]   20..90 %, default the service's current threshold
+#   iceland-bypass off | toggle
+#   iceland-bypass limit on|off     UPower's charge threshold (85 % stop / 80 % start, kernel battmgr)
+#   iceland-bypass renew            Refresh while the session is unlocked (the user unit calls it every 60 s)
+set -eu
+B="busctl --system --json=short call org.iceland.Bypass /org/iceland/Bypass org.iceland.Bypass"
+bat() { upower -e | grep -m1 /battery_; }
+state() { $B GetState; }
+case "${1:-status}" in
+  json) state ;;
+  status) state | python3 -Ic 'import json,sys; d=json.load(sys.stdin)["data"][0]; print(" ".join("%s=%s"%(k,v["data"]) for k,v in d.items()))' ;;
+  on) if [ -n "${2:-}" ]; then $B SetThreshold u "$2" >/dev/null; fi
+      t=$(state | python3 -Ic 'import json,sys; print(json.load(sys.stdin)["data"][0]["threshold"]["data"])')
+      $B Enable u "$t" >/dev/null ;;
+  off) $B Disable >/dev/null ;;
+  toggle) if state | grep -q '"requested":{"type":"b","data":true}'; then exec "$0" off; else exec "$0" on; fi ;;
+  limit) p=$(bat); [ -n "$p" ] || exit 1
+         case "${2:-}" in on) v=true ;; off) v=false ;; *) echo "limit on|off" >&2; exit 2 ;; esac
+         busctl --system call org.freedesktop.UPower "$p" org.freedesktop.UPower.Device EnableChargeThreshold b "$v" ;;
+  renew) s=$(loginctl show-user "$(id -u)" -p Display --value)
+         [ "$(loginctl show-session "$s" -p LockedHint --value)" = no ] || exit 0
+         state | grep -q '"requested":{"type":"b","data":true}' && $B Refresh >/dev/null || : ;;
+  *) sed -n '3,12p' "$0"; exit 2 ;;
+esac

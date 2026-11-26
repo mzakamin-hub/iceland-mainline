@@ -1,0 +1,11 @@
+[Unit]
+Description=OnePlus Pad 4: recompress idle zram pages with zstd
+Documentation=file:///usr/libexec/iceland/iceland-zram-recompress
+ConditionPathExists=/sys/block/zram0/recompress
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/iceland/iceland-zram-recompress
+Nice=19
+CPUSchedulingPolicy=idle
+IOSchedulingClass=idle

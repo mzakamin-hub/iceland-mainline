@@ -1,0 +1,12 @@
+[Desktop Entry]
+# iceland-device-hypr: a touch launcher for Omarchy's own main menu (owner 24 Nov ~14:45; a user copy with the same
+# id in ~/.local/share/applications overrides this one)
+Type=Application
+Name=Omarchy Menu
+Comment=Omarchy's main menu
+Exec=omarchy-menu summon root
+Icon=/usr/share/omarchy/logo.svg
+Terminal=false
+Categories=System;Settings;
+Keywords=omarchy;menu;settings;tablet;
+StartupNotify=false

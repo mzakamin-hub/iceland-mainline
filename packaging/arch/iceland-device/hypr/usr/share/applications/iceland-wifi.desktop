@@ -1,0 +1,11 @@
+[Desktop Entry]
+# iceland-device-hypr: a touch launcher for Omarchy's own settings (no third-party settings app)
+Type=Application
+Name=Wi-Fi
+Comment=Wi-Fi networks (Omarchy's network panel)
+Exec=omarchy-shell omarchy.network open
+Icon=network-wireless
+Terminal=false
+Categories=Settings;Network;
+Keywords=settings;tablet;pad;
+StartupNotify=false

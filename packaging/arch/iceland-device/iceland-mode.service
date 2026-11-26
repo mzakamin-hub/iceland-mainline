@@ -1,0 +1,22 @@
+# iceland-device: /run/iceland/mode (tablet | laptop) for rotation, floatkey, the lock and the mode tile
+[Unit]
+Description=OnePlus Pad 4: tablet / laptop mode (real keyboard attached, or the owner's override)
+After=systemd-udevd.service systemd-logind.service
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/iceland/iceland-mode-publish
+Restart=on-failure
+RestartSec=3
+Nice=5
+ProtectHome=read-only
+ProtectSystem=strict
+ReadWritePaths=/run/iceland
+RuntimeDirectory=iceland
+RuntimeDirectoryPreserve=yes
+RuntimeDirectoryMode=0755
+NoNewPrivileges=yes
+MemoryMax=48M
+
+[Install]
+WantedBy=multi-user.target

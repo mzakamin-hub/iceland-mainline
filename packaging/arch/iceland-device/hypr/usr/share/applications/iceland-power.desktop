@@ -1,0 +1,11 @@
+[Desktop Entry]
+# iceland-device-hypr: a touch launcher for Omarchy's own settings (no third-party settings app)
+Type=Application
+Name=Power & Battery
+Comment=Battery, charging and power profile (Omarchy's power panel)
+Exec=omarchy-shell omarchy.power open
+Icon=battery
+Terminal=false
+Categories=Settings;
+Keywords=settings;tablet;pad;
+StartupNotify=false

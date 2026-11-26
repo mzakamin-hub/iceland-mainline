@@ -1,0 +1,19 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# /usr/libexec/iceland/iceland-sensors-mark (iceland-device 0.28-21): ExecStopPost of iio-sensor-proxy.service.
+#
+# 0.28-21: iio-sensor-proxy stops in the suspend transaction itself (Conflicts=suspend.target, iceland-sleep.conf),
+# together with the sensor hub's file server hexagonrpcd-adsp-sensorspd (its own Conflicts=suspend.target) and -
+# through the proxy's After=hexagonrpcd-adsp-sensorspd.service, which systemd reverses for stop jobs - BEFORE it.
+# Before 0.28-21 the system-sleep hook stopped the proxy only inside systemd-suspend, after the file server was gone:
+# with the accelerometer streaming the proxy could not close its sensor session, overran TimeoutStopSec=3 and was
+# killed with a core dump (2 of 14 suspends, 13 and 16 Oct 2026).
+# When this stop belongs to a suspend (a start job of suspend.target or sleep.target is queued), leave the mark
+# /run/iceland/sensors-stopped: iceland-ssc-resume.service starts the proxy again after the resume. Any other stop
+# (the user, an update, a shutdown) leaves no mark. Never fails the unit.
+# Environment (tests): ICELAND_RUN (default /run/iceland), SYSTEMCTL (default systemctl).
+R=${ICELAND_RUN:-/run/iceland}
+jobs=$(${SYSTEMCTL:-systemctl} list-jobs --no-legend --no-pager 2>/dev/null) || exit 0
+printf '%s\n' "$jobs" | grep -Eq '(^|[[:space:]])(suspend|sleep)\.target[[:space:]]+start' || exit 0
+mkdir -p "$R" && : > "$R/sensors-stopped"
+exit 0

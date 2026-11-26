@@ -1,0 +1,18 @@
+# iceland-device-hypr (Omarchy port): the panel refresh rate for Hyprland (wlr-output-management): the user's choice
+# (~/.config/iceland/refresh-choice: auto = 60 Hz on battery / 120 Hz on AC, or a fixed 60 / 90 / 120 / 144 Hz) under
+# iceland-thermal's refresh cap. `systemctl --user reload iceland-hypr-refresh` (SIGHUP) applies a choice at once.
+[Unit]
+Description=OnePlus Pad 4: panel refresh rate (choice, power source, thermal cap) for Hyprland (wlr-output-management)
+PartOf=graphical-session.target
+After=graphical-session.target
+ConditionEnvironment=HYPRLAND_INSTANCE_SIGNATURE
+
+[Service]
+ExecStart=/usr/libexec/iceland/iceland-hypr-refresh
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+
+
+[Install]
+WantedBy=graphical-session.target

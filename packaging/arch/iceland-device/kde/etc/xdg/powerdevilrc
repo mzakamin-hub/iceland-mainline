@@ -1,0 +1,70 @@
+# /etc/xdg/powerdevilrc (iceland-device-kde 0.28-36): Plasma's power defaults for the OnePlus Pad 4, the KDE form of
+# iceland-device's GNOME override (zz_iceland-device.gschema.override) and logind-iceland.conf. KConfig reads this file
+# as the system default; a value the user sets in System Settings > Power Management wins (~/.config/powerdevilrc).
+# Enum values (powerdevil 6.x): 0 nothing, 1 sleep, 8 shut down, 16 ask, 32 lock screen, 64 turn off screen.
+#  - power key: NOTHING in every profile. iceland-battery-guard stays the key's only handler (charger in: lock +
+#    blank; no charger: suspend), as with GNOME's power-button-action='nothing'. powerdevil holds logind's power-key
+#    inhibitor while it runs, so logind does nothing either; the guard reads the key itself (read only).
+#  - cover (lid): battery -> sleep; charger -> lock only (the guard must keep watching the charge, as logind's
+#    HandleLidSwitchExternalPower=lock); an external monitor -> nothing (HandleLidSwitchDocked=ignore).
+#    powerdevil holds logind's lid inhibitor while it runs, so these lines decide, not logind.
+#  - idle on battery: screen off at 5 min, sleep 15 s later, at 315 s (0.28-53, owner 22 Nov 2026, sleep policy
+#    K3.19; 360 s from 0.28-27 to 0.28-52; GNOME 300 / 315 s). Low battery: screen off at 180 s, sleep at 195 s.
+#    On the charger: screen off at 5 min, no sleep (the guard's KEEP_AWAKE holds a sleep block anyway).
+#    A wake nobody asked for (a timer, a network or sensor-hub wake: no input, screen off, battery) goes back to
+#    sleep after about 30 s through iceland-resleep (iceland-device; off switch /etc/iceland/sleep-policy-off).
+#  - a locked screen turns off after 10 s (the guard's power-key lock; Plasma's own lock).
+#  - low battery: the power-saver profile (GNOME's power-saver-profile-on-low-battery=true; Fedora: tuned-ppd, Arch: power-profiles-daemon + iceland-ppd).
+#  - AC and battery: the balanced profile (0.28-52). Without it nothing switched back after a low-battery phase:
+#    a boot at 28 % kept power-saver (CPU max 2.61 / 3.40 GHz instead of 3.63 / 4.40) after charging. A profile
+#    picked by hand lasts until the next charger or battery-level change.
+# The charge limit is NOT set here: UPower owns it (see /usr/share/polkit-1/rules.d/49-iceland-kde-charge-limit.rules).
+[AC][Display]
+DimDisplayWhenIdle=true
+DimDisplayIdleTimeoutSec=240
+TurnOffDisplayWhenIdle=true
+TurnOffDisplayIdleTimeoutSec=300
+TurnOffDisplayIdleTimeoutWhenLockedSec=10
+
+[AC][SuspendAndShutdown]
+AutoSuspendAction=0
+PowerButtonAction=0
+LidAction=32
+InhibitLidActionWhenExternalMonitorPresent=true
+
+[AC][Performance]
+PowerProfile=balanced
+
+[Battery][Display]
+DimDisplayWhenIdle=true
+DimDisplayIdleTimeoutSec=240
+TurnOffDisplayWhenIdle=true
+TurnOffDisplayIdleTimeoutSec=300
+TurnOffDisplayIdleTimeoutWhenLockedSec=10
+
+[Battery][SuspendAndShutdown]
+AutoSuspendAction=1
+AutoSuspendIdleTimeoutSec=315
+PowerButtonAction=0
+LidAction=1
+InhibitLidActionWhenExternalMonitorPresent=true
+
+[Battery][Performance]
+PowerProfile=balanced
+
+[LowBattery][Display]
+DimDisplayWhenIdle=true
+DimDisplayIdleTimeoutSec=120
+TurnOffDisplayWhenIdle=true
+TurnOffDisplayIdleTimeoutSec=180
+TurnOffDisplayIdleTimeoutWhenLockedSec=10
+
+[LowBattery][SuspendAndShutdown]
+AutoSuspendAction=1
+AutoSuspendIdleTimeoutSec=195
+PowerButtonAction=0
+LidAction=1
+InhibitLidActionWhenExternalMonitorPresent=true
+
+[LowBattery][Performance]
+PowerProfile=power-saver

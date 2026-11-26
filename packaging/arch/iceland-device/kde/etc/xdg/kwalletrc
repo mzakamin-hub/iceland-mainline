@@ -1,0 +1,14 @@
+# /etc/xdg/kwalletrc (iceland-device-kde 0.28-39): KWallet on, as the session's secrets provider (owner, 25 Oct 2026).
+# "First Use=false" skips KWallet's first-run wizard (the one that offers GPG and fails with "no keys suitable for
+# encryption" when there is no GPG key): the first application that needs a secret gets the plain "create the wallet"
+# password dialog, which makes a classic Blowfish wallet named "kdewallet". Use the LOGIN password there: then
+# pam_kwallet5 opens the wallet at a password login (with automatic login there is no password to use, so KWallet asks
+# once per boot, as gnome-keyring did under GDM's automatic login). A value in ~/.config/kwalletrc wins.
+[Wallet]
+Enabled=true
+First Use=false
+Default Wallet=kdewallet
+Use One Wallet=true
+
+[org.freedesktop.secrets]
+apiEnabled=true

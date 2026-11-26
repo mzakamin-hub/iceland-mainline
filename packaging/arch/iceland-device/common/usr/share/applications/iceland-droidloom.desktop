@@ -1,0 +1,30 @@
+[Desktop Entry]
+# iceland-device (0.28.53-20: moved from iceland-device-hypr, not tied to Hyprland / Omarchy): a touch launcher for DroidLoom (upstream droidloomctl; no KDE tools)
+Type=Application
+Name=DroidLoom
+GenericName=Android apps
+Comment=Start Android (DroidLoom) and show its apps
+Exec=/usr/libexec/iceland/iceland-droidloom open
+Icon=applications-android
+Terminal=false
+Categories=System;Emulator;
+Keywords=android;droidloom;apps;
+StartupNotify=false
+# 0.28.53-20: the Omarchy menu's Android section as Desktop Actions (Plasma's launcher / task manager context menu)
+Actions=settings;status;stop;autostart;
+
+[Desktop Action settings]
+Name=Android Settings
+Exec=/usr/libexec/iceland/iceland-droidloom launch com.android.settings
+
+[Desktop Action status]
+Name=Status
+Exec=/usr/libexec/iceland/iceland-droidloom status
+
+[Desktop Action stop]
+Name=Stop Android
+Exec=/usr/libexec/iceland/iceland-droidloom stop
+
+[Desktop Action autostart]
+Name=Start with the Session (on / off)
+Exec=/usr/libexec/iceland/iceland-droidloom autostart toggle

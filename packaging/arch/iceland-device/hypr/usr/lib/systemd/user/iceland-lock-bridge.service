@@ -1,0 +1,16 @@
+# iceland-device-hypr: logind Lock -> Omarchy's shell lock, the shell's lock state -> logind's LockedHint
+[Unit]
+Description=OnePlus Pad 4: logind lock requests and LockedHint for Omarchy's shell lock
+ConditionUser=!@system
+PartOf=graphical-session.target
+After=graphical-session.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
+[Service]
+ExecStart=/usr/libexec/iceland/iceland-lock-bridge
+Restart=on-failure
+RestartSec=3
+MemoryMax=64M
+NoNewPrivileges=yes
+[Install]
+WantedBy=graphical-session.target

@@ -1,0 +1,444 @@
+#!/usr/bin/python3 -I
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-hypr-refresh (iceland-device-hypr, Omarchy port): the panel's refresh rate under Hyprland.
+# The mode is set through the wlr-output-management protocol (wlr-randr), NOT through a live `hyprctl keyword` /
+# `hyprctl eval` (those froze the compositor in samyn92's tests); `hyprctl -j monitors` (a read-only query) is only the
+# fallback for reading the current mode.
+# 0.28.53-15 (round 9, B4): a Hyprland config reload re-applies iceland.lua's monitor line: the rate is applied again
+# 0.5 s and 2 s after socket2's "configreloaded".
+# 0.28.53-16 (round 10, owner 24 Nov: "a display setting for selecting resolutions and Hz"):
+#  - the user's choice, one word in ~/.config/iceland/refresh-choice (iceland-display-mode / the Tablet menu writes it):
+#      auto  BATTERY_HZ (60) on battery, AC_HZ (120) on the charger (/etc/iceland/refresh.conf), never above 120 Hz;
+#            ENABLED=0 there turns this automatic switch off
+#      60 / 90 / 120 / 144  a fixed rate; 144 Hz (the panel's top mode) ONLY when it is chosen explicitly (the 144 Hz
+#            trial on q92c: 0 display errors under touch, rotation and the accel stream, wf/hz144/)
+#    no file / anything else = auto. iceland-thermal's cap (/run/iceland/thermal-refresh-hz: 90 Hz at gears 8-9, 60 Hz
+#    from gear 10) ALWAYS wins. A new choice applies within ~0.2 s (file monitor), or at once on SIGHUP
+#    (`systemctl --user reload iceland-hypr-refresh`); a new cap within ~0.2 s (file monitor; the 10 s check stays).
+#  - FIX (24 Nov, live: on battery the panel stayed at 120 Hz and no "-> mode" line was ever logged): iceland-thermal
+#    writes "0" (= no cap) into the cap file; this helper took it as a 0 Hz cap, found no mode at or below 0.5 Hz and
+#    returned silently: no rate change at all while iceland-thermal ran (always). 0 / missing / malformed = no cap now
+#    (as iceland-refresh's read_cap), the panel's lowest mode when nothing is at or below the target, and every
+#    decision that changes nothing is logged once (a new reason is logged again).
+#  - the state for the menu and the rows: $XDG_RUNTIME_DIR/iceland-refresh.state (choice, target, why, current, mode).
+# 0.28.53-17 (device smoke of -16: up-switches 60 -> 120 never showed in Hyprland, no failure logged; after a reload on
+# battery the panel stayed at 120): "current" is Hyprland's own (hyprctl -j monitors, a read-only query), every switch is
+# verified there within 1.2 s and logged "landed" / "DID NOT LAND" with wlr-randr's rc / message; a switch that did not
+# land is retried once through a mode of another timing family (60 / 120 / 30 Hz differ only in the vertical front
+# porch, i.e. an in-place change; 90 / 50 / 48 and 144 Hz are full modesets): target 60 / 120 / 30 via 90, others via
+# 120. Still not landed: logged, not retried for the same target and mode until something changes (no flicker loop).
+# At start it runs iceland-monitors-mode-fix once (the user's DSI rule: an explicit mode instead of "preferred").
+# 0.28.53-18 (device smoke of -17: a switch on an idle screen blocked wlr-randr for its whole 10 s timeout and the
+# daemon with it; choice / cap / reload events queued): Hyprland 0.56.2 applies a wlr-output-management configuration
+# only in its next rendered frame and sends `succeeded` from there (OutputManagement.cpp apply -> scheduleReload;
+# MonitorRuleManager.cpp preChecks -> ensureMonitorStatus -> stateReloaded): an undamaged screen renders none. Now
+# wlr-randr is a watched child (poll 0.1 s, 1.2 s per attempt, then killed), `hyprctl dismissnotify 0` (dismisses
+# nothing, schedules one frame on every monitor) makes the frame come, the main loop never waits on a switch, and
+# requests that arrive during one are coalesced into one apply of the newest target after it.
+import glob, json, os, signal, socket, subprocess, sys, time
+from gi.repository import Gio, GLib
+
+CONF = "/etc/iceland/refresh.conf"
+CAP = "/run/iceland/thermal-refresh-hz"
+AUTO_MAX_HZ = 120          # Auto never goes above 120 Hz; 144 only as an explicit choice
+CHOICES = ("auto", "60", "90", "120", "144")
+CFGDIR = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.environ.get("HOME", "/"), ".config"),
+                      "iceland")
+CHOICE = os.path.join(CFGDIR, "refresh-choice")
+STATE = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "iceland-refresh.state")
+POLL_MS = 100              # -18: Hyprland's own rate is polled this often while a switch runs
+SWITCH_BUDGET = 1.2        # s per wlr-randr attempt; then it is killed (Hyprland drops a killed client's request)
+NUDGE_MS = (100, 350, 600, 850)   # frame nudges while wlr-randr still waits for `succeeded`
+
+
+def log(msg):
+    print("iceland-hypr-refresh: " + msg, flush=True)
+
+
+def conf():
+    c = {"BATTERY_HZ": 60, "AC_HZ": 120, "ENABLED": 1}
+    try:
+        for line in open(CONF):
+            k, _, v = line.strip().partition("=")
+            if k in c and v.strip().isdigit():
+                c[k] = int(v)
+    except OSError:
+        pass
+    return c
+
+
+def read_cap():
+    """the thermal cap in Hz; 0 = none (also for a missing / unreadable / malformed file: iceland-thermal writes 0)"""
+    try:
+        v = int(open(CAP).read().strip() or "0")
+    except (OSError, ValueError):
+        return 0
+    return v if v > 0 else 0
+
+
+def read_choice():
+    """(choice, note): the user's choice, "auto" for a missing or unknown file"""
+    try:
+        w = open(CHOICE).read().strip().lower()
+    except OSError:
+        return "auto", ""
+    w = w[:-2] if w.endswith("hz") else w
+    if w in CHOICES:
+        return w, ""
+    return "auto", "unknown choice %r in %s: auto" % (w[:20], CHOICE)
+
+
+def panel():
+    """(name, [(w, h, hz, current)]) of the built-in DSI panel from wlr-randr --json, or (None, why)"""
+    try:
+        r = subprocess.run(["wlr-randr", "--json"], capture_output=True, text=True, timeout=1.5)
+        for o in json.loads(r.stdout or "[]"):
+            if o.get("name", "").startswith("DSI"):
+                return o["name"], [(m["width"], m["height"], m["refresh"], m.get("current", False))
+                                   for m in o.get("modes", [])]
+        return None, "wlr-randr lists no DSI output (rc %d: %s)" % (r.returncode, r.stderr.strip()[:120])
+    except (OSError, ValueError, KeyError, subprocess.SubprocessError) as e:
+        return None, "wlr-randr: %s" % e
+
+
+def hypr_current(name):
+    """(w, h, hz) of the output from `hyprctl -j monitors` (read-only), or None"""
+    try:
+        r = subprocess.run(["hyprctl", "-j", "monitors"], capture_output=True, text=True, timeout=1)
+        for m in json.loads(r.stdout or "[]"):
+            if m.get("name") == name:
+                return m["width"], m["height"], float(m["refreshRate"])
+    except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
+        pass
+    return None
+
+
+def nudge_frame():
+    """make Hyprland render one frame (-18): `hyprctl dismissnotify 0` dismisses no notification and calls
+    scheduleFrame() on every monitor (Hyprland 0.56.2 NotificationOverlay.cpp dismissNotifications); the frame's
+    preChecks run the pending wlr-output-management reload, which then sends `succeeded`. rc, -1 on an error"""
+    try:
+        return subprocess.run(["hyprctl", "dismissnotify", "0"], capture_output=True, text=True, timeout=1).returncode
+    except (OSError, subprocess.SubprocessError):
+        return -1
+
+
+def reap(p, wait):
+    """(rc, stderr) of a wlr-randr child; killed when it has not ended after `wait` s"""
+    killed = False
+    try:
+        _, err = p.communicate(timeout=wait)
+    except subprocess.TimeoutExpired:
+        p.kill()
+        killed = True
+        try:
+            _, err = p.communicate(timeout=1)
+        except subprocess.SubprocessError:
+            err = ""
+    except (OSError, ValueError):
+        err = ""
+    return (None if killed else p.returncode), (err or "").strip()[:160]
+
+
+class HyprEvents:
+    """Hyprland's event socket (socket2): calls cb(name) for the named events. Reconnects every 5 s when the socket is
+    missing (service started before the compositor) or closed (compositor restarted); a new instance is found by
+    the newest $XDG_RUNTIME_DIR/hypr/<signature>/.socket2.sock when the environment's signature has none."""
+    def __init__(self, names, cb, tag):
+        self.names = tuple(n.encode() + b">>" for n in names)
+        self.cb, self.tag = cb, tag
+        self.sock, self.buf, self.warned = None, b"", False
+        self.connect()
+
+    def path(self):
+        rt = os.environ.get("XDG_RUNTIME_DIR", "")
+        sig = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE", "")
+        p = os.path.join(rt, "hypr", sig, ".socket2.sock")
+        if sig and os.path.exists(p):
+            return p
+        socks = sorted(glob.glob(os.path.join(rt, "hypr", "*", ".socket2.sock")), key=os.path.getmtime)
+        return socks[-1] if rt and socks else p
+
+    def connect(self):
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            s.connect(self.path())
+        except OSError as e:
+            s.close()
+            if not self.warned:
+                print("%s: no Hyprland event socket yet (%s): retrying every 5 s" % (self.tag, e), flush=True)
+                self.warned = True
+            GLib.timeout_add_seconds(5, self.retry)
+            return
+        if self.warned:
+            print("%s: Hyprland event socket connected" % self.tag, flush=True)
+        self.sock, self.buf, self.warned = s, b"", False
+        GLib.io_add_watch(s.fileno(), GLib.IO_IN | GLib.IO_HUP | GLib.IO_ERR, self.read)
+
+    def retry(self):
+        self.connect()
+        return False
+
+    def read(self, fd, cond):
+        data = b""
+        if not cond & (GLib.IO_HUP | GLib.IO_ERR):
+            try:
+                data = self.sock.recv(4096)
+            except OSError:
+                data = b""
+        if not data:
+            self.sock.close()
+            self.sock = None
+            GLib.timeout_add_seconds(5, self.retry)
+            return False
+        self.buf += data
+        *lines, self.buf = self.buf.split(b"\n")
+        for line in lines:
+            for n in self.names:
+                if line.startswith(n):
+                    self.cb(n[:-2].decode())
+        return True
+
+
+class Refresh:
+    def __init__(self):
+        self.bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+        self.up = Gio.DBusProxy.new_sync(self.bus, 0, None, "org.freedesktop.UPower", "/org/freedesktop/UPower",
+                                         "org.freedesktop.UPower", None)
+        self.up.connect("g-properties-changed", lambda *a: self.apply("power source"))
+        self.capped, self.ticks, self.last_note, self.pending, self.failed = False, 0, None, None, None
+        self.job, self.again = None, None          # -18: the running switch; the newest request that came meanwhile
+        GLib.timeout_add_seconds(10, self.tick)
+        self.events = HyprEvents(("configreloaded",), self.reloaded, "iceland-hypr-refresh")
+        try:
+            os.makedirs(CFGDIR, exist_ok=True)
+        except OSError:
+            pass
+        # the choice file is replaced by a rename (iceland-display-mode): watch its directory, filter by name
+        self.mon_choice = Gio.File.new_for_path(CFGDIR).monitor_directory(Gio.FileMonitorFlags.NONE, None)
+        self.mon_choice.connect("changed", self.dir_changed)
+        self.mon_cap = Gio.File.new_for_path(CAP).monitor_file(Gio.FileMonitorFlags.NONE, None)
+        self.mon_cap.connect("changed", lambda *a: self.soon("thermal cap"))
+        GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGHUP, self.hup)
+
+    def dir_changed(self, _mon, f, other, _ev):
+        names = {x.get_basename() for x in (f, other) if x is not None}
+        if os.path.basename(CHOICE) in names:
+            self.soon("choice")
+
+    def soon(self, why):
+        """coalesce a burst of file events into one apply 150 ms later"""
+        if self.pending is None:
+            self.pending = GLib.timeout_add(150, self.fire, why)
+
+    def fire(self, why):
+        self.pending = None
+        self.apply(why)
+        return False
+
+    def hup(self):
+        self.apply("SIGHUP")
+        return True
+
+    def reloaded(self, _name):
+        log("Hyprland config reloaded: refresh rate applied again")
+        GLib.timeout_add(500, lambda: self.apply("config reload") and False)
+        GLib.timeout_add(2000, lambda: self.apply("config reload") and False)
+
+    def note(self, msg):
+        if msg != self.last_note:
+            log(msg)
+            self.last_note = msg
+
+    def target(self):
+        """(hz or None, choice, why)"""
+        c = conf()
+        choice, bad = read_choice()
+        if bad:
+            self.note(bad)
+        if choice == "auto":
+            if not c["ENABLED"]:
+                return None, choice, "auto, but ENABLED=0 in %s: rate left alone" % CONF
+            ob = self.up.get_cached_property("OnBattery")
+            battery = ob is None or ob.unpack()
+            hz = min(c["BATTERY_HZ"] if battery else c["AC_HZ"], AUTO_MAX_HZ)
+            why = "auto, %s" % ("on battery" if battery else "on the charger")
+        else:
+            hz, why = int(choice), "fixed %s Hz" % choice
+        cap = read_cap()
+        if cap and cap < hz:
+            hz, why = cap, why + ", thermal cap %d Hz" % cap
+        return hz, choice, why
+
+    def tick(self):
+        self.ticks += 1
+        cap = read_cap() > 0
+        # every 60 s also re-check the mode: Omarchy's monitor panel, a config reload or a hotplug could leave another
+        # rate (Omarchy's "preferred" = the panel's 144 Hz mode); apply() brings it back. One wlr-randr call a minute.
+        if cap or self.capped or self.ticks % 6 == 0:
+            self.apply("check")
+        self.capped = cap
+        return True
+
+    def state(self, **kv):
+        try:
+            tmp = STATE + ".tmp"
+            with open(tmp, "w") as f:
+                f.write("".join("%s=%s\n" % (k, v) for k, v in kv.items()))
+            os.replace(tmp, STATE)
+        except OSError:
+            pass
+
+    def apply(self, trigger="start"):
+        if self.job is not None:         # a switch is running: one apply of the newest target follows it
+            self.again = trigger
+            return
+        hz, choice, why = self.target()
+        if hz is None:
+            self.state(choice=choice, target="none", why=why)
+            self.note(why)
+            return
+        name, modes = panel()
+        if name is None:
+            self.note("no panel to set (%s)" % modes)
+            return
+        flag = next((m for m in modes if m[3]), None)
+        hc = hypr_current(name)          # Hyprland's own view first: it is what the panel runs
+        cur = None
+        if hc:
+            cur = min((m for m in modes if (m[0], m[1]) == (hc[0], hc[1])), key=lambda m: abs(m[2] - hc[2]),
+                      default=(hc[0], hc[1], hc[2], True))
+            cur = (cur[0], cur[1], hc[2], True)
+        elif flag:
+            cur = flag
+        if not cur:
+            self.note("%s: no current mode in hyprctl or wlr-randr" % name)
+            return
+        if flag and abs(flag[2] - cur[2]) >= 0.5:
+            self.note("%s: wlr-randr says %.3f Hz, Hyprland %.3f Hz: Hyprland's value counts" % (name, flag[2], cur[2]))
+        res = [m for m in modes if (m[0], m[1]) == (cur[0], cur[1])]
+        same = [m for m in res if m[2] <= hz + 0.5]
+        if same:
+            best = max(same, key=lambda m: m[2])
+        elif res:
+            best = min(res, key=lambda m: m[2])      # nothing at or below the target: the panel's lowest rate
+        else:
+            self.note("%s: no listed mode of %dx%d" % (name, cur[0], cur[1]))
+            return
+        mode = "%dx%d@%.3f" % (best[0], best[1], best[2])
+        self.state(choice=choice, target=hz, why=why, current="%.3f" % cur[2], mode=mode)
+        if abs(best[2] - cur[2]) < 0.5:
+            self.failed = None
+            self.note("%s at %.3f Hz = target %d Hz (%s)" % (name, cur[2], hz, why))
+            return
+        if self.failed == (mode, round(cur[2])):
+            self.state(choice=choice, target=hz, why=why, current="%.3f" % cur[2], mode=mode, landed="no")
+            self.note("%s: %s did not land before (still %.3f Hz): not retried until the target or the mode changes"
+                      % (name, mode, cur[2]))
+            return
+        self.last_note = None
+        fam_a = round(best[2]) in (60, 120, 30)
+        via = [m for m in res if round(m[2]) == (90 if fam_a else 120)]
+        via = via[0] if via and abs(via[0][2] - cur[2]) >= 0.5 else None
+        self.job = {"name": name, "best": best, "via": via, "mode": mode, "hz": hz, "why": why, "choice": choice,
+                    "trigger": trigger, "cur": cur, "plan": [best], "step": 0, "det": [], "ok": []}
+        self.attempt()
+
+    def attempt(self):
+        """start one wlr-randr --mode of the running job (non-blocking) and watch it from the main loop"""
+        j = self.job
+        m = j["plan"][j["step"]]
+        j.update(m=m, mstr="%dx%d@%.3f" % (m[0], m[1], m[2]), t0=time.monotonic(), nudges=0, rc=None, err="", p=None)
+        try:
+            j["p"] = subprocess.Popen(["wlr-randr", "--output", j["name"], "--mode", j["mstr"]],
+                                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                                      text=True)
+        except OSError as e:
+            j["rc"], j["err"] = -1, str(e)[:160]
+        GLib.timeout_add(POLL_MS, self.poll, j)
+
+    def poll(self, j):
+        if j is not self.job:
+            return False
+        el = time.monotonic() - j["t0"]
+        p = j["p"]
+        if p is not None and j["rc"] is None and p.poll() is not None:
+            j["rc"], j["err"] = reap(p, 0.2)
+        now = hypr_current(j["name"])
+        j["now"] = now
+        if now and abs(now[2] - j["m"][2]) < 0.5:
+            return self.attempt_done(True)
+        if j["rc"] not in (None, 0) or el >= SWITCH_BUDGET:
+            return self.attempt_done(False)       # refused by wlr-randr / Hyprland, or no answer in time
+        if j["rc"] is None and j["nudges"] < len(NUDGE_MS) and el * 1000 >= NUDGE_MS[j["nudges"]] - POLL_MS / 2:
+            nudge_frame()
+            j["nudges"] += 1
+        return True
+
+    def attempt_done(self, ok):
+        j = self.job
+        p, timed_out = j["p"], False
+        if p is not None and j["rc"] is None:
+            # landed: wlr-randr reads `succeeded` from the same frame and ends at once; not landed: killed now
+            j["rc"], err = reap(p, 0.3 if ok else 0)
+            j["err"] = j["err"] or err
+            timed_out = j["rc"] is None
+        rc = "%d" % j["rc"] if j["rc"] is not None else "-1"
+        nud = ", %d frame nudge%s" % (j["nudges"], "" if j["nudges"] == 1 else "s") if j["nudges"] else ""
+        if ok:
+            d = "wlr-randr rc %s%s" % (rc if not timed_out else "-1 (killed after landing)", nud)
+        else:
+            err = j["err"] or ("no answer within %.1f s%s: killed" % (SWITCH_BUDGET, nud) if timed_out else "")
+            now = j.get("now")
+            d = "wlr-randr %s rc %s%s, Hyprland then %s Hz" % (j["mstr"], rc, (" '" + err + "'") if err else "",
+                                                               "%.3f" % now[2] if now else "?")
+        j["det"].append(d)
+        j["ok"].append(ok)
+        if j["step"] == 0 and not ok and j["via"] is not None:
+            j["plan"] = [j["best"], j["via"], j["best"]]
+        if j["step"] + 1 < len(j["plan"]):
+            j["step"] += 1
+            self.attempt()
+            return False
+        self.finish()
+        return False
+
+    def finish(self):
+        j = self.job
+        ok, det = j["ok"][-1], j["det"][0]
+        if len(j["det"]) == 3:
+            det += "; retry via %.0f Hz: %s, then %s" % (j["via"][2], j["det"][1], j["det"][2])
+        name, mode, cur = j["name"], j["mode"], j["cur"]
+        log("%s -> %s (target %d Hz: %s; on %s): %s%s" % (name, mode, j["hz"], j["why"], j["trigger"],
+                                                          "landed" if ok else "DID NOT LAND",
+                                                          "" if ok and "retry" not in det and "nudge" not in det
+                                                          else " [" + det + "]"))
+        now = hypr_current(name)
+        self.failed = None if ok else (mode, round(now[2]) if now else round(cur[2]))
+        self.state(choice=j["choice"], target=j["hz"], why=j["why"], current="%.3f" % (now[2] if now else cur[2]),
+                   mode=mode, landed="yes" if ok else "no")
+        self.job = None
+        if self.again is not None:
+            t, self.again = self.again, None
+            GLib.idle_add(self.apply_once, t + ", coalesced")
+
+    def apply_once(self, trigger):
+        self.apply(trigger)
+        return False
+
+
+if __name__ == "__main__":
+    if not os.environ.get("WAYLAND_DISPLAY"):
+        log("no Wayland session")
+        sys.exit(0)
+    # -17: the user's DSI rule must not name "preferred" (= 144 Hz); also when the session began before -16/-17
+    try:
+        out = subprocess.run(["/usr/libexec/iceland/iceland-monitors-mode-fix"], capture_output=True, text=True,
+                             timeout=10).stdout.strip()
+        if out:
+            log(out)
+    except (OSError, subprocess.SubprocessError):
+        pass
+    r = Refresh()
+    GLib.timeout_add_seconds(3, lambda: r.apply("start") and False)
+    GLib.MainLoop().run()

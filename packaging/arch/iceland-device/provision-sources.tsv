@@ -1,0 +1,10 @@
+# iceland-device 0.28-17: where iceland-provision looks for the unit's own Bluetooth address, in order, READ ONLY
+# (debugfs -c, never mounted; the partition must be read-only in the kernel, as 59-iceland-storage-ro.rules makes it).
+# kind<TAB>partition label<TAB>file system<TAB>path in it<TAB>format (text: the first XX:XX:XX:XX:XX:XX, XX-..-XX or
+# 12-hex-digit token). The usual Qualcomm persist files. On the owner's unit (stock 11.A.38) none of them exists: the
+# stock address comes from the modem NV / Android data, which Linux cannot read (wf/generic AUDIT: no plain copy in any
+# partition but super). Rows are cheap and read only; a unit that has one gets its own address without the installer.
+bdaddr	persist	ext4	/bluetooth/bdaddr.txt	text
+bdaddr	persist	ext4	/bdaddr.txt	text
+bdaddr	persist	ext4	/bluetooth/bt_addr	text
+bdaddr	persist	ext4	/factory/bluetooth/bdaddr.txt	text

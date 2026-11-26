@@ -1,0 +1,12 @@
+#!/bin/bash
+# post-update hook (iceland-device-hypr; installed by iceland-hypr-setup with omarchy-hook-install): after an Omarchy
+# update refreshed the omarchy-pad.lock clone from Omarchy's lock service (omarchy-pad-lock.hook), put logind's Unlock
+# back into it (iceland-lock-unlock-inject) and restart the shell if that changed the file. Sorts after
+# omarchy-pad-lock.hook ("zz-").
+set -u
+f=$HOME/.config/omarchy/plugins/omarchy-pad.lock/Service.qml
+[[ -f $f && -x /usr/libexec/iceland/iceland-lock-unlock-inject ]] || exit 0
+out=$(/usr/libexec/iceland/iceland-lock-unlock-inject "$f" 2>&1); rc=$?
+echo "iceland lock unlock: $out"
+[[ $rc == 0 && $out == injected ]] && { omarchy-restart-shell > /dev/null 2>&1 || :; }
+exit 0

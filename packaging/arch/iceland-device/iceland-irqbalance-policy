@@ -1,0 +1,39 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-device 0.28-29 (GAPS-2026-10-18 P-3): irqbalance policy script, /usr/libexec/iceland/iceland-irqbalance-policy
+# irqbalance (irqbalance.service.d/iceland.conf: --policyscript=) runs it once for every interrupt it finds, with the
+# sysfs device path and the IRQ number; it prints key=value lines. It bans the display (MDSS) and GPU interrupts, so
+# irqbalance never moves them off CPU 0: kernel queue patch 0335 holds its CPU-latency request
+# (msm.dpu_irq_cpu_latency_us) on the CPU that takes the MDSS interrupt (the chained MDSS parent is routed to CPU 0
+# and its children follow it), and the GPU / GMU interrupts share that CPU's powered cluster.
+# The interrupts are found BY NAME in /proc/interrupts at every call - no IRQ number is written anywhere:
+#   the interrupt controller "msm_mdss" (the DPU's "msm", "dsi_isr", "dp_display_isr");
+#   the handlers "gpu-irq", "gmu", "hfi" (msm's Adreno GPU and its GMU).
+# Any other interrupt: no output (irqbalance's own policy). Bash builtins only (it runs inside irqbalance's sandbox).
+# ICELAND_INTERRUPTS: PC test hook (a copy of /proc/interrupts).
+set -f
+irq=${2:-}
+case "$irq" in ''|*[!0-9]*) exit 0 ;; esac
+CHIPS=" msm_mdss "
+NAMES=" gpu-irq gmu hfi "
+ncpu=0
+while read -r first rest; do
+	if [ "$ncpu" = 0 ]; then
+		set -- $first $rest; ncpu=$#; continue   # the header: CPU0 CPU1 ...
+	fi
+	[ "$first" = "$irq:" ] || continue
+	set -- $rest
+	[ $# -gt "$ncpu" ] || exit 0
+	shift "$ncpu"
+	chip=${1:-}; shift
+	case "$CHIPS" in *" $chip "*) echo "ban=true"; exit 0 ;; esac
+	[ $# -gt 0 ] && shift                         # the hardware IRQ number
+	case "${1:-}" in Level|Edge) shift ;; esac    # the trigger, when shown
+	names=$*
+	names=${names//,/ }
+	for n in $names; do
+		case "$NAMES" in *" $n "*) echo "ban=true"; exit 0 ;; esac
+	done
+	exit 0
+done < "${ICELAND_INTERRUPTS:-/proc/interrupts}"
+exit 0

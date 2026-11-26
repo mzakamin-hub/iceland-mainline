@@ -1,0 +1,6 @@
+# the only packages [droidloom] may supply (upstream's split packages; all with the same version-release). Release 49
+# (23 Nov 2026) offers exactly these three: droidloom-runtime -> droidloom-image -> droidloom-base (Android system
+# partitions, 861 MiB download). droidloom-gapps (Google apps) is not offered today and would not be allowed (D5).
+droidloom-runtime
+droidloom-image
+droidloom-base

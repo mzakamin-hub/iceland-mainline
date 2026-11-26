@@ -1,0 +1,7 @@
+# OnePlus Pad 4 (iceland): the names systemd-hostnamed reports (hostnamectl, GNOME Settings > System > About).
+# hostnamed prefers these keys over the firmware's DMI strings (U-Boot derives "oneplus" / "OnePlus Pad 4" from the
+# device tree) and over the device tree's chassis-type. GNOME shows "<HARDWARE_VENDOR> <HARDWARE_MODEL>".
+# Stock: ro.product.manufacturer=OnePlus, ro.vendor.oplus.market.name=OnePlus Pad 4, ro.build.characteristics=tablet.
+HARDWARE_VENDOR=OnePlus
+HARDWARE_MODEL="Pad 4"
+CHASSIS=tablet

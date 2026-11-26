@@ -1,0 +1,73 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-power-key press | release (iceland-device-hypr; bound by /usr/share/iceland/hypr/power-key.lua): the power
+# key's short press stays Omarchy's power menu; holding it 0.6 s opens the power screen (the omarchy-pad.power shell
+# plugin of omarchy-pad-shell: Power off / Restart / Lock). The press / hold logic is ported from upstream
+# omarchy-pad's omarchy-pad-power (samyn92/omarchy-pad 593a489, MIT) without its sleep-on-press, its power-key
+# inhibitor and its screenshot combo: what a short press does, and every sleep / charging policy, are unchanged.
+# On the lock screen a hold does nothing (as upstream: no menu over the lock); a short press there is Omarchy's.
+set -u
+hold=0.6
+plugin=omarchy-pad.power
+dir=${XDG_RUNTIME_DIR:-/tmp}/iceland-power-key
+mkdir -p "$dir"
+exec 8> "$dir/lock"
+log() { logger -t iceland-power-key -- "$*" 2> /dev/null || :; }
+short_press() { omarchy-menu toggle system; }   # Omarchy's XF86PowerOff action ({ menu = "system" }), as before
+locked() { omarchy-hyprland-session-locked > /dev/null 2>&1; }
+screen_open() { [[ $(omarchy-shell shell call "$plugin" isOpen "" 2> /dev/null) == true ]]; }
+open_screen() {
+	locked && { log "held on the lock screen: no power screen"; return; }
+	[[ $(omarchy-shell shell summon "$plugin" "{}" 2> /dev/null) == ok ]] || { log "power screen plugin did not open: Omarchy's menu"; omarchy-menu summon system; }
+}
+# pkgrel 14 (24 Nov, owner: "the power button isn't waking the device up"): a press while the screen is dark (after a
+# suspend / resume, or Omarchy's idle turned it off) only lights it: Omarchy's own wake (omarchy-system-wake: DPMS on,
+# keyboard backlight, clamshell check), and that press's hold / release do nothing else (no menu, no power screen).
+# misc.key_press_enables_dpms stays false (iceland.lua): Hyprland applies it BEFORE the binds, so the power key's press
+# would light the screen first and this script could no longer tell a wake press from a menu press.
+screen_dark() {
+	local j
+	j=$(hyprctl -j monitors 2> /dev/null)
+	if [[ -n $j ]]; then
+		jq -e '[.[] | select(.disabled == false)] | length == 0 or any(.dpmsStatus | not)' <<< "$j" > /dev/null 2>&1 && return 0
+		return 1
+	fi
+	[[ $(cat /sys/class/drm/card*-DSI-1/dpms 2> /dev/null | head -1) == Off ]]
+}
+press() {
+	flock 8
+	local id=$EPOCHREALTIME
+	if screen_dark; then
+		echo "$id" > "$dir/down"; : > "$dir/used"            # the release of this press does nothing
+		flock -u 8
+		omarchy-system-wake > /dev/null 2>&1 || hyprctl dispatch 'hl.dsp.dpms({ action = "enable" })' > /dev/null 2>&1
+		log "press with the screen dark: screen on, nothing else"
+		return 0
+	fi
+	echo "$id" > "$dir/down"; rm -f "$dir/used"
+	flock -u 8
+	(
+		sleep "$hold"
+		flock 8
+		[[ $(cat "$dir/down" 2> /dev/null) == "$id" && ! -e $dir/used ]] || exit 0
+		touch "$dir/used"
+		flock -u 8
+		screen_open || open_screen
+	) 8> "$dir/lock" < /dev/null > /dev/null 2>&1 &
+}
+release() {
+	flock 8
+	# Hyprland runs the press and the release apart: a quick tap's release can come first
+	for _ in 1 2 3 4 5; do [[ -e $dir/down ]] && break; flock -u 8; sleep 0.05; flock 8; done
+	local used=0
+	[[ -e $dir/used ]] && used=1
+	rm -f "$dir/down" "$dir/used"
+	flock -u 8
+	((used)) && return 0
+	if screen_open; then omarchy-shell shell hide "$plugin" > /dev/null 2>&1; else short_press; fi
+}
+case ${1:-} in
+press) press ;;
+release) release ;;
+*) echo "usage: iceland-power-key press|release" >&2; exit 2 ;;
+esac

@@ -1,0 +1,14 @@
+# iceland-device (Arch): a read-only btrfs snapshot of arch-root (snapshots/arch-root-DATE-pacman) before every
+# package transaction; the newest 3 are kept (/etc/iceland/snapshot.conf). A failed snapshot never stops the
+# transaction (iceland-snapshot pre always exits 0). ICELAND_NO_SNAPSHOT=1 in the environment skips it.
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Type = Package
+Target = *
+
+[Action]
+Description = Taking a btrfs snapshot of arch-root (iceland-snapshot)...
+When = PreTransaction
+Exec = /usr/libexec/iceland/iceland-snapshot pre pacman

@@ -1,0 +1,114 @@
+#!/usr/bin/python3 -I
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-mode-publish (iceland-device, round 6; research REFS-TOUCH-2 B1, owner 23 Nov: one mode for cover detector,
+# rotation, floatkey and the lock): writes the single source of truth /run/iceland/mode = "tablet" | "laptop"
+# (world-readable, replaced by an atomic rename; never a device name: a BT name can identify the owner).
+#   laptop = a real keyboard is attached: an input device with the letter keys + space that is NOT a uinput device
+#            (/sys/devices/virtual/input/: the cover detector's SW_LID device, iceland-input, DexHid); a Bluetooth
+#            keyboard (the owner's cover) comes through uhid (/sys/devices/virtual/misc/uhid/) and counts;
+#   the owner's Auto / Tablet / Laptop tile writes ~/.config/iceland/mode-override (auto | tablet | laptop) of the
+#   seat0 user; tablet / laptop there win over the keyboard rule, auto (or no file) leaves it to the keyboard.
+# Event-driven for input hotplug (GUdev "input" uevents, 0.4 s settle); the override file is re-read every 2 s
+# (one stat; the file is in the user's home, which this root service only reads). Runs on its own (not inside
+# iceland-cover-detect, which only starts with the sensor hub), so the mode is right even when the hub is down.
+#   iceland-mode-publish [--once]
+import glob, os, pwd, sys
+import gi
+gi.require_version("GUdev", "1.0")
+from gi.repository import GLib, GUdev
+
+MODE = "/run/iceland/mode"
+
+
+def log(msg):
+    print("iceland-mode-publish: " + msg, flush=True)
+
+
+def keyboard_attached():
+    for ev in glob.glob("/sys/class/input/event*/device"):
+        try:
+            if os.path.realpath(ev).startswith("/sys/devices/virtual/input/"):
+                continue
+            caps = open(ev + "/capabilities/key").read().split()
+        except OSError:
+            continue
+        bits = 0
+        for i, word in enumerate(reversed(caps)):
+            bits |= int(word, 16) << (64 * i)
+        if all(bits >> k & 1 for k in (16, 30, 44, 50, 57)):   # KEY_Q KEY_A KEY_Z KEY_M KEY_SPACE
+            return True
+    return False
+
+
+def override_file():
+    """the seat0 user's ~/.config/iceland/mode-override (None without an active seat0 user)"""
+    try:
+        for line in open("/run/systemd/seats/seat0"):
+            if line.startswith("ACTIVE_UID="):
+                return os.path.join(pwd.getpwuid(int(line.split("=", 1)[1])).pw_dir, ".config/iceland/mode-override")
+    except (OSError, KeyError, ValueError):
+        pass
+    return None
+
+
+def override():
+    f = override_file()
+    try:
+        v = open(f).read().strip() if f else ""
+    except OSError:
+        v = ""
+    return v if v in ("tablet", "laptop") else "auto"
+
+
+class Publisher:
+    def __init__(self):
+        self.mode = None
+        self.last_ovr = None
+        self.settle = 0
+        self.evaluate("start")
+
+    def evaluate(self, why):
+        ovr = override()
+        kb = keyboard_attached()
+        mode = ovr if ovr != "auto" else ("laptop" if kb else "tablet")
+        self.last_ovr = ovr
+        if mode != self.mode:
+            os.makedirs(os.path.dirname(MODE), mode=0o755, exist_ok=True)
+            tmp = MODE + ".new"
+            with open(tmp, "w") as f:
+                f.write(mode + "\n")
+            os.chmod(tmp, 0o644)
+            os.replace(tmp, MODE)
+            log("%s (%s; override %s, real keyboard %s)" % (mode, why, ovr, "yes" if kb else "no"))
+            self.mode = mode
+        return False
+
+    def uevent(self, client, action, dev):
+        if action not in ("add", "remove"):
+            return
+        if self.settle:
+            GLib.source_remove(self.settle)
+        self.settle = GLib.timeout_add(400, self.settled)
+
+    def settled(self):
+        self.settle = 0
+        return self.evaluate("input hotplug")
+
+    def tick(self):
+        if override() != self.last_ovr:
+            self.evaluate("override changed")
+        return True
+
+
+def main():
+    p = Publisher()
+    if "--once" in sys.argv:
+        return
+    client = GUdev.Client.new(["input"])
+    client.connect("uevent", p.uevent)
+    GLib.timeout_add_seconds(2, p.tick)
+    GLib.MainLoop().run()
+
+
+if __name__ == "__main__":
+    main()

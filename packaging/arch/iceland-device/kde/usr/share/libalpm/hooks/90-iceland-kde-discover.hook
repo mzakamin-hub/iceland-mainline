@@ -1,0 +1,14 @@
+# iceland-device-kde (Arch form of the Fedora spec's %triggerin / %triggerpostun on plasma-discover): Discover's
+# launcher copy with "--backends packagekit-backend" follows Arch's discover package (written when its desktop file
+# is installed or updated; "write" removes the copy when the original is gone).
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Type = Path
+Target = usr/share/applications/org.kde.discover.desktop
+
+[Action]
+Description = Updating Discover's PackageKit-only launcher (iceland-kde-discover)...
+When = PostTransaction
+Exec = /usr/libexec/iceland/iceland-kde-discover write

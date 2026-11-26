@@ -1,0 +1,14 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-refresh-info (iceland-device-hypr; the Tablet menu's Display > Refresh Rate > Current Rate row): the panel's
+# current refresh rate and why, as a notification. 0.28.53-16: from the user's choice (iceland-display-mode) and
+# iceland-hypr-refresh's state file ($XDG_RUNTIME_DIR/iceland-refresh.state: target, why).
+set -u
+hz=$(hyprctl -j monitors 2> /dev/null | jq -r '[.[] | select(.name | startswith("DSI"))][0] | (.refreshRate + 0.5 | floor | tostring) + " Hz"' 2> /dev/null)
+st=${XDG_RUNTIME_DIR:-/tmp}/iceland-refresh.state
+why=$(sed -n 's/^why=//p' "$st" 2> /dev/null | head -1)
+tgt=$(sed -n 's/^target=//p' "$st" 2> /dev/null | head -1)
+ch=$(iceland-display-mode rate 2> /dev/null || echo auto)
+body="choice: $ch${tgt:+; target $tgt Hz}${why:+ ($why)}"
+[ -n "$why" ] || body="$body; iceland-hypr-refresh has not reported yet"
+notify-send -t 5000 "Refresh rate ${hz:-unknown}" "$body" 2> /dev/null || echo "${hz:-unknown}: $body"

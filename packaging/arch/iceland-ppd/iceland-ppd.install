@@ -1,0 +1,33 @@
+_running() { [ -d /run/systemd/system ] && ! systemd-detect-virt --quiet --chroot 2>/dev/null; }
+# pkgrel 3 (24 Nov): Omarchy's CPU floor is kept off by a condition drop-in
+# (/usr/lib/systemd/system/omarchy-powerprofiles-floor.service.d/50-iceland-off.conf), no longer by a mask: a masked
+# unit made Omarchy's migration 1794503281 fail (systemctl start) and that stops omarchy-migrate for good. A /dev/null
+# mask left by an older iceland-ppd or by the image build is removed here; a real unit file is never touched.
+_unmask_floor() {
+  f=/etc/systemd/system/omarchy-powerprofiles-floor.service
+  if [ -L "$f" ] && [ "$(readlink "$f")" = /dev/null ]; then
+    systemctl unmask omarchy-powerprofiles-floor.service >/dev/null 2>&1 || rm -f "$f"
+  fi
+}
+post_install() {
+  systemctl enable power-profiles-daemon.service iceland-ppd-hook.service >/dev/null 2>&1 || :
+  _unmask_floor
+  if _running; then
+    systemctl daemon-reload >/dev/null 2>&1 || :
+    systemctl try-restart iceland-thermal.service >/dev/null 2>&1 || :
+    systemctl start iceland-ppd-hook.service >/dev/null 2>&1 || :
+  fi
+}
+post_upgrade() {
+  # pkgrel 2: WantedBy moved to graphical.target: reenable drops the old multi-user.target.wants link (an ordering
+  # cycle) and makes the graphical.target.wants one
+  systemctl reenable iceland-ppd-hook.service >/dev/null 2>&1 || :
+  _unmask_floor
+  if _running; then
+    systemctl daemon-reload >/dev/null 2>&1 || :
+    systemctl try-restart iceland-ppd-hook.service iceland-thermal.service >/dev/null 2>&1 || :
+  fi
+}
+pre_remove() {
+  systemctl disable --now iceland-ppd-hook.service >/dev/null 2>&1 || :
+}

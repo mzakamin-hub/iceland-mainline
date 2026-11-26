@@ -1,0 +1,172 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-provision (iceland-device 0.28-17): the per-unit values of a GENERIC install image, once, on its first boot.
+# A generic image carries no unit data. What a unit needs of its own is found here, on the unit, READ ONLY:
+#   Bluetooth address, in this order (the first that gives a valid address wins):
+#     1. the device tree: U-Boot (route K1) filled the Bluetooth node's local-bd-address -> the kernel programs it
+#        during the controller setup; nothing is written here (the device tree wins, iceland-bdaddr is not needed)
+#     2. /etc/iceland/bdaddr already there (an installed system, or --bdaddr earlier) -> kept, never overwritten
+#     3. the rows of /usr/share/iceland/provision-sources.tsv: a file on one of the tablet's own partitions, read with
+#        debugfs in its read-only mode (never mounted, never opened for writing; the partition must be read-only in the
+#        kernel first - the package's 59-iceland-storage-ro.rules sets every UFS partition read-only; a partition that
+#        is not read-only is skipped) -> /etc/iceland/bdaddr (0600), applied at boot by iceland-bdaddr.service
+#     4. none: ONE warning; Bluetooth then runs with the controller's shared default address. Set the own one with
+#        "sudo iceland-provision --bdaddr XX:XX:XX:XX:XX:XX": Install-Pad4Linux.ps1 reads the address read-only from Android
+#        (persist.vendor.service.bdroid.bdaddr) in its backup phase, saves it as bdaddr.txt next to the backup manifest and
+#        prints this command for the first login (owner, 15 Oct 2026)
+#   A value equal to a known placeholder (all zero, all FF, the device tree's 25 00 00 00 5a ad, the WCN NVM default
+#   00:00:00:00:5A:AD, either byte order) is never taken.
+#   Reported only (no action): the machine id (systemd makes it at the first boot), the SSH host keys (sshd-keygen makes
+#   them at sshd's first start). The sensor registry is generic (owner's decision, 15 Oct 2026): not touched.
+# The address itself is never printed or logged. One line per run ("iceland-provision: ..."); a missing source never
+# fails the boot (exit 0). Idempotent: /var/lib/iceland/provisioned (no address in it) ends the first-boot run;
+# iceland-provision.service runs only while it is absent.
+#   iceland-provision [--first-boot]   the first-boot run (the unit); does nothing when already provisioned
+#   iceland-provision --force          the same once more (an existing /etc/iceland/bdaddr is still kept)
+#   iceland-provision --status         the decision only: reads, writes nothing
+#   iceland-provision --bdaddr ADDR    store ADDR as the own address (root; refuses placeholders and bad values)
+# Test hooks (env): ICELAND_PROV_ETC (/etc/iceland), ICELAND_PROV_STATE (/var/lib/iceland), ICELAND_PROV_DT
+# (/sys/firmware/devicetree/base), ICELAND_PROV_SOURCES, ICELAND_PROV_BYLABEL (/dev/disk/by-partlabel),
+# ICELAND_PROV_DEBUGFS (debugfs), ICELAND_PROV_BLOCKDEV (blockdev), ICELAND_PROV_WAIT (s, 10), ICELAND_PROV_FILES=1 (a
+# regular file stands for a partition), ICELAND_PROV_MACHINE_ID, ICELAND_PROV_SSH (/etc/ssh), ICELAND_PROV_TEST_UID,
+# ICELAND_PROV_SYSTEMCTL (systemctl; --bdaddr restarts iceland-bdaddr.service with it).
+set -u
+VER=0.28-17
+ETC=${ICELAND_PROV_ETC:-/etc/iceland}
+ST=${ICELAND_PROV_STATE:-/var/lib/iceland}
+DT=${ICELAND_PROV_DT:-/sys/firmware/devicetree/base}
+SRC=${ICELAND_PROV_SOURCES:-/usr/share/iceland/provision-sources.tsv}
+BYLABEL=${ICELAND_PROV_BYLABEL:-/dev/disk/by-partlabel}
+DEBUGFS=${ICELAND_PROV_DEBUGFS:-debugfs}
+BLOCKDEV=${ICELAND_PROV_BLOCKDEV:-blockdev}
+WAIT=${ICELAND_PROV_WAIT:-10}
+MID=${ICELAND_PROV_MACHINE_ID:-/etc/machine-id}
+SSHD=${ICELAND_PROV_SSH:-/etc/ssh}
+STAMP=$ST/provisioned
+say() { echo "iceland-provision: $*"; }
+
+# normalise one address-like token to XX:XX:XX:XX:XX:XX (upper case); empty if it is not one
+norm() {
+	h=$(printf '%s' "$1" | tr -d ':-' | tr a-f A-F)
+	printf '%s' "$h" | grep -Eq '^[0-9A-F]{12}$' || return 0
+	printf '%s\n' "$h" | sed 's/\(..\)\(..\)\(..\)\(..\)\(..\)\(..\)/\1:\2:\3:\4:\5:\6/'
+}
+# a usable own address: well formed and not a placeholder (either byte order)
+usable() {
+	case "$1" in
+	""|00:00:00:00:00:00|FF:FF:FF:FF:FF:FF) return 1 ;;
+	AD:5A:00:00:00:25|25:00:00:00:5A:AD) return 1 ;;     # the device tree's local-bd-address placeholder
+	00:00:00:00:5A:AD|AD:5A:00:00:00:00) return 1 ;;     # the WCN NVM default address
+	esac
+	printf '%s' "$1" | grep -Eq '^([0-9A-F]{2}:){5}[0-9A-F]{2}$'
+}
+# the device tree's local-bd-address of the Bluetooth node (stored least significant byte first), as XX:..:XX
+dt_addr() {
+	f=$(find "$DT" -maxdepth 6 -path '*bluetooth*' -name local-bd-address 2>/dev/null | head -n 1)
+	[ -n "$f" ] || return 0
+	[ "$(wc -c < "$f")" -eq 6 ] || return 0
+	od -An -v -tx1 "$f" | tr -s ' \n' '  ' | awk '{ for (i = NF; i > 0; i--) printf "%s%s", toupper($i), (i > 1 ? ":" : "") } END { print "" }'
+}
+# one source row: LABEL FS PATH FORMAT -> prints a usable address or nothing; never writes the partition
+read_source() {
+	label=$1; fs=$2; path=$3; fmt=$4
+	dev=$BYLABEL/$label
+	i=0; while [ ! -e "$dev" ] && [ "$i" -lt "$WAIT" ]; do sleep 1; i=$((i + 1)); done
+	if [ "${ICELAND_PROV_FILES:-0}" = 1 ]; then [ -f "$dev" ] || return 0
+	else [ -b "$dev" ] || return 0; fi
+	# read-only in the kernel first (59-iceland-storage-ro.rules does it at boot); a partition that stays writable is skipped
+	if [ "$("$BLOCKDEV" --getro "$dev" 2>/dev/null)" != 1 ]; then
+		"$BLOCKDEV" --setro "$dev" > /dev/null 2>&1
+		[ "$("$BLOCKDEV" --getro "$dev" 2>/dev/null)" = 1 ] || return 0
+	fi
+	case "$fs" in
+	ext4) data=$("$DEBUGFS" -c -R "cat $path" "$dev" 2>/dev/null | head -c 256) ;;   # -c: catastrophic mode = opened read-only, no bitmaps
+	*) return 0 ;;
+	esac
+	case "$fmt" in
+	text) tok=$(printf '%s' "$data" | grep -o -E '([0-9A-Fa-f]{2}[:-]?){5}[0-9A-Fa-f]{2}' | head -n 1) ;;
+	*) return 0 ;;
+	esac
+	a=$(norm "$tok")
+	usable "$a" && printf '%s\n' "$a"
+	return 0
+}
+# the sources in order: "bdaddr<TAB>LABEL<TAB>FS<TAB>PATH<TAB>FORMAT", '#' comments
+from_sources() {
+	[ -r "$SRC" ] || return 0
+	grep -v '^#' "$SRC" | awk -F'\t' '$1 == "bdaddr" && NF >= 5 { print $2 "\t" $3 "\t" $4 "\t" $5 }' > "$TMPL"
+	while IFS="$(printf '\t')" read -r l f p m; do
+		a=$(read_source "$l" "$f" "$p" "$m")
+		if [ -n "$a" ]; then printf '%s\t%s:%s\n' "$a" "$l" "$p"; return 0; fi
+	done < "$TMPL"
+	return 0
+}
+store() { # store ADDR: /etc/iceland/bdaddr 0600, atomic
+	mkdir -p "$ETC" || return 1
+	umask 077
+	printf '%s\n' "$1" > "$ETC/bdaddr.new" && chmod 600 "$ETC/bdaddr.new" && mv -f "$ETC/bdaddr.new" "$ETC/bdaddr"
+}
+others() {
+	m=$(tr -d ' \n' < "$MID" 2>/dev/null)
+	case "$m" in "") ms=empty ;; uninitialized) ms=uninitialized ;; *) ms=set ;; esac
+	k=$(ls "$SSHD"/ssh_host_*_key 2>/dev/null | wc -l)
+	printf 'machine-id %s; ssh host keys %s' "$ms" "$k"
+}
+
+MODE=first-boot ADDR=
+case "${1:-}" in
+""|--first-boot) ;;
+--force) MODE=force ;;
+--status) MODE=status ;;
+--bdaddr) MODE=set; ADDR=${2:-} ;;
+-h|--help) sed -n '3,33p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+*) echo "iceland-provision: unknown option $1 (--first-boot, --force, --status, --bdaddr ADDR)" >&2; exit 1 ;;
+esac
+TMPL=$(mktemp "${TMPDIR:-/tmp}/iceland-provision.XXXXXX") || exit 1
+trap 'rm -f "$TMPL"' EXIT
+
+if [ "$MODE" = set ]; then
+	[ "${ICELAND_PROV_TEST_UID:-$(id -u)}" = 0 ] || { echo "iceland-provision: --bdaddr needs root (sudo)" >&2; exit 1; }
+	a=$(norm "$ADDR")
+	usable "$a" || { echo "iceland-provision: refused: not a usable Bluetooth address (format XX:XX:XX:XX:XX:XX, no placeholder)" >&2; exit 1; }
+	store "$a" || { echo "iceland-provision: could not write $ETC/bdaddr" >&2; exit 1; }
+	# applied at once when systemd runs (iceland-bdaddr sets it with the controller off and waits for the adapter)
+	SC=${ICELAND_PROV_SYSTEMCTL:-systemctl}
+	if [ -n "${ICELAND_PROV_SYSTEMCTL:-}" ] || [ -d /run/systemd/system ]; then
+		if "$SC" restart iceland-bdaddr.service > /dev/null 2>&1; then say "own Bluetooth address stored in $ETC/bdaddr and applied (iceland-bdaddr.service)"
+		else say "own Bluetooth address stored in $ETC/bdaddr; iceland-bdaddr.service did not start now: it applies it at the next boot"; fi
+	else say "own Bluetooth address stored in $ETC/bdaddr (applied at the next boot)"; fi
+	exit 0
+fi
+if [ "$MODE" = first-boot ] && [ -e "$STAMP" ]; then
+	say "already provisioned ($(cut -c1-80 "$STAMP" 2>/dev/null)); nothing done (--force to run again)"
+	exit 0
+fi
+
+# Bluetooth address
+d=$(dt_addr)
+if usable "$d"; then
+	bd="from the device tree (U-Boot); nothing written"
+	kind=dt
+elif [ -s "$ETC/bdaddr" ] && usable "$(norm "$(tr -d ' \n' < "$ETC/bdaddr")")"; then
+	bd="kept $ETC/bdaddr"
+	kind=kept
+else
+	hit=$(from_sources)
+	if [ -n "$hit" ]; then
+		a=$(printf '%s' "$hit" | cut -f1); where=$(printf '%s' "$hit" | cut -f2)
+		if [ "$MODE" = status ]; then bd="found on $where (status: not written)"
+		elif store "$a"; then bd="read from $where (read only) into $ETC/bdaddr"
+		else bd="found on $where but $ETC/bdaddr could not be written"; fi
+		kind=partition
+	else
+		n=$(grep -v '^#' "$SRC" 2>/dev/null | grep -c '^bdaddr')
+		bd="WARNING none found (no U-Boot device-tree value, no $ETC/bdaddr, none of $n read-only sources): the controller's shared default address is used; set the own one with the command the installer printed (its backup folder has bdaddr.txt): sudo iceland-provision --bdaddr XX:XX:XX:XX:XX:XX"
+		kind=none
+	fi
+fi
+line="bdaddr $bd; $(others)"
+if [ "$MODE" = status ]; then say "status: $line"; exit 0; fi
+mkdir -p "$ST" && printf '%s %s bdaddr=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$VER" "$kind" > "$STAMP.new" && mv -f "$STAMP.new" "$STAMP"
+say "$line; done"
+exit 0

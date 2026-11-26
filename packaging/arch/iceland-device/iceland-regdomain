@@ -1,0 +1,5 @@
+# Wireless regulatory domain for /usr/sbin/setregdomain (wireless-regdb, run by udev for every new wiphy).
+# OnePlus Pad 4 (iceland-device): the WCN7860 firmware manages its own regulatory domain and runs the US one;
+# this keeps the kernel's global domain the same instead of the world domain 00. ath12k does not pass this
+# user setting to the firmware.
+COUNTRY=US

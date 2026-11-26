@@ -1,0 +1,350 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# iceland-launchboost: stock's app-launch boost of the OnePlus Pad 4, rebuilt for mainline Linux (no WALT).
+#
+# STOCK (OxygenOS 11.A.38, /vendor/etc/perf/perfboostsconfig.xml, hint 0x00001081 Type 5, the one enabled launch
+# boost for "canoe"): for 600 ms after an app launch: sched_boost 1 (tasks go to the big cores), CPU minimum
+# 3302400 kHz on the small and 4070400 kHz on the big cluster, the IPC / legacy frequency caps lifted.
+#
+# OURS: the same idea through utilisation clamping (CONFIG_UCLAMP_TASK). A launch on GNOME is a new systemd unit
+# in the user's app.slice (app-gnome-<app>-<pid>.scope, app-flatpak-..., run-*.service, vte-spawn-*.scope). When
+# such a cgroup appears, every thread in it gets util_min UTIL_MIN (sched_setattr, SCHED_FLAG_UTIL_CLAMP_MIN) for
+# BOOST_MS, then the value goes back to 0 (only on threads that still carry our value). UTIL_MIN 904 is the
+# capacity of 4070400 kHz in this tablet's energy model (perf column of /sys/kernel/debug/energy_model/cpu6), i.e.
+# stock's big-cluster minimum; it is above the small cores' capacity (799), so the scheduler places the launching
+# threads on the big cores, as stock's sched_boost 1 does. Threads created during the window inherit the clamp.
+#
+# Never above the thermal policy: a clamp only asks schedutil for a frequency, scaling_max_freq (iceland-thermal's
+# gear cap, the kernel's cooling devices) still bounds it. No boost while iceland-battery-guard holds its input cut,
+# at most one boost start per MIN_GAP_MS (a login starts dozens of units), and only for units created after this
+# service started. Idle cost: none (one inotify fd, the poll blocks without a timeout when nothing is pending).
+#
+# /etc/iceland/launchboost.conf: ENABLE, UTIL_MIN, BOOST_MS, MIN_GAP_MS, SETTLE_MS (read at every launch).
+
+import ctypes
+import os
+import platform
+import select
+import signal
+import struct
+import sys
+import syslog
+import time
+
+CG = os.environ.get("ICELAND_CGROUP", "/sys/fs/cgroup")
+PROC = os.environ.get("ICELAND_PROC", "/proc")
+CONF = os.environ.get("ICELAND_LAUNCHBOOST_CONF", "/etc/iceland/launchboost.conf")
+RUN = os.environ.get("ICELAND_RUN", "/run/iceland")
+DEFAULTS = {"ENABLE": "1", "UTIL_MIN": "904", "BOOST_MS": "600", "MIN_GAP_MS": "1000", "SETTLE_MS": "30"}
+SETTLE_TRIES = 5                     # cgroup.procs read up to 5 x SETTLE_MS after the directory appears
+
+# sched_setattr / sched_getattr (include/uapi/linux/sched/types.h): size, policy, flags, nice, priority, runtime,
+# deadline, period, util_min, util_max = 56 bytes
+ATTR = struct.Struct("=IIQiIQQQII")
+SCHED_FLAG_KEEP_POLICY = 0x08
+SCHED_FLAG_KEEP_PARAMS = 0x10
+SCHED_FLAG_UTIL_CLAMP_MIN = 0x20
+NR = {"aarch64": (274, 275), "x86_64": (314, 315)}
+
+IN_NONBLOCK = 0o4000
+IN_CLOEXEC = 0o2000000
+IN_CREATE = 0x100
+IN_DELETE_SELF = 0x400
+IN_IGNORED = 0x8000
+IN_ISDIR = 0x40000000
+IN_ONLYDIR = 0x1000000
+EVENT = struct.Struct("iIII")
+
+
+def log(msg, prio=syslog.LOG_NOTICE):
+    syslog.syslog(prio, msg)
+
+
+def read_conf(path=None):
+    c = dict(DEFAULTS)
+    try:
+        with open(path or CONF) as f:
+            for line in f:
+                line = line.split("#", 1)[0].strip()
+                if "=" in line:
+                    k, v = line.split("=", 1)
+                    if k.strip() in DEFAULTS:
+                        c[k.strip()] = v.strip()
+    except OSError:
+        pass
+    return c
+
+
+def cint(c, key, lo, hi):
+    try:
+        v = int(c.get(key, DEFAULTS[key]))
+    except ValueError:
+        v = int(DEFAULTS[key])
+    return min(hi, max(lo, v))
+
+
+class Clamp:
+    """per-thread util_min through the raw syscalls (glibc has no wrapper)"""
+
+    def __init__(self):
+        self.libc = ctypes.CDLL(None, use_errno=True)
+        self.nr = NR.get(platform.machine())
+
+    def get(self, tid):
+        """util_min of a thread, or None (gone, no permission, no uclamp)"""
+        if not self.nr:
+            return None
+        buf = ctypes.create_string_buffer(ATTR.size)
+        if self.libc.syscall(self.nr[1], int(tid), buf, ATTR.size, 0) != 0:
+            return None
+        return ATTR.unpack(buf.raw)[8]
+
+    def set(self, tid, util_min):
+        """util_min None = back to the default (not user-defined: -1 in the syscall)"""
+        if not self.nr:
+            return False
+        a = ATTR.pack(ATTR.size, 0, SCHED_FLAG_KEEP_POLICY | SCHED_FLAG_KEEP_PARAMS | SCHED_FLAG_UTIL_CLAMP_MIN,
+                      0, 0, 0, 0, 0, 0xFFFFFFFF if util_min is None else int(util_min), 1024)
+        buf = ctypes.create_string_buffer(a, ATTR.size)
+        return self.libc.syscall(self.nr[0], int(tid), buf, 0) == 0
+
+
+def classify(rel):
+    """what a cgroup directory below CG is to us: 'watch' (look for launches inside), 'leaf' (a launch when it
+    appears), or None. rel = path below CG, '/'-separated."""
+    p = [x for x in rel.split("/") if x]
+    if not p or p[0] != "user.slice":
+        return None
+    if len(p) == 1:
+        return "watch"
+    if not (p[1].startswith("user-") and p[1].endswith(".slice")):
+        return None
+    if len(p) == 2:
+        return "watch"
+    if not (p[2].startswith("user@") and p[2].endswith(".service")):
+        return None
+    if len(p) == 3:
+        return "watch"
+    if p[3] != "app.slice":
+        return None
+    if len(p) == 4:
+        return "watch"
+    if not all(x.endswith(".slice") for x in p[4:-1]):
+        return None                  # inside a scope / service: its own sub-cgroups are not launches
+    last = p[-1]
+    if last.endswith(".slice"):
+        return "watch"
+    if last.endswith(".scope") or last.endswith(".service"):
+        return "leaf"
+    return None
+
+
+class Booster:
+    """the launch-boost logic, without inotify (tests drive it with a fake clock and a fake clamp)"""
+
+    def __init__(self, clamp, conf_reader=read_conf, now=time.monotonic):
+        self.clamp = clamp
+        self.conf_reader = conf_reader
+        self.now = now
+        self.pending = {}            # rel -> (due, tries)
+        self.active = {}             # rel -> (end, util, set of tids)
+        self.last_start = None
+        self.boosts = 0
+        self.skipped = 0
+        self.last = "-"
+
+    def tids(self, rel):
+        out = []
+        try:
+            with open(os.path.join(CG, rel, "cgroup.procs")) as f:
+                pids = [x.strip() for x in f if x.strip()]
+        except OSError:
+            return out
+        for pid in pids:
+            try:
+                out.extend(int(t) for t in os.listdir(os.path.join(PROC, pid, "task")) if t.isdigit())
+            except OSError:
+                pass
+        return out
+
+    def created(self, rel):
+        """a leaf cgroup appeared: look at it SETTLE_MS later (systemd moves the PID in after the mkdir)"""
+        c = self.conf_reader()
+        if c.get("ENABLE") != "1":
+            return
+        self.pending[rel] = (self.now() + cint(c, "SETTLE_MS", 0, 1000) / 1000.0, 0)
+
+    def gate(self, c, t):
+        if c.get("ENABLE") != "1":
+            return "ENABLE=0"
+        if os.path.exists(os.path.join(RUN, "input-cut")):
+            return "battery guard input cut"
+        if self.last_start is not None and t - self.last_start < cint(c, "MIN_GAP_MS", 0, 60000) / 1000.0:
+            return "min gap"
+        return ""
+
+    def start(self, rel, t):
+        """True when the cgroup was handled (boosted or skipped for good), False to retry later"""
+        c = self.conf_reader()
+        tids = self.tids(rel)
+        if not tids:
+            return False
+        why = self.gate(c, t)
+        if why:
+            self.skipped += 1
+            return True
+        util = cint(c, "UTIL_MIN", 0, 1024)
+        done = set(tid for tid in tids if self.clamp.set(tid, util))
+        if not done:
+            self.skipped += 1
+            return True
+        self.last_start = t
+        self.boosts += 1
+        self.last = os.path.basename(rel)
+        self.active[rel] = (t + cint(c, "BOOST_MS", 0, 10000) / 1000.0, util, done)
+        log("iceland-launchboost: %s: util_min %d on %d threads for %d ms" % (self.last, util, len(done),
+            cint(c, "BOOST_MS", 0, 10000)), syslog.LOG_INFO)
+        return True
+
+    def end(self, rel):
+        _, util, done = self.active.pop(rel)
+        for tid in done | set(self.tids(rel)):
+            if self.clamp.get(tid) == util:          # never undo a clamp somebody else set meanwhile
+                self.clamp.set(tid, None)
+
+    def end_all(self):
+        for rel in list(self.active):
+            self.end(rel)
+
+    def step(self):
+        """run what is due; return the seconds until the next due item, or None (nothing pending)"""
+        t = self.now()
+        for rel, (due, tries) in list(self.pending.items()):
+            if due <= t:
+                del self.pending[rel]
+                if not self.start(rel, t) and tries + 1 < SETTLE_TRIES:
+                    c = self.conf_reader()
+                    self.pending[rel] = (t + max(0.005, cint(c, "SETTLE_MS", 0, 1000) / 1000.0), tries + 1)
+        for rel, (end, _, _) in list(self.active.items()):
+            if end <= t:
+                self.end(rel)
+        dues = [d for d, _ in self.pending.values()] + [e for e, _, _ in self.active.values()]
+        return max(0.0, min(dues) - t) if dues else None
+
+    def state(self):
+        return "boosts=%d skipped=%d active=%d last=%s" % (self.boosts, self.skipped, len(self.active), self.last)
+
+
+class Watcher:
+    """inotify on the user.slice tree down to app.slice and its sub-slices"""
+
+    def __init__(self, booster):
+        self.b = booster
+        self.libc = ctypes.CDLL(None, use_errno=True)
+        self.fd = self.libc.inotify_init1(IN_NONBLOCK | IN_CLOEXEC)
+        if self.fd < 0:
+            raise OSError(ctypes.get_errno(), "inotify_init1")
+        self.wd = {}                 # wd -> rel
+
+    def add(self, rel, new):
+        """watch rel; with new=True its existing leaf children count as launches (a sub-slice made just now)"""
+        path = os.path.join(CG, rel)
+        wd = self.libc.inotify_add_watch(self.fd, path.encode(), IN_CREATE | IN_DELETE_SELF | IN_ONLYDIR)
+        if wd < 0:
+            return
+        self.wd[wd] = rel
+        try:
+            names = sorted(os.listdir(path))
+        except OSError:
+            return
+        for n in names:
+            child = rel + "/" + n
+            if not os.path.isdir(os.path.join(CG, child)):
+                continue
+            k = classify(child)
+            if k == "watch":
+                self.add(child, new)
+            elif k == "leaf" and new:
+                self.b.created(child)
+
+    def read(self):
+        try:
+            data = os.read(self.fd, 65536)
+        except BlockingIOError:
+            return
+        i = 0
+        while i + EVENT.size <= len(data):
+            wd, mask, _, ln = EVENT.unpack_from(data, i)
+            name = data[i + EVENT.size:i + EVENT.size + ln].split(b"\0", 1)[0].decode(errors="replace")
+            i += EVENT.size + ln
+            if mask & IN_IGNORED:
+                self.wd.pop(wd, None)
+                continue
+            if not (mask & IN_CREATE and mask & IN_ISDIR) or wd not in self.wd:
+                continue
+            rel = self.wd[wd] + "/" + name
+            k = classify(rel)
+            if k == "watch":
+                self.add(rel, True)
+            elif k == "leaf":
+                self.b.created(rel)
+
+
+def write_state(b):
+    try:
+        os.makedirs(RUN, exist_ok=True)
+        tmp = os.path.join(RUN, ".launchboost-state")
+        with open(tmp, "w") as f:
+            f.write(b.state() + "\n")
+        os.replace(tmp, os.path.join(RUN, "launchboost-state"))
+    except OSError:
+        pass
+
+
+def main():
+    syslog.openlog("iceland-launchboost", 0, syslog.LOG_DAEMON)
+    if not os.path.isdir(os.path.join(CG, "user.slice")):
+        log("iceland-launchboost: no %s/user.slice (cgroup v2 with systemd expected), nothing to do" % CG)
+        return 0
+    clamp = Clamp()
+    if clamp.get(os.getpid()) is None:
+        log("iceland-launchboost: sched_getattr has no util clamp here (CONFIG_UCLAMP_TASK?), nothing to do")
+        return 0
+    b = Booster(clamp)
+    w = Watcher(b)
+    rpipe, wpipe = os.pipe()
+    os.set_blocking(wpipe, False)
+
+    def stop(_sig, _frm):
+        try:
+            os.write(wpipe, b"x")
+        except OSError:
+            pass
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+    w.add("user.slice", False)
+    ep = select.epoll()
+    ep.register(w.fd, select.EPOLLIN)
+    ep.register(rpipe, select.EPOLLIN)
+    log("iceland-launchboost: watching app.slice launches (util_min %s for %s ms)" %
+        (read_conf().get("UTIL_MIN"), read_conf().get("BOOST_MS")))
+    timeout = None
+    while True:
+        evs = ep.poll(-1 if timeout is None else timeout)
+        if any(fd == rpipe for fd, _ in evs):
+            break
+        if any(fd == w.fd for fd, _ in evs):
+            w.read()
+        n = b.boosts
+        timeout = b.step()
+        if b.boosts != n or not b.active:
+            write_state(b)
+    b.end_all()
+    write_state(b)
+    log("iceland-launchboost: stopped, all clamps back")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

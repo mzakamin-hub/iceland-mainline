@@ -1,0 +1,11 @@
+[Desktop Entry]
+# iceland-device-hypr: a touch launcher for Omarchy's own settings (no third-party settings app)
+Type=Application
+Name=Keyboard
+Comment=The on-screen keyboard (floatkey): show or hide
+Exec=iceland-osk toggle
+Icon=input-keyboard
+Terminal=false
+Categories=Settings;Accessibility;
+Keywords=settings;tablet;pad;
+StartupNotify=false

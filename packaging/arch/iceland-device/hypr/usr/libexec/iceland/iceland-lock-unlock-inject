@@ -1,0 +1,63 @@
+#!/usr/bin/python3 -I
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-lock-unlock-inject SERVICE.QML (iceland-device-hypr): adds logind's Unlock to the lock service of Omarchy's
+# shell, in the user's omarchy-pad.lock clone (~/.config/omarchy/plugins/omarchy-pad.lock/Service.qml, a copy of
+# Omarchy's /usr/share/omarchy/shell/plugins/lock/Service.qml that omarchy-pad-lock-setup / its post-update hook
+# refresh). Nothing under /usr/share/omarchy is touched, so an Omarchy update cannot be broken by this; after the
+# clone is refreshed, iceland-hypr-setup (each login) and our post-update hook inject again. Idempotent; it refuses
+# (exit 2, file unchanged) when the service no longer has the two functions it calls.
+# The injected Process runs iceland-logind-unlock-watch, which reports only logind's own Unlock signal for this session.
+import re
+import sys
+
+MARK = "iceland-logind-unlock"
+BLOCK = """
+  // iceland-logind-unlock (iceland-device-hypr, owner 24 Nov: `loginctl unlock-session` unlocks, as on KDE / GNOME):
+  // logind's Unlock signal for this session (only root may send it: /etc/dbus-1/system.d/iceland-logind-unlock.conf)
+  Process {
+    id: icelandLogindUnlock
+    running: true
+    command: ["/usr/libexec/iceland/iceland-logind-unlock-watch"]
+    stdout: SplitParser {
+      onRead: function(line) {
+        if (line === "UNLOCK" && root.currentlyLocked()) {
+          root.logEvent("unlocked-by-logind")
+          root.finishUnlock()
+        }
+      }
+    }
+    onExited: icelandLogindUnlockRestart.start()
+  }
+  Timer {
+    id: icelandLogindUnlockRestart
+    interval: 5000
+    onTriggered: icelandLogindUnlock.running = true
+  }
+"""
+
+
+def main():
+    path = sys.argv[1]
+    text = open(path).read()
+    if MARK in text:
+        print("already injected")
+        return 0
+    for need in ("function finishUnlock()", "function currentlyLocked()", "function logEvent(", "import Quickshell.Io"):
+        if need not in text:
+            print("refused: %s not found in %s (Omarchy changed its lock service)" % (need, path), file=sys.stderr)
+            return 2
+    end = text.rstrip().rfind("}")
+    if end < 0 or not re.search(r"^\S.*\{\s*$", text, re.M):
+        print("refused: no root object", file=sys.stderr)
+        return 2
+    text = text[:end] + BLOCK.lstrip("\n") + text[end:]
+    with open(path + ".iceland-new", "w") as f:
+        f.write(text)
+    import os
+    os.replace(path + ".iceland-new", path)
+    print("injected")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

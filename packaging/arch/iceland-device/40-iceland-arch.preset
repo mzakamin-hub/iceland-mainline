@@ -1,0 +1,6 @@
+# iceland-device (Arch): units that the Pad 4 image does not use. Sorts before Arch's 90-systemd.preset, so a
+# "systemctl preset" never enables them again.
+# systemd-homed: the tablet has one normal local user (made by W2 with Fedora's uid / password hash); nothing of ours
+# uses homed / userdbd home areas; pam_systemd_home in system-auth is a no-op without the daemon.
+disable systemd-homed.service
+disable systemd-homed-activate.service

@@ -1,0 +1,11 @@
+# iceland-device-hypr: Omarchy's workspace layout follows /run/iceland/mode (tablet: floating + dock, laptop: tiling)
+[Unit]
+Description=OnePlus Pad 4: Omarchy workspace layout for the tablet / laptop mode
+ConditionUser=!@system
+PartOf=graphical-session.target
+After=graphical-session.target
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/iceland/iceland-tablet-layout
+[Install]
+WantedBy=graphical-session.target

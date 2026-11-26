@@ -1,0 +1,11 @@
+[Desktop Entry]
+# iceland-device-hypr: a touch launcher for Omarchy's own settings (no third-party settings app)
+Type=Application
+Name=Sound
+Comment=Volume and output (Omarchy's audio panel)
+Exec=omarchy-shell shell toggle omarchy.audio
+Icon=audio-volume-high
+Terminal=false
+Categories=Settings;Audio;
+Keywords=settings;tablet;pad;
+StartupNotify=false

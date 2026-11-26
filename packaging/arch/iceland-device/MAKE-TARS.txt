@@ -1,0 +1,3 @@
+common.tar, hypr.tar and kde.tar (sources of iceland-device, iceland-device-hypr and iceland-device-kde) are the
+common/, hypr/ and kde/ trees of this directory, each packed as:
+  tar -C <tree> --owner=0 --group=0 --exclude=__pycache__ --sort=name -cf <tree>.tar usr etc

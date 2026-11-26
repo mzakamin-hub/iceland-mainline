@@ -1,0 +1,187 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-ppd-hook (iceland-ppd, Arch / Omarchy on the OnePlus Pad 4): the Pad 4 power profiles under
+# power-profiles-daemon (owner decision D7, 23 Nov 2026: power-profiles-daemon instead of tuned + tuned-ppd).
+#
+# power-profiles-daemon (Omarchy's build, omarchy-power-profiles-daemon 0.30, which has a cpufreq driver for scmi /
+# qcom-cpufreq-hw, so all three profiles are offered here) only switches its own coarse knobs. This hook follows its
+# ActiveProfile and then writes the SAME values as our four Fedora tuned profiles (the profile files are shipped
+# unchanged under /usr/share/iceland/power-profiles/NAME/tuned.conf and read here; nothing is duplicated in code):
+#   power-saver -> iceland-powersave      balanced -> iceland-balanced (on AC) / iceland-balanced-battery (on battery,
+#   tuned-ppd's [battery] mapping)        performance -> iceland-performance
+# Sections applied: [cpu] governor / boost, [sysfs], [sysctl], with [main] include= resolved first (an include that is
+# not one of our profiles, e.g. tuned's own "balanced", is skipped: it only set knobs this SoC does not have).
+# The chosen name is written to /run/iceland/ppd-active-profile, which iceland-thermal reads instead of
+# /etc/tuned/active_profile (drop-in iceland-thermal.service.d/60-iceland-ppd.conf), so the thermal caps keep using
+# min(profile maximum, thermal cap) exactly as on Fedora.
+# Re-applied: at start, on every ActiveProfile change, on an AC <-> battery change (UPower OnBattery) and 3 s after a
+# resume (logind PrepareForSleep false; the daemon's own cpufreq driver re-applies its values on resume too).
+#   iceland-ppd-hook                 run (systemd unit iceland-ppd-hook.service)
+#   iceland-ppd-hook --apply NAME    apply one profile once and exit (test; ICELAND_ROOT prefixes every path)
+#   iceland-ppd-hook --show NAME     print what NAME would write
+import os
+import sys
+import time
+
+R = os.environ.get("ICELAND_ROOT", "")
+PDIR = os.environ.get("ICELAND_PPD_PROFILES", "/usr/share/iceland/power-profiles")
+ACTIVE = R + "/run/iceland/ppd-active-profile"
+CPUFREQ = R + "/sys/devices/system/cpu/cpufreq"
+MAP = {"power-saver": "iceland-powersave", "balanced": "iceland-balanced", "performance": "iceland-performance"}
+BATTERY = {"balanced": "iceland-balanced-battery"}
+
+
+def log(msg):
+    print("iceland-ppd-hook: " + msg, flush=True)
+
+
+def parse(name, seen=None):
+    """{section: {key: value}} of profile NAME, its include first (our profiles only)"""
+    seen = seen if seen is not None else set()
+    if name in seen:
+        return {}
+    seen.add(name)
+    path = os.path.join(PDIR, name, "tuned.conf")
+    try:
+        text = open(path).read()
+    except OSError:
+        return {}
+    own, inc, sec = {}, None, None
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line[0] in "#;":
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            sec = line[1:-1]
+            own.setdefault(sec, {})
+            continue
+        if "=" not in line or sec is None:
+            continue
+        k, v = (x.strip() for x in line.split("=", 1))
+        if sec == "main" and k == "include":
+            inc = v
+        elif k != "priority":
+            own[sec][k] = v
+    out = {}
+    if inc and os.path.isdir(os.path.join(PDIR, inc)):
+        out = parse(inc, seen)
+    for s, kv in own.items():
+        out.setdefault(s, {}).update(kv)
+    return out
+
+
+def writes(prof):
+    """the ordered (path, value) list of a parsed profile"""
+    w = []
+    cpu = prof.get("cpu", {})
+    if "governor" in cpu:
+        try:
+            pols = sorted(p for p in os.listdir(CPUFREQ) if p.startswith("policy"))
+        except OSError:
+            pols = []
+        for p in pols:
+            w.append((os.path.join(CPUFREQ, p, "scaling_governor"), cpu["governor"].split("|")[0]))
+    if "boost" in cpu:
+        w.append((os.path.join(CPUFREQ, "boost"), cpu["boost"]))
+    for k, v in prof.get("sysfs", {}).items():
+        w.append((R + k, v))
+    for k, v in prof.get("sysctl", {}).items():
+        w.append((R + "/proc/sys/" + k.replace(".", "/"), v))
+    return w
+
+
+def wr(path, value):
+    try:
+        with open(path, "w") as f:
+            f.write(str(value))
+        return True
+    except OSError:
+        return False
+
+
+def apply(name):
+    prof = parse(name)
+    if not prof:
+        log("no profile %s under %s: nothing written" % (name, PDIR))
+        return False
+    todo = writes(prof)
+    failed = [(p, v) for p, v in todo if not wr(p, v)]
+    # a minimum above the old maximum (or the reverse) fails once: the second pass has the other side written
+    failed = [(p, v) for p, v in failed if not wr(p, v)]
+    os.makedirs(os.path.dirname(ACTIVE), exist_ok=True)
+    tmp = ACTIVE + ".new"
+    with open(tmp, "w") as f:
+        f.write(name + "\n")
+    os.replace(tmp, ACTIVE)
+    miss = [p for p, _ in failed]
+    log("%s applied (%d writes%s)" % (name, len(todo) - len(miss),
+        ", not written: " + " ".join(sorted(set(os.path.relpath(m, R or "/") for m in miss))) if miss else ""))
+    return True
+
+
+def main_loop():
+    from gi.repository import Gio, GLib
+    bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+    state = {"profile": None, "battery": False}
+
+    def prop(name, path, iface, key):
+        try:
+            v = bus.call_sync(name, path, "org.freedesktop.DBus.Properties", "Get",
+                              GLib.Variant("(ss)", (iface, key)), GLib.VariantType("(v)"),
+                              Gio.DBusCallFlags.NONE, 3000, None)
+            return v.unpack()[0]
+        except GLib.Error:
+            return None
+
+    def refresh(why):
+        p = prop("org.freedesktop.UPower.PowerProfiles", "/org/freedesktop/UPower/PowerProfiles",
+                 "org.freedesktop.UPower.PowerProfiles", "ActiveProfile")
+        b = prop("org.freedesktop.UPower", "/org/freedesktop/UPower", "org.freedesktop.UPower", "OnBattery")
+        if p is None:
+            log("power-profiles-daemon does not answer (%s): nothing changed" % why)
+            return False
+        state["profile"], state["battery"] = p, bool(b)
+        name = (BATTERY.get(p) if state["battery"] else None) or MAP.get(p)
+        if not name:
+            log("unknown profile %s (%s)" % (p, why))
+            return False
+        log("%s: %s%s -> %s" % (why, p, " on battery" if state["battery"] else "", name))
+        apply(name)
+        return False
+
+    def on_signal(conn, sender, path, iface, signal, params, data):
+        if signal == "PrepareForSleep":
+            if not params.unpack()[0]:
+                GLib.timeout_add_seconds(3, refresh, "resume")
+            return
+        changed = params.unpack()[1] if signal == "PropertiesChanged" else {}
+        if "ActiveProfile" in changed or "OnBattery" in changed:
+            GLib.idle_add(refresh, "change of " + ",".join(k for k in changed if k in ("ActiveProfile", "OnBattery")))
+
+    for sender, path in (("org.freedesktop.UPower.PowerProfiles", "/org/freedesktop/UPower/PowerProfiles"),
+                         ("org.freedesktop.UPower", "/org/freedesktop/UPower")):
+        bus.signal_subscribe(sender, "org.freedesktop.DBus.Properties", "PropertiesChanged", path, None,
+                             Gio.DBusSignalFlags.NONE, on_signal, None)
+    bus.signal_subscribe("org.freedesktop.login1", "org.freedesktop.login1.Manager", "PrepareForSleep",
+                         "/org/freedesktop/login1", None, Gio.DBusSignalFlags.NONE, on_signal, None)
+    # power-profiles-daemon may still be starting: try for 60 s
+    for _ in range(30):
+        if prop("org.freedesktop.UPower.PowerProfiles", "/org/freedesktop/UPower/PowerProfiles",
+                "org.freedesktop.UPower.PowerProfiles", "ActiveProfile") is not None:
+            break
+        time.sleep(2)
+    refresh("start")
+    GLib.MainLoop().run()
+
+
+if __name__ == "__main__":
+    if len(sys.argv) == 3 and sys.argv[1] == "--apply":
+        sys.exit(0 if apply(sys.argv[2]) else 1)
+    if len(sys.argv) == 3 and sys.argv[1] == "--show":
+        for p, v in writes(parse(sys.argv[2])):
+            print("%s = %s" % (p, v))
+        sys.exit(0)
+    if len(sys.argv) > 1:
+        print(__doc__ or "usage: iceland-ppd-hook [--apply NAME | --show NAME]")
+        sys.exit(2)
+    main_loop()

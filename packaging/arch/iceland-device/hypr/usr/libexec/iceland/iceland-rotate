@@ -1,0 +1,287 @@
+#!/usr/bin/python3 -I
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-rotate (iceland-device-hypr): auto-rotation for Hyprland from our sensor stack (hexagonrpcd sensors PD ->
+# libssc -> iio-sensor-proxy 3.9-14 iceland: AccelerometerOrientation from the sensor hub's device_orient).
+# The panel transform goes through the wlr-output-management protocol (wlr-randr --transform), not a live
+# `hyprctl keyword/eval` (froze the compositor in samyn92's tests); Hyprland maps the touchscreen and the pen to the
+# output's transform by itself (input:touchdevice / input:tablet with the output set: TEST-PLAN row R2 checks it).
+# Lock: ~/.config/iceland/rotation-lock exists -> no rotation (the bar's lock button creates / removes it).
+# Mode: /run/iceland/mode (tablet | laptop; iceland-mode-publish: a real keyboard attached, or the owner's Auto /
+# Tablet / Laptop tile). Laptop -> the panel stays in the cover's landscape. Without the file: our own keyboard probe.
+# 0.28.53-5 (round 6, research REFS-TOUCH-2 A1 / B2 / B3 / B4):
+#  - never rotates while the session is locked (Omarchy's lock surface is not laid out again for a new transform, but
+#    touch follows the transform, so the lock keys' taps would miss): applies only on a definite "false" from
+#    `omarchy-shell lock isLocked`, else re-checks every 2 s;
+#  - reacts at once to a mode change (cover attach / detach, the tile): watches /run/iceland;
+#  - the accelerometer claim backs off 3 s -> 30 s -> 2 min -> 5 min after failures (an eager retry kept
+#    iio-sensor-proxy wedged on another tablet);
+#  - re-applies the transform after a Hyprland config reload (a reload drops the runtime transform): socket2
+#    "configreloaded".
+# 0.28.53-15 (round 9, B4 again: a reload still left the panel in iceland.lua's landscape): after a reload the
+# transform THIS service last set is put back 0.4 s later (the reload's monitor rule is applied after the event) and
+# checked at 1.5 s (up to 3 tries), also under the rotation lock (the lock freezes the orientation, a reload must not
+# drop it) and on the lock screen (that is the state the lock surface was laid out for). Touch and pen follow the
+# panel's transform by themselves (input:touchdevice / input:tablet output = the panel). The event socket reconnects
+# when Hyprland was not up yet or restarted (was: one try at start, then no re-apply at all).
+# The claim is released while the panel is off (sensor hub idle with the screen off; polkit claim = active session).
+import glob, json, os, socket, subprocess
+from gi.repository import Gio, GLib
+
+LOCK = os.path.expanduser("~/.config/iceland/rotation-lock")
+MODE = "/run/iceland/mode"
+MAP = {"normal": "normal", "left-up": "90", "bottom-up": "180", "right-up": "270"}  # Pad 4 mount matrix in the proxy
+BACKOFF = (3, 30, 120, 300)
+
+
+def log(msg):
+    print("iceland-rotate: " + msg, flush=True)
+
+
+def panel_name():
+    r = subprocess.run(["wlr-randr"], capture_output=True, text=True)
+    for line in r.stdout.splitlines():
+        if line and not line.startswith(" ") and line.startswith("DSI"):
+            return line.split()[0]
+    return "DSI-1"
+
+
+def keyboard_attached():
+    """fallback without /run/iceland/mode: a real keyboard (Q, A, Z, M, space keys) that is not a uinput device.
+    uinput devices (cover detector's SW_LID, iceland-input, dexhid) live under /sys/devices/virtual/input/; a Bluetooth
+    keyboard (the owner's cover) comes through uhid under /sys/devices/virtual/misc/uhid/ and must still count."""
+    for ev in glob.glob("/sys/class/input/event*/device"):
+        try:
+            if os.path.realpath(ev).startswith("/sys/devices/virtual/input/"):
+                continue
+            caps = open(ev + "/capabilities/key").read().split()
+        except OSError:
+            continue
+        bits = 0
+        for i, word in enumerate(reversed(caps)):
+            bits |= int(word, 16) << (64 * i)
+        if all(bits >> k & 1 for k in (16, 30, 44, 50, 57)):   # KEY_Q KEY_A KEY_Z KEY_M KEY_SPACE
+            return True
+    return False
+
+
+def laptop_mode():
+    try:
+        m = open(MODE).read().strip()
+        if m in ("laptop", "tablet"):
+            return m == "laptop"
+    except OSError:
+        pass
+    return keyboard_attached()
+
+
+def session_locked():
+    """True / False from Omarchy's shell; None when it does not answer (treated as locked: no rotation)"""
+    try:
+        r = subprocess.run(["omarchy-shell", "lock", "isLocked"], capture_output=True, text=True, timeout=3)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    out = r.stdout.strip().strip('"')
+    return {"true": True, "false": False}.get(out) if r.returncode == 0 else None
+
+
+class HyprEvents:
+    """Hyprland's event socket (socket2): calls cb(name) for the named events. Reconnects every 5 s when the socket is
+    missing (service started before the compositor) or closed (compositor restarted); a new instance is found by
+    the newest $XDG_RUNTIME_DIR/hypr/<signature>/.socket2.sock when the environment's signature has none."""
+    def __init__(self, names, cb, tag):
+        self.names = tuple(n.encode() + b">>" for n in names)
+        self.cb, self.tag = cb, tag
+        self.sock, self.buf, self.warned = None, b"", False
+        self.connect()
+
+    def path(self):
+        rt = os.environ.get("XDG_RUNTIME_DIR", "")
+        sig = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE", "")
+        p = os.path.join(rt, "hypr", sig, ".socket2.sock")
+        if sig and os.path.exists(p):
+            return p
+        socks = sorted(glob.glob(os.path.join(rt, "hypr", "*", ".socket2.sock")), key=os.path.getmtime)
+        return socks[-1] if rt and socks else p
+
+    def connect(self):
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            s.connect(self.path())
+        except OSError as e:
+            s.close()
+            if not self.warned:
+                print("%s: no Hyprland event socket yet (%s): retrying every 5 s" % (self.tag, e), flush=True)
+                self.warned = True
+            GLib.timeout_add_seconds(5, self.retry)
+            return
+        if self.warned:
+            print("%s: Hyprland event socket connected" % self.tag, flush=True)
+        self.sock, self.buf, self.warned = s, b"", False
+        GLib.io_add_watch(s.fileno(), GLib.IO_IN | GLib.IO_HUP | GLib.IO_ERR, self.read)
+
+    def retry(self):
+        self.connect()
+        return False
+
+    def read(self, fd, cond):
+        data = b""
+        if not cond & (GLib.IO_HUP | GLib.IO_ERR):
+            try:
+                data = self.sock.recv(4096)
+            except OSError:
+                data = b""
+        if not data:
+            self.sock.close()
+            self.sock = None
+            GLib.timeout_add_seconds(5, self.retry)
+            return False
+        self.buf += data
+        *lines, self.buf = self.buf.split(b"\n")
+        for line in lines:
+            for n in self.names:
+                if line.startswith(n):
+                    self.cb(n[:-2].decode())
+        return True
+
+
+class Rotate:
+    def __init__(self):
+        self.bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+        self.sp = Gio.DBusProxy.new_sync(self.bus, 0, None, "net.hadess.SensorProxy", "/net/hadess/SensorProxy",
+                                         "net.hadess.SensorProxy", None)
+        self.sp.connect("g-properties-changed", self.changed)
+        # 24 Nov: iio-sensor-proxy restarted (a new owner of net.hadess.SensorProxy): its claims died with the old
+        # process, so claim again at once, without the backoff (was: up to 30 s without rotation)
+        self.sp.connect("notify::g-name-owner", self.owner_changed)
+        self.out = panel_name()
+        self.cur = None
+        self.orient = None
+        self.claimed = False
+        self.fails, self.next_try = 0, 0.0
+        self.deferred = False
+        self.mode_mon = None
+        if os.path.isdir(os.path.dirname(MODE)):
+            self.mode_mon = Gio.File.new_for_path(os.path.dirname(MODE)).monitor_directory(Gio.FileMonitorFlags.WATCH_MOVES, None)
+            self.mode_mon.connect("changed", self.mode_changed)
+        self.laptop = laptop_mode()
+        self.events = HyprEvents(("configreloaded",), self.reloaded, "iceland-rotate")
+        GLib.timeout_add_seconds(5, self.watch)
+        self.watch()
+
+    # -- the accelerometer claim, with backoff --
+    def watch(self):
+        on = all(open(f).read().strip() == "0" for f in glob.glob("/sys/class/backlight/*/bl_power"))
+        now = GLib.get_monotonic_time() / 1e6
+        try:
+            if on and not self.claimed:
+                if now < self.next_try:
+                    return True
+                self.sp.call_sync("ClaimAccelerometer", None, 0, 3000, None)
+                self.claimed, self.fails = True, 0
+                o = self.sp.get_cached_property("AccelerometerOrientation")
+                if o:
+                    self.apply(o.unpack())
+            elif not on and self.claimed:
+                self.sp.call_sync("ReleaseAccelerometer", None, 0, 3000, None)
+                self.claimed = False
+        except GLib.Error as e:
+            if on and not self.claimed:
+                wait = BACKOFF[min(self.fails, len(BACKOFF) - 1)]
+                self.fails += 1
+                self.next_try = now + wait
+                log("claim failed (%d): %s; next try in %d s" % (self.fails, e.message, wait))
+            else:
+                log(e.message)
+        return True
+
+    def owner_changed(self, proxy, _pspec):
+        owner = proxy.get_name_owner()
+        self.claimed, self.fails, self.next_try = False, 0, 0.0
+        if owner:
+            log("sensor proxy (re)started (%s): claiming again" % owner)
+            GLib.timeout_add(300, lambda: self.watch() and False)
+
+    def changed(self, proxy, changed, invalidated):
+        if "AccelerometerOrientation" in changed.keys():
+            self.apply(changed["AccelerometerOrientation"])
+
+    # -- mode file (cover / tile) --
+    def mode_changed(self, mon, f, other, event):
+        # any change in /run/iceland (the mode file is replaced by rename): re-read the mode, act only on a change
+        lap = laptop_mode()
+        if lap != self.laptop:
+            self.laptop = lap
+            log("mode: %s" % ("laptop" if lap else "tablet"))
+            self.cur = None if lap else self.cur
+            self.apply(self.orient or "normal")
+
+    # -- Hyprland events: a config reload drops the runtime transform --
+    def reloaded(self, _name):
+        want = self.cur
+        if want is None:
+            log("Hyprland config reloaded: no transform of ours to restore")
+            self.apply(self.orient or "normal")
+            return
+        log("Hyprland config reloaded: restoring transform %s" % want)
+        GLib.timeout_add(400, lambda: self.restore(want, 1) and False)
+
+    def transform_now(self):
+        try:
+            r = subprocess.run(["wlr-randr", "--json"], capture_output=True, text=True, timeout=10)
+            for o in json.loads(r.stdout or "[]"):
+                if o.get("name") == self.out:
+                    return o.get("transform")
+        except (OSError, ValueError, subprocess.SubprocessError):
+            pass
+        return None
+
+    def restore(self, want, n):
+        if self.cur != want:     # rotated again meanwhile: that newer transform stands
+            return
+        r = subprocess.run(["wlr-randr", "--output", self.out, "--transform", want], capture_output=True, text=True)
+        if r.returncode != 0:
+            log("restore %s FAILED %s" % (want, r.stderr[:200]))
+        GLib.timeout_add(1500, lambda: self.check(want, n) and False)
+
+    def check(self, want, n):
+        now = self.transform_now()
+        if self.cur != want or now == want:
+            if n > 1 or now == want:
+                log("after the reload: transform %s (try %d)" % (now, n))
+            return
+        if n < 3:
+            self.restore(want, n + 1)
+        else:
+            log("after the reload: transform %s, wanted %s: given up after %d tries" % (now, want, n))
+
+    # -- apply --
+    def retry(self):
+        self.deferred = False
+        self.apply(self.orient or "normal")
+        return False
+
+    def apply(self, orient):
+        self.orient = orient
+        t = MAP.get(orient)
+        if t is None or os.path.exists(LOCK):
+            return
+        if self.laptop:
+            t = "normal"
+        if t == self.cur:
+            return
+        locked = session_locked()
+        if locked is not False:
+            if not self.deferred:
+                self.deferred = True
+                log("session %s: rotation to %s deferred" % ("locked" if locked else "lock state unknown", t))
+                GLib.timeout_add_seconds(2, self.retry)
+            return
+        r = subprocess.run(["wlr-randr", "--output", self.out, "--transform", t], capture_output=True, text=True)
+        if r.returncode == 0:
+            self.cur = t
+        log("%s -> %s%s" % (orient, t, "" if r.returncode == 0 else " FAILED " + r.stderr[:200]))
+
+
+if __name__ == "__main__":
+    Rotate()
+    GLib.MainLoop().run()

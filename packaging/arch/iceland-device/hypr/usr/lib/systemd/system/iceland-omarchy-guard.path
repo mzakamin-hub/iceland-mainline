@@ -1,0 +1,9 @@
+[Unit]
+Description=OnePlus Pad 4: watch for Omarchy's Snapdragon-laptop settings
+[Path]
+PathExists=/etc/modprobe.d/qualcomm-adsp-nofw.conf
+PathExists=/etc/mkinitcpio.conf.d/qualcomm-platform.conf
+PathExists=/etc/limine-entry-tool.d/qualcomm-snapdragon.conf
+PathExists=/etc/systemd/system.conf.d/60-omarchy-qualcomm-reboot-watchdog.conf
+[Install]
+WantedBy=multi-user.target

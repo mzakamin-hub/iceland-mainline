@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!-- iceland-device: bypass charging (charging stops at a threshold and the tablet runs from the charger; it can only
+     stop charging, never raise a limit) - like GNOME's own charge limit switch, the user at the tablet may use it. -->
+<policyconfig>
+  <vendor>iceland-device</vendor>
+  <action id="org.iceland.bypass.set">
+    <description>Switch bypass charging</description>
+    <message>Authentication is required to switch bypass charging</message>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+  </action>
+</policyconfig>

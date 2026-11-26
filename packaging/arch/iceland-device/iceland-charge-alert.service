@@ -1,0 +1,16 @@
+# iceland-device 0.28-47: a oneshot, started by iceland-charge-alert.path when the charging guard writes an event to
+# /run/iceland/charge-alert, and once at login (an event from before the login). It shows the event and exits
+# (no resident watcher, about 21 MB less). A failed notification (no notification service yet) is retried.
+[Unit]
+Description=OnePlus Pad 4: desktop notification for the charging guard's last safety event
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/iceland/iceland-charge-alert --once
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=graphical-session.target

@@ -1,0 +1,195 @@
+#!/usr/bin/python3 -I
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-input (iceland-device-kde 0.28-37): simulated input for automated checks, any Wayland desktop. Root only.
+# It creates two short-lived uinput devices - a direct-touch screen ("iceland-vtouch", INPUT_PROP_DIRECT) and a
+# keyboard ("iceland-vkbd") - that libinput and the compositor see like real hardware, sends the events, and removes
+# the devices again. Nothing else is touched; no daemon stays behind.
+#   iceland-input type TEXT                 type ASCII text (US layout)
+#   iceland-input key NAME [NAME...]        keys: enter esc tab space backspace up down left right super meta
+#                                           ctrl+X alt+X shift+X super+X (one combination per argument)
+#   iceland-input tap X Y                   touch tap; X / Y in percent of the screen (0-100, floats allowed)
+#   iceland-input swipe X1 Y1 X2 Y2 [MS]    one-finger swipe in percent, MS milliseconds (default 300)
+#   iceland-input check                     create both devices for 2 s and print their event nodes (no events sent)
+# The touch range maps onto the output KWin / mutter assign to the touch device (the built-in panel on the Pad 4).
+import fcntl, os, struct, sys, time
+
+UI_SET_EVBIT, UI_SET_KEYBIT, UI_SET_ABSBIT, UI_SET_PROPBIT = 0x40045564, 0x40045565, 0x40045567, 0x4004556e
+UI_DEV_SETUP, UI_ABS_SETUP, UI_DEV_CREATE, UI_DEV_DESTROY = 0x405c5503, 0x401c5504, 0x5501, 0x5502
+UI_GET_SYSNAME = 0x8040552c          # _IOC(_IOC_READ, 'U', 44, 64)
+EV_SYN, EV_KEY, EV_ABS, SYN_REPORT = 0, 1, 3, 0
+BTN_TOUCH, INPUT_PROP_DIRECT, BUS_VIRTUAL = 0x14a, 1, 0x06
+ABS_X, ABS_Y, ABS_MT_SLOT, ABS_MT_POSITION_X, ABS_MT_POSITION_Y, ABS_MT_TRACKING_ID = 0x00, 0x01, 0x2f, 0x35, 0x36, 0x39
+RANGE = 9999
+
+KEYS = {"esc": 1, "backspace": 14, "tab": 15, "enter": 28, "ctrl": 29, "shift": 42, "alt": 56, "space": 57,
+        "up": 103, "left": 105, "right": 106, "down": 108, "super": 125, "meta": 125, "delete": 111,
+        "home": 102, "end": 107, "pageup": 104, "pagedown": 109, "f1": 59}
+ROWS = {"1234567890": 2, "qwertyuiop": 16, "asdfghjkl": 30, "zxcvbnm": 44}
+for row, first in ROWS.items():
+    for i, ch in enumerate(row):
+        KEYS[ch] = first + i
+PLAIN = {"-": 12, "=": 13, "[": 26, "]": 27, ";": 39, "'": 40, "`": 41, "\\": 43, ",": 51, ".": 52, "/": 53, " ": 57}
+SHIFTED = {"!": "1", "@": "2", "#": "3", "$": "4", "%": "5", "^": "6", "&": "7", "*": "8", "(": "9", ")": "0",
+           "_": "-", "+": "=", "{": "[", "}": "]", ":": ";", '"': "'", "~": "`", "|": "\\", "<": ",", ">": ".", "?": "/"}
+
+
+def ev(fd, t, c, v):
+    s, us = divmod(time.time(), 1)
+    os.write(fd, struct.pack("llHHi", int(s), int(us * 1e6), t, c, v))
+
+
+def syn(fd):
+    ev(fd, EV_SYN, SYN_REPORT, 0)
+
+
+def setup(fd, name, product):
+    fcntl.ioctl(fd, UI_DEV_SETUP, struct.pack("4H80sI", BUS_VIRTUAL, 0x1d6b, product, 1, name.encode(), 0))
+    fcntl.ioctl(fd, UI_DEV_CREATE)
+
+
+def sysname(fd):
+    try:
+        b = fcntl.ioctl(fd, UI_GET_SYSNAME, bytes(64))
+        return b.split(b"\0", 1)[0].decode()
+    except OSError:
+        return "?"
+
+
+def make_touch():
+    fd = os.open("/dev/uinput", os.O_WRONLY | os.O_NONBLOCK)
+    fcntl.ioctl(fd, UI_SET_EVBIT, EV_KEY)
+    fcntl.ioctl(fd, UI_SET_KEYBIT, BTN_TOUCH)
+    fcntl.ioctl(fd, UI_SET_EVBIT, EV_ABS)
+    fcntl.ioctl(fd, UI_SET_PROPBIT, INPUT_PROP_DIRECT)
+    for code, mx in ((ABS_X, RANGE), (ABS_Y, RANGE), (ABS_MT_SLOT, 9), (ABS_MT_POSITION_X, RANGE),
+                     (ABS_MT_POSITION_Y, RANGE), (ABS_MT_TRACKING_ID, 65535)):
+        fcntl.ioctl(fd, UI_SET_ABSBIT, code)
+        fcntl.ioctl(fd, UI_ABS_SETUP, struct.pack("H2x6i", code, 0, 0, mx, 0, 0, 0))
+    setup(fd, "iceland-vtouch", 0x1001)
+    return fd
+
+
+def make_kbd():
+    fd = os.open("/dev/uinput", os.O_WRONLY | os.O_NONBLOCK)
+    fcntl.ioctl(fd, UI_SET_EVBIT, EV_KEY)
+    for k in range(1, 128):
+        fcntl.ioctl(fd, UI_SET_KEYBIT, k)
+    setup(fd, "iceland-vkbd", 0x1002)
+    return fd
+
+
+def settle():
+    time.sleep(1.2)       # libinput + the compositor add the new device
+
+
+def press(fd, codes):
+    for c in codes:
+        ev(fd, EV_KEY, c, 1)
+        syn(fd)
+    time.sleep(0.03)
+    for c in reversed(codes):
+        ev(fd, EV_KEY, c, 0)
+        syn(fd)
+    time.sleep(0.03)
+
+
+def char_codes(ch):
+    if ch.isalpha() and ch.isupper():
+        return [KEYS["shift"], KEYS[ch.lower()]]
+    if ch in KEYS and len(ch) == 1:
+        return [KEYS[ch]]
+    if ch in PLAIN:
+        return [PLAIN[ch]]
+    if ch in SHIFTED:
+        base = SHIFTED[ch]
+        return [KEYS["shift"], KEYS.get(base) or PLAIN[base]]
+    if ch == "\n":
+        return [KEYS["enter"]]
+    raise SystemExit("iceland-input: no key for %r" % ch)
+
+
+def combo(spec):
+    out = []
+    for part in spec.lower().split("+"):
+        if part not in KEYS:
+            raise SystemExit("iceland-input: unknown key %r" % part)
+        out.append(KEYS[part])
+    return out
+
+
+def pct(v):
+    f = float(v)
+    if not 0 <= f <= 100:
+        raise SystemExit("iceland-input: %s is not 0..100" % v)
+    return int(round(f / 100 * RANGE))
+
+
+def touch(fd, x, y, down):
+    if down:
+        ev(fd, EV_ABS, ABS_MT_SLOT, 0)
+        ev(fd, EV_ABS, ABS_MT_TRACKING_ID, 1)
+    ev(fd, EV_ABS, ABS_MT_POSITION_X, x)
+    ev(fd, EV_ABS, ABS_MT_POSITION_Y, y)
+    if down:
+        ev(fd, EV_KEY, BTN_TOUCH, 1)
+    ev(fd, EV_ABS, ABS_X, x)
+    ev(fd, EV_ABS, ABS_Y, y)
+    syn(fd)
+
+
+def lift(fd):
+    ev(fd, EV_ABS, ABS_MT_SLOT, 0)
+    ev(fd, EV_ABS, ABS_MT_TRACKING_ID, -1)
+    ev(fd, EV_KEY, BTN_TOUCH, 0)
+    syn(fd)
+
+
+def main(a):
+    if os.geteuid() != 0:
+        raise SystemExit("iceland-input: root only (uinput)")
+    if not a:
+        raise SystemExit(__doc__ or "usage: see the header of this file")
+    cmd = a[0]
+    fds = []
+    try:
+        if cmd in ("type", "key"):
+            k = make_kbd(); fds.append(k); settle()
+            if cmd == "type":
+                for ch in " ".join(a[1:]):
+                    press(k, char_codes(ch))
+            else:
+                for spec in a[1:]:
+                    press(k, combo(spec))
+        elif cmd == "tap" and len(a) == 3:
+            t = make_touch(); fds.append(t); settle()
+            x, y = pct(a[1]), pct(a[2])
+            touch(t, x, y, True); time.sleep(0.08); lift(t)
+        elif cmd == "swipe" and len(a) in (5, 6):
+            t = make_touch(); fds.append(t); settle()
+            x1, y1, x2, y2 = (pct(v) for v in a[1:5])
+            ms = int(a[5]) if len(a) == 6 else 300
+            n = max(5, ms // 16)
+            touch(t, x1, y1, True)
+            for i in range(1, n + 1):
+                time.sleep(ms / 1000 / n)
+                touch(t, x1 + (x2 - x1) * i // n, y1 + (y2 - y1) * i // n, False)
+            lift(t)
+        elif cmd == "check":
+            t = make_touch(); fds.append(t)
+            k = make_kbd(); fds.append(k)
+            print("iceland-input: touch %s, keyboard %s" % (sysname(t), sysname(k)))
+            time.sleep(2)
+        else:
+            raise SystemExit("iceland-input: usage: type TEXT | key NAME.. | tap X Y | swipe X1 Y1 X2 Y2 [MS] | check")
+        time.sleep(0.3)
+    finally:
+        for fd in fds:
+            try:
+                fcntl.ioctl(fd, UI_DEV_DESTROY)
+            finally:
+                os.close(fd)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -1,0 +1,41 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-greeter-nonet sync | remove (iceland-device-kde 0.28.53-20, Arch): nothing a login screen runs may send
+# packets. Writes /etc/nftables.d/iceland-greeter-nonet-kde.nft with one drop rule per greeter account that EXISTS
+# (plasmalogin: Plasma Login Manager; sddm: the fallback until SDDM is removed), by numeric uid, so the ruleset never
+# names a missing user (a missing name in "meta skuid" makes nft reject /etc/nftables.conf as a whole). No greeter
+# account: the file is removed. The ruleset is checked with nft -c before nftables is reloaded; a file that does not
+# pass is taken out again. Run by the pacman hook 91-iceland-greeter-nonet.hook (after systemd-sysusers) and by the
+# package's install script. The daemons (root) and the sessions after login are not affected.
+set -u
+F=/etc/nftables.d/iceland-greeter-nonet-kde.nft
+reload() {
+  systemctl -q is-active nftables.service 2>/dev/null && systemctl reload nftables.service >/dev/null 2>&1 || :
+}
+case "${1:-sync}" in
+sync)
+  rules=""
+  for u in plasmalogin sddm; do
+    uid=$(getent passwd "$u" | cut -d: -f3)
+    [ -n "$uid" ] && rules="$rules    meta skuid $uid counter drop comment \"$u\"
+"
+  done
+  if [ -z "$rules" ]; then rm -f "$F"; reload; exit 0; fi
+  mkdir -p /etc/nftables.d
+  t=$(mktemp "$F.XXXXXX") || exit 0
+  printf '%s\n' "# written by /usr/libexec/iceland/iceland-greeter-nonet (iceland-device-kde); do not edit" \
+    "table inet iceland_greeter {" "  chain output {" "    type filter hook output priority filter; policy accept;" > "$t"
+  printf '%s' "$rules" >> "$t"; printf '%s\n' "  }" "}" >> "$t"
+  chmod 0644 "$t"
+  old=""; [ -f "$F" ] && old=$(cat "$F")
+  mv -f "$t" "$F"
+  if [ -f /etc/nftables.conf ] && ! nft -c -f /etc/nftables.conf >/dev/null 2>&1; then
+    echo "iceland-greeter-nonet: WARNING: the ruleset does not load with $F; removed" >&2
+    if [ -n "$old" ]; then printf '%s\n' "$old" > "$F"; else rm -f "$F"; fi
+    exit 0
+  fi
+  reload ;;
+remove) rm -f "$F"; reload ;;
+*) echo "usage: iceland-greeter-nonet sync|remove" >&2; exit 2 ;;
+esac
+exit 0

@@ -1,0 +1,13 @@
+[Unit]
+Description=OnePlus Pad 4: the unit's own values on the first boot of a generic image (Bluetooth address)
+Documentation=file:///usr/libexec/iceland/iceland-provision
+# once: the stamp (no address in it) is written by the first run; the partitions are only read (debugfs -c)
+ConditionPathExists=!/var/lib/iceland/provisioned
+After=local-fs.target systemd-udev-trigger.service
+Before=bluetooth.service iceland-bdaddr.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/iceland/iceland-provision --first-boot
+RemainAfterExit=yes
+TimeoutStartSec=90

@@ -1,0 +1,19 @@
+# iceland-device-kde 0.28-41: KWin's automatic brightness gets the Pad 4's stock light-to-brightness curve, once per
+# account, before the display manager starts (KWin rewrites its file at exit, so it must not run). See
+# /usr/libexec/iceland/iceland-kde-brightness-curve
+[Unit]
+Description=OnePlus Pad 4 (Plasma): stock automatic-brightness curve for KWin (once per account)
+After=local-fs.target systemd-user-sessions.service
+Before=display-manager.service sddm.service
+ConditionPathExists=/usr/bin/kwin_wayland
+# OFF until the owner's eye test (26 Oct 2026): it runs only when this file exists
+#   sudo touch /etc/iceland/kde-brightness-curve.enable    (then reboot once; delete the file to keep it off again)
+ConditionPathExists=/etc/iceland/kde-brightness-curve.enable
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/iceland/iceland-kde-brightness-curve
+TimeoutStartSec=60
+
+[Install]
+WantedBy=graphical.target

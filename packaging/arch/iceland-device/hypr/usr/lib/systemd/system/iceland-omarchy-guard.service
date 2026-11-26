@@ -1,0 +1,5 @@
+[Unit]
+Description=OnePlus Pad 4: remove Omarchy's Snapdragon-laptop settings
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/iceland/iceland-omarchy-guard

@@ -1,0 +1,11 @@
+[Unit]
+Description=OnePlus Pad 4: the Fedora disk fills userdata (checks systemd-repart / growfs, repairs what is missing; once)
+Documentation=file:///usr/libexec/iceland/iceland-grow
+ConditionPathExists=!/var/lib/iceland/grown
+After=local-fs.target systemd-repart.service systemd-growfs-root.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/iceland/iceland-grow --first-boot
+RemainAfterExit=yes
+TimeoutStartSec=300

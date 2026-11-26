@@ -1,0 +1,127 @@
+#!/usr/bin/python3 -I
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-lock-bridge (iceland-device-hypr user service): logind <-> Omarchy 4.5's shell lock.
+# Omarchy's Quickshell lock neither answers logind's Lock (loginctl lock-session, iceland-battery-guard's cover-close
+# lock on the charger, a sleep hook) nor publishes LockedHint, so "lock-session" did nothing and the session looked
+# unlocked to everything that asks logind. This bridge (the idea follows Denial's session_lock.rs, a2b330f; our own code):
+#   - finds the graphical session: XDG_SESSION_ID if the service has it, else the user's Display session (under UWSM
+#     the shell and the compositor run in user services, outside any session scope, so a PID lookup cannot work);
+#   - on that session object's Lock signal runs omarchy-system-lock (Omarchy 4.5's own lock: the shell lock + its
+#     extras);
+#   - Unlock (owner 24 Nov ~04:20: like KDE) is handled INSIDE the lock service itself (iceland-lock-unlock-inject +
+#     iceland-logind-unlock-watch: logind's own signal only, and only root may cause it); here it is only logged and
+#     the LockedHint is re-read at once;
+#   - mirrors `omarchy-shell lock isLocked` into SetLockedHint every 2 s (and right after a Lock), retrying until
+#     logind accepts it.
+import os
+import subprocess
+import sys
+
+from gi.repository import Gio, GLib
+
+BUS = "org.freedesktop.login1"
+MANAGER = "/org/freedesktop/login1"
+POLL_S = 2
+
+
+def log(message):
+    print(message, flush=True)
+
+
+bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+
+
+def call(path, iface, method, args, reply):
+    return bus.call_sync(BUS, path, iface, method, args, GLib.VariantType(reply) if reply else None,
+                         Gio.DBusCallFlags.NONE, 5000, None)
+
+
+def session_path():
+    sid = os.environ.get("XDG_SESSION_ID")
+    if sid:
+        try:
+            return call(MANAGER, BUS + ".Manager", "GetSession", GLib.Variant("(s)", (sid,)), "(o)").unpack()[0]
+        except GLib.Error:
+            pass
+    user = call(MANAGER, BUS + ".Manager", "GetUser", GLib.Variant("(u)", (os.getuid(),)), "(o)").unpack()[0]
+    display = call(user, "org.freedesktop.DBus.Properties", "Get",
+                   GLib.Variant("(ss)", (BUS + ".User", "Display")), "(v)").unpack()[0]
+    return display[1] if display and display[1] != "/" else None
+
+
+def shell_locked():
+    try:
+        out = subprocess.run(["omarchy-shell", "lock", "isLocked"], capture_output=True, text=True, timeout=3).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    out = out.strip().lower()
+    return True if out == "true" else False if out == "false" else None
+
+
+class Bridge:
+    def __init__(self):
+        self.path = None
+        self.published = None
+        self.sub = None
+
+    def attach(self):
+        try:
+            path = session_path()
+        except GLib.Error as e:
+            log("no logind session yet: %s" % e.message)
+            return False
+        if not path:
+            return False
+        if path != self.path:
+            if self.sub is not None:
+                bus.signal_unsubscribe(self.sub)
+            self.path = path
+            self.published = None
+            self.sub = bus.signal_subscribe(BUS, BUS + ".Session", None, path, None, Gio.DBusSignalFlags.NONE,
+                                            self.on_signal)
+            log("watching %s" % path)
+        return True
+
+    def on_signal(self, _conn, _sender, _path, _iface, member, _params):
+        if member == "Lock":
+            log("logind Lock: omarchy-system-lock")
+            subprocess.Popen(["omarchy-system-lock"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL, start_new_session=True)
+            for ms in (500, 1500, 2500):
+                GLib.timeout_add(ms, self.once)
+        elif member == "Unlock":
+            log("logind Unlock: the lock service ends the lock; LockedHint follows")
+            for ms in (500, 1500, 2500):
+                GLib.timeout_add(ms, self.once)
+
+    def once(self):
+        self.tick()
+        return False
+
+    def tick(self):
+        if self.path is None and not self.attach():
+            return True
+        locked = shell_locked()
+        if locked is None or locked == self.published:
+            return True
+        try:
+            call(self.path, BUS + ".Session", "SetLockedHint", GLib.Variant("(b)", (locked,)), None)
+            self.published = locked
+            log("LockedHint %s" % ("yes" if locked else "no"))
+        except GLib.Error as e:
+            log("SetLockedHint failed (retrying): %s" % e.message)
+            if "UnknownObject" in e.message or "NoSuchSession" in e.message:
+                self.path = None
+        return True
+
+
+def main():
+    bridge = Bridge()
+    bridge.attach()
+    bridge.tick()
+    GLib.timeout_add_seconds(POLL_S, bridge.tick)
+    GLib.MainLoop().run()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

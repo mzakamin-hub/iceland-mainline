@@ -1,0 +1,15 @@
+# iceland-device-hypr (Omarchy port): automatic brightness with stock's light curve
+[Unit]
+Description=OnePlus Pad 4: automatic brightness with stock's light curve
+PartOf=graphical-session.target
+After=graphical-session.target
+ConditionEnvironment=HYPRLAND_INSTANCE_SIGNATURE
+
+[Service]
+ExecStart=/usr/libexec/iceland/iceland-ambient
+Restart=on-failure
+RestartSec=5
+
+
+[Install]
+WantedBy=graphical-session.target

@@ -1,0 +1,9 @@
+[Unit]
+Description=OnePlus Pad 4: renew Bypass Charging every 60 s
+PartOf=graphical-session.target
+[Timer]
+OnActiveSec=60
+OnUnitActiveSec=60
+AccuracySec=10
+[Install]
+WantedBy=graphical-session.target

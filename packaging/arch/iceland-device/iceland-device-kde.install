@@ -1,0 +1,21 @@
+# iceland-device-kde (Arch port of the Fedora spec's %post kde / %preun kde, 0.28.53-20)
+post_install() {
+  # the per-account Plasma defaults run at each account's next Plasma login (the unit itself checks the desktop)
+  systemctl --global enable iceland-kde-defaults.service >/dev/null 2>&1 || :
+  # stock's automatic-brightness curve for KWin, once per account, at the next boot (before the DM); the unit only
+  # runs when /etc/iceland/kde-brightness-curve.enable exists (owner's eye test, Fedora 26 Oct 2026)
+  systemctl enable iceland-kde-brightness-curve.service >/dev/null 2>&1 || :
+  /usr/libexec/iceland/iceland-kde-discover write >/dev/null 2>&1 || :
+  # the login screens' no-network rule (plasmalogin / sddm accounts that exist; the hook keeps it current)
+  /usr/libexec/iceland/iceland-greeter-nonet sync >/dev/null 2>&1 || :
+  # NOT here: enabling plasmalogin.service (plan phase P2 switches sddm -> plasmalogin, plm-switch.sh)
+}
+post_upgrade() {
+  post_install
+}
+pre_remove() {
+  systemctl --global disable iceland-kde-defaults.service >/dev/null 2>&1 || :
+  systemctl disable iceland-kde-brightness-curve.service >/dev/null 2>&1 || :
+  /usr/libexec/iceland/iceland-kde-discover remove >/dev/null 2>&1 || :
+  /usr/libexec/iceland/iceland-greeter-nonet remove >/dev/null 2>&1 || :
+}

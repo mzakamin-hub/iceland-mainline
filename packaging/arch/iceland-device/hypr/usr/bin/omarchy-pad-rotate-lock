@@ -1,0 +1,19 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# omarchy-pad-rotate-lock [toggle|on|off|status] (iceland-device-hypr): the rotation lock for the quick-settings
+# Rotation tile (omarchy-pad-shell drawers), which runs this command of upstream's tablet package (not shipped). Ours
+# drives iceland-rotate's lock file (~/.config/iceland/rotation-lock: no rotation while it exists) and keeps upstream's
+# ~/.config/omarchy-pad/rotation-locked in step, so the tile and every other reader agree.
+set -u
+cfg=${XDG_CONFIG_HOME:-$HOME/.config}
+ice=$cfg/iceland/rotation-lock up=$cfg/omarchy-pad/rotation-locked
+mkdir -p "${ice%/*}" "${up%/*}"
+case ${1:-toggle} in
+on) touch "$ice" "$up" ;;
+off) rm -f "$ice" "$up" ;;
+toggle) if [[ -e $ice || -e $up ]]; then rm -f "$ice" "$up"; else touch "$ice" "$up"; fi ;;
+status) [[ -e $ice ]] && echo on || echo off; exit 0 ;;
+*) echo "usage: omarchy-pad-rotate-lock [toggle|on|off|status]" >&2; exit 2 ;;
+esac
+if [[ -e $ice ]]; then notify-send -t 1500 "Rotation locked" 2> /dev/null; else notify-send -t 1500 "Rotation unlocked" 2> /dev/null; fi
+exit 0

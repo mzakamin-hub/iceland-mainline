@@ -1,0 +1,10 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-wayland-session (iceland-device (0.28.53-20: moved from iceland-device-hypr, not tied to Hyprland / Omarchy); SDDM's [Wayland] SessionCommand in /etc/sddm.conf.d/20-iceland-greeter.conf):
+# SDDM's own wayland-session wrapper, with one change: a session that ends with exit status 1 ends with 2. SDDM reads
+# status 1 as a failed login and leaves the screen black instead of bringing the greeter back (pattern of Denial's
+# packaging/arch/denial-session; our own script). Every other status is passed through unchanged.
+/usr/share/sddm/scripts/wayland-session "$@"
+rc=$?
+[ "$rc" -eq 1 ] && rc=2
+exit "$rc"

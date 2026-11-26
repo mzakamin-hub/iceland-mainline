@@ -1,0 +1,8 @@
+# iceland-device-hypr: nothing the login screen runs (sddm-greeter, its Hyprland, the on-screen keyboard; all as the
+# "sddm" user) may send packets. The sddm daemon itself (root) and the user session after login are not affected.
+table inet iceland_greeter {
+  chain output {
+    type filter hook output priority filter; policy accept;
+    meta skuid "sddm" counter drop
+  }
+}

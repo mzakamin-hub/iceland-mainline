@@ -1,0 +1,60 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-droidloom-pacman (iceland-device (0.28.53-20: moved from iceland-device-hypr, not tied to Hyprland / Omarchy)): the guard of DroidLoom's own unsigned repository [droidloom]
+# (OPEN-DECISIONS D6: owner (a), upstream unsigned repo, accepted 23 Nov 2026; the repo stays enabled for updates).
+#   iceland-droidloom-pacman plan       resolve a full "pacman -Syu" against a PRIVATE copy of the databases (the
+#                                       system's are not touched) and print what would come from where + the verdict
+#   iceland-droidloom-pacman install    the same check, then pacman -Syu --needed droidloom-runtime droidloom-image
+#                                       (a full upgrade, as upstream requires; pacman still asks before it acts)
+# Verdict rules (pacman itself has no per-repository name list):
+#   - [droidloom] is the LAST repository, so every name an earlier repository has comes from there;
+#   - in the resolved transaction [droidloom] supplies ONLY names from droidloom-allow.list, and every allowed name
+#     comes from [droidloom];
+#   - [droidloom]'s database holds only droidloom-* names (a new name would be listed and refused here);
+#   - the repository URLs are HTTPS.
+# If /etc/pacman.conf has no [droidloom] section (a system without the image's config), the section of
+# /usr/share/iceland/droidloom/droidloom-repo.conf is appended to a temporary copy.
+set -euo pipefail
+D=/usr/share/iceland/droidloom
+ALLOW=$(grep -v '^#' $D/droidloom-allow.list | tr -s ' \n' ' ')
+die() { echo "iceland-droidloom-pacman: STOP: $*" >&2; exit 1; }
+[ "$(id -u)" = 0 ] || die "run as root (sudo)"
+W=$(mktemp -d /run/iceland-droidloom.XXXXXX)
+# 0.28.53-20: the pacman hook 04-iceland-droidloom-guard.hook refuses any install / upgrade of droidloom-* unless this
+# run is the caller: a root-only marker file /run/iceland/droidloom-pacman.allow ("PID EPOCH" of this process), valid
+# 10 min, removed when this program ends. A file, not an environment variable: Pamac's and PackageKit's daemons run
+# the hooks without the caller's environment.
+ALLOWF=/run/iceland/droidloom-pacman.allow
+trap 'rm -rf "$W"; [ "$(cut -d" " -f1 "$ALLOWF" 2>/dev/null)" = "$$" ] && rm -f "$ALLOWF"' EXIT
+if pacman-conf --repo-list | grep -qx droidloom; then cp /etc/pacman.conf "$W/pacman.conf"
+else cat /etc/pacman.conf $D/droidloom-repo.conf > "$W/pacman.conf"; fi
+awk '/^\[/ {s = ($0 == "[droidloom]")} s && /^(Server|CacheServer)[ \t]*=/ && $0 !~ /=[ \t]*https:\/\// {bad = 1} END {exit !bad}' "$W/pacman.conf" \
+  && die "[droidloom] has a non-HTTPS URL"
+last=$(pacman-conf --config "$W/pacman.conf" --repo-list | tail -n 1)
+[ "$last" = droidloom ] || die "[droidloom] is not the last repository (last: $last)"
+mkdir -p "$W/db"; ln -s /var/lib/pacman/local "$W/db/local"; cp -a /var/lib/pacman/sync "$W/db/sync" 2>/dev/null || mkdir -p "$W/db/sync"
+pacman --config "$W/pacman.conf" --dbpath "$W/db" -Sy >/dev/null
+other=$(pacman --config "$W/pacman.conf" --dbpath "$W/db" -Sl droidloom | awk '$2 !~ /^droidloom-/ {print $2}' | tr '\n' ' ')
+echo "== [droidloom] database: $(pacman --config "$W/pacman.conf" --dbpath "$W/db" -Sl droidloom | awk '{print $2 "-" $3}' | tr '\n' ' ')"
+[ -z "$other" ] || die "[droidloom] now also offers: $other (review before any update)"
+# shellcheck disable=SC2086
+pacman --config "$W/pacman.conf" --dbpath "$W/db" -Sup --needed --print-format '%r %n %v' $ALLOW > "$W/plan.txt" || die "pacman could not resolve the transaction"
+bad=""
+while read -r repo name _; do
+  inallow=0; for a in $ALLOW; do [ "$a" = "$name" ] && inallow=1; done
+  [ "$repo" = droidloom ] && [ $inallow = 0 ] && bad="$bad $name($repo)"
+  [ "$repo" != droidloom ] && [ $inallow = 1 ] && bad="$bad $name($repo, not droidloom)"
+done < "$W/plan.txt"
+echo "== the transaction (repository, name, version): $(wc -l < "$W/plan.txt") packages"; sed 's/^/   /' "$W/plan.txt"
+echo "== from [droidloom]: $(awk '$1 == "droidloom" {print $2 "-" $3}' "$W/plan.txt" | tr '\n' ' ')"
+[ -z "$bad" ] || die "refused: [droidloom] may only supply: $ALLOW; offending:$bad"
+echo "== verdict: OK ([droidloom] supplies only the allowed names)"
+case ${1:-plan} in
+plan) exit 0 ;;
+install)
+  install -d -m 0755 /run/iceland
+  ( umask 077; printf '%s %s\n' "$$" "$(date +%s)" > "$ALLOWF.$$" ) && mv -f "$ALLOWF.$$" "$ALLOWF"
+  # shellcheck disable=SC2086
+  pacman --config "$W/pacman.conf" -Syu --needed $ALLOW ;;
+*) die "usage: iceland-droidloom-pacman plan|install" ;;
+esac

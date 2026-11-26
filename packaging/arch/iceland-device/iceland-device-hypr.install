@@ -1,0 +1,28 @@
+# pkgrel 10 (24 Nov): Omarchy's lock screen refuses to lock ("missing-pam") without /etc/pam.d/omarchy-lock-password,
+# which only Omarchy's installer step omarchy-apply-lock (install/config/lockscreen-pam.sh) writes; our image never ran
+# Omarchy's installer. Run that same Omarchy command when the file is missing (it also removes a fingerprint PAM file
+# when no finger is enrolled: fprintd is not installed). The target user only matters for the fingerprint check.
+apply_omarchy_lock_pam() {
+  [ -f /etc/pam.d/omarchy-lock-password ] && return 0
+  [ -x /usr/bin/omarchy-apply-lock ] || return 0
+  u=$(getent passwd 1000 | cut -d: -f1)
+  env OMARCHY_INSTALL_USER="${u:-root}" OMARCHY_PATH=/usr/share/omarchy /usr/bin/omarchy-apply-lock >/dev/null 2>&1 || :
+  [ -f /etc/pam.d/omarchy-lock-password ] && echo "iceland-device-hypr: Omarchy's lock screen PAM configured (omarchy-apply-lock)" \
+    || echo "iceland-device-hypr: WARNING: /etc/pam.d/omarchy-lock-password still missing: the lock screen cannot lock"
+}
+post_install() {
+  systemctl enable iceland-omarchy-guard.path >/dev/null 2>&1 || :
+  /usr/libexec/iceland/iceland-omarchy-guard || :
+  systemctl --global enable iceland-hypr-setup.service iceland-hypr-refresh.service iceland-ambient.service \
+    iceland-rotate.service iceland-bypass-renew.timer iceland-tablet-layout.service iceland-tablet-layout.path iceland-lock-bridge.service \
+    >/dev/null 2>&1 || :
+  apply_omarchy_lock_pam
+}
+post_upgrade() {
+  post_install
+}
+pre_remove() {
+  systemctl --global disable iceland-hypr-setup.service iceland-hypr-refresh.service iceland-ambient.service \
+    iceland-rotate.service iceland-bypass-renew.timer iceland-tablet-layout.service iceland-tablet-layout.path iceland-lock-bridge.service \
+    >/dev/null 2>&1 || :
+}

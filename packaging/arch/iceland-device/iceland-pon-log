@@ -1,0 +1,232 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: GPL-2.0-or-later
+"""iceland-pon-log (iceland-device 0.28-15, wf/chgmode2): what powered the PMIC on - read only.
+
+The PMK8850 (SPMI bus 0, SID 0) is a PON gen3 PMIC: it has no PON_REASON registers any more. Its PBS writes every
+power-on / reset event into a circular log in two SDAM blocks (stock canoe DT: pmic-pon-log, nvmem pmk8850_sdam_5 @
+0x7400 and pmk8850_sdam_6 @ 0x7500). The layout, taken from stock's pmic-pon-log.ko (OOS 11.A.38 vendor_ramdisk):
+  SDAM0 0x45 = number of log SDAMs - 1, 0x46 = end address (next write, 0x4b..0xbf), 0x47 = end SDAM index;
+  data 0x4b..0xbf (117 bytes) of each SDAM, concatenated = one ring of n*117 bytes, (n*117)//4 entries of 4 bytes
+  oldest first from (end - entries*4): byte 0 = state, byte 1 = event, bytes 2-3 = data (big endian).
+  Event 0x01 = PON trigger (data = trigger code: 0x0087 KPDPWR_N, 0x0085 HARD_RESET, 0x71c2 / ... USB_CHARGER),
+  0x06 = reset trigger, 0x07 = reset type (1 WARM_RESET, 4 SHUTDOWN, 7 HARD_RESET), 0x0e = PON successful.
+Sources, first that works: (1) the SDAMs as nvmem devices (/sys/bus/nvmem/devices/*/nvmem, only if a device tree
+names nvram@7400 / nvram@7500 of the pmk8850); (2) the regmap debugfs file of the pmk8850 SPMI device, reading ONLY
+the lines 0x7445-0x74bf and 0x7545-0x75bf, every line's address checked (never any other regmap). When debugfs is not
+mounted (a systemd generator runs before sys-kernel-debug.mount) and we are root, the reader runs itself again in a
+private mount namespace (unshare -m) and mounts debugfs only there: nothing is mounted for the rest of the system.
+Verdict for the current boot:
+  charger  - the last power-on was triggered by a USB charger only (no KPDPWR / RESIN / reset trigger in that
+             power-on, no warm reset after it): a cable power-on;
+  normal   - anything else that could be read (power key, hard reset, warm reset, RTC, SMPL, unknown trigger);
+  unknown  - the log could not be read or makes no sense.
+Usage: iceland-pon-log [--verdict | --log]   (--verdict: one line "<verdict> <why>"; --log: the decoded log too)
+Exit 0 always. Test hooks: ICELAND_SYS (/sys), ICELAND_DEBUGFS (/sys/kernel/debug), ICELAND_NO_MOUNT=1."""
+import os
+import subprocess
+import sys
+
+SYS = os.environ.get("ICELAND_SYS", "/sys")
+DBG = os.environ.get("ICELAND_DEBUGFS", "/sys/kernel/debug")
+SDAMS = (0x7400, 0x7500)
+D0, DLEN = 0x4B, 117
+LINE = 9  # "7445: 0a\n": 16-bit register, 8-bit value (qcom-spmi-pmic: max_register 0xffff)
+PON_TRIG = {0x0084: "PS_HOLD", 0x0085: "HARD_RESET", 0x0086: "RESIN_N", 0x0087: "KPDPWR_N", 0x0202: "USB_CHARGER",
+            0x0621: "RTC_ALARM", 0x0640: "SMPL", 0x18A0: "USB_CHARGER", 0x18C0: "PMIC_SID1_GPIO5",
+            0x2763: "USB_CHARGER", 0x31C2: "USB_CHARGER", 0x71C2: "USB_CHARGER", 0x8732: "USB_CHARGER"}
+USB = {c for c, n in PON_TRIG.items() if n == "USB_CHARGER"}
+RESET_TRIG = {0x0080: "KPDPWR_N_S2", 0x0081: "RESIN_N_S2", 0x0082: "KPDPWR_N_AND_RESIN_N_S2",
+              0x0083: "PMIC_WATCHDOG_S2", 0x0084: "PS_HOLD", 0x0085: "SW_RESET", 0x0086: "RESIN_N_DEBOUNCE",
+              0x0087: "KPDPWR_N_DEBOUNCE"}
+RESET_TYPE = {1: "WARM_RESET", 4: "SHUTDOWN", 7: "HARD_RESET"}
+STATES = ("FAULT", "PON", "POFF", "ON", "RESET", "OFF", "FAULT", "WARM_RESET")
+EVENTS = {1: "PON trigger", 2: "OTP copy complete", 3: "trim complete", 4: "XVLO check complete",
+          5: "PMICs detected", 6: "reset trigger", 7: "reset type", 8: "warm reset count", 9: "fault reason 1/2",
+          10: "fault reason 3", 11: "PBS PC at fault", 12: "fundamental reset", 13: "begin PON sequence",
+          14: "PON successful", 15: "waiting on PS_HOLD"}
+
+
+class Bad(Exception):
+    pass
+
+
+def rd(p, n=4096):
+    with open(p, "rb") as f:
+        return f.read(n)
+
+
+def pmk8850_dev():
+    """The SPMI device name (e.g. 0-00) of the one pmk8850, from its of_node's compatible."""
+    base = SYS + "/bus/spmi/devices"
+    found = []
+    for d in sorted(os.listdir(base)) if os.path.isdir(base) else ():
+        try:
+            comp = rd(base + "/" + d + "/of_node/compatible").split(b"\0")
+        except OSError:
+            continue
+        if b"qcom,pmk8850" in comp:
+            found.append(d)
+    if len(found) != 1:
+        raise Bad("%d pmk8850 SPMI devices" % len(found))
+    return found[0]
+
+
+def from_nvmem():
+    """{base: bytes 0x00..0xff} when both SDAMs are nvmem devices of the pmk8850 (a device tree with the nodes)."""
+    base = SYS + "/bus/nvmem/devices"
+    out = {}
+    for d in sorted(os.listdir(base)) if os.path.isdir(base) else ():
+        node = os.path.realpath(base + "/" + d + "/of_node")
+        name = os.path.basename(node)
+        par = os.path.dirname(node)
+        try:
+            comp = rd(par + "/compatible").split(b"\0")
+        except OSError:
+            continue
+        if b"qcom,pmk8850" not in comp:
+            continue
+        for b in SDAMS:
+            if name in ("nvram@%x" % b, "sdam@%x" % b):
+                data = rd(base + "/" + d + "/nvmem", 256)
+                if len(data) < D0 + DLEN:
+                    raise Bad("nvmem %s: %d bytes" % (d, len(data)))
+                out[b] = data
+    return out if len(out) == len(SDAMS) else None
+
+
+def regmap_file():
+    dev = pmk8850_dev()
+    p = DBG + "/regmap/" + dev + "/registers"
+    if not os.path.isfile(p):
+        raise Bad("no regmap debugfs file for %s" % dev)
+    return p
+
+
+def from_regmap(p):
+    """Only the lines 0x45..0xbf of each SDAM; the address of every line is checked."""
+    out = {}
+    fd = os.open(p, os.O_RDONLY)
+    try:
+        for b in SDAMS:
+            lo, hi = b + 0x45, b + D0 + DLEN - 1
+            n = hi - lo + 1
+            buf = os.pread(fd, n * LINE, lo * LINE)
+            lines = buf.decode("ascii", "replace").split("\n")
+            if len(lines) < n:
+                raise Bad("regmap: %d lines for 0x%04x-0x%04x" % (len(lines), lo, hi))
+            data = bytearray(256)
+            for i in range(n):
+                a, sep, v = lines[i].partition(": ")
+                try:
+                    ok = sep and int(a, 16) == lo + i and len(v) == 2
+                    val = int(v, 16)
+                except ValueError:
+                    ok = False
+                if not ok:
+                    raise Bad("regmap: line %r is not register 0x%04x" % (lines[i][:16], lo + i))
+                data[lo + i - b] = val
+            out[b] = bytes(data)
+    finally:
+        os.close(fd)
+    return out
+
+
+def entries(sd):
+    s0 = sd[SDAMS[0]]
+    n = s0[0x45] + 1
+    if n > len(SDAMS):
+        raise Bad("log SDAM count %d (0x45 = 0x%02x) > %d" % (n, s0[0x45], len(SDAMS)))
+    end, idx = s0[0x46], s0[0x47]
+    if not D0 <= end < D0 + DLEN:
+        raise Bad("end address 0x%02x" % end)
+    if idx >= n:
+        raise Bad("end SDAM index %d of %d" % (idx, n))
+    ring = b"".join(sd[b][D0:D0 + DLEN] for b in SDAMS[:n])
+    total = n * DLEN
+    count = total // 4
+    start = (idx * DLEN + end - D0 - count * 4) % total
+    ev = []
+    for i in range(count):
+        pos = start + 4 * i
+        e = bytes(ring[(pos + k) % total] for k in range(4))
+        if e != b"\0\0\0\0":
+            ev.append((e[0], e[1], (e[2] << 8) | e[3]))
+    return ev
+
+
+def describe(e):
+    st, evt, data = e
+    s = STATES[st] if st < len(STATES) else "state 0x%02x" % st
+    name = EVENTS.get(evt, "event 0x%02x" % evt)
+    if evt == 1:
+        name += " %s" % PON_TRIG.get(data, "UNKNOWN")
+    elif evt == 6:
+        name += " %s" % RESET_TRIG.get(data, "UNKNOWN")
+    elif evt == 7:
+        name += " %s" % RESET_TYPE.get(data, "UNKNOWN")
+    return "%-10s %-38s data=0x%04x" % (s, name, data)
+
+
+def verdict(ev):
+    if not ev:
+        return "unknown", "the PON log is empty"
+    trig = [i for i, e in enumerate(ev) if e[1] == 1]
+    if not trig:
+        return "unknown", "no PON trigger in the log"
+    last = trig[-1]
+    rtypes = [i for i, e in enumerate(ev) if e[1] == 7]
+    if rtypes and rtypes[-1] > last:
+        t = ev[rtypes[-1]][2]
+        if t == 1:
+            return "normal", "a warm reset after the last power-on"
+        return "unknown", "reset type %s after the last PON trigger" % RESET_TYPE.get(t, "0x%x" % t)
+    bound = max([i for i, e in enumerate(ev) if e[1] in (6, 7, 14) and i < last] or [-1])
+    group = [ev[i][2] for i in trig if bound < i <= last]
+    names = ",".join("%s(0x%04x)" % (PON_TRIG.get(c, "UNKNOWN"), c) for c in group)
+    if group and all(c in USB for c in group):
+        return "charger", "the last power-on was triggered by %s only" % names
+    return "normal", "the last power-on was triggered by %s" % names
+
+
+def read_log():
+    sd = from_nvmem()
+    if sd is not None:
+        return sd, "nvmem"
+    p = regmap_file()
+    return from_regmap(p), "regmap " + p
+
+
+def main(argv):
+    mode = argv[1] if len(argv) > 1 else "--verdict"
+    in_ns = "--in-ns" in argv
+    try:
+        try:
+            sd, src = read_log()
+        except Bad:
+            if in_ns or os.environ.get("ICELAND_NO_MOUNT") == "1" or os.geteuid() != 0 or \
+                    os.path.isdir(DBG + "/regmap") or DBG != "/sys/kernel/debug":
+                raise
+            # debugfs not mounted: once more in a private mount namespace that mounts it (gone when we exit)
+            cmd = ["unshare", "--mount", "--propagation", "private", "sh", "-c",
+                   'mount -t debugfs debugfs /sys/kernel/debug && exec "$0" "$@"', sys.executable,
+                   os.path.abspath(argv[0]), mode, "--in-ns"]
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+            sys.stdout.write(r.stdout if r.stdout else "unknown debugfs could not be mounted (%s)\n" %
+                             (r.stderr.strip().splitlines() or ["?"])[-1])
+            return 0
+        if in_ns and not mode.startswith("--log"):
+            src += " (private debugfs mount)"
+        ev = entries(sd)
+        v, why = verdict(ev)
+    except (Bad, OSError, ValueError, IndexError, subprocess.SubprocessError) as e:
+        print("unknown %s" % e)
+        return 0
+    print("%s %s [%s, %d entries]" % (v, why, src, len(ev)))
+    if mode == "--log":
+        for e in ev:
+            print("  " + describe(e))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

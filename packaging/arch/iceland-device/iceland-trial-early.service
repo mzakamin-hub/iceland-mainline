@@ -1,0 +1,12 @@
+# iceland-device: a trial kernel is booted at most once, even if GRUB could not write its environment
+[Unit]
+Description=OnePlus Pad 4: clear the one-shot boot entry of a kernel trial
+RequiresMountsFor=/boot /var/lib/iceland
+ConditionPathExists=/var/lib/iceland/trial/pending
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/iceland/iceland-trial early
+
+[Install]
+WantedBy=local-fs.target

@@ -1,0 +1,11 @@
+[Desktop Entry]
+# iceland-device-hypr: a touch launcher for Omarchy's own settings (no third-party settings app)
+Type=Application
+Name=Rotation & Tablet mode
+Comment=Rotation lock and Auto / Tablet / Laptop mode (the Tablet menu)
+Exec=omarchy-menu summon tablet
+Icon=rotation-allowed-symbolic
+Terminal=false
+Categories=Settings;
+Keywords=settings;tablet;pad;
+StartupNotify=false

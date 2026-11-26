@@ -1,0 +1,17 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-logind-unlock-watch (iceland-device-hypr): started by the lock service of Omarchy's shell (the omarchy-pad.lock
+# clone, injected by iceland-lock-unlock-inject); prints "UNLOCK" for each Unlock signal of the user's graphical session.
+# Only signals that logind itself sent are seen: `gdbus monitor --dest org.freedesktop.login1` subscribes with that bus
+# name as the sender, which the bus resolves to logind's connection (no user process can own that name). Who may make
+# logind send it: root only (/etc/dbus-1/system.d/iceland-logind-unlock.conf; logind alone would let the owner).
+set -u
+sid=${XDG_SESSION_ID:-}
+[[ -n $sid ]] || sid=$(loginctl show-user "$(id -u)" -p Display --value 2> /dev/null)
+[[ -n $sid ]] || { echo "no graphical session" >&2; exit 1; }
+path=$(gdbus call --system --dest org.freedesktop.login1 --object-path /org/freedesktop/login1 \
+	--method org.freedesktop.login1.Manager.GetSession "$sid" 2> /dev/null | sed -n "s/.*objectpath '\([^']*\)'.*/\1/p")
+[[ -n $path ]] || { echo "session $sid not found" >&2; exit 1; }
+stdbuf -oL gdbus monitor --system --dest org.freedesktop.login1 --object-path "$path" | while IFS= read -r line; do
+	case $line in "$path: org.freedesktop.login1.Session.Unlock ()"*) echo UNLOCK ;; esac
+done

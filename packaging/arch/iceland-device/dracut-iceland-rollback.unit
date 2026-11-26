@@ -1,0 +1,14 @@
+# dracut module "iceland": a "Roll back to ..." boot entry makes the chosen snapshot the root, before it is mounted
+[Unit]
+Description=OnePlus Pad 4: roll the root back to a snapshot (boot entry iceland.rollback=)
+DefaultDependencies=no
+After=iceland-carrier.service initrd-root-device.target
+Before=sysroot.mount
+ConditionKernelCommandLine=iceland.rollback
+ConditionPathExists=/etc/initrd-release
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/iceland/iceland-rollback
+StandardOutput=journal+console

@@ -1,0 +1,464 @@
+#!/usr/bin/python3 -I
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-resleep (iceland-device 0.28-53, sleep policy K3.19, owner 22 Nov 2026): a wake nobody asked for goes back
+# to sleep. After a resume on battery the daemon watches for RESLEEP_S (30 s); when in that time nobody touched the
+# tablet (no key, touch, pen, pointer or switch input, no charger) and, at the end of it, the panel is off, nothing
+# blocks sleep and no sound plays, it suspends again. Such wakes are timer wakes (RTC alarms, systemd timers with
+# WakeSystem=), sensor-hub, network or firmware events: before 0.28-53 the desktop's idle timer started from zero after
+# each of them (PowerDevil / GNOME count a resume as activity), so every stray wake cost about 6 minutes awake.
+#
+# Never back to sleep:
+#  - after input since the resume: any key press (the power key that woke the tablet, volume keys, a keyboard), a touch,
+#    the pen, a pointer, a switch change (the cover / lid: gpio-keys or iceland-cover-detect's uinput lid, a jack);
+#    read from the evdev nodes, read only, never grabbed. The nodes stay open across the suspend, so the press that
+#    woke the tablet is read after the resume. Also when the wake interrupt (/sys/power/pm_wakeup_irq) belongs to an
+#    input device (power key, keys, touch, hall / lid, pen) even if its event got lost;
+#  - on a charger (any Mains / USB / Wireless power supply online, at any time in the window): iceland-battery-guard
+#    keeps the tablet awake there anyway;
+#  - while a block-mode sleep inhibitor is held (logind's ListInhibitors: systemd-inhibit --what=sleep, the guard,
+#    the desktop's own "block sleep"), a PCM plays or records (/proc/asound, a call included), systemd still runs
+#    jobs (the resume's own unit starts: hexagonrpcd / iio-sensor-proxy / the cover detector), or the panel is on
+#    (DSI connector dpms / backlight bl_power, as iceland-battery-guard reads it). These wait until RESLEEP_MAX_S
+#    (90 s) after the resume, then the daemon gives up for this wake (the desktop's idle timer still applies);
+#  - in a rehearsal (iceland.rehearsal= on the kernel command line), a RAM kit or any boot whose / is not on the
+#    tablet's storage (iceland-usb-pm's rule), with iceland.nosleeppolicy on the command line, or while the off switch
+#    /etc/iceland/sleep-policy-off exists (looked at at every resume: no restart needed).
+# One journal line per decision (back to sleep / stays awake / gives up) with the reason; no unit-specific data.
+# The daemon never writes to sysfs, regmap or /dev/mem; it only reads and finally runs "systemctl suspend" (root:
+# logind would let root pass a block inhibitor, so the inhibitors are checked here right before, as
+# iceland-battery-guard's power key does).
+#
+# Ideas from Reixo0's nx809j-mainline sleep policy (SM8850 Fedora, GPL-2.0; github.com/Reixo0/nx809j-mainline,
+# device/rootfs/usr/bin/nx809j-sleep): a long-running policy daemon, the DSI connector's dpms as the screen state,
+# /sys/power/pm_wakeup_irq to tell a timer wake from a key wake, a short awake window after a stray wake. The code here
+# is our own (input-based wake decision, no Android parts).
+#
+#   iceland-resleep             the daemon (iceland-resleep.service)
+#   iceland-resleep --dry-run   decides and logs, never suspends
+# Test hooks (PC tests): ICELAND_INPUT ICELAND_INPUT_SYS ICELAND_DRM ICELAND_BACKLIGHT ICELAND_PSY ICELAND_ASOUND
+# ICELAND_CMDLINE ICELAND_ROOTSRC ICELAND_SYS ICELAND_SLEEP_OFF ICELAND_RESLEEP_S ICELAND_RESLEEP_MAX_S.
+import glob, json, os, re, select, struct, subprocess, sys, time
+
+E = os.environ.get
+INPUT = E("ICELAND_INPUT", "/dev/input")
+INPUT_SYS = E("ICELAND_INPUT_SYS", "/sys/class/input")
+DRM = E("ICELAND_DRM", "/sys/class/drm")
+BACKLIGHT = E("ICELAND_BACKLIGHT", "/sys/class/backlight")
+PSY = E("ICELAND_PSY", "/sys/class/power_supply")
+ASOUND = E("ICELAND_ASOUND", "/proc/asound")
+SYS = E("ICELAND_SYS", "/sys")
+CMDLINE = E("ICELAND_CMDLINE", "/proc/cmdline")
+OFF = E("ICELAND_SLEEP_OFF", "/etc/iceland/sleep-policy-off")
+RESLEEP_S = float(E("ICELAND_RESLEEP_S", "30"))        # owner: back to sleep ~30 s after a stray wake
+RESLEEP_MAX_S = float(E("ICELAND_RESLEEP_MAX_S", "90"))  # OURS: a held reason (panel on, block, sound, jobs) waits this long
+SAMPLE_S = 2.0                 # OURS: select time-out (the clocks are compared this often; input wakes it at once)
+JUMP_S = 1.0                   # CLOCK_BOOTTIME - CLOCK_MONOTONIC grew by more: the system was suspended (as the guard)
+RESCAN_S = 10.0                # OURS: new evdev nodes (a Bluetooth keyboard that reconnects) are opened this often
+CMD_S = 5                      # OURS: time-out of busctl / systemctl calls
+DRYRUN = "--dry-run" in sys.argv
+
+EV_SYN, EV_KEY, EV_REL, EV_ABS, EV_SW = 0, 1, 2, 3, 5
+ABS_X, ABS_Y, ABS_PRESSURE, ABS_MT_POSITION_X, ABS_MT_POSITION_Y, ABS_MT_TRACKING_ID = 0, 1, 24, 0x35, 0x36, 0x39
+EV_FMT = "llHHi"               # struct input_event: struct timeval, type, code, value (native longs)
+EV_SIZE = struct.calcsize(EV_FMT)
+LONG_BITS = struct.calcsize("l") * 8
+WATCH_TYPES = (EV_KEY, EV_REL, EV_ABS, EV_SW)
+# a wake interrupt whose name says input: the PMIC power key / resin, gpio-keys (volume, lid), touch controllers,
+# the hall sensor, a pen. Names only (no IRQ numbers stored); a non-matching wake is a timer / firmware / network one.
+USER_IRQ = re.compile(r"(^|[^a-z0-9])(pwrkey|kpdpwr|resin|gpio[-_]?keys|keys?|volume|vol[-_](up|down)|touch\w*|"
+                      r"\w*_ts|ts|goodix\w*|hall\w*|lid|pen|stylus)([^a-z0-9]|$)", re.I)
+
+
+def log(msg, prio=6):
+    print("<%d>iceland-resleep: %s" % (prio, msg), flush=True)
+
+
+def rd(path, default=None):
+    try:
+        with open(path) as f:
+            return f.read().strip()
+    except (OSError, UnicodeDecodeError):
+        return default
+
+
+# ---- the pure decision (PC tests) --------------------------------------------------------------------------------
+
+def abort_reason(st):
+    """a reason to stay awake for the rest of this wake (final), or None. st: a dict with off, input, wake_irq, ac"""
+    if st.get("off"):
+        return st["off"]
+    if st.get("input"):
+        return "input since the resume (%s)" % st["input"]
+    irq = st.get("wake_irq")
+    if irq and USER_IRQ.search(irq):
+        return "woken by an input interrupt (%s)" % irq
+    if st.get("ac") is None:
+        return "the power source can't be read"
+    if st.get("ac"):
+        return "on a charger"
+    return None
+
+
+def hold_reason(st):
+    """a reason to wait (it may pass), or None. st: elapsed, panel, blocks, audio, jobs"""
+    if st.get("elapsed", 0) < RESLEEP_S:
+        return "the %d s window is still open" % RESLEEP_S
+    if st.get("panel") != "off":
+        return "the panel is on" if st.get("panel") == "on" else "the panel state can't be read"
+    if st.get("blocks") is None:
+        return "logind's inhibitor list can't be read"
+    if st["blocks"]:
+        return "sleep is blocked by %s" % ", ".join(st["blocks"])
+    if st.get("audio"):
+        return "sound is playing or recording (%s)" % ", ".join(st["audio"])
+    if st.get("jobs") is None:
+        return "systemd's job list can't be read"
+    if st["jobs"]:
+        return "systemd still runs %d job(s)" % st["jobs"]
+    return None
+
+
+def decide(st):
+    """("awake", why) final | ("wait", why) | ("giveup", why) final | ("sleep", "") for one sample of a window"""
+    a = abort_reason(st)
+    if a:
+        return "awake", a
+    h = hold_reason(st)
+    if h is None:
+        return "sleep", ""
+    if st.get("elapsed", 0) >= RESLEEP_MAX_S:
+        return "giveup", h
+    return "wait", h
+
+
+def input_kind(etype, code, value):
+    """the kind of user input an evdev event is, or None for events that say nothing (releases, sync, misc)"""
+    if etype == EV_KEY and value == 1:
+        return "key"
+    if etype == EV_SW:
+        return "switch"
+    if etype == EV_REL and value != 0:
+        return "pointer"
+    if etype == EV_ABS:
+        if code == ABS_MT_TRACKING_ID:
+            return "touch" if value >= 0 else None
+        if code in (ABS_X, ABS_Y, ABS_PRESSURE, ABS_MT_POSITION_X, ABS_MT_POSITION_Y):
+            return "touch/pen"
+    return None
+
+
+# ---- the readings -------------------------------------------------------------------------------------------------
+
+def bits(path):
+    """a sysfs capability bitmap (hex words, the most significant first, one unsigned long each) as an int"""
+    v = 0
+    for w in (rd(path, "") or "").split():
+        try:
+            v = (v << LONG_BITS) | int(w, 16)
+        except ValueError:
+            return 0
+    return v
+
+
+def input_nodes():
+    """the evdev nodes that can carry user input: every event node with key, relative, absolute or switch events"""
+    out = []
+    try:
+        names = sorted(n for n in os.listdir(INPUT_SYS) if n.startswith("event"))
+    except OSError:
+        return out
+    for n in names:
+        ev = bits(INPUT_SYS + "/" + n + "/device/capabilities/ev")
+        if any(ev >> t & 1 for t in WATCH_TYPES):
+            out.append(os.path.join(INPUT, n))
+    return out
+
+
+def panel_state():
+    """"off" when the DSI connector says dpms Off or a backlight has bl_power != 0, "on" when one reads and none says
+    off, None when nothing reads (iceland-battery-guard's panel_state)"""
+    seen = False
+    for p in glob.glob(DRM + "/card*-DSI-*/dpms"):
+        v = rd(p)
+        if v is not None:
+            seen = True
+            if v.lower() == "off":
+                return "off"
+    for d in glob.glob(BACKLIGHT + "/*"):
+        v = rd(d + "/bl_power")
+        if v is None:
+            continue
+        try:
+            n = int(v)
+        except ValueError:
+            continue
+        seen = True
+        if n != 0:
+            return "off"
+    return "on" if seen else None
+
+
+def on_ac():
+    """True when a Mains / USB / Wireless supply is online, False when such supplies exist and none is, None when
+    none reads"""
+    seen = False
+    for d in glob.glob(PSY + "/*"):
+        t = rd(d + "/type", "") or ""
+        if t not in ("Mains", "USB", "Wireless") and not t.startswith("USB_"):
+            continue
+        o = rd(d + "/online")
+        if o is None:
+            continue
+        seen = True
+        if o.strip() not in ("0", ""):
+            return True
+    return False if seen else None
+
+
+def audio_busy():
+    """the PCMs that run (play or record): ["card0 pcm1p", ...]"""
+    out = []
+    for p in sorted(glob.glob(ASOUND + "/card*/pcm*/sub*/status")):
+        s = rd(p, "") or ""
+        if re.search(r"^state:\s*(RUNNING|DRAINING)", s, re.M):
+            parts = p.split("/")
+            out.append("%s %s" % (parts[-4], parts[-3]))
+    return sorted(set(out))
+
+
+def block_inhibitors():
+    """the block-mode sleep inhibitors (logind's ListInhibitors), ["who (why)", ...]; None when logind can't be asked"""
+    try:
+        r = subprocess.run(["busctl", "--json=short", "call", "org.freedesktop.login1", "/org/freedesktop/login1",
+                            "org.freedesktop.login1.Manager", "ListInhibitors"], stdin=subprocess.DEVNULL,
+                           capture_output=True, text=True, timeout=CMD_S)
+        if r.returncode != 0:
+            return None
+        data = json.loads(r.stdout)["data"][0]
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError, IndexError, TypeError):
+        return None
+    out = []
+    for item in data:
+        try:
+            what, who, why, mode = item[0], item[1], item[2], item[3]
+        except (IndexError, TypeError):
+            continue
+        if mode == "block" and "sleep" in str(what).split(":"):
+            out.append("%s (%s)" % (who, str(why)[:60]))
+    return out
+
+
+def pending_jobs():
+    try:
+        r = subprocess.run(["systemctl", "list-jobs", "--no-legend", "--no-pager"], stdin=subprocess.DEVNULL,
+                           capture_output=True, text=True, timeout=CMD_S)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if r.returncode != 0:
+        return None
+    return len([l for l in r.stdout.splitlines() if l.strip()])
+
+
+def wake_irq():
+    """the interrupt that ended the last suspend as "N name" (/sys/power/pm_wakeup_irq), None when not recorded"""
+    n = rd(SYS + "/power/pm_wakeup_irq")
+    if not n or not n.isdigit():
+        return None
+    name = rd(SYS + "/kernel/irq/%s/actions" % n) or ""
+    if not name:
+        for line in (rd("/proc/interrupts", "") or "").splitlines():
+            if line.strip().startswith(n + ":"):
+                name = line.split()[-1]
+                break
+    return ("%s %s" % (n, name)).strip()
+
+
+def loop_carrier(dev):
+    """/dev/loopN[pM] backed by the sd* partition labelled userdata / fedora (iceland-usb-pm's loop_carrier)"""
+    l = re.sub(r"^(loop[0-9]+)p[0-9]+$", r"\1", dev[len("/dev/"):])
+    bf = rd(SYS + "/block/%s/loop/backing_file" % l)
+    if not bf:
+        return False
+    n = bf.rsplit("/", 1)[-1]
+    if not n.startswith("sd"):
+        return False
+    pn = re.search(r"^PARTNAME=(.*)$", rd(SYS + "/class/block/%s/uevent" % n, "") or "", re.M)
+    return bool(pn) and pn.group(1) in ("userdata", "fedora")
+
+
+def boot_skip():
+    """why this boot never gets the policy (fixed for the boot), or "" """
+    c = " %s " % (rd(CMDLINE, "") or "").replace("\n", " ")
+    if " iceland.rehearsal=" in c:
+        return "a rehearsal boot (iceland.rehearsal= on the kernel command line)"
+    if re.search(r" iceland\.nosleeppolicy(=1)? ", c):
+        return "iceland.nosleeppolicy on the kernel command line"
+    rs = E("ICELAND_ROOTSRC")
+    if rs is None:
+        try:
+            rs = subprocess.run(["findmnt", "-n", "-o", "SOURCE", "/"], capture_output=True, text=True,
+                                timeout=CMD_S).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            rs = ""
+    rs = rs.split("[", 1)[0]
+    if re.match(r"^/dev/(sd[a-z]|disk/|mapper/)", rs):
+        return ""
+    if re.match(r"^/dev/loop[0-9]", rs):
+        return "" if loop_carrier(rs) else "/ is on '%s', a loop device without the tablet's userdata behind it " \
+                                             "(RAM kit / test image)" % rs
+    return "/ is on '%s', not on the tablet's storage (RAM kit or NBD root)" % (rs or "unknown")
+
+
+def off_switch():
+    return "the off switch %s exists" % OFF if os.path.exists(OFF) else ""
+
+
+# ---- the daemon ---------------------------------------------------------------------------------------------------
+
+class Watch:
+    def __init__(self):
+        self.fds = {}              # fd -> path
+        self.buf = {}
+        self.scan_at = None
+        self.off = None            # CLOCK_BOOTTIME - CLOCK_MONOTONIC last seen
+        self.win = None            # the open window: dict, None between windows
+        self.count = 0             # back-to-sleep decisions this boot
+
+    def rescan(self):
+        have = set(self.fds.values())
+        for path in input_nodes():
+            if path in have:
+                continue
+            try:
+                fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)   # read only, no EVIOCGRAB
+            except OSError:
+                continue
+            self.fds[fd] = path
+            self.buf[fd] = b""
+        self.scan_at = time.monotonic()
+
+    def close(self, fd):
+        self.fds.pop(fd, None)
+        self.buf.pop(fd, None)
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+
+    def drain(self, fd):
+        """read what the node has; the first user-input kind seen, or None"""
+        kind = None
+        while fd in self.fds:
+            try:
+                data = os.read(fd, EV_SIZE * 64)
+            except BlockingIOError:
+                break
+            except OSError:            # ENODEV: the device went away
+                self.close(fd)
+                break
+            if not data:
+                self.close(fd)
+                break
+            b = self.buf[fd] + data
+            n = len(b) // EV_SIZE * EV_SIZE
+            self.buf[fd] = b[n:]
+            for i in range(0, n, EV_SIZE):
+                _, _, t, c, v = struct.unpack_from(EV_FMT, b, i)
+                k = input_kind(t, c, v)
+                if k and kind is None:
+                    kind = "%s on %s" % (k, os.path.basename(self.fds.get(fd, "?")))
+        return kind
+
+    def resumed(self):
+        boot, mono = time.clock_gettime(time.CLOCK_BOOTTIME), time.monotonic()
+        off = boot - mono
+        jump = self.off is not None and off - self.off > JUMP_S
+        slept = off - self.off if jump else 0
+        self.off = off
+        return jump, slept
+
+    def open_window(self, slept):
+        self.win = {"t0": time.monotonic(), "slept": slept, "input": None, "ac": False, "wake_irq": wake_irq(),
+                    "off": off_switch()}
+        if self.win["off"]:
+            self.finish("stays awake", self.win["off"])
+
+    def finish(self, what, why, prio=6):
+        w = self.win
+        log("%s after a %d s sleep: %s (wake interrupt %s)" % (what, w["slept"], why, w["wake_irq"] or "not recorded"),
+            prio)
+        self.win = None
+
+    def sample(self):
+        w = self.win
+        ac = on_ac()
+        if ac is None or ac:
+            w["ac"] = ac           # a charger seen once ends the window
+        st = {"off": w["off"], "input": w["input"], "wake_irq": w["wake_irq"], "ac": w["ac"],
+              "elapsed": time.monotonic() - w["t0"]}
+        if abort_reason(st) is None and st["elapsed"] >= RESLEEP_S:
+            st.update(panel=panel_state(), blocks=block_inhibitors(), audio=audio_busy(), jobs=pending_jobs())
+        verdict, why = decide(st)
+        w["why"] = why
+        if verdict == "awake":
+            self.finish("stays awake", why)
+        elif verdict == "giveup":
+            self.finish("stays awake", "gave up after %d s: %s" % (RESLEEP_MAX_S, why))
+        elif verdict == "sleep":
+            self.count += 1
+            if DRYRUN:
+                self.finish("dry run: would go back to sleep (#%d)" % self.count,
+                            "%d s without input, battery, panel off, no sleep block, no sound" % st["elapsed"])
+                return
+            self.finish("back to sleep (#%d this boot)" % self.count,
+                        "%d s without input, battery, panel off, no sleep block, no sound" % st["elapsed"], 5)
+            try:
+                r = subprocess.run(["systemctl", "suspend"], stdin=subprocess.DEVNULL, capture_output=True,
+                                   text=True, timeout=CMD_S * 3)
+                if r.returncode != 0:
+                    log("systemctl suspend refused (exit %d): %s" % (r.returncode, r.stderr.strip()[:120]), 4)
+            except (OSError, subprocess.SubprocessError) as e:
+                log("systemctl suspend failed: %s" % e, 4)
+
+    def run(self):
+        self.rescan()
+        self.resumed()
+        log("watching %d input nodes; a wake without input on battery goes back to sleep after %d s%s" %
+            (len(self.fds), RESLEEP_S, " (dry run)" if DRYRUN else ""))
+        while True:
+            try:
+                r = select.select(list(self.fds), [], [], SAMPLE_S)[0] if self.fds else (time.sleep(SAMPLE_S) or [])
+                jump, slept = self.resumed()
+                if jump:
+                    self.rescan()
+                    self.open_window(slept)
+                for fd in r:
+                    k = self.drain(fd)
+                    if k and self.win is not None and self.win["input"] is None:
+                        self.win["input"] = k
+                if self.win is not None:
+                    self.sample()
+                if time.monotonic() - self.scan_at >= RESCAN_S:
+                    self.rescan()
+            except Exception as e:     # OURS: never die in a loop; a window in progress ends awake
+                if self.win is not None:
+                    self.finish("stays awake", "internal error %s: %s" % (type(e).__name__, e), 4)
+                else:
+                    log("internal error %s: %s" % (type(e).__name__, e), 4)
+                for fd in list(self.fds):
+                    self.close(fd)
+                time.sleep(RESCAN_S)
+                self.rescan()
+
+
+def main():
+    why = boot_skip()
+    if why:
+        log("off for this boot: %s" % why)
+        return 0
+    Watch().run()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

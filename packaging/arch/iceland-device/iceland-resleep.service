@@ -1,0 +1,20 @@
+# iceland-device 0.28-53 (sleep policy K3.19): a wake nobody asked for goes back to sleep after about 30 s (no input
+# since the resume, battery, panel off, no sleep block, no sound; see /usr/libexec/iceland/iceland-resleep).
+# Off: /etc/iceland/sleep-policy-off (read at every resume), iceland.nosleeppolicy on the kernel command line, or
+# "systemctl disable --now iceland-resleep". Never in a rehearsal (iceland.rehearsal=) or a RAM kit (the daemon
+# checks where / is). Pause it like any suspend: systemd-inhibit --what=sleep.
+[Unit]
+Description=OnePlus Pad 4: back to sleep after a wake nobody asked for (battery only)
+After=systemd-logind.service
+ConditionKernelCommandLine=!iceland.rehearsal
+ConditionKernelCommandLine=!iceland.nosleeppolicy
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/iceland/iceland-resleep
+Restart=on-failure
+RestartSec=10
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

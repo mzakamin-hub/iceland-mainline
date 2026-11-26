@@ -1,0 +1,42 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-tablet-layout (iceland-device-hypr, user service; owner 24 Nov ~03:10): Omarchy's workspace layout follows
+# the tablet / laptop mode of /run/iceland/mode (iceland-mode.service: BT cover, the Auto / Tablet / Laptop tile).
+#   tablet: every workspace floating (Omarchy's own default.lua, as `omarchy-hyprland-workspace-layout-default
+#           floating` writes it), Omarchy's dock always on at the bottom (omarchy-dock); windows fill the area above
+#           the dock (tablet-layout.lua)
+#   laptop: Omarchy's default tiling (our default.lua removed; a default the owner had set before tablet mode is
+#           put back); the dock hides by itself on tiled workspaces
+# Runs at session start and on every change of the mode file (iceland-tablet-layout.path). Only a CHANGE of the mode
+# rewrites anything: a layout the owner picks for a workspace (Super+L, Omarchy menu) holds until the next mode change,
+# which drops the per-workspace choices (workspace-layouts/<n>.lua). Omarchy's workspace-modes.lua re-tiles the
+# windows it floated when a workspace goes back to tiling; windows that float on their own stay floating.
+#   iceland-tablet-layout [--force]      (--force: apply even when the mode did not change)
+set -u
+mode=$(cat "${ICELAND_MODE_FILE:-/run/iceland/mode}" 2> /dev/null)   # ICELAND_MODE_FILE: tests only
+case $mode in tablet | laptop) ;; *) exit 0 ;; esac
+state=${XDG_STATE_HOME:-$HOME/.local/state}
+D=$state/omarchy/workspace-layouts; I=$state/iceland; last_f=$I/tablet-layout-mode; mark='-- iceland-tablet-layout'
+last=$(cat "$last_f" 2> /dev/null)
+[[ $mode == "$last" && ${1:-} != --force ]] && exit 0
+mkdir -p "$D" "$I"
+rm -f "$D"/[0-9]*.lua                      # per-workspace choices last until the next mode change
+if [[ $mode == tablet ]]; then
+	# the owner's own default (if any, not ours) is kept for laptop mode
+	if [[ -f $D/default.lua ]] && ! grep -qF -- "$mark" "$D/default.lua"; then mv -f "$D/default.lua" "$I/laptop-default.lua"; fi
+	printf '%s\no.workspace_mode({ default = "floating" })\n' "$mark" > "$D/default.lua"
+	command -v omarchy-dock > /dev/null && { omarchy-dock position bottom > /dev/null 2>&1; omarchy-dock autohide off > /dev/null 2>&1; }
+	: > "$I/tablet-refit-pending"            # tablet-layout.lua fits the windows Omarchy floats at this reload
+else
+	rm -f "$D/default.lua" "$I/tablet-refit-pending"
+	[[ -f $I/laptop-default.lua ]] && mv -f "$I/laptop-default.lua" "$D/default.lua"
+fi
+printf '%s\n' "$mode" > "$last_f"
+logger -t iceland-tablet-layout "mode $mode: workspaces $([[ $mode == tablet ]] && echo floating + dock || echo "Omarchy's tiling")" 2> /dev/null || :
+# the same refresh as Omarchy's own omarchy-hyprland-workspace-layout-default (only inside a running session)
+if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]] && hyprctl version > /dev/null 2>&1; then
+	omarchy-restart-hyprctl
+	omarchy-shell -q omarchy.workspaces refresh > /dev/null 2>&1 || :
+	omarchy-shell -q omarchy.dock refresh > /dev/null 2>&1 || :
+fi
+exit 0

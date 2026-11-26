@@ -1,0 +1,71 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-device (Arch): the parts of the Fedora %posttrans that apply here. Left out on purpose:
+#  - iceland-grub-setup: /bootfs/grub2/grub.cfg is SHARED with Fedora and stays Fedora's (never edited from Arch);
+#  - dnf / createrepo / SELinux / GNOME / KDE steps;
+#  - /etc/sysconfig/kernel (Fedora's kernel-install default handling).
+# Every step is idempotent and skipped in a chroot where it needs a running system.
+
+_running() { [ -d /run/systemd/system ] && ! systemd-detect-virt --quiet --chroot 2>/dev/null; }
+
+_common() {
+  systemd-hwdb update >/dev/null 2>&1 || :
+  /usr/libexec/iceland/iceland-cmdline || :
+  if [ ! -e /var/lib/iceland/.asound-state-reset ]; then
+    rm -f /var/lib/alsa/asound.state
+    mkdir -p /var/lib/iceland && touch /var/lib/iceland/.asound-state-reset
+  fi
+  if [ ! -e /var/lib/upower/charging-threshold-status ]; then
+    mkdir -p /var/lib/upower && printf 1 > /var/lib/upower/charging-threshold-status
+  fi
+  mi=/etc/machine-info
+  [ -s "$mi" ] && [ -n "$(tail -c 1 "$mi")" ] && echo >> "$mi"
+  grep -v '^#' /usr/share/iceland/machine-info | while IFS= read -r kv; do
+    k=${kv%%=*}; [ -n "$k" ] || continue
+    grep -q "^$k=" "$mi" 2>/dev/null || echo "$kv" >> "$mi"
+  done
+  /usr/bin/iceland-power-profiles apply >/dev/null 2>&1 || :
+  if _running; then
+    systemctl daemon-reload >/dev/null 2>&1 || :
+    udevadm control --reload >/dev/null 2>&1 || :
+    udevadm trigger --action=add -s dma_heap >/dev/null 2>&1 || :
+    udevadm trigger --action=change -s devfreq -s block -s power_supply >/dev/null 2>&1 || :
+    systemctl kill -s HUP systemd-logind.service >/dev/null 2>&1 || :
+    systemctl try-restart upower.service iceland-battery-guard.service iceland-thermal.service \
+      iceland-cover-detect.service iceland-resleep.service irqbalance.service >/dev/null 2>&1 || :
+  fi
+}
+
+post_install() {
+  # first installation: the preset decides (50-iceland.preset; 50-iceland-unused.preset turns idle services off)
+  systemctl preset iceland-battery-guard.service iceland-thermal.service iceland-launchboost.service \
+    iceland-ssc-resume.service iceland-npu-off.service iceland-bdaddr.service iceland-cover-detect.service \
+    iceland-resleep.service iceland-storage-summary.service iceland-slot-mark.service \
+    iceland-trial-early.service iceland-boot-confirm.service >/dev/null 2>&1 || :
+  systemctl enable iceland-battery-guard.service iceland-thermal.service iceland-launchboost.service \
+    iceland-ssc-resume.service iceland-slot-mark.service >/dev/null 2>&1 || :
+  systemctl --global enable iceland-refresh.service iceland-charge-alert.service iceland-charge-alert.path \
+    iceland-speaker-default.service >/dev/null 2>&1 || :
+  for f in /usr/lib/systemd/system-preset/50-iceland-unused.preset; do
+    [ -f "$f" ] || continue
+    for u in $(sed -n 's/^disable //p' "$f"); do systemctl preset "$u" >/dev/null 2>&1 || :; done
+  done
+  _common
+  cat <<'EOF'
+==> iceland-device: this is a PORT of the Fedora package for an Omarchy rehearsal on the OnePlus Pad 4.
+    The boot entry (arch-*.conf in /bootfs/loader/entries) is written by iceland-coexist's kernel-install plugin;
+    GRUB itself and /bootfs/grub2/grub.cfg belong to the Fedora side and are never changed from here.
+EOF
+}
+
+post_upgrade() { _common; }
+
+pre_remove() {
+  systemctl disable --now iceland-thermal.service iceland-launchboost.service iceland-resleep.service >/dev/null 2>&1 || :
+  systemctl disable iceland-trial-early.service iceland-boot-confirm.service iceland-slot-mark.service \
+    iceland-ssc-resume.service iceland-npu-off.service iceland-battery-guard.service iceland-bdaddr.service \
+    iceland-storage-summary.service >/dev/null 2>&1 || :
+  systemctl --global disable iceland-refresh.service iceland-charge-alert.service iceland-charge-alert.path \
+    iceland-speaker-default.service >/dev/null 2>&1 || :
+  /usr/bin/iceland-power-profiles reset >/dev/null 2>&1 || :
+  systemctl stop iceland-bypass.service >/dev/null 2>&1; rm -f /run/iceland/bypass-request
+}

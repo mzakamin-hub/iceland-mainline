@@ -1,0 +1,27 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-monitors-mode-fix (iceland-device-hypr 0.28.53-16, round 10): the user's own DSI panel rule in
+# ~/.config/hypr/monitors.lua names an explicit mode instead of "preferred" / "highrr" / "highres". Omarchy's scale
+# control (omarchy-hyprland-monitor-scaling) adds such a rule with mode "preferred", which on this panel is its FIRST
+# mode, 144 Hz (panel-novatek: DRM_MODE_TYPE_PREFERRED on modes[0]); a config reload must never land at 144 Hz unless
+# the user chose 144 (iceland.lua's own rule names the rate that applies; iceland-hypr-refresh then keeps it).
+# Only the mode value of one-line rules whose output is DSI-<n> is changed; scale, position and every other line stay
+# as they are. The first change keeps a copy (monitors.lua.pre-iceland-mode). Run by iceland-hypr-setup at login
+# (before Hyprland reads its config) and by iceland-display-mode around a scale change.
+set -u
+MODE=${ICELAND_PANEL_MODE:-3392x2400@120}
+f=${XDG_CONFIG_HOME:-$HOME/.config}/hypr/monitors.lua
+[[ -f $f ]] || exit 0
+t=$(readlink -f "$f") || exit 0
+rule='^[[:space:]]*hl\.monitor\(\{[[:space:]]*output[[:space:]]*=[[:space:]]*"DSI-[0-9]+"'
+bad='mode[[:space:]]*=[[:space:]]*"(preferred|highrr|highres)"'
+grep -E "$rule" "$t" | grep -qE "$bad" || exit 0
+[[ -e $t.pre-iceland-mode ]] || cp -p "$t" "$t.pre-iceland-mode" 2> /dev/null
+# Hyprland reloads when the file changes: the new file is built beside it and renamed into place in one step
+tmp=$(mktemp "$t.XXXXXX") || exit 0
+if sed -E "/$rule/ s/$bad/mode = \"$MODE\"/" "$t" > "$tmp" && ! cmp -s "$t" "$tmp"; then
+  chmod --reference="$t" "$tmp" && mv -f "$tmp" "$t" && echo "iceland-monitors-mode-fix: DSI rule in $f now names mode $MODE"
+else
+  rm -f "$tmp"
+fi
+exit 0

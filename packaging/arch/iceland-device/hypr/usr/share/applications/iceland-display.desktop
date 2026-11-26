@@ -1,0 +1,11 @@
+[Desktop Entry]
+# iceland-device-hypr: a touch launcher for Omarchy's own settings (no third-party settings app)
+Type=Application
+Name=Display & Brightness
+Comment=Brightness and the display (Omarchy's monitor panel)
+Exec=omarchy-shell omarchy.monitor open
+Icon=video-display
+Terminal=false
+Categories=Settings;
+Keywords=settings;tablet;pad;
+StartupNotify=false

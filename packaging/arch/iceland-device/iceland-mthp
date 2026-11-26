@@ -1,0 +1,50 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-mthp (iceland-device 0.28-46): an opt-in A/B switch for 64 KiB anonymous multi-size transparent huge pages
+# (mTHP). OFF by default (the kernel's "never" for 64 KiB).
+#   iceland-mthp status | off | inherit | always        (off / inherit / always need root)
+# Why: on arm64 kernel-iceland maps a 64 KiB folio with contiguous page-table entries (ARM64_CONTPTE), so one TLB
+# entry covers it: fewer TLB misses and page faults in large heaps (browsers, Plasma). The cost is memory: a fault may
+# allocate 64 KiB where 4 KiB would do, and zram stores such folios as 16 pages after a split.
+#   inherit  64 KiB follows the global THP mode, which iceland-device sets to madvise (/usr/lib/tmpfiles.d/
+#            iceland-thp.conf): only programs that ask for huge pages get 64 KiB folios
+#   always   every anonymous mapping may get 64 KiB folios (the 2 MiB mode stays madvise)
+#   off      never (the default)
+# The choice applies at once and is kept across boots in /etc/tmpfiles.d/iceland-mthp.conf; "off" removes that file.
+# Compare with the same workload before / after (memory: free -m, /sys/kernel/mm/transparent_hugepage/hugepages-64kB/
+# stats/; speed: the browser benchmark of the A/B plan), then keep or switch off.
+set -eu
+K=/sys/kernel/mm/transparent_hugepage/hugepages-64kB
+F=/etc/tmpfiles.d/iceland-mthp.conf
+cmd=${1:-status}
+case "$cmd" in
+status)
+	if [ -r "$K/enabled" ]; then echo "64 KiB mTHP: $(cat "$K/enabled")"; else echo "64 KiB mTHP: not supported by this kernel"; fi
+	echo "global THP: $(cat /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null)"
+	if [ -f "$F" ]; then echo "kept across boots by $F"; else echo "not kept across boots (default: never)"; fi
+	if [ -d "$K/stats" ]; then
+		for s in anon_fault_alloc anon_fault_fallback swpout swpout_fallback split; do
+			[ -r "$K/stats/$s" ] && printf '  %-22s %s\n' "$s" "$(cat "$K/stats/$s")"
+		done
+	fi
+	exit 0 ;;
+off | inherit | always) ;;
+-h | --help | help) sed -n '2,/^set -eu$/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
+*) echo "usage: iceland-mthp status | off | inherit | always" >&2; exit 2 ;;
+esac
+[ "$(id -u)" = 0 ] || { echo "iceland-mthp: run it as root (sudo iceland-mthp $cmd)" >&2; exit 2; }
+[ -w "$K/enabled" ] || { echo "iceland-mthp: this kernel has no 64 KiB mTHP switch ($K)" >&2; exit 1; }
+case "$cmd" in
+off)
+	rm -f "$F"
+	echo never > "$K/enabled" ;;
+*)
+	mkdir -p /etc/tmpfiles.d
+	{
+		echo "# written by iceland-mthp $cmd (undo: iceland-mthp off)"
+		echo "w $K/enabled - - - - $cmd"
+	} > "$F.tmp"
+	mv "$F.tmp" "$F"
+	echo "$cmd" > "$K/enabled" ;;
+esac
+echo "iceland-mthp: 64 KiB mTHP now $(cat "$K/enabled")"

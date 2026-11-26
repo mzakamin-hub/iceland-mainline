@@ -1,0 +1,5 @@
+# iceland-device 0.28-26: apply the tablet's own Bluetooth address whenever the controller registers (boot, driver
+# rebind, module reload, recovery). The kernel keeps the address across power cycles of the same registration; a new
+# registration starts from the device tree value again. iceland-bdaddr.service has no RemainAfterExit, so every add
+# starts it once more.
+ACTION=="add", SUBSYSTEM=="bluetooth", ENV{DEVTYPE}=="host", KERNEL=="hci0", TAG+="systemd", ENV{SYSTEMD_WANTS}+="iceland-bdaddr.service"

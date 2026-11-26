@@ -1,0 +1,10 @@
+# iceland-device-hypr: per-user Pad 4 Hyprland setup, before the session's programs start
+[Unit]
+Description=OnePlus Pad 4: Hyprland / floatkey / lock keyboard setup for this user
+ConditionUser=!@system
+Before=graphical-session-pre.target
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/iceland-hypr-setup
+[Install]
+WantedBy=graphical-session-pre.target

@@ -1,0 +1,8 @@
+# /etc/xdg/kwinrc (iceland-device-kde 0.28.53-20, Arch): system defaults for KWin on the OnePlus Pad 4. KConfig reads
+# this file below each user's ~/.config/kwinrc (a choice in System Settings > Keyboard > Virtual Keyboard wins);
+# startplasma-login-wayland puts /etc/xdg into the login screen's XDG_CONFIG_DIRS as well.
+# - the on-screen keyboard: plasma-keyboard (the input method Fedora's Plasma build used; O1b PASS 25 Oct 2026: a tap
+#   into a text field shows it). The path is plasma-keyboard 6.8's desktop file in Arch Linux ARM.
+[Wayland]
+InputMethod[$e]=/usr/share/applications/org.kde.plasma.keyboard.desktop
+VirtualKeyboardEnabled=true

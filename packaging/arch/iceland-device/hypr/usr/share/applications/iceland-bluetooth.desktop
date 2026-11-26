@@ -1,0 +1,11 @@
+[Desktop Entry]
+# iceland-device-hypr: a touch launcher for Omarchy's own settings (no third-party settings app)
+Type=Application
+Name=Bluetooth
+Comment=Bluetooth devices (Omarchy's Bluetooth panel)
+Exec=omarchy-shell omarchy.bluetooth open
+Icon=bluetooth
+Terminal=false
+Categories=Settings;
+Keywords=settings;tablet;pad;
+StartupNotify=false

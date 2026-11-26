@@ -1,0 +1,14 @@
+# iceland-device: /usr/lib/udev/hwdb.d/61-iceland-battery.hwdb
+#
+# The charge limit UPower writes to the battery when "Preserve Battery Health" is selected in GNOME Settings >
+# Power > Battery Charging: charge_control_start_threshold = 80, charge_control_end_threshold = 85 (charging stops
+# at 85 % and starts again below 80 %; the owner's choice). UPower's own entry (60-upower-battery.hwdb,
+# "battery:*:*:dmi:*") would give 75,80; this file sorts after it, so its value wins.
+# The lookup key is made by UPower's 60-upower-battery.rules: battery:<kernel name>:<model_name>:<DMI modalias>;
+# the rule only runs for a battery that has charge_control_start_threshold or charge_control_end_threshold
+# (kernel-iceland's qcom_battmgr charge limit).
+# After a change: systemd-hwdb update && udevadm control --reload && udevadm trigger -s power_supply &&
+# systemctl restart upower (without the reload udev keeps the old database for some seconds: area-combo-37)
+
+battery:qcom-battmgr-bat:*
+ CHARGE_LIMIT=80,85

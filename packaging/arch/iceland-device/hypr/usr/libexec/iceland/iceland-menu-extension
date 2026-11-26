@@ -1,0 +1,80 @@
+#!/usr/bin/python3 -I
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-menu-extension (iceland-device-hypr; run by iceland-hypr-setup at each login): puts the Tablet section
+# (/usr/share/iceland/omarchy/menu-iceland.jsonc) into the user's Omarchy menu extension
+# ~/.config/omarchy/extensions/omarchy-menu.jsonc, the file Omarchy's menu merges over its defaults (docs/menu.md).
+# Only the lines between "// BEGIN iceland-device-hypr" and "// END iceland-device-hypr" are ours and are replaced;
+# everything else in the file is the owner's and is kept as it is. A file that would not parse afterwards is left
+# unchanged (Omarchy drops a whole extension that fails to parse).
+import json
+import os
+import re
+import sys
+
+SRC = os.environ.get("ICELAND_MENU_SRC", "/usr/share/iceland/omarchy/menu-iceland.jsonc")   # ICELAND_MENU_SRC: tests only
+CFG = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.environ["HOME"], ".config")
+DST = os.path.join(CFG, "omarchy", "extensions", "omarchy-menu.jsonc")
+BEGIN = "  // BEGIN iceland-device-hypr (managed: replaced at each login)"
+END = "  // END iceland-device-hypr"
+
+
+def strip_jsonc(text):
+    out, i, n, s = [], 0, len(text), None
+    while i < n:
+        c = text[i]
+        if s:
+            out.append(c)
+            if c == "\\":
+                out.append(text[i + 1]); i += 2; continue
+            if c == s:
+                s = None
+        elif c == '"':
+            s = c; out.append(c)
+        elif text.startswith("//", i):
+            while i < n and text[i] != "\n":
+                i += 1
+            continue
+        elif text.startswith("/*", i):
+            j = text.find("*/", i + 2); i = n if j < 0 else j + 2; continue
+        else:
+            out.append(c)
+        i += 1
+    return re.sub(r",(\s*[}\]])", r"\1", "".join(out))
+
+
+def parses(text):
+    try:
+        return isinstance(json.loads(strip_jsonc(text)), dict)
+    except ValueError:
+        return False
+
+
+def main():
+    block = BEGIN + "\n" + open(SRC).read().rstrip("\n") + "\n" + END + "\n"
+    old = open(DST).read() if os.path.exists(DST) else ""
+    if not old.strip():
+        new = "{\n" + block + "}\n"
+    elif BEGIN.strip() in old and END.strip() in old:
+        new = re.sub(r"[ \t]*// BEGIN iceland-device-hypr.*?// END iceland-device-hypr[^\n]*\n", block.replace("\\", "\\\\"), old, count=1, flags=re.S)
+    else:
+        end = old.rstrip().rfind("}")
+        if end < 0:
+            print("iceland-menu-extension: %s has no closing brace: left unchanged" % DST, file=sys.stderr); return 1
+        head = old[:end].rstrip()
+        sep = "" if strip_jsonc(head).rstrip().endswith(("{", ",")) else ","
+        new = head + sep + "\n" + block + old[end:]
+    if new == old:
+        return 0
+    if not parses(new):
+        print("iceland-menu-extension: the merged menu would not parse: %s left unchanged" % DST, file=sys.stderr); return 1
+    os.makedirs(os.path.dirname(DST), exist_ok=True)
+    tmp = DST + ".iceland-new"
+    with open(tmp, "w") as f:
+        f.write(new)
+    os.replace(tmp, DST)
+    print("iceland-menu-extension: Tablet section written to %s" % DST)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

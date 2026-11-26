@@ -1,0 +1,6 @@
+#!/usr/bin/nft -f
+# iceland-device (0.28.53-20: moved from iceland-device-hypr, not tied to Hyprland / Omarchy): what "systemctl stop nftables" removes on the Pad 4 (Arch's unit runs "nft flush ruleset",
+# which would also drop NetworkManager's, Tailscale's and DroidLoom's tables): only the iceland tables.
+destroy table inet iceland_greeter
+destroy table inet droidloom_egress
+destroy table inet iceland_vms

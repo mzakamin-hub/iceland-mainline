@@ -1,0 +1,67 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-shot (iceland-device-kde 0.28-37): a screenshot of the running KDE Plasma session, from SSH / a script.
+#   iceland-shot FILE.png                    the whole screen
+#   iceland-shot --window TITLE FILE.png     one window: the first whose caption contains TITLE (case-insensitive,
+#                                            e.g. "gvm: "); it is raised and activated first (KWin script)
+#   iceland-shot --list                      the captions of the open windows (to the journal and stdout)
+# Runs as root or as the session's user. It takes the session (user, WAYLAND_DISPLAY, XDG_RUNTIME_DIR,
+# DBUS_SESSION_BUS_ADDRESS) from the running plasmashell and calls Spectacle in background mode (-b -n), which KWin
+# authorizes for org.kde.KWin.ScreenShot2 through Spectacle's own desktop file; no permission is widened. The image is
+# written by the session user into its runtime directory and then moved to FILE (owned by the caller).
+# Exit: 0 = FILE written; 1 = no Plasma session / no window with that title / Spectacle failed; 2 = usage.
+set -u
+die() { echo "iceland-shot: $*" >&2; exit "${2:-1}"; }
+WIN=""; LIST=0
+case "${1:-}" in
+	--window) [ $# -eq 3 ] || die "usage: iceland-shot [--window TITLE] FILE.png | --list" 2; WIN=$2; OUT=$3 ;;
+	--list) LIST=1; OUT="" ;;
+	""|-*) die "usage: iceland-shot [--window TITLE] FILE.png | --list" 2 ;;
+	*) OUT=$1 ;;
+esac
+command -v spectacle >/dev/null || [ $LIST = 1 ] || die "spectacle is not installed"
+P=$(pgrep -o -x plasmashell) || die "no plasmashell running (not a Plasma session)"
+SU=$(ps -o user= -p "$P" | tr -d ' '); SUID=$(id -u "$SU")
+mapfile -t SENV < <(tr '\0' '\n' < /proc/"$P"/environ | grep -E '^(WAYLAND_DISPLAY|XDG_RUNTIME_DIR|DBUS_SESSION_BUS_ADDRESS|XDG_CURRENT_DESKTOP|XDG_SESSION_TYPE|QT_QPA_PLATFORM|DISPLAY|XAUTHORITY|HOME|LANG)=')
+asu() {
+	if [ "$(id -u)" = "$SUID" ]; then env "${SENV[@]}" "$@"
+	elif [ "$(id -u)" = 0 ]; then runuser -u "$SU" -- env "${SENV[@]}" "$@"
+	else die "run as root or as $SU"; fi
+}
+RT=/run/user/$SUID
+kwin_script() { # $1 = the JavaScript; runs it once in KWin (loadScript / run / unloadScript)
+	local js id name="iceland-shot-$$"
+	js=$(asu mktemp "$RT/iceland-shot-XXXXXX.js") || return 1
+	printf '%s\n' "$1" | asu tee "$js" >/dev/null
+	id=$(asu gdbus call --session --dest org.kde.KWin --object-path /Scripting --method org.kde.kwin.Scripting.loadScript "$js" "$name" 2>/dev/null | grep -o -E '[0-9]+' | head -n1)
+	[ -n "$id" ] && asu gdbus call --session --dest org.kde.KWin --object-path "/Scripting/Script$id" --method org.kde.kwin.Script.run >/dev/null 2>&1
+	sleep 0.5
+	asu gdbus call --session --dest org.kde.KWin --object-path /Scripting --method org.kde.kwin.Scripting.unloadScript "$name" >/dev/null 2>&1
+	asu rm -f "$js"
+	[ -n "$id" ]
+}
+since=$(date '+%Y-%m-%d %H:%M:%S')
+kwin_log() { sleep 0.3; journalctl --no-pager -o cat --since "$since" _PID="$(pgrep -o -x kwin_wayland)" 2>/dev/null | grep 'iceland-shot:'; }
+if [ $LIST = 1 ]; then
+	kwin_script 'workspace.windowList().forEach(function (w) { if (w.normalWindow) print("iceland-shot: window " + w.caption); });' || die "KWin scripting not reachable"
+	kwin_log | sed 's/^.*iceland-shot: //'
+	exit 0
+fi
+MODE=-f
+if [ -n "$WIN" ]; then
+	t=$(printf '%s' "$WIN" | sed 's/\\/\\\\/g; s/"/\\"/g')
+	kwin_script "var t = \"$t\".toLowerCase(); var hit = null;
+workspace.windowList().forEach(function (w) { if (!hit && w.normalWindow && w.caption.toLowerCase().indexOf(t) >= 0) hit = w; });
+if (hit) { hit.minimized = false; workspace.activeWindow = hit; print(\"iceland-shot: found \" + hit.caption); }
+else { print(\"iceland-shot: none\"); }" || die "KWin scripting not reachable"
+	l=$(kwin_log)
+	case "$l" in *"iceland-shot: found"*) ;; *"iceland-shot: none"*) die "no window whose title contains '$WIN'" ;;
+		*) echo "iceland-shot: KWin's answer not in the journal; trying the active window" >&2 ;; esac
+	sleep 0.4; MODE=-a
+fi
+tmp=$RT/iceland-shot-$$.png
+asu timeout 30 spectacle -b -n $MODE -o "$tmp" >/dev/null 2>&1
+for _ in 1 2 3 4 5 6 7 8 9 10; do [ -s "$tmp" ] && break; sleep 0.3; done
+[ -s "$tmp" ] || die "spectacle wrote nothing (journalctl --user -u plasma-kwin_wayland for ScreenShot2 refusals)"
+mkdir -p "$(dirname "$OUT")" && cat "$tmp" > "$OUT" && asu rm -f "$tmp" || die "cannot write $OUT"
+echo "iceland-shot: $OUT ($(stat -c %s "$OUT") bytes, ${WIN:+window '$WIN', }session of $SU)"

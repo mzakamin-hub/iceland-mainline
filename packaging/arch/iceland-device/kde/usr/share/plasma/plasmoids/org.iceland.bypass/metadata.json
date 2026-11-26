@@ -1,0 +1,17 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [ { "Name": "iceland (OnePlus Pad 4 mainline)" } ],
+        "Category": "System Information",
+        "Description": "Bypass Charging and the battery charge limit of the OnePlus Pad 4 (org.iceland.Bypass, UPower)",
+        "EnabledByDefault": true,
+        "Icon": "battery-ac-adapter",
+        "Id": "org.iceland.bypass",
+        "License": "GPL-2.0-or-later",
+        "Name": "Bypass Charging",
+        "Version": "0.2"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0",
+    "X-Plasma-NotificationArea": "true",
+    "X-Plasma-NotificationAreaCategory": "Hardware"
+}

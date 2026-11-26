@@ -1,0 +1,36 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-greeter-osk (iceland-device-hypr): the login screen's wvkbd fallback. The default keys are drawn by the
+# SDDM theme (omarchy-iceland); this runs wvkbd only with GREETER_OSK=wvkbd in /etc/iceland/greeter-osk.conf and
+# exits 0 at once otherwise. Started once by the greeter's Hyprland (user sddm).
+# Not started while a real keyboard is attached: a device with Q, A, Z, M and Space that is not a uinput device
+# (/sys/devices/virtual/input/); a Bluetooth cover (uhid) counts. No network (nftables: skuid sddm dropped), no log
+# of keys (stdout / stderr discarded), no files written.
+set -u
+mode=theme
+if [[ -r /etc/iceland/greeter-osk.conf ]]; then
+  while IFS= read -r line; do
+    if [[ $line =~ ^[[:space:]]*GREETER_OSK[[:space:]]*=[[:space:]]*[\"\']?([A-Za-z0-9_-]+)[\"\']?[[:space:]]*$ ]]; then
+      mode=${BASH_REMATCH[1]}
+    fi
+  done < /etc/iceland/greeter-osk.conf
+fi
+[[ $mode == wvkbd ]] || exit 0
+for ev in /sys/class/input/event*; do
+  real=$(readlink -f "$ev/device") || continue
+  case $real in /sys/devices/virtual/input/*) continue ;; esac
+  read -r -a caps < "$ev/device/capabilities/key" 2>/dev/null || continue
+  n=${#caps[@]}; ok=1
+  for k in 16 30 44 50 57; do            # KEY_Q KEY_A KEY_Z KEY_M KEY_SPACE
+    w=$((k / 64)); [ "$w" -lt "$n" ] || { ok=0; break; }
+    v=$((16#${caps[$((n - 1 - w))]})); (( (v >> (k % 64)) & 1 )) || { ok=0; break; }
+  done
+  [ "$ok" = 1 ] && exit 0                # real keyboard present: no on-screen keyboard
+done
+for bin in wvkbd-mobintl wvkbd-deskintl wvkbd; do
+  command -v "$bin" >/dev/null 2>&1 || continue
+  # heights in logical px (scale 2): landscape 300 (= 600 physical, a quarter of the panel), portrait 360
+  # shellcheck disable=SC2093 # exec is meant: the first wvkbd found replaces this script
+  exec setsid "$bin" -L 300 -H 360 >/dev/null 2>&1
+done
+exit 0

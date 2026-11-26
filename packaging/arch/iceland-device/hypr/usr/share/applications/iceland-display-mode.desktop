@@ -1,0 +1,12 @@
+[Desktop Entry]
+# iceland-device-hypr: a touch launcher for the Tablet menu's Display submenu (refresh rate choice, resolution through
+# the scale), round 10 (owner 24 Nov)
+Type=Application
+Name=Refresh Rate & Resolution
+Comment=Refresh rate (Auto, 60, 90, 120 or 144 Hz) and the effective resolution of the tablet screen
+Exec=omarchy-menu summon tablet.display
+Icon=video-display
+Terminal=false
+Categories=Settings;
+Keywords=display;refresh;rate;hz;resolution;scale;tablet;pad;
+StartupNotify=false

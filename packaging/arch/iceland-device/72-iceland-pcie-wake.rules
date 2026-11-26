@@ -1,0 +1,13 @@
+# /usr/lib/udev/rules.d/72-iceland-pcie-wake.rules (iceland-device 0.28-48, 0.28-53)
+#
+# The Wi-Fi chip's PCIe root port (0000:00:00.0, WCN7860) has WAKE# (GPIO 104) in the device tree again (kernel q91g
+# and later), for a future Wake-on-WLAN; the PCI core then makes the port a wakeup source. Keep that off by default:
+# without Wake-on-WLAN, ath12k powers the chip off for a suspend and WAKE# has nothing to say, and a WAKE# edge
+# would abort or end s2idle. On older kernels
+# the port has no wakeup enabled and this rule does nothing.
+# 0.28-53: also at "bind" (the pcieport driver's probe), so a wakeup enabled after the device's "add" is switched off
+# as well; the default stays the 0.28-48 one (wakeup off).
+# Wake-on-WLAN work: an empty file /etc/iceland/wifi-wake-on keeps the port's wakeup as the kernel set it (from the
+# next boot, or "udevadm trigger -c add /sys/bus/pci/devices/0000:00:00.0"); by hand until the next boot:
+#   echo enabled > /sys/bus/pci/devices/0000:00:00.0/power/wakeup
+ACTION=="add|bind", SUBSYSTEM=="pci", KERNEL=="0000:00:00.0", TEST!="/etc/iceland/wifi-wake-on", ATTR{power/wakeup}=="enabled", ATTR{power/wakeup}="disabled"

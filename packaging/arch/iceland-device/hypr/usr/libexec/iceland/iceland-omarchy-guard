@@ -1,0 +1,43 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-omarchy-guard (iceland-device-hypr): undo Omarchy's Snapdragon-laptop leaves on the OnePlus Pad 4.
+# Idea and file list from samyn92's iceland-device 0.9 (omarchy-pad-iceland, GPL-2.0-or-later), rewritten for our
+# layout (dracut + kernel-install + the shared GRUB; no Limine, no UKI, no systemd-boot).
+# omarchy-hw-platform reports aarch64-qualcomm for any qcom,* device tree (the Pad 4 is qcom,kaanapali), and Omarchy's
+# install/hardware/qualcomm/ then:
+#  - blacklists qcom_q6v5_pas (qualcomm-adsp-nofw.conf) when no Windows DSP images are found = always here: that driver
+#    starts the SoCCP, ADSP and CDSP (charging, USB-C, audio, sensors);
+#  - writes clk_ignore_unused pd_ignore_unused arm64.nopauth ... into a Limine drop-in (iceland-cmdline removes the
+#    *_ignore_unused options on purpose);
+#  - names X1 modules in a mkinitcpio drop-in;
+#  - sets RebootWatchdogSec=off (60-omarchy-qualcomm-reboot-watchdog.conf), unlike the Fedora side.
+# Run by iceland-omarchy-guard.path when one of the files appears, at boot, and by a pacman hook after Omarchy's
+# packages change. ICELAND_ROOT = the root to work on (image build in the container).
+set -u
+R=${ICELAND_ROOT:-}
+FILES=(
+  /etc/modprobe.d/qualcomm-adsp-nofw.conf
+  /etc/mkinitcpio.conf.d/qualcomm-platform.conf
+  /etc/limine-entry-tool.d/qualcomm-snapdragon.conf
+  /etc/systemd/system.conf.d/60-omarchy-qualcomm-reboot-watchdog.conf
+)
+rebuild=0
+for f in "${FILES[@]}"; do
+  if [[ -e $R$f || -L $R$f ]]; then
+    rm -f -- "$R$f"
+    echo "iceland-omarchy-guard: removed $f (Snapdragon-laptop setting, wrong for the Pad 4)"
+    [[ $f == /etc/modprobe.d/* ]] && rebuild=1
+  fi
+done
+if grep -rlsE '^[[:space:]]*(blacklist|install)[[:space:]]+qcom_q6v5_pas' "$R/etc/modprobe.d" "$R/usr/lib/modprobe.d"; then
+  echo "iceland-omarchy-guard: WARNING: the files above still block qcom_q6v5_pas (charging, USB-C, audio, sensors)" >&2
+fi
+ICELAND_ROOT=$R /usr/libexec/iceland/iceland-cmdline || :
+ICELAND_ROOT=$R /usr/libexec/iceland/iceland-fwupd-guard || :
+if (( rebuild )) && [[ -z $R ]] && ! systemd-detect-virt --quiet --chroot; then
+  k=$(uname -r)
+  echo "iceland-omarchy-guard: rebuilding the initramfs of $k without the blacklist (kernel-install add)"
+  kernel-install add "$k" "/usr/lib/modules/$k/vmlinuz" || :
+  [[ -d /sys/module/qcom_q6v5_pas ]] || modprobe qcom_q6v5_pas || :
+fi
+exit 0

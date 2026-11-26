@@ -1,0 +1,108 @@
+#!/usr/bin/python3 -I
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-ambient (iceland-device-hypr): automatic brightness for a Hyprland session with stock OxygenOS 11.A.38's
+# light-to-brightness curve (the same 11 points iceland-kde-brightness-curve gives KWin: the lux at which stock reaches
+# 0 %, 10 % .. 100 % of the 12-bit backlight). The Plasma session had this from KWin; Hyprland has no automatic
+# brightness of its own.
+# - light from iio-sensor-proxy (net.hadess.SensorProxy ClaimLight / LightLevel; the claim is held only while the
+#   panel is on, so the sensor hub can idle with the screen off);
+# - the backlight through brightnessctl (systemd-logind's SetBrightness: no root, no sysfs write by us);
+# - a manual change (brightnessctl or the bar slider moves it by more than 3 % from what we set) pauses the automatic
+#   mode for PAUSE_S; ~/.config/iceland/ambient-off switches it off for the account.
+# - steps are small and at most every STEP_S, so a lamp flicker does not pump the panel.
+import os, subprocess, time
+from gi.repository import Gio, GLib
+
+CURVE = [0.0, 2.08, 8.74, 24.85, 352.83, 1156.11, 2059.09, 4446.98, 12134.55, 39313.35, 70000.0]
+FLOOR = 0.02          # never below 2 % (stock's lowest point ~4 nits)
+STEP_S = 2
+PAUSE_S = 600
+OFF = os.path.expanduser("~/.config/iceland/ambient-off")
+
+
+def lux_to_frac(lux):
+    if lux <= 0:
+        return FLOOR
+    for i in range(1, len(CURVE)):
+        if lux <= CURVE[i]:
+            lo, hi = CURVE[i - 1], CURVE[i]
+            return max(FLOOR, ((i - 1) + (lux - lo) / (hi - lo)) / 10.0)
+    return 1.0
+
+
+def get_pct():
+    r = subprocess.run(["brightnessctl", "-m", "-c", "backlight", "info"], capture_output=True, text=True)
+    try:
+        return int(r.stdout.split(",")[3].rstrip("%")) / 100.0
+    except (IndexError, ValueError):
+        return None
+
+
+class Ambient:
+    def __init__(self):
+        self.bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+        self.sp = Gio.DBusProxy.new_sync(self.bus, 0, None, "net.hadess.SensorProxy", "/net/hadess/SensorProxy",
+                                         "net.hadess.SensorProxy", None)
+        self.sp.connect("g-properties-changed", self.changed)
+        # 24 Nov: a new owner of net.hadess.SensorProxy (iio-sensor-proxy restarted): the claim died with the old
+        # process, so claim again at once
+        self.sp.connect("notify::g-name-owner", self.owner_changed)
+        self.claimed = False
+        self.last_set = None
+        self.paused_until = 0
+        self.next_ok = 0
+        GLib.timeout_add_seconds(5, self.panel_watch)
+        self.panel_watch()
+
+    def panel_on(self):
+        for d in os.listdir("/sys/class/backlight"):
+            try:
+                if open("/sys/class/backlight/%s/bl_power" % d).read().strip() != "0":
+                    return False
+            except OSError:
+                pass
+        return True
+
+    def panel_watch(self):
+        on = self.panel_on() and not os.path.exists(OFF)
+        try:
+            if on and not self.claimed:
+                self.sp.call_sync("ClaimLight", None, 0, 3000, None)
+                self.claimed = True
+            elif not on and self.claimed:
+                self.sp.call_sync("ReleaseLight", None, 0, 3000, None)
+                self.claimed = False
+        except GLib.Error as e:
+            print("iceland-ambient: %s" % e.message, flush=True)
+        return True
+
+    def owner_changed(self, proxy, _pspec):
+        self.claimed = False
+        if proxy.get_name_owner():
+            print("iceland-ambient: sensor proxy (re)started: claiming again", flush=True)
+            GLib.timeout_add(300, lambda: self.panel_watch() and False)
+
+    def changed(self, proxy, changed, invalidated):
+        if "LightLevel" not in changed.keys() or not self.claimed:
+            return
+        now = time.monotonic()
+        if now < self.next_ok or now < self.paused_until:
+            return
+        cur = get_pct()
+        if cur is not None and self.last_set is not None and abs(cur - self.last_set) > 0.03:
+            self.paused_until = now + PAUSE_S       # the user moved the slider
+            self.last_set = None
+            return
+        want = lux_to_frac(changed["LightLevel"])
+        if cur is not None and abs(want - cur) < 0.02:
+            return
+        if cur is not None:                          # at most 10 % per step
+            want = cur + max(-0.10, min(0.10, want - cur))
+        subprocess.run(["brightnessctl", "-q", "-c", "backlight", "set", "%d%%" % round(want * 100)])
+        self.last_set = round(want * 100) / 100.0
+        self.next_ok = now + STEP_S
+
+
+if __name__ == "__main__":
+    Ambient()
+    GLib.MainLoop().run()

@@ -1,0 +1,33 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-osk show | hide | toggle (iceland-device-hypr): the on-screen keyboard through floatkey.service, for the
+# quick-settings tile (omarchy-pad-touch patch 0007) and key binds. Never `floatkey show`: when floatkey is not
+# running that STARTS a second, unsupervised floatkey outside the unit's memory limit (e.g. after the unit hit its
+# start limit). Here a stopped unit is started with systemctl (its start limit and memory bound stay in force) and
+# the request goes over floatkey's own socket, which never starts anything.
+set -u
+sock=${XDG_RUNTIME_DIR:-/tmp}/floatkey-${WAYLAND_DISPLAY:-wayland-0}.sock
+sock=${sock%/*}/$(basename "$sock" | tr '/' '_')
+send() { # send LINE: floatkey's reply ("ok shown docked us"), "" when it does not answer
+	python3 -I -c 'import socket, sys
+s = socket.socket(socket.AF_UNIX); s.settimeout(1)
+try:
+    s.connect(sys.argv[1]); s.sendall(sys.argv[2].encode() + b"\n"); print(s.makefile().readline().strip())
+except OSError:
+    pass' "$sock" "$1"
+}
+ensure() {
+	[[ -n $(send status) ]] && return 0
+	if ! systemctl --user start floatkey.service 2> /dev/null; then
+		notify-send -u normal "On-screen keyboard unavailable" "floatkey.service did not start (systemctl --user status floatkey)" 2> /dev/null
+		return 1
+	fi
+	for _ in $(seq 1 30); do [[ -n $(send status) ]] && return 0; sleep 0.1; done
+	return 1
+}
+case ${1:-toggle} in
+show) ensure && send show > /dev/null ;;
+hide) [[ -n $(send status) ]] && send hide > /dev/null; exit 0 ;;
+toggle) if [[ $(send status) == "ok shown"* ]]; then send hide > /dev/null; else ensure && send show > /dev/null; fi ;;
+*) echo "usage: iceland-osk show|hide|toggle" >&2; exit 2 ;;
+esac

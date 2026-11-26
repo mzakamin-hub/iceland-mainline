@@ -1,0 +1,12 @@
+[Desktop Entry]
+# iceland-device-hypr: a touch launcher for DroidLoom (upstream droidloomctl; no KDE tools)
+Type=Application
+Name=DroidLoom Settings
+GenericName=Android settings
+Comment=Start, stop and autostart of Android, and Android's own Settings (the Tablet menu's Android section)
+Exec=omarchy-menu summon tablet.android
+Icon=applications-android
+Terminal=false
+Categories=Settings;System;
+Keywords=android;droidloom;settings;
+StartupNotify=false

@@ -1,0 +1,16 @@
+# iceland-device-kde (Arch): the login screens' no-network rule follows the greeter accounts. Runs after
+# 30-systemd-sysusers.hook (hooks run in file-name order), so a just-installed plasma-login-manager's "plasmalogin"
+# user exists by then.
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Type = Path
+Target = usr/lib/sysusers.d/plasmalogin.conf
+Target = usr/lib/sysusers.d/sddm.conf
+Target = usr/libexec/iceland/iceland-greeter-nonet
+
+[Action]
+Description = Updating the login screen's no-network rule (iceland-greeter-nonet)...
+When = PostTransaction
+Exec = /bin/sh -c '[ -x /usr/libexec/iceland/iceland-greeter-nonet ] && /usr/libexec/iceland/iceland-greeter-nonet sync || :'

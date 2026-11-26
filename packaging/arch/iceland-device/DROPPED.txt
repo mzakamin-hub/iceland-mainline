@@ -1,0 +1,44 @@
+# spec %%install lines not carried over to Arch (reason<TAB>line)
+dnf configuration (pacman: IgnorePkg in the install plan instead)	install -Dm0644 %{SOURCE0} %{buildroot}/usr/share/dnf5/libdnf.conf.d/80-iceland-kernel.conf
+dnf configuration (pacman: IgnorePkg in the install plan instead)	install -Dm0644 %{SOURCE60} %{buildroot}/usr/share/dnf5/repos.override.d/50-iceland-fedora-hold.repo
+dnf configuration (pacman: IgnorePkg in the install plan instead)	install -Dm0644 %{SOURCE61} %{buildroot}/usr/share/dnf5/repos.override.d/51-iceland-fedora-45-pin.repo
+Fedora offline-upgrade polkit rule	install -Dm0644 %{SOURCE3} %{buildroot}/usr/share/polkit-1/rules.d/49-iceland-no-system-upgrade.rules
+dnf repository	install -Dm0644 %{SOURCE11} %{buildroot}/etc/yum.repos.d/iceland-local.repo
+dnf local repo sync	install -Dm0755 %{SOURCE12} %{buildroot}/usr/bin/iceland-repo-sync
+dnf firmware fetch	install -Dm0755 %{SOURCE140} %{buildroot}/usr/bin/iceland-firmware-fetch
+dnf firmware fetch pins	install -Dm0644 %{SOURCE141} %{buildroot}/usr/share/iceland/firmware-pins.tsv
+local dnf repo	install -d %{buildroot}/var/lib/iceland/repo/aarch64
+SELinux module (Arch: no SELinux)	install -Dm0644 iceland_sensors.pp %{buildroot}/usr/share/selinux/packages/iceland/iceland_sensors.pp
+SELinux module (Arch: no SELinux)	install -Dm0644 %{SOURCE105} %{buildroot}/usr/share/selinux/packages/iceland/iceland_sensors.te
+GDM greeter default	install -Dm0644 %{SOURCE180} %{buildroot}/etc/dconf/db/gdm.d/50-iceland-greeter-ambient
+dnf configuration (pacman: IgnorePkg in the install plan instead)	install -Dm0644 %{SOURCE72} %{buildroot}/etc/dnf/libdnf5-plugins/actions.d/iceland-snapshot.actions
+dnf protected list	install -Dm0644 %{SOURCE80} %{buildroot}/etc/dnf/protected.d/iceland-device.conf
+GNOME ambient reset (-hypr has iceland-ambient)	install -Dm0755 %{SOURCE198} %{buildroot}/usr/libexec/iceland/iceland-ambient-default
+GNOME ambient reset (-hypr has iceland-ambient)	install -Dm0644 %{SOURCE199} %{buildroot}/usr/lib/systemd/user/iceland-ambient-default.service
+symlink kept below by hand	install -d %{buildroot}/usr/bin && ln -s ../libexec/iceland/iceland-dmmap %{buildroot}/usr/bin/iceland-dmmap
+SELinux module (Arch: no SELinux)	install -Dm0644 %{SOURCE203} %{buildroot}/usr/share/selinux/packages/iceland/iceland_irqbalance.cil
+GNOME Shell extension (bar toggle in -hypr)	install -Dm0644 %{SOURCE117} %{buildroot}/usr/share/gnome-shell/extensions/iceland-bypass@oneplus-pad4/extension.js
+GNOME Shell extension (bar toggle in -hypr)	install -Dm0644 %{SOURCE118} %{buildroot}/usr/share/gnome-shell/extensions/iceland-bypass@oneplus-pad4/metadata.json
+GNOME GSettings override	install -Dm0644 %{SOURCE119} %{buildroot}/usr/share/glib-2.0/schemas/zz_iceland-device.gschema.override
+dnf update check	install -Dm0755 %{SOURCE121} %{buildroot}/usr/bin/iceland-update-check
+dnf hold migration	install -Dm0755 %{SOURCE236} %{buildroot}/usr/libexec/iceland/iceland-hold-migrate
+RPM signing key	install -Dm0644 %{SOURCE242} %{buildroot}/etc/pki/rpm-gpg/RPM-GPG-KEY-iceland
+Fedora ABRT preset	install -Dm0644 %{SOURCE156} %{buildroot}/usr/lib/systemd/system-preset/50-iceland-abrt.preset
+KDE PowerDevil (Omarchy shell idle settings in -hypr)	install -Dm0644 %{SOURCE205} %{buildroot}/etc/xdg/powerdevilrc
+KDE polkit rule	install -Dm0644 %{SOURCE207} %{buildroot}/usr/share/polkit-1/rules.d/49-iceland-kde-charge-limit.rules
+KDE plasmoid (bar toggle in -hypr)	install -Dm0644 %{SOURCE208} %{buildroot}/usr/share/plasma/plasmoids/org.iceland.bypass/metadata.json
+KDE plasmoid (bar toggle in -hypr)	install -Dm0644 %{SOURCE209} %{buildroot}/usr/share/plasma/plasmoids/org.iceland.bypass/contents/ui/main.qml
+KDE helper	install -Dm0755 %{SOURCE210} %{buildroot}/usr/libexec/iceland/iceland-kde-defaults
+KDE helper	install -Dm0644 %{SOURCE211} %{buildroot}/usr/lib/systemd/user/iceland-kde-defaults.service
+Spectacle screenshot (-hypr: grim form)	install -Dm0755 %{SOURCE212} %{buildroot}/usr/bin/iceland-shot
+KDE helper	install -Dm0644 %{SOURCE214} %{buildroot}/usr/lib/environment.d/50-iceland-kde-secrets.conf
+KDE helper	install -Dm0644 %{SOURCE237} %{buildroot}/usr/lib/environment.d/51-iceland-kde-powerdevil.conf
+KDE session-first dir	install -Dm0644 %{SOURCE215} %{buildroot}/usr/share/iceland/session-first/dbus-1/services/org.freedesktop.secrets.service
+KWallet	install -Dm0644 %{SOURCE216} %{buildroot}/etc/xdg/kwalletrc
+KWallet migration	install -Dm0755 %{SOURCE217} %{buildroot}/usr/bin/iceland-secrets-migrate
+KDE helper	install -Dm0755 %{SOURCE218} %{buildroot}/usr/libexec/iceland/iceland-kde-brightness-curve
+KDE helper state	install -d -m0700 %{buildroot}/var/lib/iceland/kde-curve
+KDE helper	install -Dm0644 %{SOURCE219} %{buildroot}/usr/lib/systemd/system/iceland-kde-brightness-curve.service
+KDE helper	install -Dm0755 %{SOURCE241} %{buildroot}/usr/libexec/iceland/iceland-kde-discover
+KDE session-first dir	install -d %{buildroot}/usr/share/iceland/session-first/applications
+KDE session-first dir	touch %{buildroot}/usr/share/iceland/session-first/applications/org.kde.discover.desktop

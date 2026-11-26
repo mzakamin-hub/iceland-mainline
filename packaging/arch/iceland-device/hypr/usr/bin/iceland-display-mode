@@ -1,0 +1,94 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-display-mode (iceland-device-hypr 0.28.53-16, round 10, owner 24 Nov: "a display setting for selecting
+# resolutions and Hz"): the tablet screen's refresh-rate choice and its effective resolution, for the Tablet menu's
+# Display submenu (iceland-menu-extension) and the "Refresh Rate & Resolution" launcher. Per user, no root.
+#   iceland-display-mode rate [auto|60|90|120|144]   set the refresh-rate choice (no value: print it). auto = 60 Hz on
+#                                                    battery / 120 Hz on the charger; 144 Hz only when chosen here;
+#                                                    iceland-thermal's cap always wins (iceland-hypr-refresh applies it)
+#   iceland-display-mode scale [1|1.333333|1.6|2|2.666667]
+#                                                    the panel scale = effective resolution 3392x2400 / 2544x1800 /
+#                                                    2120x1500 / 1696x1200 (default) / 1272x900, set through Omarchy's
+#                                                    own omarchy-hyprland-monitor-scaling (persists into
+#                                                    ~/.config/hypr/monitors.lua); no value: print the current scale.
+#                                                    Only scales Hyprland takes cleanly on 3392x2400 (k/120 dividing
+#                                                    gcd(3392, 2400) * 120 = 3840: Omarchy's clean_scale); not 3.2 or 4
+#                                                    (4 = 848x600 made the UI unusable, 24 Nov; 3.2 = 1060x750 is close)
+#   iceland-display-mode is rate|scale VALUE         exit 0 when VALUE is the current choice / panel scale (menu ticks)
+#   iceland-display-mode status                      choice, iceland-hypr-refresh's state, scale and resolution
+# ICELAND_DISPLAY_QUIET=1: no notification and no wait (tests).
+set -u
+CFG=${XDG_CONFIG_HOME:-$HOME/.config}
+CHOICE=$CFG/iceland/refresh-choice
+STATE=${XDG_RUNTIME_DIR:-/tmp}/iceland-refresh.state
+SCALES="1 1.333333 1.6 2 2.666667"
+PW=3392 PH=2400
+QUIET=${ICELAND_DISPLAY_QUIET:-0}
+
+usage() { sed -n 's/^#   //p' "$0" | sed -n '/^iceland-display-mode/,$p' | head -12 >&2; exit 2; }
+choice() {
+  local w
+  w=$(tr -d ' \t\r\n' 2> /dev/null < "$CHOICE" | tr 'A-Z' 'a-z'); w=${w%hz}
+  case $w in auto|60|90|120|144) echo "$w" ;; *) echo auto ;; esac
+}
+panel() { hyprctl -j monitors 2> /dev/null | jq -c '[.[] | select(.name | startswith("DSI"))][0] // empty' 2> /dev/null; }
+panel_scale() { panel | jq -r '.scale // empty' 2> /dev/null; }
+panel_hz() { panel | jq -r '.refreshRate // empty | . + 0.5 | floor' 2> /dev/null; }
+same() { awk -v a="$1" -v b="$2" 'BEGIN { d = a - b; if (d < 0) d = -d; exit !(d < 0.01) }' 2> /dev/null; }
+res_of() { awk -v s="$1" -v w=$PW -v h=$PH 'BEGIN { printf "%dx%d", w / s + 0.5, h / s + 0.5 }'; }
+rate_label() { case $1 in auto) echo "Auto (60 Hz on battery, 120 Hz on the charger)" ;; *) echo "$1 Hz" ;; esac; }
+statev() { sed -n "s/^$1=//p" "$STATE" 2> /dev/null | head -1; }
+tell() {
+  [ "$QUIET" = 1 ] && { printf '%s: %s\n' "$1" "${2:-}"; return 0; }
+  notify-send -t 4000 -a Display "$1" "${2:-}" 2> /dev/null || printf '%s: %s\n' "$1" "${2:-}"
+}
+
+set_rate() {
+  case $1 in auto|60|90|120|144) ;; *) usage ;; esac
+  mkdir -p "${CHOICE%/*}" || exit 1
+  local tmp; tmp=$(mktemp "$CHOICE.XXXXXX") || exit 1
+  printf '%s\n' "$1" > "$tmp" && mv -f "$tmp" "$CHOICE" || { rm -f "$tmp"; exit 1; }
+  # iceland-hypr-refresh watches the file (applies within ~0.2 s); the reload (SIGHUP) applies it at once
+  systemctl --user reload iceland-hypr-refresh.service > /dev/null 2>&1
+  [ "$QUIET" = 1 ] && { echo "refresh-choice=$1"; return 0; }
+  sleep 1.5
+  local why; why=$(statev why)
+  tell "Refresh rate: $(rate_label "$1")" "Now $(panel_hz) Hz${why:+ ($why)}"
+}
+
+set_scale() {
+  local v="" s foc
+  for s in $SCALES; do same "$1" "$s" && v=$s; done
+  [ -n "$v" ] || { echo "iceland-display-mode: scale must be one of: $SCALES" >&2; exit 2; }
+  # Omarchy's scaling acts on the FOCUSED monitor: only change it while the tablet screen has the focus
+  foc=$(hyprctl -j monitors 2> /dev/null | jq -r '.[] | select(.focused == true) | .name' 2> /dev/null | head -1)
+  case $foc in
+    DSI-*) ;;
+    *) tell "Resolution not changed" "Omarchy's scaling acts on the focused screen (${foc:-none}): focus the tablet screen first"; exit 1 ;;
+  esac
+  same "$(panel_scale)" "$v" && { tell "Resolution: $(res_of "$v")" "already the current resolution (scale $v)"; return 0; }
+  /usr/libexec/iceland/iceland-monitors-mode-fix > /dev/null 2>&1   # an explicit mode before Omarchy edits the rule
+  omarchy-hyprland-monitor-scaling "$v" || { tell "Resolution not changed" "omarchy-hyprland-monitor-scaling $v failed"; exit 1; }
+  /usr/libexec/iceland/iceland-monitors-mode-fix > /dev/null 2>&1   # a DSI rule Omarchy has just added names "preferred"
+  [ "$QUIET" = 1 ] || sleep 1
+  tell "Resolution: $(res_of "$v")" "scale $(panel_scale) (Omarchy's scale setting, kept in ~/.config/hypr/monitors.lua)"
+}
+
+case ${1:-} in
+rate)
+  if [ -n "${2:-}" ]; then set_rate "$2"; else choice; fi ;;
+scale)
+  if [ -n "${2:-}" ]; then set_scale "$2"; else panel_scale; fi ;;
+is)
+  case ${2:-}/${3:-} in
+    rate/?*) [ "$(choice)" = "$3" ] ;;
+    scale/?*) same "$(panel_scale)" "$3" ;;
+    *) usage ;;
+  esac ;;
+status)
+  sc=$(panel_scale)
+  echo "refresh choice: $(choice) ($(rate_label "$(choice)"))"
+  echo "panel: $(panel_hz) Hz, scale ${sc:-?}$([ -n "$sc" ] && echo " = $(res_of "$sc")")"
+  [ -f "$STATE" ] && sed 's/^/iceland-hypr-refresh: /' "$STATE" ;;
+*) usage ;;
+esac

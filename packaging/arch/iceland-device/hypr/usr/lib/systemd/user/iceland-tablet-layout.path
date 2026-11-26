@@ -1,0 +1,11 @@
+# iceland-device-hypr: re-apply the workspace layout when the tablet / laptop mode changes (iceland-mode-publish)
+[Unit]
+Description=OnePlus Pad 4: watch the tablet / laptop mode for Omarchy's workspace layout
+ConditionUser=!@system
+PartOf=graphical-session.target
+After=graphical-session.target
+[Path]
+PathChanged=/run/iceland/mode
+Unit=iceland-tablet-layout.service
+[Install]
+WantedBy=graphical-session.target
