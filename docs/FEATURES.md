@@ -55,7 +55,7 @@ This list shows the 113 features that work today, sorted by functionality. Featu
 | Smooth window moves under load | Window moves stay smooth, also under load with stock's thermal policy. Confirmed working by the owner on 22 Oct 2026. |
 | Touchscreen | Works, also after display off / on and suspend. |
 | Pen | Works (checked on the tablet). |
-| Lid switch | Closing a keyboard cover locks the tablet and turns the screen off (on battery it sleeps about a second later); opening it shows the lock screen. This also works for magnet covers the hall sensor cannot see, recognised from the magnetometer and the proximity sensor. Waking the tablet from sleep when the cover opens needs the power key. |
+| Lid switch | Closing a keyboard cover locks the tablet and turns the screen off (on battery it sleeps about a second later); opening it shows the lock screen. This also works for magnet covers the hall sensor cannot see, recognised from the magnetometer and the proximity sensor. Waking the tablet from sleep when the cover opens needs the power key. Under KDE Plasma on Arch Linux ARM closing the cover also suspends the tablet within about a second. |
 | Power and volume keys | The power key wakes the tablet from sleep. Without a charger a press suspends; with a charger in it locks and turns the screen off, as stock does. |
 | Pogo keyboard | The keyboard cover on the pogo pins: keys, touchpad, lamps and the keyboard backlight. Confirmed working by the owner on 22 Oct 2026. |
 | Auto-rotate | Works in tablet mode, with the panel's landscape mount matrix, without display glitches while the sensor streams (fixed in kernel q90d). While a keyboard is connected GNOME leaves tablet mode and stops rotating, as designed; GNOME then releases the accelerometer, as it does while rotation lock is on, and the sensor hub stops streaming. |
@@ -138,7 +138,7 @@ This list shows the 113 features that work today, sorted by functionality. Featu
 | Wake by power key and alarm | Both wake the tablet. |
 | Wake by lid, keyboard, charger | Opening the cover, the keyboard and plugging or unplugging a charger wake the tablet from sleep. Confirmed working by the owner on 22 Oct 2026. |
 | 60 Hz on battery (the CDSP stays running) | 60 Hz on battery and 120 Hz on mains (120 Hz costs about 0.7 W); the idle CDSP keeps running at almost no cost. |
-| CPU scaling and GNOME power modes | Stock's CPU capacities and GPU levels; GNOME's three power modes switch matching tablet profiles. |
+| CPU scaling and GNOME power modes | Stock's CPU capacities and GPU levels; GNOME's three power modes switch matching tablet profiles. On Arch Linux ARM with KDE Plasma, power-profiles-daemon offers Power Saver, Balanced and Performance with the same stock-limited profiles. |
 | Deep sleep, overnight drain about 0.35 %/h | In sleep the SoC reaches CX and DDR collapse (95-98 % of the time in tests). Overnight unplugged on the installed tablet: 8 h 34 min at about 0.22 W, about 0.35 % per hour. |
 | Per-rail power telemetry (PMIC) | A hwmon driver for the PMK8850 telemetry gives energy and power of 7 rails; it costs nothing in sleep. |
 

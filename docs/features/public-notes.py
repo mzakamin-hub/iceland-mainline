@@ -102,7 +102,7 @@ PUBLIC = {
 "Pen":
     "Works (checked on the tablet).",
 "Lid switch": 
-    "Closing a keyboard cover locks the tablet and turns the screen off (on battery it sleeps about a second later); opening it shows the lock screen. This also works for magnet covers the hall sensor cannot see, recognised from the magnetometer and the proximity sensor. Waking the tablet from sleep when the cover opens needs the power key.",
+    "Closing a keyboard cover locks the tablet and turns the screen off (on battery it sleeps about a second later); opening it shows the lock screen. This also works for magnet covers the hall sensor cannot see, recognised from the magnetometer and the proximity sensor. Waking the tablet from sleep when the cover opens needs the power key. Under KDE Plasma on Arch Linux ARM closing the cover also suspends the tablet within about a second.",
 "Power and volume keys":
     "The power key wakes the tablet from sleep. Without a charger a press suspends; with a charger in it locks and "
     "turns the screen off, as stock does.",
@@ -225,8 +225,8 @@ PUBLIC = {
 "60 Hz on battery (the CDSP stays running)":
     "60 Hz on battery and 120 Hz on mains (120 Hz costs about 0.7 W); the idle CDSP keeps running at almost no "
     "cost.",
-"CPU scaling and GNOME power modes":
-    "Stock's CPU capacities and GPU levels; GNOME's three power modes switch matching tablet profiles.",
+"CPU scaling and GNOME power modes": 
+    "Stock's CPU capacities and GPU levels; GNOME's three power modes switch matching tablet profiles. On Arch Linux ARM with KDE Plasma, power-profiles-daemon offers Power Saver, Balanced and Performance with the same stock-limited profiles.",
 "Deep-sleep proof, overnight drain ≤ ~1 %/h": (
     "Deep sleep, overnight drain about 0.35 %/h",
     "In sleep the SoC reaches CX and DDR collapse (95-98 % of the time in tests). Overnight unplugged on the "
