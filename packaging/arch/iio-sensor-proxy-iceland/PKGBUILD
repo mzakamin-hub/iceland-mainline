@@ -1,0 +1,17 @@
+# iio-sensor-proxy 3.9 with the SSC backend and our 9 patches = the Fedora build 3.9-14.fc45.iceland1 (installed 22 Nov)
+pkgname=iio-sensor-proxy-iceland
+pkgver=3.9
+pkgrel=14
+pkgdesc='IIO sensors to D-Bus proxy with the Qualcomm SSC backend (OnePlus Pad 4 patches)'
+arch=(aarch64)
+url='https://gitlab.freedesktop.org/hadess/iio-sensor-proxy'
+license=('GPL-3.0-or-later')
+depends=(glib2 libgudev libssc polkit systemd)
+makedepends=(meson ninja)
+provides=("iio-sensor-proxy=$pkgver")
+conflicts=(iio-sensor-proxy iio-sensor-proxy-ssc)
+source=("https://gitlab.freedesktop.org/hadess/iio-sensor-proxy/-/archive/$pkgver/iio-sensor-proxy-$pkgver.tar.bz2" 0001-iio-sensor-proxy-Setup-sensors-before-dbus-service.patch 0002-Broadcast-sensor-availability-to-unclaimed-clients.patch 0003-ssc-light-rate-limit-and-hysteresis-for-the-ambient-.patch 0004-ssc-accel-orientation-from-the-sensor-hub-s-device_o.patch 0005-main-hold-back-HasAccelerometer-until-a-client-has-c.patch 0006-drivers-serialise-polling-changes-and-closes-of-a-se.patch 0007-ssc-forget-the-measurement-handler-when-opening-a-se.patch 0008-main-answer-a-claim-whose-client-releases-before-the.patch 0009-main-stop-all-callbacks-before-closing-the-drivers-a.patch )
+sha256sums=('SKIP' '5cb4a62344379aa82cf6076ca76be26569f26be6b30586791987bc5cc744e3ca' '24f23fd0161b21ddfa4ff6ee26116811488acf8740dc5edf00284fa76330bde3' 'dbd5ac0608d5e68d10201905e94be8b1f6d31e7719ff04418ab27d968058f897' '42004c8fedb779f0adb85c89b6da40765a32bf1df2a603f2700f4132c5b0a93f' '73d32c0e58420cc915d3f0595cdbcba9c00581d308dc4e9749e3af25d96847ee' '2ee507f8108612121533a5b379debb47ae2d16da5fcbd7c1e12e66623e1c680b' '6f3358082298b3a47e46d0e9fb364a38d6af17f33682a7eb7a4019c25d17a58a' '55ebf22bfa2b566fb31fe5341ec6db6686cf426fe912e54e6ae7bf7162653b0e' '4595eeb49dbb562ca5fa0eac361b9e83ef801c99f41adde644a5afc1b18439cf' )
+prepare() { cd iio-sensor-proxy-$pkgver; for p in "$srcdir"/0*.patch; do patch -Np1 -i "$p"; done; }
+build() { arch-meson iio-sensor-proxy-$pkgver build -Dgtk_doc=false -Dgtk-tests=false -Dssc-support=enabled -Dtests=false; meson compile -C build; }
+package() { meson install -C build --destdir "$pkgdir"; }

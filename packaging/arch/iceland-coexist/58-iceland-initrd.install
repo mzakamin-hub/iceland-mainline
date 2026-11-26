@@ -1,0 +1,32 @@
+#!/usr/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# kernel-install plugin (iceland-coexist for Arch, 1.0.9-3; 24 Nov): the entry's initramfs is ALWAYS the one built in
+# this run. On Arch, systemd's kernel-install has 50-dracut.install build the image into $KERNEL_INSTALL_STAGING_AREA/initrd
+# (with layout=other nothing copies it anywhere), while 60-iceland-coexist.install only checked that
+# /boot/initramfs-K.img EXISTED: a dracut configuration change (e.g. iceland-device -11's 93-iceland-nocrypt.conf) never
+# reached the arch1 entry, and Arch's 90-dracut-install pacman hook wrote /boot/initramfs-<pkgbase>.img +
+# /boot/vmlinuz-<pkgbase> beside it instead (that hook is masked by this package: /etc/pacman.d/hooks/).
+# Here: the staged initrd of this kernel-install run (fresh), else a dracut build of its own; written atomically to
+# /boot/initramfs-K.img (= /bootfs/arch1/...) before 60-iceland-coexist.install writes the entry.
+COMMAND="$1"; KVER="$2"
+case "$KVER" in *-iceland*) ;; *) exit 0 ;; esac
+[ "$COMMAND" = add ] || exit 0
+R=${ICELAND_ROOT:-}
+SUBDIR=arch1
+[ -r "$R/etc/iceland/coexist.conf" ] && . "$R/etc/iceland/coexist.conf"
+B=$R/boot
+[ -f "$B/.iceland-coexist-$SUBDIR" ] || { echo "58-iceland-initrd: /boot is not the shared ext4's $SUBDIR/ (no marker): nothing written" >&2; exit 1; }
+out=$B/initramfs-$KVER.img
+st=${KERNEL_INSTALL_STAGING_AREA:-}/initrd
+if [ -n "${KERNEL_INSTALL_STAGING_AREA:-}" ] && [ -s "$st" ]; then
+	src="the initrd 50-dracut.install built in this run"
+	install -m 0600 "$st" "$out.new" || { echo "58-iceland-initrd: cannot write $out.new" >&2; exit 1; }
+else
+	src="a dracut build of its own (no staged initrd)"
+	dracut --force --kver "$KVER" "$out.new" > /dev/null 2>&1 || { rm -f "$out.new"; echo "58-iceland-initrd: dracut failed for $KVER" >&2; exit 1; }
+fi
+[ -s "$out.new" ] || { rm -f "$out.new"; echo "58-iceland-initrd: empty initramfs for $KVER" >&2; exit 1; }
+sync "$out.new" 2> /dev/null; mv -f "$out.new" "$out" || exit 1
+echo "58-iceland-initrd: $out from $src ($(stat -c %s "$out") bytes)"
+logger -t iceland-coexist "58-iceland-initrd: $KVER initramfs from $src" 2> /dev/null || :
+exit 0

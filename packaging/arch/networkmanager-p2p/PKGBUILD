@@ -1,0 +1,202 @@
+# networkmanager-p2p: NetworkManager 1.58.1 (Arch's packaging, networkmanager 1.58.1-3) + our one patch
+# 0001-supplicant-optionally-leave-P2P-groups-started-by-ot.patch: opt-in
+# [device] wifi.p2p.keep-foreign-groups=yes keeps Wi-Fi P2P groups another D-Bus client started on NM's
+# wpa_supplicant (DexHid stage 3, Miracast sink autonomous GO). Same patch as the Fedora 1.58.1-3.fc45.dexhid1 build.
+# + two backports from upstream branch nm-1-58, fetched as gitlab commit patches:
+#   0002 = a03d149ca "wifi: don't scan while the P2P device on the same phy is activating" (main f94e4871),
+#   0003 = b11b62c81 "wifi: delay scans after a scan prohibition lifts" (main 6227ad72): no Wi-Fi scans while a P2P
+#   group forms and runs DHCP. All three apply on 1.58.1 in either order (checked); applied 0001, 0002, 0003.
+# Source: the NetworkManager-1.58.1.tar.xz release tarball taken from Fedora's NetworkManager-1.58.1-3.fc45.src.rpm
+# (SOURCES-NOT-STAGED.txt pins it) instead of Arch's git tag clone.
+# Naming (decision): one package "networkmanager-p2p" = Arch's "networkmanager" split part (the daemon, nmcli, nmtui,
+# plugins, units) with provides / conflicts networkmanager, so it replaces Arch's networkmanager cleanly; libnm,
+# nm-cloud-setup and the API docs are NOT rebuilt (the patch touches only src/core/supplicant): Arch's libnm stays.
+# Differences to Arch: docs=false + vapi=false (no gtk-doc / vala), no check() (the suite needs real root / netns,
+# not available in the qemu-user container), no test-only cherry-pick (Arch's 4a227897 fixes a test only), no openresolv
+# makedepend (it conflicts with the build image's systemd-resolvconf; NM only probes for a resolvconf binary, which
+# systemd-resolvconf provides; first build attempt failed on that conflict).
+pkgname=networkmanager-p2p
+pkgver=1.58.1
+pkgrel=3
+pkgdesc="Network connection manager and user applications, with the keep-foreign-P2P-groups option (OnePlus Pad 4, DexHid)"
+url="https://networkmanager.dev/"
+arch=(aarch64)
+license=(LGPL-2.1-or-later GPL-2.0-or-later)
+depends=(
+  audit
+  bash
+  curl
+  glib2
+  glibc
+  iproute2
+  jansson
+  libbpf
+  libgcc
+  libmm-glib
+  libndp
+  libnewt
+  libnm
+  libpsl
+  libteam
+  mobile-broadband-provider-info
+  nspr
+  nss
+  readline
+  slang
+  systemd-libs
+  wpa_supplicant
+)
+makedepends=(
+  audit
+  bash
+  bpf
+  clang
+  curl
+  dhcpcd
+  dnsmasq
+  glib2
+  glib2-devel
+  glibc
+  gobject-introspection
+  iproute2
+  iptables
+  iwd
+  jansson
+  libbpf
+  libgcc
+  libmm-glib
+  libndp
+  libnewt
+  libnvme
+  libpsl
+  libteam
+  libxslt
+  docbook-xsl
+  meson
+  modemmanager
+  nftables
+  nspr
+  nss
+  pacrunner
+  perl-yaml
+  polkit
+  ppp
+  python-gobject
+  readline
+  slang
+  systemd
+  systemd-libs
+  wpa_supplicant
+)
+optdepends=(
+  'bluez: Bluetooth support'
+  'dhcpcd: alternative DHCP client'
+  'dnsmasq: connection sharing'
+  'firewalld: firewall support'
+  'iptables: connection sharing'
+  'iwd: wpa_supplicant alternative'
+  'libnvme: NBFT support'
+  'modemmanager: cellular network support'
+  'nftables: connection sharing'
+  'openresolv: alternative resolv.conf manager'
+  'pacrunner: PAC proxy support'
+  'polkit: let non-root users control networking'
+  'ppp: dialup connection support'
+)
+provides=("networkmanager=$pkgver-$pkgrel")
+conflicts=(networkmanager)
+backup=(etc/NetworkManager/NetworkManager.conf)
+options=(!lto)
+source=(
+  NetworkManager-1.58.1.tar.xz
+  0001-supplicant-optionally-leave-P2P-groups-started-by-ot.patch
+  0002-nm-1-58-a03d149ca-wifi-don-t-scan-while-the-P2P-device-is-activating.patch
+  0003-nm-1-58-b11b62c81-wifi-delay-scans-after-a-scan-prohibition-lifts.patch
+)
+sha256sums=('262864cfd198123d3e5dbe91937441b97ee9059d6d712e1a5bfbb1c54668d14d'
+            '5ffa5235bdbb9aa558603580d32beb88021a2bcde5f72dd9b44a5c756e1684d3'
+            '8f4376bdad88a487ec908ad340b3b03346736092a8c6644e94f8017e8b4b1bfe'
+            '5068e37953fe77400504b00c655df3026eb55eeb490b92e754fa94e57852f611')
+
+prepare() {
+  cd NetworkManager-$pkgver
+  local p
+  for p in ../000[1-3]-*.patch; do
+    echo "Applying ${p##*/}"
+    patch -Np1 -i "$p"
+  done
+}
+
+build() {
+  local meson_options=(
+    # build checks this option; injecting just via *FLAGS is broken
+    # Arch: b_lto=true. Off here: the 2nd attempt (23 Nov) died in the parallel LTO links under qemu-user
+    # (ninja "interrupted" at the nmcli / nmtui / NetworkManager links, memory pressure); LTO is an optimisation only.
+    -D b_lto=false
+
+    # platform
+    -D dist_version="$pkgver-$pkgrel"
+    -D session_tracking_consolekit=false
+    -D suspend_resume=systemd
+    -D polkit_noauth_group=wheel
+    -D selinux=false
+
+    # features
+    -D iwd=true
+    -D teamdctl=true
+    -D bpf-compiler=clang
+
+    # configuration plugins
+    -D config_plugins_default=keyfile
+    -D ifupdown=false
+
+    # handlers for resolv.conf
+    -D netconfig=no
+    -D config_dns_rc_manager_default=symlink
+
+    # miscellaneous
+    -D vapi=false
+    -D docs=false
+    -D more_asserts=no
+    -D more_logging=false
+    -D qt=false
+  )
+
+  arch-meson NetworkManager-$pkgver build "${meson_options[@]}"
+  meson compile -C build
+}
+
+package() {
+  meson install -C build --destdir "$pkgdir"
+
+  cd "$pkgdir"
+
+  # /etc/NetworkManager
+  install -d etc/NetworkManager/{conf,dnsmasq}.d
+  install -dm700 etc/NetworkManager/system-connections
+  install -m644 /dev/stdin etc/NetworkManager/NetworkManager.conf <<END
+# Configuration file for NetworkManager.
+# See "man 5 NetworkManager.conf" for details.
+END
+
+  # packaged configuration
+  install -Dm644 /dev/stdin usr/lib/NetworkManager/conf.d/20-connectivity.conf <<END
+[connectivity]
+uri=http://ping.archlinux.org/nm-check.txt
+END
+
+  shopt -s globstar nullglob
+
+  # Arch's other split parts are not part of this package (Arch's libnm is used)
+  rm -rf usr/share/gtk-doc
+  rm -rf usr/include/libnm usr/lib/girepository-1.0/NM-* usr/lib/libnm.* usr/lib/nm-libnm-helper \
+    usr/lib/pkgconfig/libnm.pc usr/share/gir-1.0/NM-* usr/share/vala/vapi/libnm.*
+  rm -rf usr/lib/**/*nm-cloud-setup* usr/share/man/*/nm-cloud-setup*
+  # Not actually packaged (https://bugs.archlinux.org/task/69138)
+  rm -f usr/lib/systemd/system/NetworkManager.service.d/NetworkManager-ovs.conf
+  rmdir --ignore-fail-on-non-empty usr/lib/systemd/system/NetworkManager.service.d 2>/dev/null || true
+  find usr/include usr/lib/pkgconfig usr/lib/girepository-1.0 usr/share/gir-1.0 usr/share/vala -depth -type d -empty -delete 2>/dev/null || true
+
+  # Restore empty dir
+  install -d usr/lib/NetworkManager/dispatcher.d/no-wait.d
+}

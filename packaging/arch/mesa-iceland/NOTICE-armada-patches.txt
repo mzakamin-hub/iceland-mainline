@@ -1,0 +1,23 @@
+Patches 9141 and 9142 (freedreno A8xx GL hang fixes) come from the armada distribution:
+  https://github.com/armada-os/armada/pull/894 (merged 14 Nov 2026, head 1b42e4a9ba9a3093c0d9abb7b30022b681e7b2d0)
+  packages/mesa/patches/0016-freedreno-a8xx-wait-for-zpass-sample-counts.patch
+  packages/mesa/patches/0017-freedreno-a8xx-rb-done-ts-after-each-draw.patch
+Author: the Armada contributors (Armada <armada@armadaos.dev>). They are not part of Mesa upstream.
+
+Licence: Armada's LICENSE.md states that modifications to bundled software are licensed under the terms of the
+software being modified; these patches modify Mesa's freedreno driver, which is under the MIT licence:
+
+Copyright the Armada contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit
+persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice (including the next paragraph) shall be included in all copies
+or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

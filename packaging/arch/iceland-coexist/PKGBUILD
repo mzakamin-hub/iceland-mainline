@@ -1,0 +1,70 @@
+# iceland-coexist 1.0-9 for Arch: the shared-/bootfs kernel-install plugin + iceland-oneshot (GRUB next_entry one-shot,
+# cleared in the initramfs before udev). Same files as the Fedora package; coexist.conf names the system's folder
+# under /bootfs (Fedora: fedora44; Arch: set by ROOTFS-PLAN to arch1 and entry prefix "arch-"). Arch additions: the
+# pacman hooks above (pacman has no kernel-install trigger). grub2-editenv comes from Arch's grub package (only the
+# tool is used: GRUB itself is never installed: no grub-install, no grub-mkconfig).
+pkgname=iceland-coexist
+pkgver=1.0.9
+# pkgrel 2 (23 Nov): /usr/bin/grub2-editenv -> grub-editenv. iceland-oneshot, its dracut module 91iceland-oneshot
+# (inst_multiple grub2-editenv) and the test helpers call the Fedora name; Arch's grub ships only grub-editenv, so
+# without the link the arch1 initramfs could not clear next_entry (dracut drops a module whose binary is missing).
+# pkgrel 3 (24 Nov, device: the -11 nocrypt initramfs never reached the arch1 entry): the arch1 initramfs is built in
+# every kernel-install run (58-iceland-initrd.install: the staged initrd of 50-dracut.install, else its own dracut
+# build, atomically to /boot/initramfs-K.img); Arch's 90-dracut-install.hook is masked the pacman way
+# (/etc/pacman.d/hooks/90-dracut-install.hook -> /dev/null; it wrote /boot/initramfs-<pkgbase>.img + vmlinuz-<pkgbase>,
+# which no entry uses) and its triggers move to 95-iceland-initramfs.hook (kernel-install add per iceland kernel)
+pkgrel=3
+pkgdesc='OnePlus Pad 4: kernel-install plugin for the shared /bootfs layout + iceland-oneshot trial boots'
+arch=(any)
+url='https://github.com/mzakamin-hub/iceland-mainline'
+license=('GPL-2.0-or-later')
+depends=(systemd dracut grub util-linux diffutils)
+backup=(etc/iceland/coexist.conf etc/kernel/install.conf etc/dracut.conf.d/02-iceland-coexist.conf etc/dracut.conf.d/03-iceland-oneshot.conf)
+source=(60-iceland-coexist.install coexist.conf install.conf 02-iceland-coexist.conf 45-iceland-vmlinuz-first.install iceland-oneshot dracut-oneshot-module-setup.sh iceland-oneshot-clear.service iceland-oneshot-consume.service 03-iceland-oneshot.conf 95-iceland-kernel-install.hook 95-iceland-kernel-remove.hook iceland-kernel-install 58-iceland-initrd.install 95-iceland-initramfs.hook iceland-initramfs-refresh)
+sha256sums=('5ac9d550cbea3a1e404aeecf0a55dfce4cd14cf23f0bf9c971fdffe3fa40b4ab' '75164e84dbbb10791e7cf834bc61859c35cfd7f5ecb99dc6b421875ef5fb6815' '8021f80e180cdb9c2301f766531900ad90d8eb19285feeb99dd2946efbf8249f' '144ea38425debb305b0ead4b0b460d68908c2651db89a9fd1d304410bc18f6ce' '0973257ee5cc53064fa7929ce969aafa7162c42dafdc0a8e858ce75fff8f5ee5' '08984e8fdc2ad53a4513398ea48f439babf025f1f08f3dac3cfc7a7f1d03eacf' '2118a1d386308d561d6317f2641817559ca49ac76d9c3f6919478ef26a1eaea1' 'dc8f7e47d14af761bdf43463559bae76919fcb8918b17d230057e8fa52ea10c9' '97392a4ed0a298b2ea468bfa655aa3068d4a9c70c29686be0d3648ac97736aa4' '85a2f1478be3ddee0e2c94291ba97a1a17289d1b3a5d3897f8b25ba1aec7da84' '95973c771ab0f0d2ac13116eb515a8db4f214384b5f0cf5f63da3a576743c6a8' '8350f4700efebad1d982517b508304d37a15de9e24655b67fd7ffe0a5b353ae7' 'ff71227da9cf8da09ed4c6510a5969f3a927d6cc5af3d9e5fb76bb1880ea9660' '226beb97d3363b43b37d268a37746811c2b35c358a87a00b7e94d8fe08ced524' 'df4023f338a90272ca1a54a9e418e051d2eae16deb267acf2e14c3d5f136ddbc' 'fe888b86473e769f3ef4962ca6e5bdd4cc54a98a265cc4a98d772078ab09e1ba')
+prepare() {
+  # Arch's entries: id arch1-K-a1 (like fedora-K-f44 it does not end in -K, so no trial plugin ever matches it),
+  # folder /bootfs/arch1, title "Omarchy (arch1)"; Fedora's entries are never matched by these patterns
+  cd "$srcdir"
+  sed -i -e 's/SUBDIR=fedora44/SUBDIR=arch1/' \
+         -e 's/^ID=fedora-$KVER-f44/ID=arch1-$KVER-a1/' \
+         -e 's/kd=${kd#fedora-}; kd=${kd%-f44}/kd=${kd#arch1-}; kd=${kd%-a1}/' \
+         -e 's/"fedora-$kd-f44"/"arch1-$kd-a1"/' \
+         -e 's/title Fedora Linux 44 ($KVER)/title Omarchy arch1 ($KVER)/' \
+         -e 's/grub_class fedora/grub_class arch/' \
+         -e 's#"$E"/fedora-\*-f44.conf#"$E"/arch1-*-a1.conf#' 60-iceland-coexist.install
+  sed -i 's/^SUBDIR=.*/SUBDIR=arch1/' coexist.conf
+  ! grep -nE '^[^#]*(fedora-|-f44|fedora44)' 60-iceland-coexist.install
+}
+package() {
+  cd "$srcdir"
+  install -Dm0755 60-iceland-coexist.install "$pkgdir"/usr/lib/kernel/install.d/60-iceland-coexist.install
+  install -Dm0755 45-iceland-vmlinuz-first.install "$pkgdir"/usr/lib/kernel/install.d/45-iceland-vmlinuz-first.install
+  install -Dm0644 coexist.conf "$pkgdir"/etc/iceland/coexist.conf
+  install -Dm0644 install.conf "$pkgdir"/etc/kernel/install.conf
+  install -Dm0644 02-iceland-coexist.conf "$pkgdir"/etc/dracut.conf.d/02-iceland-coexist.conf
+  install -d "$pkgdir"/etc/kernel/install.d
+  install -Dm0755 iceland-oneshot "$pkgdir"/usr/bin/iceland-oneshot
+  ln -s grub-editenv "$pkgdir"/usr/bin/grub2-editenv
+  install -Dm0755 dracut-oneshot-module-setup.sh "$pkgdir"/usr/lib/dracut/modules.d/91iceland-oneshot/module-setup.sh
+  install -Dm0644 iceland-oneshot-clear.service "$pkgdir"/usr/lib/dracut/modules.d/91iceland-oneshot/iceland-oneshot-clear.service
+  install -Dm0644 iceland-oneshot-consume.service "$pkgdir"/usr/lib/systemd/system/iceland-oneshot-consume.service
+  install -d "$pkgdir"/usr/lib/systemd/system/sysinit.target.wants
+  ln -s ../iceland-oneshot-consume.service "$pkgdir"/usr/lib/systemd/system/sysinit.target.wants/iceland-oneshot-consume.service
+  install -Dm0644 03-iceland-oneshot.conf "$pkgdir"/etc/dracut.conf.d/03-iceland-oneshot.conf
+  install -d "$pkgdir"/var/lib/iceland/oneshot
+  # kernel-install plugins that must not run on this layout (Arch ships fewer of them; the masks are harmless)
+  for p in 10-devicetree 20-grub 90-loaderentry 90-uki-copy 92-tuned 95-set-boot-entry 96-iceland-trial 99-grub-mkconfig 90-iceland-dtb 50-mkinitcpio 60-ukify; do
+    ln -s /dev/null "$pkgdir"/etc/kernel/install.d/$p.install
+  done
+  install -Dm0644 95-iceland-kernel-install.hook "$pkgdir"/usr/share/libalpm/hooks/95-iceland-kernel-install.hook
+  install -Dm0644 95-iceland-kernel-remove.hook "$pkgdir"/usr/share/libalpm/hooks/95-iceland-kernel-remove.hook
+  install -Dm0755 iceland-kernel-install "$pkgdir"/usr/share/libalpm/scripts/iceland-kernel-install
+  install -Dm0755 58-iceland-initrd.install "$pkgdir"/usr/lib/kernel/install.d/58-iceland-initrd.install
+  install -Dm0644 95-iceland-initramfs.hook "$pkgdir"/usr/share/libalpm/hooks/95-iceland-initramfs.hook
+  install -Dm0755 iceland-initramfs-refresh "$pkgdir"/usr/share/libalpm/scripts/iceland-initramfs-refresh
+  # Arch's dracut hook off for this layout (alpm-hooks(5): a same-named hook in /etc/pacman.d/hooks linked to
+  # /dev/null disables it); 60-dracut-remove.hook stays (it only removes the files of a removed kernel package)
+  install -d "$pkgdir"/etc/pacman.d/hooks
+  ln -s /dev/null "$pkgdir"/etc/pacman.d/hooks/90-dracut-install.hook
+}

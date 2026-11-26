@@ -1,0 +1,92 @@
+From 0b43219484ab210a3229459ca44ca0b09b936024 Mon Sep 17 00:00:00 2001
+From: Danylo Piliaiev <dpiliaiev@igalia.com>
+Date: Wed, 4 Nov 2026 17:13:04 +0100
+Subject: [PATCH] tu: WFI before reading registers that were just written
+
+The implied wait of CP_REG_RMW, CP_REG_TO_MEM, and CP_REG_TO_SCRATCH
+do not wait for idle (they do that only on A750's firmware). A register
+read can then return the value from before the write. This was seen on a650
+(CP_REG_RMW) and on A8XX (all read packets).
+
+Add a WFI before the reads in store_3d_blit,
+vkCmdBeginTransformFeedbackEXT, and on A8XX for unaligned indirect
+dispatch.
+
+On A8XX fixes:
+```
+ dEQP-VK.pipeline.*.multisample.*
+```
+
+Assisted-by: LLM
+Signed-off-by: Danylo Piliaiev <dpiliaiev@igalia.com>
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/45937>
+(cherry picked from commit 1c87c60187064c60a10378fa79e20debf0941f97)
+---
+ src/freedreno/vulkan/tu_clear_blit.cc | 12 ++++++------
+ src/freedreno/vulkan/tu_cmd_buffer.cc | 15 +++++++++++----
+ 2 files changed, 17 insertions(+), 10 deletions(-)
+
+diff --git a/src/freedreno/vulkan/tu_clear_blit.cc b/src/freedreno/vulkan/tu_clear_blit.cc
+index 0b6ccc80656..37ccbf21973 100644
+--- a/src/freedreno/vulkan/tu_clear_blit.cc
++++ b/src/freedreno/vulkan/tu_clear_blit.cc
+@@ -6078,6 +6078,12 @@ store_3d_blit(struct tu_cmd_buffer *cmd,
+    const struct fdl6_view *src_fdl_view = tu_image_view_fdl_view(src_iview, separate_stencil);
+    const struct fdl6_view *dst_fdl_view = tu_image_view_fdl_view(dst_iview, separate_stencil);
+ 
++   /* sync GMEM writes with CACHE. */
++   tu_emit_event_write<CHIP>(cmd, cs, FD_CACHE_INVALIDATE);
++
++   /* Wait for CACHE_INVALIDATE to land. Without a WFI, CP_REG_TO_SCRATCH may read stale values. */
++   tu_cs_emit_wfi(cs);
++
+    /* RB_CNTL/GRAS_SC_BIN_CNTL are normally only set once and they
+     * aren't set until we know whether we're HW binning or not, and we want to
+     * avoid a dependence on that here to be able to store attachments before
+@@ -6099,12 +6105,6 @@ store_3d_blit(struct tu_cmd_buffer *cmd,
+ 
+    r3d_src_gmem<CHIP>(cmd, cs, src_fdl_view, src_format, dst_format, gmem_offset, cpp);
+ 
+-   /* sync GMEM writes with CACHE. */
+-   tu_emit_event_write<CHIP>(cmd, cs, FD_CACHE_INVALIDATE);
+-
+-   /* Wait for CACHE_INVALIDATE to land */
+-   tu_cs_emit_wfi(cs);
+-
+    r3d_run(cmd, cs);
+ 
+    r3d_teardown<CHIP>(cmd, cs);
+diff --git a/src/freedreno/vulkan/tu_cmd_buffer.cc b/src/freedreno/vulkan/tu_cmd_buffer.cc
+index 43deb8ea876..97dead60f9e 100644
+--- a/src/freedreno/vulkan/tu_cmd_buffer.cc
++++ b/src/freedreno/vulkan/tu_cmd_buffer.cc
+@@ -5355,6 +5355,9 @@ tu_CmdBeginTransformFeedbackEXT(VkCommandBuffer commandBuffer,
+                      { .cnt = 1, .wait_cache_flush = true });
+ 
+       if (offset) {
++         /* Without a WFI, CP_REG_RMW may read a stale value. */
++         tu_cs_emit_wfi(cs);
++
+          cs->rmw(VPC_SO_BUFFER_OFFSET(CHIP, idx), {
+             .src1_add = true,
+             .src0 = 0xffffffff,
+@@ -10164,11 +10167,15 @@ tu_dispatch(struct tu_cmd_buffer *cmd,
+ 
+          cs->scratch_write(tu_scratch(tu_dispatch.scratch0), ~0);
+ 
+-         /* CP_REG_RMW and CP_REG_TO_SCRATCH implicitly do a CP_WAIT_FOR_IDLE
+-          * *and* CP_WAIT_FOR_ME, which is a full pipeline stall that we don't
+-          * want, so manually wait for the CP_MEM_TO_REG write to land and
+-          * then skip waiting below with SKIP_WAIT_FOR_ME.
++         /* CP_REG_RMW and CP_REG_TO_SCRATCH implicitly do a CP_WAIT_FOR_ME
++          * and on A750 CP_WAIT_FOR_IDLE (which is a full pipeline stall) that
++          * we don't want, so manually wait for the CP_MEM_TO_REG write to land
++          * and then skip waiting below with SKIP_WAIT_FOR_ME.
++          *
++          * On A8XX, the RMWs may still read a stale SP_CS_NDRANGE_1 without a WFI.
+           */
++         if (CHIP >= A8XX)
++            tu_cs_emit_wfi(cs);
+          tu_cs_emit_pkt7(cs, CP_WAIT_FOR_ME, 0);
+ 
+          /* scratch0 = ((scratch0 & CS_NDRANGE_1) + -1

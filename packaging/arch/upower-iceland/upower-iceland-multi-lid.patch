@@ -1,0 +1,152 @@
+From: iceland <iceland@localhost>
+Subject: [PATCH] linux: watch every lid switch, the lid is closed while any is
+
+UPower used only the first input device with SW_LID. A second lid switch (a
+cover detector's uinput device next to a hall sensor's gpio-keys) was ignored.
+Watch all of them, drop removed ones, and report LidIsClosed while any is closed.
+---
+diff -u -r a/src/linux/up-backend.c b/src/linux/up-backend.c
+--- a/src/linux/up-backend.c	2026-10-27 01:09:15.251511721 +0300
++++ b/src/linux/up-backend.c	2026-10-27 01:09:15.255842846 +0300
+@@ -60,7 +60,7 @@
+ 	UpDaemon		*daemon;
+ 	UpDeviceList		*device_list;
+ 	GUdevClient		*gudev_client;
+-	UpInput			*lid_device;
++	GHashTable		*lid_devices;	/* sysfs path -> UpInput (every SW_LID device) */
+ 	UpConfig		*config;
+ 	GDBusProxy		*logind_proxy;
+ 	guint                    logind_sleep_id;
+@@ -83,12 +83,26 @@
+ 
+ G_DEFINE_TYPE_WITH_PRIVATE (UpBackend, up_backend, G_TYPE_OBJECT)
+ 
++/* the lid is closed while any lid switch reports closed */
++static void
++update_lid_is_closed (UpBackend *backend)
++{
++	GHashTableIter iter;
++	gpointer value;
++	gboolean closed = FALSE;
++
++	g_hash_table_iter_init (&iter, backend->priv->lid_devices);
++	while (g_hash_table_iter_next (&iter, NULL, &value))
++		closed = closed || up_input_get_switch_value (UP_INPUT (value));
++	up_daemon_set_lid_is_closed (backend->priv->daemon, closed);
++}
++
+ static void
+ input_switch_changed_cb (UpInput   *input,
+ 			 gboolean   switch_value,
+ 			 UpBackend *backend)
+ {
+-	up_daemon_set_lid_is_closed (backend->priv->daemon, switch_value);
++	update_lid_is_closed (backend);
+ }
+ 
+ static void
+@@ -97,11 +111,19 @@
+ {
+ 	UpBackend *backend = UP_BACKEND (user_data);
+ 	g_autoptr(UpInput) input = NULL;
++	const gchar *sysfs_path = g_udev_device_get_sysfs_path (device);
+ 
+-	if (backend->priv->lid_device)
++	if (sysfs_path == NULL)
+ 		return;
+ 
+-	if (g_strcmp0 (action, "add") != 0)
++	if (g_strcmp0 (action, "remove") == 0) {
++		if (g_hash_table_remove (backend->priv->lid_devices, sysfs_path))
++			update_lid_is_closed (backend);
++		return;
++	}
++
++	if (g_strcmp0 (action, "add") != 0 ||
++	    g_hash_table_contains (backend->priv->lid_devices, sysfs_path))
+ 		return;
+ 
+ 	/* check if the input device is a lid */
+@@ -110,10 +132,9 @@
+ 		up_daemon_set_lid_is_present (backend->priv->daemon, TRUE);
+ 		g_signal_connect (G_OBJECT (input), "switch-changed",
+ 				  G_CALLBACK (input_switch_changed_cb), backend);
+-		up_daemon_set_lid_is_closed (backend->priv->daemon,
+-					     up_input_get_switch_value (input));
+-
+-		backend->priv->lid_device = g_steal_pointer (&input);
++		g_hash_table_insert (backend->priv->lid_devices, g_strdup (sysfs_path),
++				     g_steal_pointer (&input));
++		update_lid_is_closed (backend);
+ 	}
+ }
+ 
+@@ -579,7 +600,7 @@
+ 	g_clear_object (&backend->priv->gudev_client);
+ 	g_clear_object (&backend->priv->udev_enum);
+ 	g_clear_object (&backend->priv->device_list);
+-	g_clear_object (&backend->priv->lid_device);
++	g_hash_table_remove_all (backend->priv->lid_devices);
+ 	g_clear_object (&backend->priv->daemon);
+ 	if (backend->priv->bluez_watch_id > 0) {
+ 		g_bus_unwatch_name (backend->priv->bluez_watch_id);
+@@ -896,6 +917,8 @@
+ 	guint sleep_id;
+ 
+ 	backend->priv = up_backend_get_instance_private (backend);
++	backend->priv->lid_devices = g_hash_table_new_full (g_str_hash, g_str_equal,
++							       g_free, g_object_unref);
+ 	backend->priv->config = up_config_new ();
+ 	backend->priv->logind_proxy = g_dbus_proxy_new_for_bus_sync (G_BUS_TYPE_SYSTEM,
+ 								     0,
+@@ -954,7 +977,7 @@
+ 
+ 	g_clear_object (&backend->priv->logind_proxy);
+ 
+-	g_clear_object (&backend->priv->lid_device);
++	g_clear_pointer (&backend->priv->lid_devices, g_hash_table_unref);
+ 
+ 	G_OBJECT_CLASS (up_backend_parent_class)->finalize (object);
+ }
+diff -u -r a/src/linux/up-input.c b/src/linux/up-input.c
+--- a/src/linux/up-input.c	2026-10-27 01:09:15.252277266 +0300
++++ b/src/linux/up-input.c	2026-10-27 01:09:15.256552635 +0300
+@@ -40,6 +40,7 @@
+ 	struct input_event	 event;
+ 	gsize			 offset;
+ 	GIOChannel		*channel;
++	guint			 watch_id;
+ };
+ 
+ G_DEFINE_TYPE (UpInput, up_input, G_TYPE_OBJECT)
+@@ -125,8 +126,10 @@
+ 	glong bitmask[NBITS(SW_MAX)];
+ 
+ 	/* uninteresting */
+-	if (condition & (G_IO_HUP | G_IO_ERR | G_IO_NVAL))
++	if (condition & (G_IO_HUP | G_IO_ERR | G_IO_NVAL)) {
++		input->watch_id = 0;
+ 		return FALSE;
++	}
+ 
+ 	/* read event */
+ 	while (g_io_channel_read_chars (channel,
+@@ -274,7 +277,8 @@
+ 	}
+ 
+ 	/* watch this */
+-	g_io_add_watch (input->channel, G_IO_IN | G_IO_ERR | G_IO_HUP | G_IO_NVAL, up_input_event_io, input);
++	input->watch_id = g_io_add_watch (input->channel, G_IO_IN | G_IO_ERR | G_IO_HUP | G_IO_NVAL,
++					  up_input_event_io, input);
+ 
+ 	/* set if we are closed */
+ 	g_debug ("using %s for watched switch event", native_path);
+@@ -309,6 +313,8 @@
+ 
+ 	input = UP_INPUT (object);
+ 
++	if (input->watch_id > 0)
++		g_source_remove (input->watch_id);
+ 	if (input->channel) {
+ 		g_io_channel_shutdown (input->channel, FALSE, NULL);
+ 		g_io_channel_unref (input->channel);

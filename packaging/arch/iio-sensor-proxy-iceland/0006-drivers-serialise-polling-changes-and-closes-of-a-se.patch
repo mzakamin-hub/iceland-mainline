@@ -1,0 +1,142 @@
+From 5d0203664ad6e7505fc3f7e111621a5721ab1848 Mon Sep 17 00:00:00 2001
+From: Iceland packaging <packaging@iceland.invalid>
+Date: Sat, 21 Nov 2026 20:30:09 +0200
+Subject: [PATCH 6/9] drivers: serialise polling changes and closes of a sensor
+ device
+
+The SSC drivers open and close a sensor through libssc's *_sync() calls,
+which run the default main context until the sensor hub answers. D-Bus
+calls (Claim / Release), client name watches and udev events are
+dispatched from in there, so a second driver_set_polling() - or a
+driver_close() - can reach a device whose open or close is still running.
+A Release during an open closed the stream before the open had finished;
+a Claim during a close started a second operation on the same libssc
+sensor; with the device_orient path of the accelerometer a nested close
+was lost and the orientation sensor stayed open without a client; a close
+from in there freed the device under the running call.
+
+driver_set_polling() now records the wanted state. A call that arrives
+while a change of the same device runs only updates it; the running call
+applies the last wanted state once its own change has returned, so the
+driver never sees a second change before the first one finished. A
+driver_close() from in there marks the device: it stops taking new polling
+requests, its readings go nowhere, and the running call closes and frees
+it when it returns. Drivers that do not run the main loop behave as
+before (the loop runs once).
+
+This is done once for all drivers instead of in each SSC driver, so the
+proximity and compass sensors and the accelerometer's device_orient path
+get it as well.
+
+Idea from SuperTurtleDev's iceland-mainline-userspace (77f19af7,
+iio-sensor-proxy overlay patches 0002 and 0005: serialised SSC
+accelerometer and light polling) and from yzddmr6's onepluspad-2pro
+mainline (c67a4a81: nothing freed under a close that runs the main loop);
+re-implemented here.
+---
+ src/drivers.h | 72 +++++++++++++++++++++++++++++++++++++++++++++------
+ 1 file changed, 64 insertions(+), 8 deletions(-)
+
+diff --git a/src/drivers.h b/src/drivers.h
+index 5e0347c..4ea237d 100644
+--- a/src/drivers.h
++++ b/src/drivers.h
+@@ -71,8 +71,31 @@ struct SensorDevice {
+ 	/* Callback function and data as pass to driver_open() */
+ 	ReadingsUpdateFunc   callback_func;
+ 	gpointer             user_data;
++
++	/* Polling changes are serialised, see driver_set_polling() */
++	gboolean             polling_wanted;
++	gboolean             polling_busy;
++	gboolean             closing;
+ };
+ 
++/*
++ * Some drivers (SSC, through libssc's *_sync() calls) run the default main context while they
++ * open or close a sensor. D-Bus calls and udev events are dispatched from in there, so a
++ * driver_set_polling() or driver_close() can arrive for a device whose polling change is still
++ * running. Such a nested call only records what is wanted: the running driver_set_polling() applies
++ * the last wanted state once its own change returned, and closes the device after it when a close
++ * came in meanwhile. The driver never sees a second change start before the first one finished, and
++ * a device is not freed under a running change.
++ */
++static inline void driver_close_now (SensorDevice *sensor_device);
++
++static inline void
++driver_drop_readings (SensorDevice *sensor_device,
++		      gpointer      readings,
++		      gpointer      user_data)
++{
++}
++
+ static inline gboolean
+ driver_discover (SensorDriver *driver,
+ 		 GUdevDevice  *device)
+@@ -130,25 +153,58 @@ driver_set_polling (SensorDevice *sensor_device,
+ 	driver = sensor_device->drv;
+ 	g_return_if_fail (driver);
+ 
+-	if (!driver->set_polling)
++	if (sensor_device->closing && state)
+ 		return;
+-
+-	driver->set_polling (sensor_device, state);
++	sensor_device->polling_wanted = state;
++	if (sensor_device->polling_busy) {
++		g_debug ("%s: polling %s requested during a polling change, applied after it",
++			 driver->driver_name, state ? "on" : "off");
++		return;
++	}
++
++	sensor_device->polling_busy = TRUE;
++	do {
++		state = sensor_device->polling_wanted;
++		if (driver->set_polling)
++			driver->set_polling (sensor_device, state);
++	} while (state != sensor_device->polling_wanted);
++	sensor_device->polling_busy = FALSE;
++
++	if (sensor_device->closing)
++		driver_close_now (sensor_device);
+ }
+ 
+ static inline void
+-driver_close (SensorDevice *sensor_device)
++driver_close_now (SensorDevice *sensor_device)
+ {
+-	SensorDriver *driver;
++	SensorDriver *driver = sensor_device->drv;
+ 
+-	g_return_if_fail (sensor_device);
+-	driver_set_polling (sensor_device, FALSE);
+ 	g_clear_pointer (&sensor_device->name, g_free);
+-	driver = sensor_device->drv;
+ 	g_return_if_fail (driver->close);
+ 	driver->close (sensor_device);
+ }
+ 
++/* The caller forgets the device; it is freed here, or when the polling change running now returns */
++static inline void
++driver_close (SensorDevice *sensor_device)
++{
++	g_return_if_fail (sensor_device);
++
++	if (sensor_device->closing)
++		return;
++	sensor_device->closing = TRUE;
++	/* readings that still come in until the sensor is closed go nowhere */
++	sensor_device->callback_func = driver_drop_readings;
++	if (sensor_device->polling_busy) {
++		g_debug ("%s: closed during a polling change, closing after it",
++			 sensor_device->drv->driver_name);
++		sensor_device->polling_wanted = FALSE;
++		return;
++	}
++	/* stops polling, then closes (driver_close_now()) */
++	driver_set_polling (sensor_device, FALSE);
++}
++
+ extern SensorDriver iio_buffer_accel;
+ extern SensorDriver iio_poll_accel;
+ extern SensorDriver input_accel;

@@ -1,0 +1,256 @@
+# libcamera-iceland: libcamera 0.7.2 as our Fedora build 0.7.2-5.fc45.iceland_af2 (OnePlus Pad 4 cameras).
+# Base: Arch's libcamera packaging (0.7.2-4), split the same way (lib / ipa / tools / gst / python), docs left out.
+# Source and patches = the Fedora af2 SRPM libcamera-0.7.2-5.fc45 (SOURCES-NOT-STAGED.txt pins the tarball):
+#   libcamera-v0.7.2.tar.bz2 (gitlab archive of tag v0.7.2), Fedora's 0001-disable-rpi-pisp + 0002-fix-ov01a10-flickering,
+#   af2 set 0001-0003 (Osilvfe/libcamera 2f4cf4a413, 9afba3cd3d, 1b79c8179a) + 0004 (ours): native manual focus,
+#   soft-ISP luminance-gradient focus metric, contrast-detect AF (dw9800k), AF defaults / settling.
+#   (0004's From / Signed-off-by header carries the project placeholder address; the diff is byte-identical.)
+# meson options = the Fedora spec's (v4l2, no lc-compliance, no libunwind, tests built for the virtual / vimc
+# pipelines, no docs, no rpi-awb-nn) + softisp-gpu forced on (GPU soft ISP) + tracing off (Arch).
+# Package names: *-iceland with provides / conflicts of Arch's libcamera, libcamera-ipa, libcamera-tools,
+# gst-plugin-libcamera, python-libcamera, so pipewire-libcamera & co. resolve against these.
+pkgbase=libcamera-iceland
+pkgname=(
+  libcamera-iceland
+  libcamera-iceland-ipa
+  libcamera-iceland-tools
+  gst-plugin-libcamera-iceland
+  python-libcamera-iceland
+)
+pkgver=0.7.2
+pkgrel=5
+pkgdesc="A complex camera support library for Linux, OnePlus Pad 4 build (af2 autofocus patches, GPU soft ISP)"
+arch=(aarch64)
+url="https://libcamera.org/"
+license=(LGPL-2.1-or-later)
+makedepends=(
+  glib2
+  gnutls
+  gst-plugins-base
+  gtest
+  libdrm
+  libelf
+  libevent
+  libglvnd
+  libjpeg-turbo
+  libtiff
+  libyaml
+  libyuv
+  mesa
+  meson
+  openssl
+  pybind11
+  python-jinja
+  python-ply
+  python-yaml
+  qt6-base
+  qt6-tools
+  sdl2-compat
+  systemd
+)
+source=(
+  libcamera-v0.7.2.tar.bz2
+  0001-disable-rpi-pisp.patch
+  0002-fix-ov01a10-flickering.patch
+  0001-pipeline-simple-add-native-manual-focus-control.patch
+  0002-software_isp-report-a-luminance-gradient-focus-metri.patch
+  0003-pipeline-simple-add-contrast-detect-autofocus.patch
+  0004-pipeline-simple-autofocus-defaults-and-settling-for-.patch
+  70-libcamera.rules
+)
+sha256sums=('6f35dd479dd634a1ec50852fa9716c9da81a6c07af93bbf2990f7bbd829f0dfd'
+            'ddd2f9fd1a1a41ccc1065368e6f91c8edce3d836fcce9805d86a7f9f387ebffb'
+            'decdba9c4fec84db065bdb99d6d03f14dcf5bec99347ff841f8781ff9805eebf'
+            'd1ad499be9025133ef47fd948a83788839e628a3385ade9c38b7610439d40ee3'
+            '2343e3a036d191fcc98c61e50f06b52edcf55bac0f1513cd64ceb7b96061f4ba'
+            '6cf893aa02121c56544fbbb67d04eb6bea545fa65d78fbac8740b7eae65b10fc'
+            '63399c7d0874796c1f428ad0a7f505de84da882078bf4f9c2474671bc6ab2de6'
+            '4fa512367f7602581703e977f4ca1eaed42199faf8ae15f1a7f47986daced955')
+
+_pick() {
+  local p="$1" f d; shift
+  for f; do
+    d="$srcdir/$p/${f#$pkgdir/}"
+    mkdir -p "$(dirname "$d")"
+    mv "$f" "$d"
+    rmdir -p --ignore-fail-on-non-empty "$(dirname "$f")"
+  done
+}
+
+prepare() {
+  cd libcamera-v$pkgver
+  # Fedora order: Patch01, Patch02, then the af2 set Patch90-93
+  local p
+  for p in 0001-disable-rpi-pisp.patch 0002-fix-ov01a10-flickering.patch \
+    0001-pipeline-simple-add-native-manual-focus-control.patch \
+    0002-software_isp-report-a-luminance-gradient-focus-metri.patch \
+    0003-pipeline-simple-add-contrast-detect-autofocus.patch \
+    0004-pipeline-simple-autofocus-defaults-and-settling-for-.patch; do
+    echo "Applying $p"
+    patch -Np1 -i "../$p"
+  done
+  # no git in a tarball: give utils/gen-version.sh the version
+  printf "%s\n" "$pkgver" > .tarball-version
+}
+
+build() {
+  # as the Fedora spec (GCC devirtualisation bug https://gcc.gnu.org/bugzilla/show_bug.cgi?id=120345)
+  CFLAGS+=" -Wno-deprecated-declarations"
+  CXXFLAGS+=" -Wno-deprecated-declarations --param=max-devirt-targets=1"
+  local meson_options=(
+    -D v4l2=enabled
+    -D lc-compliance=disabled
+    -D libunwind=disabled
+    -D test=true
+    -D documentation=disabled
+    -D rpi-awb-nn=disabled
+    -D softisp-gpu=enabled
+    -D tracing=disabled
+  )
+  arch-meson libcamera-v$pkgver build "${meson_options[@]}"
+  meson compile -C build
+}
+
+package_libcamera-iceland() {
+  license=(
+    Apache-2.0
+    CC0-1.0
+    'GPL-2.0-only WITH Linux-syscall-note'
+    GPL-2.0-or-later
+    LGPL-2.1-or-later
+    'GPL-2.0-or-later WITH Linux-syscall-note OR BSD-3-Clause'
+    'GPL-2.0-or-later WITH Linux-syscall-note OR MIT'
+  )
+  depends=(
+    glibc
+    gnutls
+    libcamera-iceland-ipa
+    libelf
+    libgcc
+    libglvnd
+    libstdc++
+    libyaml
+    libyuv
+    sh
+    systemd-libs libudev.so
+  )
+  optdepends=(
+    'gst-plugin-libcamera-iceland: GStreamer plugin'
+    'libcamera-iceland-tools: for applications'
+  )
+  provides=("libcamera=$pkgver" libcamera.so libcamera-base.so)
+  conflicts=(libcamera)
+
+  meson install -C build --destdir "$pkgdir"
+  install -vDm 644 libcamera-v$pkgver/LICENSES/{BSD-3-Clause,Linux-syscall-note,MIT}.txt -t "$pkgdir/usr/share/licenses/$pkgname/"
+  # Fedora's udev rule: dma_heap for the video group (soft ISP buffers)
+  install -vDm 644 70-libcamera.rules -t "$pkgdir/usr/lib/udev/rules.d/"
+  rm -rf "$pkgdir/usr/share/doc"
+
+  (
+    cd "$pkgdir"
+    _pick libcamera-iceland-ipa usr/lib/libcamera/
+    _pick libcamera-iceland-tools usr/bin/{cam,libcamera-bug-report,qcam}
+    _pick gst-plugin-libcamera-iceland usr/lib/gstreamer-*
+    _pick python-libcamera-iceland usr/lib/python*
+  )
+}
+
+package_libcamera-iceland-ipa() {
+  pkgdesc+=" - signed IPA"
+  license=(
+    BSD-2-Clause
+    CC-BY-SA-4.0
+    CC0-1.0
+    GPL-2.0-or-later
+    LGPL-2.1-or-later
+  )
+  depends=(
+    glibc
+    libcamera-iceland libcamera.so libcamera-base.so
+    libgcc
+    libstdc++
+  )
+  provides=("libcamera-ipa=$pkgver")
+  conflicts=(libcamera-ipa)
+  # stripping requires re-signing of the IPA modules, so it is done here by hand (as Arch)
+  options=(!strip)
+
+  local _lib
+  for _lib in $(find $pkgname/usr/lib/libcamera -type f \( -name '*.so' -o -name '*proxy' \)); do
+    strip --strip-unneeded "$_lib"
+  done
+  for _lib in $(find $pkgname/usr/lib/libcamera -type f -name 'ipa_*.so'); do
+    libcamera-v$pkgver/src/ipa/ipa-sign.sh "$(find build -type f -iname "*ipa-priv-key.pem")" "$_lib" "$_lib.sign"
+  done
+  mv -v $pkgname/* "$pkgdir"
+  install -vDm 644 libcamera-v$pkgver/LICENSES/BSD-2-Clause.txt -t "$pkgdir/usr/share/licenses/$pkgname/"
+}
+
+package_libcamera-iceland-tools() {
+  pkgdesc+=" - tools"
+  license=(
+    BSD-2-Clause
+    CC0-1.0
+    GPL-2.0-or-later
+    LGPL-2.1-or-later
+  )
+  depends=(
+    glibc
+    libcamera-iceland libcamera.so libcamera-base.so
+    libdrm
+    libevent libevent-2.1.so libevent_pthreads-2.1.so
+    libgcc
+    libjpeg-turbo libjpeg.so
+    libstdc++
+    libtiff libtiff.so
+    libyaml
+    qt6-base
+    sdl2-compat
+  )
+  provides=("libcamera-tools=$pkgver")
+  conflicts=(libcamera-tools)
+
+  mv -v $pkgname/* "$pkgdir"
+  install -vDm 644 libcamera-v$pkgver/LICENSES/BSD-2-Clause.txt -t "$pkgdir/usr/share/licenses/$pkgname/"
+}
+
+package_gst-plugin-libcamera-iceland() {
+  pkgdesc="Multimedia graph framework - libcamera plugin (OnePlus Pad 4 libcamera build)"
+  license=(
+    CC0-1.0
+    LGPL-2.1-or-later
+  )
+  depends=(
+    glib2 libg{lib,object}-2.0.so
+    glibc
+    gst-plugins-base-libs
+    gstreamer
+    libcamera-iceland libcamera.so libcamera-base.so
+    libgcc
+    libstdc++
+  )
+  provides=("gst-plugin-libcamera=$pkgver")
+  conflicts=(gst-plugin-libcamera)
+
+  mv -v $pkgname/* "$pkgdir"
+}
+
+package_python-libcamera-iceland() {
+  pkgdesc+=" - Python integration"
+  license=(
+    CC0-1.0
+    LGPL-2.1-or-later
+  )
+  depends=(
+    glibc
+    libcamera-iceland
+    libgcc
+    libstdc++
+    python
+  )
+  provides=("python-libcamera=$pkgver")
+  conflicts=(python-libcamera)
+
+  mv -v $pkgname/* "$pkgdir"
+}

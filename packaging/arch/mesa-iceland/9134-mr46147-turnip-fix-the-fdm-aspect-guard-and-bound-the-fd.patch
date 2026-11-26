@@ -1,0 +1,381 @@
+OnePlus Pad 4 (Adreno 840) Mesa package: Mesa MR !46147
+Title:  turnip: Fix the FDM aspect guard and bound the FDM offset LRZ padding
+Author: Dhruv Mark Collins
+URL:    https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/46147
+Head:   33f0b69d0f5e2964ceffb3ac8ba068ddd382323e (MR state opened, target main, checked 21 Nov 2026)
+Review: none (one comment by Danylo Piliaiev: commit messages unclear)
+Apply:  applies on staging/26.3 6cd33b7f68ee after the patches before it, without conflict or backport
+
+From fb9867449590762053b8b60b99c8949711e5d859 Mon Sep 17 00:00:00 2001
+From: Dhruv Mark Collins <mark@igalia.com>
+Date: Fri, 28 Aug 2026 12:52:48 +0000
+Subject: [PATCH 1/3] tu: Check the FDM tile aspect guard against the tile
+ height used
+
+The FDM aspect guard was checked before the tile height is re-derived from
+the tile count, which only ever lowers it, so a tile inside 2:1 at the GMEM
+budget's height could be outside it once chosen. A 1024x1024 framebuffer
+whose budget allows 576x288 tiles passes the guard with them and renders
+576x256.
+
+Check the guard after the re-derivation, against the height that's
+rendered. It stays a penalty rather than a veto, so a framebuffer without
+any tile inside 2:1 still gets a tiling.
+
+Signed-off-by: Dhruv Mark Collins <mark@igalia.com>
+Assisted-by: LLM
+---
+ src/freedreno/vulkan/tu_util.cc | 18 +++++++++---------
+ 1 file changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/src/freedreno/vulkan/tu_util.cc b/src/freedreno/vulkan/tu_util.cc
+index 76e4f4afedd..0606b0ff7d2 100644
+--- a/src/freedreno/vulkan/tu_util.cc
++++ b/src/freedreno/vulkan/tu_util.cc
+@@ -304,6 +304,15 @@ tu_tiling_config_update_tile_layout(struct tu_framebuffer *fb,
+       if (!tile_size.height)
+          continue;
+ 
++      tile_count.width = DIV_ROUND_UP(fb->width, tile_size.width);
++      tile_count.height = DIV_ROUND_UP(fb->height, tile_size.height);
++
++      /* Drop the height of the tile down to split tiles more evenly across the
++       * screen for a given tile count.
++       */
++      tile_size.height =
++         align(DIV_ROUND_UP(fb->height, tile_count.height), tile_align_h);
++
+       /* When using FDM, we need approximately square tiles to maintain
+        * proper density distribution across the framebuffer.
+        * Way to wide or tall tiles would distort the density mapping, causing
+@@ -317,15 +326,6 @@ tu_tiling_config_update_tile_layout(struct tu_framebuffer *fb,
+          fdm_penalty = 1000;
+       }
+ 
+-      tile_count.width = DIV_ROUND_UP(fb->width, tile_size.width);
+-      tile_count.height = DIV_ROUND_UP(fb->height, tile_size.height);
+-
+-      /* Drop the height of the tile down to split tiles more evenly across the
+-       * screen for a given tile count.
+-       */
+-      tile_size.height =
+-         align(DIV_ROUND_UP(fb->height, tile_count.height), tile_align_h);
+-
+       /* Pick the layout with the minimum number of bins (lowest CP overhead
+        * and amount of cache flushing), but the most square tiles in the case
+        * of a tie (likely highest cache locality).
+
+From 0487dc102357b2c856a5521e382f67415857200f Mon Sep 17 00:00:00 2001
+From: Dhruv Mark Collins <mark@igalia.com>
+Date: Mon, 9 Nov 2026 17:57:42 +0000
+Subject: [PATCH 2/3] tu: Bound the FDM offset LRZ padding by what GMEM can
+ hold
+
+An LRZ image used with FDM offsets is shifted by however far the bin grid
+slides, so it's padded by that much. The slide is less than a tile, so
+fdl6_lrz_get_max_fdm_extra_size() searches for the largest tile that
+still keeps LRZ fast clear covered, and that size bounds both the padding
+and the tile search. Where no tile keeps fast clear covered, it falls
+back to the device's largest tile, and the image is then padded for, and
+every render pass clears and walks, LRZ that no slide can reach.
+
+No render pass using the image can have a tile with more pixels than
+GMEM holds of the image alone, the FDM aspect guard keeps tiles within
+2:1, and tile sides are multiples of the tile alignment. Bound the search
+and the fallback by the longest side of a tile that meets all three
+rather than by the device's largest tile.
+
+Imageless framebuffers now also take the sample count from the depth
+attachment rather than the first one, so they derive the same bound as
+the image.
+
+Signed-off-by: Dhruv Mark Collins <mark@igalia.com>
+Assisted-by: LLM
+---
+ src/freedreno/fdl/freedreno_lrz_layout.h | 14 +++++++----
+ src/freedreno/vulkan/tu_device.cc        |  9 ++++---
+ src/freedreno/vulkan/tu_image.cc         | 30 ++++++++++++++++++++----
+ src/freedreno/vulkan/tu_image.h          |  3 +++
+ 4 files changed, 41 insertions(+), 15 deletions(-)
+
+diff --git a/src/freedreno/fdl/freedreno_lrz_layout.h b/src/freedreno/fdl/freedreno_lrz_layout.h
+index 594358e7261..535eb59583b 100644
+--- a/src/freedreno/fdl/freedreno_lrz_layout.h
++++ b/src/freedreno/fdl/freedreno_lrz_layout.h
+@@ -280,15 +280,19 @@ struct fdl_lrz_fdm_extra_size {
+ };
+ 
+ /* Get maximum size of the extra tile for VK_QCOM_fragment_density_map_offset,
+- * that keeps LRZ fast-clear enabled, if possible.
++ * that keeps LRZ fast-clear enabled, if possible. No tile is larger than
++ * max_tile_size, so neither is the extra size.
+  */
+ template <chip CHIP>
+ static struct fdl_lrz_fdm_extra_size
+ fdl6_lrz_get_max_fdm_extra_size(const struct fd_dev_info *dev_info,
+                                 uint32_t width, uint32_t height,
+-                                uint32_t nr_samples, uint32_t array_layers)
++                                uint32_t nr_samples, uint32_t array_layers,
++                                uint32_t max_tile_size)
+ {
+    constexpr uint32_t MIN_TILE_SIZE_FOR_FDM_OFFSET = 192;
++   const uint32_t max_tile_w = MIN2(dev_info->tile_max_w, max_tile_size);
++   const uint32_t max_tile_h = MIN2(dev_info->tile_max_h, max_tile_size);
+ 
+    struct fdl_layout layout = {
+       .width0 = width,
+@@ -299,10 +303,10 @@ fdl6_lrz_get_max_fdm_extra_size(const struct fd_dev_info *dev_info,
+    fdl6_lrz_layout_init<CHIP>(&lrz_layout, &layout, 0, 0, dev_info, 0,
+                               array_layers);
+    if (!fdl6_lrz_fc_fully_covered(&lrz_layout)) {
+-      return {dev_info->tile_max_w, dev_info->tile_max_h};
++      return {max_tile_w, max_tile_h};
+    }
+ 
+-   uint32_t max_extra_size = MIN2(dev_info->tile_max_w, dev_info->tile_max_h);
++   uint32_t max_extra_size = MIN2(max_tile_w, max_tile_h);
+    uint32_t step = MIN2(dev_info->gmem_align_w, dev_info->gmem_align_h);
+    uint32_t min_extra_size = MAX2(step, MIN_TILE_SIZE_FOR_FDM_OFFSET);
+ 
+@@ -317,7 +321,7 @@ fdl6_lrz_get_max_fdm_extra_size(const struct fd_dev_info *dev_info,
+       max_extra_size -= step;
+    }
+ 
+-   return {dev_info->tile_max_w, dev_info->tile_max_h};
++   return {max_tile_w, max_tile_h};
+ }
+ #endif
+ 
+diff --git a/src/freedreno/vulkan/tu_device.cc b/src/freedreno/vulkan/tu_device.cc
+index 4c9f9e583a1..b1aafc4b1a1 100644
+--- a/src/freedreno/vulkan/tu_device.cc
++++ b/src/freedreno/vulkan/tu_device.cc
+@@ -4292,11 +4292,10 @@ tu_CreateFramebuffer(VkDevice _device,
+                    VK_IMAGE_CREATE_FRAGMENT_DENSITY_MAP_OFFSET_BIT_EXT &&
+                 image_info->usage &
+                    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) {
+-               struct fdl_lrz_fdm_extra_size extra_size =
+-                  TU_CALLX(device, fdl6_lrz_get_max_fdm_extra_size)(
+-                     device->physical_device->info, image_info->width,
+-                     image_info->height, pass->attachments[0].samples,
+-                     image_info->layerCount);
++               const struct tu_render_pass_attachment *att = &pass->attachments[i];
++               struct fdl_lrz_fdm_extra_size extra_size = TU_CALLX(device, fdl6_lrz_get_max_fdm_extra_size)(
++                  device->physical_device->info, image_info->width, image_info->height, att->samples,
++                  image_info->layerCount, tu_fdm_offset_max_tile_size(device->physical_device, att->cpp));
+                framebuffer->max_tile_w_constraint = extra_size.extra_width;
+                framebuffer->max_tile_h_constraint = extra_size.extra_height;
+                break;
+diff --git a/src/freedreno/vulkan/tu_image.cc b/src/freedreno/vulkan/tu_image.cc
+index 5babdee3f1a..5a27a22a2ae 100644
+--- a/src/freedreno/vulkan/tu_image.cc
++++ b/src/freedreno/vulkan/tu_image.cc
+@@ -520,6 +520,27 @@ format_list_ubwc_possible(struct tu_device *dev,
+    return true;
+ }
+ 
++/* GMEM can't hold a tile of more than usable_gmem_size_gmem / cpp pixels of
++ * an attachment with this cpp, the FDM aspect guard keeps tiles within 2:1,
++ * and tile sides are multiples of the tile alignment, so no side of a tile
++ * exceeds the longest side of a tile that meets all three.
++ */
++uint32_t
++tu_fdm_offset_max_tile_size(const struct tu_physical_device *phys_dev, uint32_t cpp)
++{
++   const uint32_t align_w = phys_dev->info->tile_align_w;
++   const uint32_t align_h = phys_dev->info->tile_align_h;
++   const uint32_t max_pixels = phys_dev->usable_gmem_size_gmem / cpp;
++   uint32_t max_size = 0;
++
++   for (uint32_t w = align_w; w * align(DIV_ROUND_UP(w, 2), align_h) <= max_pixels; w += align_w)
++      max_size = w;
++   for (uint32_t h = align_h; util_align_npot(DIV_ROUND_UP(h, 2), align_w) * h <= max_pixels; h += align_h)
++      max_size = MAX2(max_size, h);
++
++   return max_size;
++}
++
+ template <chip CHIP>
+ VkResult
+ tu_image_init(struct tu_device *device, struct tu_image *image,
+@@ -840,16 +861,15 @@ tu_image_init(struct tu_device *device, struct tu_image *image,
+        * used with will be. Try to calculate a maximum size of tile that would
+        * still let us do LRZ fast clears that we'll use to inform tiling setup
+        * later once we know the rest of the images.  We'll fall back to
+-       * allocating for the device's maximum tile size if we can't ensure
+-       * LRZ fast clears.
++       * allocating for the largest tile GMEM can hold with this image if we
++       * can't ensure LRZ fast clears.
+        */
+       struct fdl_lrz_fdm_extra_size extra_size = { 0, 0 };
+       if (image->vk.create_flags &
+           VK_IMAGE_CREATE_FRAGMENT_DENSITY_MAP_OFFSET_BIT_EXT) {
+          extra_size = fdl6_lrz_get_max_fdm_extra_size<CHIP>(
+-            device->physical_device->info, image->layout[0].width0,
+-            image->layout[0].height0, image->vk.samples,
+-            image->vk.array_layers);
++            device->physical_device->info, image->layout[0].width0, image->layout[0].height0, image->vk.samples,
++            image->vk.array_layers, tu_fdm_offset_max_tile_size(device->physical_device, image->layout[0].cpp));
+ 
+          image->max_tile_w_constraint_fdm = extra_size.extra_width;
+          image->max_tile_h_constraint_fdm = extra_size.extra_height;
+diff --git a/src/freedreno/vulkan/tu_image.h b/src/freedreno/vulkan/tu_image.h
+index 28de9828cf4..422466f9fa1 100644
+--- a/src/freedreno/vulkan/tu_image.h
++++ b/src/freedreno/vulkan/tu_image.h
+@@ -70,6 +70,9 @@ enum tu_image_id_mode {
+ 
+ #define TU_IMAGE_ID_INTERNAL_ID UINT64_MAX
+ 
++uint32_t
++tu_fdm_offset_max_tile_size(const struct tu_physical_device *phys_dev, uint32_t cpp);
++
+ template <chip CHIP>
+ VkResult
+ tu_image_init(struct tu_device *device, struct tu_image *image,
+
+From 4f1d4467aff17974f4e78de21f7377e251765882 Mon Sep 17 00:00:00 2001
+From: Dhruv Mark Collins <mark@igalia.com>
+Date: Tue, 10 Nov 2026 10:38:06 +0000
+Subject: [PATCH 3/3] tu: Bound the FDM offset LRZ padding by all layers of the
+ image
+
+GMEM holds every layer a render pass renders, so its tiles can have at
+most usable_gmem_size_gmem / (cpp * layers) pixels of an attachment.
+Images with FDM offsets are typically rendered with multiview, one view
+per layer, so bound their LRZ padding by the tiles of a render pass that
+renders all of their layers. A render pass that renders fewer layers is
+still bound to tiles that fit the padding, but may get more of them.
+
+An imageless framebuffer only knows the layers of its attachment views,
+so with a view of fewer layers than the image it derives a larger bound
+than the image was padded by. Fall back to sysmem when the tiles exceed
+the padding of an attachment.
+
+Signed-off-by: Dhruv Mark Collins <mark@igalia.com>
+Assisted-by: LLM
+---
+ src/freedreno/vulkan/tu_cmd_buffer.cc | 24 ++++++++++++++++++++++++
+ src/freedreno/vulkan/tu_device.cc     |  3 ++-
+ src/freedreno/vulkan/tu_image.cc      | 20 +++++++++++---------
+ src/freedreno/vulkan/tu_image.h       |  2 +-
+ 4 files changed, 38 insertions(+), 11 deletions(-)
+
+diff --git a/src/freedreno/vulkan/tu_cmd_buffer.cc b/src/freedreno/vulkan/tu_cmd_buffer.cc
+index a3a6e796ec3..9c1bdba774a 100644
+--- a/src/freedreno/vulkan/tu_cmd_buffer.cc
++++ b/src/freedreno/vulkan/tu_cmd_buffer.cc
+@@ -1453,6 +1453,25 @@ use_hw_binning(struct tu_cmd_buffer *cmd)
+    return vsc->binning_possible && vsc->binning_useful;
+ }
+ 
++/* An imageless framebuffer bounds its tiles by the layers of its attachment
++ * views, which can let them outgrow the LRZ padding of an image with more
++ * layers.
++ */
++static bool
++fdm_offset_tiles_exceed_lrz_padding(const struct tu_cmd_buffer *cmd)
++{
++   const VkExtent2D tile0 = cmd->state.tiling->tile0;
++
++   for (unsigned i = 0; i < cmd->state.pass->attachment_count; i++) {
++      const struct tu_image_view *iview = cmd->state.attachments[i];
++      if (iview && (tile0.width > iview->image->max_tile_w_constraint_fdm ||
++                    tile0.height > iview->image->max_tile_h_constraint_fdm))
++         return true;
++   }
++
++   return false;
++}
++
+ static bool
+ use_sysmem_rendering(struct tu_cmd_buffer *cmd,
+                      tu_autotune::rp_ctx_t *rp_ctx,
+@@ -1469,6 +1488,11 @@ use_sysmem_rendering(struct tu_cmd_buffer *cmd,
+       return true;
+    }
+ 
++   if (cmd->state.pass->has_fdm && fdm_offset_tiles_exceed_lrz_padding(cmd)) {
++      cmd->state.rp.force_render_mode_reason = "Tiles exceed the FDM offset LRZ padding";
++      return true;
++   }
++
+    /* Use sysmem for empty render areas */
+    if (cmd->state.per_layer_render_area) {
+       for (unsigned i = 0; i < tu_fdm_num_layers(cmd); i++) {
+diff --git a/src/freedreno/vulkan/tu_device.cc b/src/freedreno/vulkan/tu_device.cc
+index b1aafc4b1a1..cf9ec7957a3 100644
+--- a/src/freedreno/vulkan/tu_device.cc
++++ b/src/freedreno/vulkan/tu_device.cc
+@@ -4295,7 +4295,8 @@ tu_CreateFramebuffer(VkDevice _device,
+                const struct tu_render_pass_attachment *att = &pass->attachments[i];
+                struct fdl_lrz_fdm_extra_size extra_size = TU_CALLX(device, fdl6_lrz_get_max_fdm_extra_size)(
+                   device->physical_device->info, image_info->width, image_info->height, att->samples,
+-                  image_info->layerCount, tu_fdm_offset_max_tile_size(device->physical_device, att->cpp));
++                  image_info->layerCount,
++                  tu_fdm_offset_max_tile_size(device->physical_device, att->cpp, image_info->layerCount));
+                framebuffer->max_tile_w_constraint = extra_size.extra_width;
+                framebuffer->max_tile_h_constraint = extra_size.extra_height;
+                break;
+diff --git a/src/freedreno/vulkan/tu_image.cc b/src/freedreno/vulkan/tu_image.cc
+index 5a27a22a2ae..a37fdaa035b 100644
+--- a/src/freedreno/vulkan/tu_image.cc
++++ b/src/freedreno/vulkan/tu_image.cc
+@@ -520,17 +520,18 @@ format_list_ubwc_possible(struct tu_device *dev,
+    return true;
+ }
+ 
+-/* GMEM can't hold a tile of more than usable_gmem_size_gmem / cpp pixels of
+- * an attachment with this cpp, the FDM aspect guard keeps tiles within 2:1,
+- * and tile sides are multiples of the tile alignment, so no side of a tile
+- * exceeds the longest side of a tile that meets all three.
++/* GMEM can't hold a tile of more than usable_gmem_size_gmem / (cpp * layers)
++ * pixels of an attachment with this cpp rendered with this many layers, the
++ * FDM aspect guard keeps tiles within 2:1, and tile sides are multiples of
++ * the tile alignment, so no side of a tile exceeds the longest side of a tile
++ * that meets all three.
+  */
+ uint32_t
+-tu_fdm_offset_max_tile_size(const struct tu_physical_device *phys_dev, uint32_t cpp)
++tu_fdm_offset_max_tile_size(const struct tu_physical_device *phys_dev, uint32_t cpp, uint32_t layers)
+ {
+    const uint32_t align_w = phys_dev->info->tile_align_w;
+    const uint32_t align_h = phys_dev->info->tile_align_h;
+-   const uint32_t max_pixels = phys_dev->usable_gmem_size_gmem / cpp;
++   const uint32_t max_pixels = phys_dev->usable_gmem_size_gmem / (cpp * layers);
+    uint32_t max_size = 0;
+ 
+    for (uint32_t w = align_w; w * align(DIV_ROUND_UP(w, 2), align_h) <= max_pixels; w += align_w)
+@@ -861,15 +862,16 @@ tu_image_init(struct tu_device *device, struct tu_image *image,
+        * used with will be. Try to calculate a maximum size of tile that would
+        * still let us do LRZ fast clears that we'll use to inform tiling setup
+        * later once we know the rest of the images.  We'll fall back to
+-       * allocating for the largest tile GMEM can hold with this image if we
+-       * can't ensure LRZ fast clears.
++       * allocating for the largest tile GMEM can hold with all layers of this
++       * image if we can't ensure LRZ fast clears.
+        */
+       struct fdl_lrz_fdm_extra_size extra_size = { 0, 0 };
+       if (image->vk.create_flags &
+           VK_IMAGE_CREATE_FRAGMENT_DENSITY_MAP_OFFSET_BIT_EXT) {
+          extra_size = fdl6_lrz_get_max_fdm_extra_size<CHIP>(
+             device->physical_device->info, image->layout[0].width0, image->layout[0].height0, image->vk.samples,
+-            image->vk.array_layers, tu_fdm_offset_max_tile_size(device->physical_device, image->layout[0].cpp));
++            image->vk.array_layers,
++            tu_fdm_offset_max_tile_size(device->physical_device, image->layout[0].cpp, image->vk.array_layers));
+ 
+          image->max_tile_w_constraint_fdm = extra_size.extra_width;
+          image->max_tile_h_constraint_fdm = extra_size.extra_height;
+diff --git a/src/freedreno/vulkan/tu_image.h b/src/freedreno/vulkan/tu_image.h
+index 422466f9fa1..942cdfc0309 100644
+--- a/src/freedreno/vulkan/tu_image.h
++++ b/src/freedreno/vulkan/tu_image.h
+@@ -71,7 +71,7 @@ enum tu_image_id_mode {
+ #define TU_IMAGE_ID_INTERNAL_ID UINT64_MAX
+ 
+ uint32_t
+-tu_fdm_offset_max_tile_size(const struct tu_physical_device *phys_dev, uint32_t cpp);
++tu_fdm_offset_max_tile_size(const struct tu_physical_device *phys_dev, uint32_t cpp, uint32_t layers);
+ 
+ template <chip CHIP>
+ VkResult

@@ -1,0 +1,213 @@
+OnePlus Pad 4 (Adreno 840) Mesa package: Mesa MR !46182
+Title:  ir3/array_to_ssa: don't resolve readers to deleted phis
+Author: TobiasWienand
+URL:    https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/46182
+Head:   347da075a10b3163e395223485808c17f0abf951 (MR state opened, target main, checked 21 Nov 2026)
+Review: none (Job Noorman engaged, asked for a fossil; fossil posted 19 Nov)
+Apply:  applies on staging/26.3 6cd33b7f68ee after the patches before it, without conflict or backport
+
+From f1dcaedcbdc02f025109170320d093f5cabe37a3 Mon Sep 17 00:00:00 2001
+From: tobias <tobiaswienand11235@gmail.com>
+Date: Wed, 11 Nov 2026 09:04:21 +0000
+Subject: [PATCH] ir3/array_to_ssa: don't resolve readers to deleted phis
+
+remove_trivial_phi() breaks cycles by returning the dst of the phi it
+is still visiting. A phi can therefore resolve to a phi that is found
+trivial and deleted later. lookup_value() follows only one step, so
+readers can keep a def that is no longer in the program. In the issue,
+ir3_lower_shared_phis allocates a use set for that def and frees it,
+and ir3_cf then adds to the freed set.
+
+Follow the chain until it reaches a def that is not a deleted phi. Each
+step moves to a phi that finished later, so the chain ends.
+
+Add a test that builds such a CFG and checks that every source still
+points at an instruction in the program.
+
+Closes: https://gitlab.freedesktop.org/mesa/mesa/-/issues/16629
+Fixes: ca15116fa13 ("ir3/array_to_ssa: fix updating/removing phis")
+Generated-by: LLM
+---
+ src/freedreno/ir3/ir3_array_to_ssa.c   |   9 +-
+ src/freedreno/ir3/meson.build          |  12 +++
+ src/freedreno/ir3/tests/array_to_ssa.c | 131 +++++++++++++++++++++++++
+ 3 files changed, 148 insertions(+), 4 deletions(-)
+ create mode 100644 src/freedreno/ir3/tests/array_to_ssa.c
+
+diff --git a/src/freedreno/ir3/ir3_array_to_ssa.c b/src/freedreno/ir3/ir3_array_to_ssa.c
+index dacd516d30a..cb69f0d47ec 100644
+--- a/src/freedreno/ir3/ir3_array_to_ssa.c
++++ b/src/freedreno/ir3/ir3_array_to_ssa.c
+@@ -161,10 +161,11 @@ remove_trivial_phi(struct ir3_instruction *phi)
+ static struct ir3_register *
+ lookup_value(struct ir3_register *reg)
+ {
+-   if (!reg)
+-      return NULL;
+-   if (reg->instr->opc == OPC_META_PHI)
+-      return reg->instr->data;
++   /* A removed phi can resolve to another phi that was removed later, so
++    * follow the chain until we reach a definition that is kept.
++    */
++   while (reg && reg->instr->opc == OPC_META_PHI && reg->instr->data != reg)
++      reg = reg->instr->data;
+    return reg;
+ }
+ 
+diff --git a/src/freedreno/ir3/meson.build b/src/freedreno/ir3/meson.build
+index 962a53c7f2a..45906be9641 100644
+--- a/src/freedreno/ir3/meson.build
++++ b/src/freedreno/ir3/meson.build
+@@ -175,3 +175,15 @@ test('ir3_delay_test',
+   ),
+   suite: ['freedreno'],
+ )
++
++test('ir3_array_to_ssa_test',
++  executable(
++    'ir3_array_to_ssa_test',
++    'tests/array_to_ssa.c',
++    link_with: libfreedreno_ir3,
++    link_args: ld_args_build_id,
++    dependencies: [idep_mesautil, idep_nir],
++    include_directories: [inc_freedreno, inc_include, inc_src],
++  ),
++  suite: ['freedreno'],
++)
+diff --git a/src/freedreno/ir3/tests/array_to_ssa.c b/src/freedreno/ir3/tests/array_to_ssa.c
+new file mode 100644
+index 00000000000..a6c4040eed9
+--- /dev/null
++++ b/src/freedreno/ir3/tests/array_to_ssa.c
+@@ -0,0 +1,131 @@
++/*
++ * SPDX-License-Identifier: MIT
++ */
++
++#include <stdio.h>
++
++#include "util/set.h"
++
++#include "ir3.h"
++#include "ir3_shader.h"
++
++/*
++ * ir3_array_to_ssa removes trivial phis after creating them, and removing
++ * one phi can resolve another phi to it. Every reader must still end up at
++ * a definition that is in the program. The CFG below is three nested loops
++ * where b0 writes the array and b6 reads it:
++ *
++ *    b0 -> b1
++ *    b1 -> b2          H = phi(b0, b9)   outer loop header
++ *    b2 -> b3, b4      Y = phi(b1, b8)   middle loop header
++ *    b3 -> b5
++ *    b4 -> b5
++ *    b5 -> b6, b9      X = phi(b3, b4)   breaks out of the middle loop
++ *    b6 -> b7, b8      Z = phi(b5, b7)   inner loop header, reads the array
++ *    b7 -> b6
++ *    b8 -> b2
++ *    b9 -> b1
++ *
++ * Visiting H reaches X before Y, so Z resolves to the unfinished X. X then
++ * resolves to Y and is deleted, and the read in b6 has to follow Z past X.
++ */
++
++static void
++add_edge(struct ir3_block *pred, struct ir3_block *succ)
++{
++   pred->successors[pred->successors[0] ? 1 : 0] = succ;
++   ir3_block_add_predecessor(succ, pred);
++}
++
++static void
++set_array(struct ir3_register *reg, struct ir3_array *arr)
++{
++   reg->size = arr->length;
++   reg->array.id = arr->id;
++   reg->array.base = INVALID_REG;
++}
++
++int
++main(int argc, char **argv)
++{
++   struct fd_dev_id dev_id = {
++      .gpu_id = 630,
++   };
++   struct ir3_compiler *c =
++      ir3_compiler_create(NULL, &dev_id, fd_dev_info_raw(&dev_id),
++                          &(struct ir3_compiler_options){});
++   struct ir3_shader_variant *v = rzalloc(NULL, struct ir3_shader_variant);
++   v->type = MESA_SHADER_COMPUTE;
++   struct ir3 *ir = ir3_create(c, v);
++
++   struct ir3_block *b[10];
++   for (unsigned i = 0; i < ARRAY_SIZE(b); i++) {
++      b[i] = ir3_block_create(ir);
++      list_addtail(&b[i]->node, &ir->block_list);
++   }
++   add_edge(b[0], b[1]);
++   add_edge(b[1], b[2]);
++   add_edge(b[2], b[3]);
++   add_edge(b[2], b[4]);
++   add_edge(b[3], b[5]);
++   add_edge(b[4], b[5]);
++   add_edge(b[5], b[6]);
++   add_edge(b[5], b[9]);
++   add_edge(b[6], b[7]);
++   add_edge(b[6], b[8]);
++   add_edge(b[7], b[6]);
++   add_edge(b[8], b[2]);
++   add_edge(b[9], b[1]);
++
++   struct ir3_array *arr = rzalloc(ir, struct ir3_array);
++   arr->id = 1;
++   arr->length = 1;
++   list_addtail(&arr->node, &ir->array_list);
++
++   struct ir3_builder build = ir3_builder_at(ir3_after_block(b[0]));
++   struct ir3_instruction *imm = create_immed(&build, 0);
++   struct ir3_instruction *write = ir3_build_instr(&build, OPC_MOV, 1, 1);
++   write->cat1.src_type = write->cat1.dst_type = TYPE_U32;
++   struct ir3_register *dst =
++      ir3_dst_create(write, INVALID_REG, IR3_REG_SSA | IR3_REG_ARRAY);
++   dst->instr = write;
++   set_array(dst, arr);
++   ir3_src_create(write, INVALID_REG, IR3_REG_SSA)->def = imm->dsts[0];
++
++   build = ir3_builder_at(ir3_after_block(b[6]));
++   struct ir3_instruction *read = ir3_build_instr(&build, OPC_MOV, 1, 1);
++   read->cat1.src_type = read->cat1.dst_type = TYPE_U32;
++   __ssa_dst(read);
++   set_array(ir3_src_create(read, INVALID_REG, IR3_REG_ARRAY), arr);
++
++   ir3_array_to_ssa(ir);
++
++   struct set *instrs = _mesa_pointer_set_create(NULL);
++   foreach_block (block, &ir->block_list) {
++      foreach_instr (instr, &block->instr_list)
++         _mesa_set_add(instrs, instr);
++   }
++
++   int result = 0;
++   foreach_block (block, &ir->block_list) {
++      foreach_instr (instr, &block->instr_list) {
++         foreach_src (src, instr) {
++            if (src->def && !_mesa_set_search(instrs, src->def->instr)) {
++               fprintf(stderr,
++                       "FAIL: source defined by a deleted instruction:\n");
++               ir3_print_instr(instr);
++               result = -1;
++            }
++         }
++      }
++   }
++
++   if (result == 0)
++      printf("PASS\n");
++
++   _mesa_set_destroy(instrs, NULL);
++   ralloc_free(v);
++   ir3_compiler_destroy(c);
++
++   return result;
++}

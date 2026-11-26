@@ -1,0 +1,40 @@
+From 0a474dbbe47d428382769835ab7b330e8a12c995 Mon Sep 17 00:00:00 2001
+From: Danylo Piliaiev <dpiliaiev@igalia.com>
+Date: Wed, 4 Nov 2026 12:10:31 +0100
+Subject: [PATCH] tu: Emit pending flushes when ending a command buffer in a
+ s/r chain
+
+Flush bits emitted before a S/R chain that is split between several
+command buffers are lost. Because flushes recorded before
+vkCmdBeginRendering() were left in the original command buffer's pending
+flush bits and never emitted.
+Flush those bits at tu_EndCommandBuffer.
+
+Fixes "Mortal Shell 2"
+
+Assisted-by: LLM
+Signed-off-by: Danylo Piliaiev <dpiliaiev@igalia.com>
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/45985>
+(cherry picked from commit 8a494f248a708673dad59b149132a700d07f8eb1)
+---
+ src/freedreno/vulkan/tu_cmd_buffer.cc | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/src/freedreno/vulkan/tu_cmd_buffer.cc b/src/freedreno/vulkan/tu_cmd_buffer.cc
+index 97dead60f9e..86acda2b893 100644
+--- a/src/freedreno/vulkan/tu_cmd_buffer.cc
++++ b/src/freedreno/vulkan/tu_cmd_buffer.cc
+@@ -5467,7 +5467,12 @@ tu_EndCommandBuffer(VkCommandBuffer commandBuffer)
+    if (cmd_buffer->state.pass) {
+       tu_clean_all_pending(&cmd_buffer->state.renderpass_cache);
+       tu_emit_cache_flush_renderpass<CHIP>(cmd_buffer);
+-   } else {
++   }
++
++   /* A suspended chain is rendered after cs, so in order to not lose the flushes - do them here. */
++   if (!cmd_buffer->state.pass ||
++       cmd_buffer->state.suspend_resume == SR_IN_CHAIN ||
++       cmd_buffer->state.suspend_resume == SR_IN_CHAIN_AFTER_PRE_CHAIN) {
+       tu_clean_all_pending(&cmd_buffer->state.cache);
+       cmd_buffer->state.cache.flush_bits |=
+          TU_CMD_FLAG_CCU_CLEAN_COLOR |

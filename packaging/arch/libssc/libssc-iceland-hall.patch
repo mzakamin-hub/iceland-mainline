@@ -1,0 +1,584 @@
+From: iceland <iceland@localhost>
+Subject: [PATCH] Add a hall sensor (data type "hall") and ssccli --sensor hall
+
+The OnePlus Pad 4's sensor hub has a hall sensor (ROHM BU52053NVX, data type "hall") for the
+cover. Its event layout is not documented: the first field of a sensor event is decoded
+generically and reported with the message id; messages are logged at debug level.
+---
+diff -uNr a/libssc.map b/libssc.map
+--- a/libssc.map	2026-09-30 10:23:11.105528004 +0300
++++ b/libssc.map	2026-10-27 01:46:26.214688584 +0300
+@@ -54,6 +54,15 @@
+ 		ssc_sensor_proximity_close;
+ 		ssc_sensor_proximity_close_finish;
+ 		ssc_sensor_proximity_close_sync;
++		ssc_sensor_hall_new;
++		ssc_sensor_hall_new_finish;
++		ssc_sensor_hall_new_sync;
++		ssc_sensor_hall_open;
++		ssc_sensor_hall_open_finish;
++		ssc_sensor_hall_open_sync;
++		ssc_sensor_hall_close;
++		ssc_sensor_hall_close_finish;
++		ssc_sensor_hall_close_sync;
+ 		ssc_sensor_new;
+ 		ssc_sensor_new_finish;
+ 		ssc_sensor_new_sync;
+@@ -70,6 +79,7 @@
+ 		ssc_sensor_light_get_type;
+ 		ssc_sensor_magnetometer_get_type;
+ 		ssc_sensor_proximity_get_type;
++		ssc_sensor_hall_get_type;
+ 		ssc_sensor_error_quark;
+ 	local:
+ 		*;
+diff -uNr a/src/libssc-cli-private.h b/src/libssc-cli-private.h
+--- a/src/libssc-cli-private.h	2026-09-30 10:23:11.108187942 +0300
++++ b/src/libssc-cli-private.h	2026-10-27 01:46:26.214795268 +0300
+@@ -31,6 +31,7 @@
+ #include "libssc-version-private.h"
+ #include "libssc-sensor.h"
+ #include "libssc-sensor-proximity.h"
++#include "libssc-sensor-hall.h"
+ #include "libssc-sensor-light.h"
+ #include "libssc-sensor-accelerometer.h"
+ #include "libssc-sensor-magnetometer.h"
+diff -uNr a/src/libssc-cli.c b/src/libssc-cli.c
+--- a/src/libssc-cli.c	2026-09-30 10:23:11.108187942 +0300
++++ b/src/libssc-cli.c	2026-10-27 01:46:26.215114724 +0300
+@@ -135,6 +135,28 @@
+ /*****************************************************************************/
+ 
+ static gboolean
++hall_close_cb (SSCSensorHall *self)
++{
++	g_autoptr (GError) err = NULL;
++
++	if (!ssc_sensor_hall_close_sync (self, NULL, &err))
++		g_printf ("Unable to close hall sensor: %s\n", err ? err->message : "UNKNOWN");
++
++	g_debug ("Hall sensor disabled");
++	exit(0);
++
++	return G_SOURCE_REMOVE;
++}
++
++static void hall_measurement (SSCSensorHall *sensor, gboolean near, gdouble value, guint msg_id, gpointer user_data)
++{
++	g_printf ("Hall sensor measurement: %s (value %g, message %u)\n", near ? "NEAR" : "FAR", value, msg_id);
++	fflush(stdout);
++}
++
++/*****************************************************************************/
++
++static gboolean
+ gyroscope_close_cb (SSCSensorGyroscope *self)
+ {
+ 	g_autoptr (GError) err = NULL;
+@@ -168,7 +190,7 @@
+ 	const GOptionEntry options[] = {
+ 		{ "version", 0, 0, G_OPTION_ARG_NONE, &print_version, "Print version information and exit.", NULL },
+ 		{ "debug", 'v', 0, G_OPTION_ARG_NONE, &debug, "Enable debug logs.", NULL },
+-		{ "sensor", 0, 0, G_OPTION_ARG_STRING, &sensor_str, "Enable a sensor. Supported sensors: 'proximity', 'light', 'accelerometer', 'magnetometer', 'compass'", NULL },
++		{ "sensor", 0, 0, G_OPTION_ARG_STRING, &sensor_str, "Enable a sensor. Supported sensors: 'proximity', 'light', 'accelerometer', 'magnetometer', 'compass', 'hall'", NULL },
+ 		{ "timeout", 0, 0, G_OPTION_ARG_INT64, &timeout, "Number of seconds before this will timeout [default 10]", NULL },
+ 		{ NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, NULL }
+ 	};
+@@ -214,6 +236,21 @@
+ 			return OPEN_FAIL_EXIT_CODE;
+ 		}
+ 		g_timeout_add_seconds (timeout, (GSourceFunc)proximity_close_cb, proximity);
++	} else if (g_strcmp0 (sensor_str, "hall") == 0) {
++		SSCSensorHall *hall = ssc_sensor_hall_new_sync (NULL, &err);
++		if (!hall) {
++			g_printf ("Unable to initialize hall sensor: %s\n", err ? err->message : "UNKNOWN");
++			return INIT_FAIL_EXIT_CODE;
++		}
++		g_signal_connect (hall,
++			  	  "measurement",
++			  	  G_CALLBACK (hall_measurement),
++			  	  NULL);
++		if (!ssc_sensor_hall_open_sync (hall, NULL, &err)) {
++			g_printf ("Unable to open hall sensor: %s\n", err ? err->message : "UNKNOWN");
++			return OPEN_FAIL_EXIT_CODE;
++		}
++		g_timeout_add_seconds (timeout, (GSourceFunc)hall_close_cb, hall);
+ 	} else if (g_strcmp0 (sensor_str, "light") == 0) {
+ 		SSCSensorLight *light = ssc_sensor_light_new_sync (NULL, &err);
+ 		if (!light) {
+@@ -290,7 +327,7 @@
+ 		}
+ 		g_timeout_add_seconds (timeout, (GSourceFunc)gyroscope_close_cb, gyroscope);
+ 	} else {
+-		g_printf ("Specify a supported sensor: 'proximity', 'light', 'accelerometer', 'magnetometer', 'compass', 'gyroscope'\n");
++		g_printf ("Specify a supported sensor: 'proximity', 'light', 'accelerometer', 'magnetometer', 'compass', 'gyroscope', 'hall'\n");
+ 		return GENERAL_FAIL_EXIT_CODE;
+ 	}
+ 
+diff -uNr a/src/libssc-sensor-hall.c b/src/libssc-sensor-hall.c
+--- a/src/libssc-sensor-hall.c	1970-01-01 02:00:00.000000000 +0200
++++ b/src/libssc-sensor-hall.c	2026-10-27 01:46:26.214091088 +0300
+@@ -0,0 +1,385 @@
++/*
++ * libssc: Library to expose Qualcomm Sensor Core sensors
++ * Copyright (C) 2022-2026 Dylan Van Assche
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program. If not, see <https://www.gnu.org/licenses/>.
++ */
++
++#include <string.h>
++#include "ssc-common.pb-c.h"
++#include "libssc-client-private.h"
++#include "libssc-common-private.h"
++#include "libssc-sensor-hall.h"
++
++
++enum {
++	SIGNAL_MEASUREMENT,
++	N_SIGNALS
++};
++static guint signals[N_SIGNALS];
++
++typedef struct _SSCSensorHallPrivate {
++	guint report_id;
++	gboolean near;
++	gdouble value;
++	gboolean reported_once;
++} SSCSensorHallPrivate;
++
++G_DEFINE_TYPE_WITH_CODE (SSCSensorHall, ssc_sensor_hall, SSC_TYPE_SENSOR,
++			 G_ADD_PRIVATE (SSCSensorHall))
++
++typedef struct {
++	SSCSensorHall *sensor;
++	gboolean near;
++	gdouble value;
++	guint msg_id;
++} SignalContext;
++
++static void
++signal_context_free (SignalContext *ctx)
++{
++	g_slice_free (SignalContext, ctx);
++}
++
++/*****************************************************************************/
++
++static gboolean
++emit_signal (gpointer user_data) {
++	SignalContext *ctx = user_data;
++
++	g_signal_emit (ctx->sensor, signals[SIGNAL_MEASUREMENT], 0, ctx->near, ctx->value, ctx->msg_id);
++
++	return G_SOURCE_REMOVE;
++}
++
++/* The first field of a protobuf message as a number (varint, fixed32 float, fixed64 double, or the first
++ * float of a packed float array); FALSE if field 1 is missing or of another shape. */
++static gboolean
++decode_first_value (const guint8 *b, gsize len, gdouble *value)
++{
++	gsize i = 0;
++
++	while (i < len) {
++		guint64 key = 0, v = 0;
++		guint shift = 0;
++
++		while (i < len && shift < 64) {
++			key |= (guint64) (b[i] & 0x7f) << shift;
++			shift += 7;
++			if (!(b[i++] & 0x80))
++				break;
++		}
++		switch (key & 7) {
++		case 0:
++			shift = 0;
++			while (i < len && shift < 64) {
++				v |= (guint64) (b[i] & 0x7f) << shift;
++				shift += 7;
++				if (!(b[i++] & 0x80))
++					break;
++			}
++			if ((key >> 3) == 1) {
++				*value = (gdouble) (gint64) v;
++				return TRUE;
++			}
++			break;
++		case 1:
++			if (i + 8 > len)
++				return FALSE;
++			if ((key >> 3) == 1) {
++				gdouble d;
++				memcpy (&d, b + i, 8);
++				*value = d;
++				return TRUE;
++			}
++			i += 8;
++			break;
++		case 2:
++			shift = 0;
++			while (i < len && shift < 64) {
++				v |= (guint64) (b[i] & 0x7f) << shift;
++				shift += 7;
++				if (!(b[i++] & 0x80))
++					break;
++			}
++			if ((key >> 3) == 1 && v >= 4 && i + 4 <= len) {
++				gfloat f;
++				memcpy (&f, b + i, 4);
++				*value = f;
++				return TRUE;
++			}
++			i += v;
++			break;
++		case 5:
++			if (i + 4 > len)
++				return FALSE;
++			if ((key >> 3) == 1) {
++				gfloat f;
++				memcpy (&f, b + i, 4);
++				*value = f;
++				return TRUE;
++			}
++			i += 4;
++			break;
++		default:
++			return FALSE;
++		}
++	}
++	return FALSE;
++}
++
++static void
++report_received (SSCClient *self, guint32 msg_id, guint64 uid_high, guint64 uid_low, GArray *buf, gpointer user_data)
++{
++	SSCSensorHall *sensor = SSC_SENSOR_HALL (user_data);
++	SSCSensorHallPrivate *priv = NULL;
++	SignalContext *ctx = NULL;
++	guint64 sensor_uid_low;
++	guint64 sensor_uid_high;
++	gdouble value = 0;
++	gboolean near;
++	g_autofree gchar *hex = NULL;
++
++	g_object_get (SSC_SENSOR (sensor),
++		      SSC_SENSOR_UID_HIGH, &sensor_uid_high,
++		      SSC_SENSOR_UID_LOW, &sensor_uid_low,
++		      NULL);
++
++	if (sensor_uid_high != uid_high || sensor_uid_low != uid_low)
++		return;
++
++	hex = g_malloc0 (buf->len * 2 + 1);
++	for (guint i = 0; i < buf->len && i < 64; i++)
++		g_snprintf (hex + i * 2, 3, "%02x", ((guint8 *) buf->data)[i]);
++	g_debug ("hall: message %u, %u bytes: %s", msg_id, buf->len, hex);
++
++	/* sensor events only: 769..1023 (sensor-specific) and 1025 (std sensor event); 768 = physical config */
++	if (!((msg_id > 768 && msg_id < 1024) || msg_id == SSC_MSG_REPORT_MEASUREMENT))
++		return;
++	if (!decode_first_value ((const guint8 *) buf->data, buf->len, &value)) {
++		g_warning ("hall: message %u without a first value", msg_id);
++		return;
++	}
++	near = value != 0;
++
++	priv = ssc_sensor_hall_get_instance_private (sensor);
++	if (priv->near != near || priv->value != value || !priv->reported_once) {
++		priv->near = near;
++		priv->value = value;
++		priv->reported_once = TRUE;
++
++		ctx = g_slice_new0 (SignalContext);
++		ctx->sensor = sensor;
++		ctx->near = near;
++		ctx->value = value;
++		ctx->msg_id = msg_id;
++		g_idle_add_full (G_PRIORITY_DEFAULT_IDLE, emit_signal, ctx, (GDestroyNotify)signal_context_free);
++	}
++}
++
++/*****************************************************************************/
++
++static void
++hall_close_ready (SSCSensor *sensor, GAsyncResult *result, gpointer user_data)
++{
++	g_autoptr (GTask) task = G_TASK (user_data);
++	g_autoptr (GError) error = NULL;
++
++	if (!SSC_SENSOR_CLASS (ssc_sensor_hall_parent_class)->close_finish (sensor, result, &error)) {
++		g_task_return_error (task, g_steal_pointer (&error));
++		return;
++	}
++
++	g_task_return_boolean (task, TRUE);
++}
++
++gboolean
++ssc_sensor_hall_close_finish (SSCSensorHall *self, GAsyncResult *result, GError **error)
++{
++	return g_task_propagate_boolean (G_TASK (result), error);
++}
++
++void
++ssc_sensor_hall_close (SSCSensorHall *self, GCancellable *cancellable, GAsyncReadyCallback callback, gpointer user_data)
++{
++	GTask *task = NULL;
++	SSCClient *client = NULL;
++	SSCSensorHallPrivate *priv = NULL;
++
++	g_assert (SSC_SENSOR_CLASS (ssc_sensor_hall_parent_class)->close &&
++		  SSC_SENSOR_CLASS (ssc_sensor_hall_parent_class)->close_finish);
++
++	task = g_task_new (self, cancellable, callback, user_data);
++	priv = ssc_sensor_hall_get_instance_private (self);
++
++	/* Stop listening for reports */
++	g_object_get (SSC_SENSOR (self),
++		      SSC_SENSOR_CLIENT, &client,
++		      NULL);
++	if (priv->report_id)
++		g_signal_handler_disconnect (client, priv->report_id);
++
++	/* Close sensor */
++	SSC_SENSOR_CLASS (ssc_sensor_hall_parent_class)->close (SSC_SENSOR (self), cancellable, (GAsyncReadyCallback)hall_close_ready, task);
++}
++
++gboolean
++ssc_sensor_hall_close_sync (SSCSensorHall *self, GCancellable *cancellable, GError **error)
++{
++	gboolean success = FALSE;
++	SyncContext ctx;
++
++	ssc_common_init_sync_context (&ctx);
++	ssc_sensor_hall_close (self, cancellable, ssc_common_callback_sync_context, &ctx);
++	ssc_common_wait_sync_context (&ctx);
++	success = ssc_sensor_hall_close_finish (self, ctx.result, error);
++	ssc_common_clear_sync_context (&ctx);
++
++	return success;
++}
++
++/*****************************************************************************/
++
++static void
++hall_open_ready (SSCSensor *sensor, GAsyncResult *result, gpointer user_data)
++{
++	g_autoptr (GTask) task = G_TASK (user_data);
++	g_autoptr (GError) error = NULL;
++
++	if (!SSC_SENSOR_CLASS (ssc_sensor_hall_parent_class)->open_finish (sensor, result, &error)) {
++		g_task_return_error (task, g_steal_pointer (&error));
++		return;
++	}
++
++	g_task_return_boolean (task, TRUE);
++}
++
++gboolean
++ssc_sensor_hall_open_finish (SSCSensorHall *self, GAsyncResult *result, GError **error)
++{
++	return g_task_propagate_boolean (G_TASK (result), error);
++}
++
++void
++ssc_sensor_hall_open (SSCSensorHall *self, GCancellable *cancellable, GAsyncReadyCallback callback, gpointer user_data)
++{
++	SSCClient *client = NULL;
++	SSCSensorHallPrivate *priv = NULL;
++	GTask *task = NULL;
++
++	g_assert (SSC_SENSOR_CLASS (ssc_sensor_hall_parent_class)->open &&
++		  SSC_SENSOR_CLASS (ssc_sensor_hall_parent_class)->open_finish);
++
++	priv = ssc_sensor_hall_get_instance_private (self);
++	priv->reported_once = FALSE;
++
++	task = g_task_new (self, cancellable, callback, user_data);
++
++	/* Start listening for reports before opening sensor so we don't miss the first measurement */
++	g_object_get (SSC_SENSOR (self),
++		      SSC_SENSOR_CLIENT, &client,
++		      NULL);
++	priv->report_id = g_signal_connect (client,
++					    "report",
++					    G_CALLBACK (report_received),
++					    self);
++
++	/* Open sensor */
++	SSC_SENSOR_CLASS (ssc_sensor_hall_parent_class)->open (SSC_SENSOR (self), cancellable, (GAsyncReadyCallback)hall_open_ready, task);
++}
++
++gboolean
++ssc_sensor_hall_open_sync (SSCSensorHall *self, GCancellable *cancellable, GError **error)
++{
++	gboolean success = FALSE;
++	SyncContext ctx;
++
++	ssc_common_init_sync_context (&ctx);
++	ssc_sensor_hall_open (self, cancellable, ssc_common_callback_sync_context, &ctx);
++	ssc_common_wait_sync_context (&ctx);
++	success = ssc_sensor_hall_open_finish (self, ctx.result, error);
++	ssc_common_clear_sync_context (&ctx);
++
++	return success;
++}
++
++/*****************************************************************************/
++
++static void
++ssc_sensor_hall_class_init (SSCSensorHallClass *klass)
++{
++	signals[SIGNAL_MEASUREMENT] = g_signal_new ("measurement",
++		G_TYPE_FROM_CLASS (klass),
++		G_SIGNAL_RUN_FIRST,
++		0, NULL, NULL, NULL,
++		G_TYPE_NONE,
++		3, G_TYPE_BOOLEAN, G_TYPE_DOUBLE, G_TYPE_UINT);
++}
++
++static void
++ssc_sensor_hall_init (SSCSensorHall *self)
++{
++}
++
++SSCSensorHall *
++ssc_sensor_hall_new_finish (GAsyncResult *result, GError **error)
++{
++	GObject *sensor;
++	GObject *source;
++	SSCSensorHallPrivate *priv = NULL;
++
++	source = g_async_result_get_source_object (result);
++	sensor = g_async_initable_new_finish (G_ASYNC_INITABLE (source), result, error);
++
++	if (!sensor) {
++		g_object_unref (source);
++		return NULL;
++	}
++
++	priv = ssc_sensor_hall_get_instance_private (SSC_SENSOR_HALL (sensor));
++
++	/* Only bypass reporting once if the sensor is opened, not during initialization */
++	priv->reported_once = TRUE;
++
++	g_object_unref (source);
++	return SSC_SENSOR_HALL (sensor);
++}
++
++void
++ssc_sensor_hall_new (GCancellable *cancellable, GAsyncReadyCallback callback, gpointer user_data)
++{
++	g_async_initable_new_async (
++			SSC_TYPE_SENSOR_HALL,
++			G_PRIORITY_DEFAULT,
++			cancellable,
++			callback,
++			user_data,
++			SSC_SENSOR_DATA_TYPE, "hall",
++			NULL);
++}
++
++SSCSensorHall *
++ssc_sensor_hall_new_sync (GCancellable *cancellable, GError **error)
++{
++	SSCSensorHall *self = NULL;
++	SyncContext ctx;
++
++	ssc_common_init_sync_context (&ctx);
++	ssc_sensor_hall_new (cancellable, ssc_common_callback_sync_context, &ctx);
++	ssc_common_wait_sync_context (&ctx);
++	self = ssc_sensor_hall_new_finish (ctx.result, error);
++	ssc_common_clear_sync_context (&ctx);
++
++	return self;
++}
+diff -uNr a/src/libssc-sensor-hall.h b/src/libssc-sensor-hall.h
+--- a/src/libssc-sensor-hall.h	1970-01-01 02:00:00.000000000 +0200
++++ b/src/libssc-sensor-hall.h	2026-10-27 01:46:26.213753451 +0300
+@@ -0,0 +1,44 @@
++/*
++ * libssc: Library to expose Qualcomm Sensor Core sensors
++ * Copyright (C) 2022-2026 Dylan Van Assche
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
++ */
++
++#ifndef _LIBSSC_SENSOR_HALL_H_
++#define _LIBSSC_SENSOR_HALL_H_
++
++#include <glib.h>
++#include <gio/gio.h>
++#include "libssc-sensor.h"
++
++#define SSC_TYPE_SENSOR_HALL (ssc_sensor_hall_get_type())
++
++typedef struct _SSCSensorHall {
++	SSCSensor parent;
++} SSCSensorHall;
++
++G_DECLARE_FINAL_TYPE (SSCSensorHall, ssc_sensor_hall, SSC, SENSOR_HALL, SSCSensor);
++
++void		 	 ssc_sensor_hall_new (GCancellable *cancellable, GAsyncReadyCallback callback, gpointer user_data);
++SSCSensorHall 	*ssc_sensor_hall_new_finish (GAsyncResult *result, GError **error);
++SSCSensorHall 	*ssc_sensor_hall_new_sync (GCancellable *cancellable, GError **error);
++void			 ssc_sensor_hall_open (SSCSensorHall *self, GCancellable *cancellable, GAsyncReadyCallback callback, gpointer user_data);
++gboolean		 ssc_sensor_hall_open_finish (SSCSensorHall *self, GAsyncResult *result, GError **error);
++gboolean		 ssc_sensor_hall_open_sync (SSCSensorHall *self, GCancellable *cancellable, GError **error);
++void			 ssc_sensor_hall_close (SSCSensorHall *self, GCancellable *cancellable, GAsyncReadyCallback callback, gpointer user_data);
++gboolean		 ssc_sensor_hall_close_finish (SSCSensorHall *self, GAsyncResult *result, GError **error);
++gboolean		 ssc_sensor_hall_close_sync (SSCSensorHall *self, GCancellable *cancellable, GError **error);
++
++#endif /* _LIBSSC_SENSOR_HALL_H_ */
+diff -uNr a/src/libssc.h b/src/libssc.h
+--- a/src/libssc.h	2026-09-30 10:23:11.108187942 +0300
++++ b/src/libssc.h	2026-10-27 01:46:26.214895693 +0300
+@@ -24,6 +24,7 @@
+ #include <libssc-sensor-compass.h>
+ #include <libssc-sensor-light.h>
+ #include <libssc-sensor-proximity.h>
++#include <libssc-sensor-hall.h>
+ #include <libssc-sensor-gyroscope.h>
+ 
+ #endif /* _LIBSSC_H_ */
+diff -uNr a/src/meson.build b/src/meson.build
+--- a/src/meson.build	2026-09-30 10:23:11.108187942 +0300
++++ b/src/meson.build	2026-10-27 01:46:26.214560265 +0300
+@@ -30,6 +30,7 @@
+   'libssc.h',
+   'libssc-sensor.h',
+   'libssc-sensor-proximity.h',
++  'libssc-sensor-hall.h',
+   'libssc-sensor-light.h',
+   'libssc-sensor-accelerometer.h',
+   'libssc-sensor-magnetometer.h',
+@@ -47,6 +48,7 @@
+   'libssc-client.c',
+   'libssc-sensor.c',
+   'libssc-sensor-proximity.c',
++  'libssc-sensor-hall.c',
+   'libssc-sensor-light.c',
+   'libssc-sensor-accelerometer.c',
+   'libssc-sensor-magnetometer.c',

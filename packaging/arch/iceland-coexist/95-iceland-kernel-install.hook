@@ -1,0 +1,13 @@
+# iceland-coexist (Arch): pacman has no kernel-install trigger; this hook is that trigger. kernel-install then runs
+# 45-iceland-vmlinuz-first + dracut + 60-iceland-coexist.install (the files go to /bootfs/<coexist dir>, the entry to
+# /bootfs/loader/entries/arch-<kver>.conf; the default is never changed).
+[Trigger]
+Type = Path
+Operation = Install
+Operation = Upgrade
+Target = usr/lib/modules/*/vmlinuz
+[Action]
+Description = OnePlus Pad 4: kernel-install add (initramfs + boot entry on /bootfs)...
+When = PostTransaction
+Exec = /usr/share/libalpm/scripts/iceland-kernel-install add
+NeedsTargets

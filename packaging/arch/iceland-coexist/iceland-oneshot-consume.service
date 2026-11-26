@@ -1,0 +1,18 @@
+# iceland-coexist 1.0-4: GRUB cannot write its grubenv on this tablet, so every boot that reaches the local file
+# systems consumes a next_entry that is still set (a one-shot is booted at most once even when the initramfs did not
+# clear it). See /usr/bin/iceland-oneshot.
+[Unit]
+Description=OnePlus Pad 4: consume GRUB's one-shot next_entry (iceland-oneshot)
+DefaultDependencies=no
+RequiresMountsFor=/boot/grub2 /var/lib/iceland
+After=local-fs.target
+Before=sysinit.target shutdown.target
+Conflicts=shutdown.target
+ConditionPathExists=/boot/grub2/grubenv
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/iceland-oneshot consume
+
+[Install]
+WantedBy=sysinit.target

@@ -1,0 +1,180 @@
+From 8fdeb6ee0eeff8b08fd9ca57c70f3665d04c21cd Mon Sep 17 00:00:00 2001
+From: DexHid project <dexhid@invalid>
+Date: Sat, 14 Nov 2026 17:46:36 +0200
+Subject: [PATCH] supplicant: optionally leave P2P groups started by other
+ clients alone
+
+When wpa_supplicant signals GroupStarted for a group interface that is not
+the management interface, NMSupplicantInterface wraps it in a new
+NMSupplicantInterface (nm_supplicant_manager_create_interface_from_path())
+and emits GROUP_STARTED. NMDeviceWifiP2P only takes a reference while it is
+activating; otherwise the last reference is dropped at the end of the
+handler, dispose() calls set_state_down(self, TRUE, ...) and NetworkManager
+sends RemoveInterface for the group interface. A group that another D-Bus
+client created on NetworkManager's wpa_supplicant (for example an
+autonomous GO from P2PDevice.GroupAdd for a Miracast sink) is torn down
+about 30 ms after it started, bypassing wpas_p2p_group_delete(). The same
+happens when the wifi-p2p device is unmanaged, because the GroupStarted
+signal still arrives on the managed station interface.
+
+Add the opt-in [device] option "wifi.p2p.keep-foreign-groups". When it is
+true for the Wi-Fi device and NetworkManager has no P2P Connect pending on
+that supplicant interface, the group interface is neither wrapped nor
+removed. The pending flag is set by nm_supplicant_interface_p2p_connect()
+and cleared by Cancel and by the next GroupStarted, so groups that
+NetworkManager requests keep the current handling. The default (false)
+keeps the existing behaviour.
+---
+ man/NetworkManager.conf.xml                   | 17 ++++++++
+ src/core/nm-config.c                          |  1 +
+ src/core/supplicant/nm-supplicant-interface.c | 42 +++++++++++++++++++
+ src/libnm-base/nm-config-base.h               |  1 +
+ 4 files changed, 61 insertions(+)
+
+diff --git a/man/NetworkManager.conf.xml b/man/NetworkManager.conf.xml
+index 6a8de8d..21ad9e4 100644
+--- a/man/NetworkManager.conf.xml
++++ b/man/NetworkManager.conf.xml
+@@ -1465,6 +1465,23 @@ managed=1
+             </para>
+           </listitem>
+         </varlistentry>
++        <varlistentry>
++          <term><varname>wifi.p2p.keep-foreign-groups</varname></term>
++          <listitem>
++            <para>
++              A boolean value, matched against the Wi-Fi device whose
++              wpa_supplicant interface reports the group. If
++              <literal>true</literal>, a Wi-Fi P2P group that wpa_supplicant
++              starts while NetworkManager has no pending P2P connection
++              (for example a group created by another D-Bus client with
++              <literal>GroupAdd</literal>) is left alone: NetworkManager
++              does not track its group interface and does not remove it
++              from wpa_supplicant. The client that started the group is
++              responsible for ending it. Defaults to <literal>false</literal>,
++              in which case such a group interface is removed.
++            </para>
++          </listitem>
++        </varlistentry>
+         <varlistentry id="sriov-num-vfs">
+          <term><varname>sriov-num-vfs</varname></term>
+           <listitem>
+diff --git a/src/core/nm-config.c b/src/core/nm-config.c
+index 85e36ac..f9629a1 100644
+--- a/src/core/nm-config.c
++++ b/src/core/nm-config.c
+@@ -901,6 +901,7 @@ static const ConfigGroup config_groups[] = {
+                              NM_CONFIG_KEYFILE_KEY_DEVICE_WIFI_SCAN_RAND_MAC_ADDRESS,
+                              NM_CONFIG_KEYFILE_KEY_DEVICE_WIFI_SCAN_GENERATE_MAC_ADDRESS_MASK,
+                              NM_CONFIG_KEYFILE_KEY_DEVICE_WIFI_IWD_AUTOCONNECT,
++                             NM_CONFIG_KEYFILE_KEY_DEVICE_WIFI_P2P_KEEP_FOREIGN_GROUPS,
+                              NM_CONFIG_KEYFILE_KEY_MATCH_DEVICE,
+                              NM_CONFIG_KEYFILE_KEY_STOP_MATCH, ),
+     },
+diff --git a/src/core/supplicant/nm-supplicant-interface.c b/src/core/supplicant/nm-supplicant-interface.c
+index 4476c70..edc83eb 100644
+--- a/src/core/supplicant/nm-supplicant-interface.c
++++ b/src/core/supplicant/nm-supplicant-interface.c
+@@ -17,6 +17,8 @@
+ #include "libnm-glib-aux/nm-ref-string.h"
+ #include "libnm-glib-aux/nm-dbus-aux.h"
+ #include "libnm-std-aux/nm-dbus-compat.h"
++#include "libnm-platform/nm-platform.h"
++#include "nm-config.h"
+ #include "nm-supplicant-config.h"
+ #include "nm-supplicant-manager.h"
+ 
+@@ -158,6 +160,9 @@ typedef struct _NMSupplicantInterfacePrivate {
+ 
+     bool p2p_group_joined_cached : 1;
+ 
++    /* Set while a P2P Connect requested by NetworkManager may still start a group. */
++    bool p2p_connect_pending : 1;
++
+     bool is_ready_main : 1;
+     bool is_ready_p2p_device : 1;
+ 
+@@ -2976,6 +2981,8 @@ nm_supplicant_interface_p2p_connect(NMSupplicantInterface *self,
+     g_variant_builder_add(&builder, "{sv}", "persistent", g_variant_new_boolean(FALSE));
+     g_variant_builder_add(&builder, "{sv}", "go_intent", g_variant_new_int32(7));
+ 
++    NM_SUPPLICANT_INTERFACE_GET_PRIVATE(self)->p2p_connect_pending = TRUE;
++
+     _dbus_connection_call_simple(self,
+                                  NM_WPAS_DBUS_IFACE_INTERFACE_P2P_DEVICE,
+                                  "Connect",
+@@ -2989,6 +2996,8 @@ nm_supplicant_interface_p2p_cancel_connect(NMSupplicantInterface *self)
+ {
+     g_return_if_fail(NM_IS_SUPPLICANT_INTERFACE(self));
+ 
++    NM_SUPPLICANT_INTERFACE_GET_PRIVATE(self)->p2p_connect_pending = FALSE;
++
+     _dbus_connection_call_simple_full(self,
+                                       NM_WPAS_DBUS_IFACE_INTERFACE_P2P_DEVICE,
+                                       "Cancel",
+@@ -3172,6 +3181,29 @@ _set_p2p_assigned_addr(NMSupplicantInterface *self, gconstpointer addr, guint8 p
+     priv->p2p_assigned_plen = plen;
+ }
+ 
++static gboolean
++_p2p_keep_foreign_groups(NMSupplicantInterface *self)
++{
++    NMSupplicantInterfacePrivate *priv = NM_SUPPLICANT_INTERFACE_GET_PRIVATE(self);
++    const NMPlatformLink         *pllink;
++    const char                   *value;
++
++    if (priv->ifindex <= 0)
++        return FALSE;
++
++    pllink = nm_platform_link_get(NM_PLATFORM_GET, priv->ifindex);
++    if (!pllink)
++        return FALSE;
++
++    value = nm_config_data_get_device_config_by_pllink(
++        NM_CONFIG_GET_DATA,
++        NM_CONFIG_KEYFILE_KEY_DEVICE_WIFI_P2P_KEEP_FOREIGN_GROUPS,
++        pllink,
++        "wifi",
++        NULL);
++    return nm_config_parse_boolean(value, FALSE);
++}
++
+ static void
+ _signal_handle(NMSupplicantInterface *self,
+                const char            *signal_interface_name,
+@@ -3286,6 +3318,14 @@ _signal_handle(NMSupplicantInterface *self,
+                 if (nm_streq(iface_path, priv->object_path->str)) {
+                     _LOGW("P2P: GroupStarted on existing interface");
+                     iface = g_object_ref(self);
++                } else if (!priv->p2p_connect_pending && _p2p_keep_foreign_groups(self)) {
++                    /* Another D-Bus client started this group (e.g. with GroupAdd).
++                     * Don't wrap the group interface: dropping the wrapper would
++                     * call RemoveInterface and tear the group down under its owner. */
++                    _LOGI("P2P: group interface %s was not requested by NetworkManager, "
++                          "leaving it alone (wifi.p2p.keep-foreign-groups)",
++                          iface_path);
++                    return;
+                 } else {
+                     iface =
+                         nm_supplicant_manager_create_interface_from_path(priv->supplicant_manager,
+@@ -3325,6 +3365,8 @@ _signal_handle(NMSupplicantInterface *self,
+                     }
+                 }
+ 
++                priv->p2p_connect_pending = FALSE;
++
+                 /* Signal existence of the (new) interface. */
+                 g_signal_emit(self, signals[GROUP_STARTED], 0, iface);
+             }
+diff --git a/src/libnm-base/nm-config-base.h b/src/libnm-base/nm-config-base.h
+index 07e3fe3..31d2694 100644
+--- a/src/libnm-base/nm-config-base.h
++++ b/src/libnm-base/nm-config-base.h
+@@ -75,6 +75,7 @@
+     "wifi.scan-generate-mac-address-mask"
+ #define NM_CONFIG_KEYFILE_KEY_DEVICE_CARRIER_WAIT_TIMEOUT "carrier-wait-timeout"
+ #define NM_CONFIG_KEYFILE_KEY_DEVICE_WIFI_IWD_AUTOCONNECT "wifi.iwd.autoconnect"
++#define NM_CONFIG_KEYFILE_KEY_DEVICE_WIFI_P2P_KEEP_FOREIGN_GROUPS "wifi.p2p.keep-foreign-groups"
+ 
+ #define NM_CONFIG_KEYFILE_KEY_MATCH_DEVICE "match-device"
+ #define NM_CONFIG_KEYFILE_KEY_STOP_MATCH   "stop-match"

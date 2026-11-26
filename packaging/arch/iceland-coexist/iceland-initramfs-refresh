@@ -1,0 +1,21 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# iceland-initramfs-refresh (95-iceland-initramfs.hook): for every installed iceland kernel (usr/lib/modules/K/pkgbase)
+# run `kernel-install add K` (58-iceland-initrd builds /boot/initramfs-K.img, 60-iceland-coexist rewrites the entry),
+# except a kernel whose vmlinuz is in this transaction (95-iceland-kernel-install.hook does that one). Warns about the
+# files Arch's 90-dracut-install hook wrote before it was masked; it never deletes them (the owner decides).
+set -u
+targets=$(cat)
+# only kernels' vmlinuz in this transaction: 95-iceland-kernel-install.hook does all of it
+grep -qvE '^usr/lib/modules/[^/]+/vmlinuz$' <<< "$targets" || exit 0
+for d in /usr/lib/modules/*/; do
+	d=${d%/}; v=${d##*/}
+	[ -f "$d/pkgbase" ] && [ -f "$d/vmlinuz" ] || continue
+	case "$v" in *-iceland*) ;; *) continue ;; esac
+	if grep -qx "usr/lib/modules/$v/vmlinuz" <<< "$targets"; then continue; fi
+	kernel-install add "$v" "$d/vmlinuz" || echo "iceland-initramfs-refresh: kernel-install add $v failed" >&2
+done
+for f in /boot/initramfs-linux-iceland.img /boot/vmlinuz-linux-iceland; do
+	[ -e "$f" ] && echo "iceland-initramfs-refresh: NOTE $f is a leftover of Arch's 90-dracut-install hook (masked now); no entry uses it: remove it on the owner's word"
+done
+exit 0

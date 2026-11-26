@@ -1,0 +1,57 @@
+OnePlus Pad 4 (Adreno 840) Mesa package: Mesa MR !46592
+Title:  tu: mark dynamic descriptor sizes of empty shaders unknown
+Author: Artem Peshkov
+URL:    https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/46592
+Head:   d9e92f5ba2f2e832d23bac8814b1ce55c8d24de4 (MR state opened, target main, checked 21 Nov 2026)
+Review: none (no comments)
+Apply:  applies on staging/26.3 6cd33b7f68ee after the patches before it, without conflict or backport
+
+From b59f4f9d1fdb5ecc7f88edbc9df5522d08560b8d Mon Sep 17 00:00:00 2001
+From: Artem Peshkov <slimstalker@gmail.com>
+Date: Sat, 21 Nov 2026 19:04:32 +0500
+Subject: [PATCH] tu: mark dynamic descriptor sizes of empty shaders unknown
+
+tu_emit_program_state() merges dynamic_descriptor_sizes[] from all
+stages, accepting any non-negative value. Empty TCS/TES/GS shaders
+start with zeroed metadata, so they claim that every set has zero
+dynamic descriptor size and overwrite sizes from real shaders.
+
+With graphics pipeline libraries and independent sets, a fragment
+shader that loads its dynamic descriptor base from the driver UBO
+then gets the wrong base and can read another set's dynamic buffer.
+
+Mark every entry unknown (-1) in tu_empty_shader_create(), matching
+tu_empty_fs_create(). Empty shaders have no layout information and
+must not contribute authoritative zeros to the merge.
+
+A840 CTS independent-set tests change from 12 Fail to 480/480 Pass.
+The 20% pipeline-library selection (23692 tests) and dynamic
+binding-model selection (7262 tests) have 0 Fail.
+
+Fixes failures in the following CTS test family:
+dEQP-VK.pipeline.pipeline_library.graphics_library.independent_sets_random.fast_lib.{vert_frag,vert_tesc_tese_frag}.case_{1,4,5,8}*
+
+Generated-by: LLM
+---
+ src/freedreno/vulkan/tu_shader.cc | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/src/freedreno/vulkan/tu_shader.cc b/src/freedreno/vulkan/tu_shader.cc
+index 9ad75ff08cc..ece319aadfc 100644
+--- a/src/freedreno/vulkan/tu_shader.cc
++++ b/src/freedreno/vulkan/tu_shader.cc
+@@ -4142,6 +4142,14 @@ tu_empty_shader_create(struct tu_device *dev,
+    if (!shader)
+       return VK_ERROR_OUT_OF_HOST_MEMORY;
+ 
++   /* Empty shaders don't access any descriptor set, so they know nothing
++    * about the dynamic descriptor sizes of the layout. Mark them unknown so
++    * that they don't override the sizes from real shaders when the program
++    * state is assembled from libraries.
++    */
++   for (unsigned i = 0; i < MAX_SETS; i++)
++      shader->dynamic_descriptor_sizes[i] = -1;
++
+    pthread_mutex_lock(&dev->pipeline_mutex);
+    VkResult result = tu_suballoc_bo_alloc(&shader->bo, &dev->pipeline_suballoc,
+                                           32 * 4, 128);

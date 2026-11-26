@@ -1,0 +1,2 @@
+# hexagonrpc: the FastRPC device nodes for the "fastrpc" group (hexagonrpcd's units run as user fastrpc)
+SUBSYSTEM=="misc", KERNEL=="fastrpc-*", GROUP="fastrpc", MODE="0660"

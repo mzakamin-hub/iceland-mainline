@@ -1,0 +1,82 @@
+From b7d1de4f90639a3fa5108390b10651f48453d8b6 Mon Sep 17 00:00:00 2001
+From: Iceland packaging <packaging@iceland.invalid>
+Date: Sat, 21 Nov 2026 20:30:09 +0200
+Subject: [PATCH 7/9] ssc: forget the measurement handler when opening a sensor
+ fails
+
+The SSC accelerometer (stream), light, proximity and compass drivers
+connect their "measurement" handler before the open. When the open
+failed, the handler stayed connected: every later claim was taken for
+"already polling" and never tried the sensor again, and the release
+closed a sensor that was never open. Disconnect it on failure, so the
+next claim opens the sensor again.
+
+Idea from SuperTurtleDev's iceland-mainline-userspace (77f19af7,
+iio-sensor-proxy overlay patches 0002 and 0005); re-implemented here.
+---
+ src/drv-ssc-accel.c     | 2 ++
+ src/drv-ssc-compass.c   | 5 ++++-
+ src/drv-ssc-light.c     | 5 ++++-
+ src/drv-ssc-proximity.c | 2 ++
+ 4 files changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/src/drv-ssc-accel.c b/src/drv-ssc-accel.c
+index e72a1ba..b14b439 100644
+--- a/src/drv-ssc-accel.c
++++ b/src/drv-ssc-accel.c
+@@ -239,6 +239,8 @@ ssc_accelerometer_set_polling (SensorDevice *sensor_device, gboolean state)
+ 		/* Enable sensor */
+ 		if (!ssc_sensor_accelerometer_open_sync (drv_data->sensor, NULL, &error)) {
+ 			g_warning ("Opening SSC accelerometer sensor failed: %s", error->message);
++			/* not open: the next claim tries again */
++			g_clear_signal_handler (&drv_data->measurement_id, drv_data->sensor);
+ 			return;
+ 		}
+ 	} else {
+diff --git a/src/drv-ssc-compass.c b/src/drv-ssc-compass.c
+index 3b1a5c1..b4ffafb 100644
+--- a/src/drv-ssc-compass.c
++++ b/src/drv-ssc-compass.c
+@@ -94,8 +94,11 @@ ssc_compass_set_polling (SensorDevice *sensor_device, gboolean state)
+ 							     sensor_device);
+ 
+ 		/* Enable sensor */
+-		if (!ssc_sensor_compass_open_sync (drv_data->sensor, NULL, &error))
++		if (!ssc_sensor_compass_open_sync (drv_data->sensor, NULL, &error)) {
+ 			g_warning ("Opening SSC compass sensor failed: %s", error->message);
++			/* not open: the next claim tries again */
++			g_clear_signal_handler (&drv_data->measurement_id, drv_data->sensor);
++		}
+ 	} else {
+ 		if (!drv_data->measurement_id)
+ 			return;
+diff --git a/src/drv-ssc-light.c b/src/drv-ssc-light.c
+index 1cd5506..5159732 100644
+--- a/src/drv-ssc-light.c
++++ b/src/drv-ssc-light.c
+@@ -135,8 +135,11 @@ ssc_light_set_polling (SensorDevice *sensor_device, gboolean state)
+ 							     G_CALLBACK (measurement_cb),
+ 							     sensor_device);
+ 		/* Enable sensor */
+-		if (!ssc_sensor_light_open_sync (drv_data->sensor, NULL, &error))
++		if (!ssc_sensor_light_open_sync (drv_data->sensor, NULL, &error)) {
+ 			g_warning ("Opening SSC light sensor failed: %s", error->message);
++			/* not open: the next claim tries again */
++			g_clear_signal_handler (&drv_data->measurement_id, drv_data->sensor);
++		}
+ 	} else {
+ 		if (!drv_data->measurement_id)
+ 			return;
+diff --git a/src/drv-ssc-proximity.c b/src/drv-ssc-proximity.c
+index fbb4482..9a29fec 100644
+--- a/src/drv-ssc-proximity.c
++++ b/src/drv-ssc-proximity.c
+@@ -96,6 +96,8 @@ ssc_proximity_set_polling (SensorDevice *sensor_device, gboolean state)
+ 		/* Enable sensor */
+ 		if (!ssc_sensor_proximity_open_sync (drv_data->sensor, NULL, &error)) {
+ 			g_warning ("Opening SSC proximity sensor failed: %s", error ? error->message : "UNKNOWN");
++			/* not open: the next claim tries again */
++			g_clear_signal_handler (&drv_data->measurement_id, drv_data->sensor);
+ 			return;
+ 		}
+ 	} else {

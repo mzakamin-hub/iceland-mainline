@@ -1,0 +1,16 @@
+# libssc 0.4.4^8.git54dd13e (iceland1) for Arch: the Qualcomm sensor hub (SSC) library, with our hall-sensor patch
+pkgname=libssc
+_commit=54dd13e36d65c21263cf5b0f4a70c230a77b26bc
+pkgver=0.4.4.r8.g54dd13e
+pkgrel=1
+pkgdesc='Library for the Qualcomm Sensor Core (SSC) sensor hub (iceland hall patch)'
+arch=(aarch64)
+url='https://codeberg.org/DylanVanAssche/libssc'
+license=('GPL-3.0-or-later')
+depends=(glib2 libqmi protobuf-c)
+makedepends=(meson ninja git gobject-introspection protobuf)
+source=("git+https://codeberg.org/DylanVanAssche/libssc.git#commit=$_commit" libssc-iceland-hall.patch)
+sha256sums=('SKIP' '5f2aeb0f31a53979a1f3ab2d7adf4ceb7a228590031ea902a5230cf217860657')
+prepare() { cd libssc; patch -Np1 -i "$srcdir/libssc-iceland-hall.patch"; }
+build() { arch-meson libssc build; meson compile -C build; }
+package() { meson install -C build --destdir "$pkgdir"; rm -rf "$pkgdir/usr/share/vala"; }

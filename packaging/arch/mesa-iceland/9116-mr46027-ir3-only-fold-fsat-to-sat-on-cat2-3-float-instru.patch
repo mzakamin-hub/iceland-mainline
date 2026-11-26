@@ -1,0 +1,58 @@
+From e8d38c2b847581e4663389ab151139b9d6b19542 Mon Sep 17 00:00:00 2001
+From: Job Noorman <jnoorman@igalia.com>
+Date: Fri, 6 Nov 2026 17:20:20 +0100
+Subject: [PATCH] ir3: rename is_sat_compatible to sat_is_fsat
+
+The name of the helper was confusing because it isn't used to check
+whether an instruction supports (sat) but whether (sat) is equivalent to
+fsat.
+
+Signed-off-by: Job Noorman <jnoorman@igalia.com>
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/46027>
+(cherry picked from commit 05ff917628f471beb2d3ead484c7110354a1fb64)
+---
+ src/freedreno/ir3/instr-a3xx.h       | 3 ++-
+ src/freedreno/ir3/ir3_compiler_nir.c | 6 +++---
+ 2 files changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/src/freedreno/ir3/instr-a3xx.h b/src/freedreno/ir3/instr-a3xx.h
+index 92a39b5711f..83539f250fe 100644
+--- a/src/freedreno/ir3/instr-a3xx.h
++++ b/src/freedreno/ir3/instr-a3xx.h
+@@ -647,8 +647,9 @@ is_cat3_float(opc_t opc)
+    }
+ }
+ 
++/* Is (sat) equivalent to fsat? */
+ static inline bool
+-is_sat_compatible(opc_t opc)
++sat_is_fsat(opc_t opc)
+ {
+    /* On a6xx saturation doesn't work on cat4 */
+    return is_cat2_float(opc) || is_cat3_float(opc);
+diff --git a/src/freedreno/ir3/ir3_compiler_nir.c b/src/freedreno/ir3/ir3_compiler_nir.c
+index 12ee805c0e6..20268c6d5e2 100644
+--- a/src/freedreno/ir3/ir3_compiler_nir.c
++++ b/src/freedreno/ir3/ir3_compiler_nir.c
+@@ -534,10 +534,10 @@ emit_alu_dot_4x8_as_dp2acc(struct ir3_context *ctx, nir_alu_instr *alu,
+ }
+ 
+ static bool
+-all_sat_compatible(struct ir3_instruction *instrs[], unsigned n)
++all_sat_is_fsat(struct ir3_instruction *instrs[], unsigned n)
+ {
+    for (unsigned i = 0; i < n; i++) {
+-      if (!is_sat_compatible(instrs[i]->opc))
++      if (!sat_is_fsat(instrs[i]->opc))
+          return false;
+    }
+ 
+@@ -709,7 +709,7 @@ emit_alu(struct ir3_context *ctx, nir_alu_instr *alu)
+        * src instruction and create a mov.  This is easier for cp
+        * to eliminate.
+        */
+-      if (all_sat_compatible(src[0].rpts, dst_sz) &&
++      if (all_sat_is_fsat(src[0].rpts, dst_sz) &&
+           is_unique_use(&alu->src[0].src)) {
+          set_instr_flags(src[0].rpts, dst_sz, IR3_INSTR_SAT);
+          dst = ir3_MOV_rpt(b, dst_sz, src[0], dst_type);

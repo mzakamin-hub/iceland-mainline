@@ -1,0 +1,155 @@
+From b25eda4a935db35b7f24ac9c68d72e9c7c5aa064 Mon Sep 17 00:00:00 2001
+From: Jan-Michael Brummer <jan.brummer@tabos.org>
+Date: Sun, 18 Oct 2026 08:07:23 +0200
+Subject: [PATCH 1/9] iio-sensor-proxy: Setup sensors before dbus service
+
+Tested and verified on OnePlus 6T and Fairphone 5.
+
+Fixes:
+https://gitlab.freedesktop.org/hadess/iio-sensor-proxy/-/work_items/437
+---
+ src/iio-sensor-proxy.c | 75 ++++++++++++++++++++++--------------------
+ 1 file changed, 40 insertions(+), 35 deletions(-)
+
+diff --git a/src/iio-sensor-proxy.c b/src/iio-sensor-proxy.c
+index 9c7e8cd..fa5c709 100644
+--- a/src/iio-sensor-proxy.c
++++ b/src/iio-sensor-proxy.c
+@@ -377,6 +377,9 @@ static void
+ send_driver_changed_dbus_event (SensorData   *data,
+ 				DriverType    driver_type)
+ {
++	if (!data->connection)
++		return;
++
+ 	if (driver_type == DRIVER_TYPE_ACCEL)
+ 		send_dbus_event (data, PROP_HAS_ACCELEROMETER);
+ 	else if (driver_type == DRIVER_TYPE_LIGHT)
+@@ -712,16 +715,6 @@ bus_acquired_handler (GDBusConnection *connection,
+ 		      gpointer         user_data)
+ {
+ 	SensorData *data = user_data;
+-	const gchar * const subsystems[] = {
+-		"iio",
+-		"input",
+-		"platform",
+-#ifdef HAS_LIBSSC
+-		"misc",
+-#endif
+-		NULL
+-    };
+-	guint i;
+ 
+ 	g_dbus_connection_register_object (connection,
+ 					   SENSOR_PROXY_DBUS_PATH,
+@@ -739,25 +732,27 @@ bus_acquired_handler (GDBusConnection *connection,
+ 					   NULL,
+ 					   NULL);
+ 
+-	/* Initialize DBus clients hash table before DBus is fully exposed */
+-	data->client = g_udev_client_new (subsystems);
+-
+-	for (guint i = 0; i < NUM_SENSOR_TYPES; i++)
+-		data->clients[i] = create_clients_hash_table ();
+-
+ 	data->connection = g_object_ref (connection);
+ }
+ 
+-static void
+-name_acquired_handler (GDBusConnection *connection,
+-		       const gchar     *name,
+-		       gpointer         user_data)
++static gboolean
++setup_sensors (SensorData *data)
+ {
+-	SensorData *data = user_data;
++	const gchar * const subsystems[] = {
++		"iio",
++		"input",
++		"platform",
++#ifdef HAS_LIBSSC
++		"misc",
++#endif
++		NULL
++	};
+ 	guint i;
+ 
++	data->client = g_udev_client_new (subsystems);
++
+ 	if (!find_sensors (data->client, data))
+-		goto bail;
++		return FALSE;
+ 
+ 	g_signal_connect (G_OBJECT (data->client), "uevent",
+ 			  G_CALLBACK (sensor_changes), data);
+@@ -765,8 +760,6 @@ name_acquired_handler (GDBusConnection *connection,
+ 	for (i = 0; i < NUM_SENSOR_TYPES; i++) {
+ 		SensorDevice *sensor_device;
+ 
+-		data->sensor_startup_dbus_invocations_delayed[i] = g_ptr_array_new ();
+-
+ 		if (!driver_type_exists (data, i))
+ 			continue;
+ 
+@@ -781,17 +774,18 @@ name_acquired_handler (GDBusConnection *connection,
+ 		DEVICE_FOR_TYPE(i) = sensor_device;
+ 	}
+ 
+-	if (!any_sensors_left (data))
+-		goto bail;
++	return any_sensors_left (data);
++}
++
++static void
++name_acquired_handler (GDBusConnection *connection,
++		       const gchar     *name,
++		       gpointer         user_data)
++{
++	SensorData *data = user_data;
+ 
+ 	send_dbus_event (data, PROP_ALL);
+ 	send_dbus_event (data, PROP_ALL_COMPASS);
+-	return;
+-
+-bail:
+-	data->ret = 0;
+-	g_message ("No sensors or missing kernel drivers for the sensors. Exiting");
+-	g_main_loop_quit (data->loop);
+ }
+ 
+ static gboolean
+@@ -801,6 +795,8 @@ setup_dbus (SensorData *data,
+ 	GBytes *bytes;
+ 	GBusNameOwnerFlags flags;
+ 
++	data->auth = polkit_authority_get_sync (NULL, NULL);
++
+ 	bytes = g_resources_lookup_data ("/net/hadess/SensorProxy/net.hadess.SensorProxy.xml",
+ 					 G_RESOURCE_LOOKUP_FLAGS_NONE,
+ 					 NULL);
+@@ -1169,13 +1165,22 @@ int main (int argc, char **argv)
+ 	data->previous_orientation = ORIENTATION_UNDEFINED;
+ 	data->previous_tilt = TILT_UNDEFINED;
+ 	data->uses_lux = TRUE;
++	data->loop = g_main_loop_new (NULL, TRUE);
++
++	for (guint i = 0; i < NUM_SENSOR_TYPES; i++) {
++		data->clients[i] = create_clients_hash_table ();
++		data->sensor_startup_dbus_invocations_delayed[i] = g_ptr_array_new ();
++	}
++
++	if (!setup_sensors (data)) {
++		g_message ("No sensors or missing kernel drivers for the sensors. Exiting");
++		free_sensor_data (data);
++		return EXIT_SUCCESS;
++	}
+ 
+ 	/* Set up D-Bus */
+ 	setup_dbus (data, replace);
+ 
+-	data->auth = polkit_authority_get_sync (NULL, NULL);
+-	data->loop = g_main_loop_new (NULL, TRUE);
+-
+ 	g_unix_signal_add (SIGINT, (GSourceFunc) termination_signal_handler, data);
+ 	g_unix_signal_add (SIGTERM, (GSourceFunc) termination_signal_handler, data);
+ 

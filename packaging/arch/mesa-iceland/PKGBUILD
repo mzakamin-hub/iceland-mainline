@@ -1,0 +1,398 @@
+# mesa-iceland: Mesa for the OnePlus Pad 4 (Adreno 840) = the tree of our Fedora build
+# 26.3.1^git20261120.6cd33b7-1.fc45.iceland1:
+#  - source: mesa-26.3.1-git20261120.6cd33b7.tar.xz = `git archive` of mesa staging/26.3 commit
+#    6cd33b7f68ee04c5270215591b2d29535af291bd (tree 51fe67c7...), the same file as in the Fedora SRPM; makepkg does no
+#    network fetch for it (SOURCES-NOT-STAGED.txt has its size and sha256);
+#  - patches 9101-9142 (this directory) (A840 turnip / ir3 / freedreno MRs + armada 0016 / 0017), applied in the
+#    spec's order; venus-protocol v1.1.3 unpacked into subprojects (as the spec's %prep);
+#  - meson options from the Fedora spec where they apply (platforms x11,wayland; freedreno-kmds msm,virtio;
+#    gallium-va; gles1 / gles2; gbm; glx=dri; egl; glvnd; shared LLVM; valgrind; libunwind; lmsensors; spirv-tools;
+#    vulkan-layers device-select; rusticl ON because the Fedora build enables it (with_opencl) -> opencl-mesa-iceland),
+#    with the driver lists CUT to what the tablet uses:
+#      gallium: freedreno, zink, llvmpipe, softpipe, virgl     vulkan: freedreno (turnip), swrast (lavapipe), virtio
+#    (no teflon / NPU, no nouveau / NVK, so no NVK crates); b_ndebug=true as Arch.
+# Not Arch's 17-way split: mesa-iceland (GL / EGL / GLES / GBM / DRI / VA / device-select layer) + vulkan-freedreno-iceland
+# + vulkan-swrast-iceland + vulkan-virtio-iceland + opencl-mesa-iceland, each with provides / conflicts of Arch's names
+# (mesa, mesa-libgl, libgl, libegl, libgles, opengl-driver, libva-mesa-driver, vulkan-driver, vulkan-freedreno,
+# vulkan-swrast, vulkan-virtio, vulkan-mesa-implicit-layers, opencl-mesa, opencl-driver).
+pkgbase=mesa-iceland
+_rusticl=true
+pkgname=(
+  mesa-iceland
+  vulkan-freedreno-iceland
+  vulkan-swrast-iceland
+  vulkan-virtio-iceland
+)
+[[ $_rusticl == true ]] && pkgname+=(opencl-mesa-iceland)
+_commit=6cd33b7f68ee04c5270215591b2d29535af291bd
+_ver=26.3.1-git20261120.6cd33b7
+pkgver=26.3.1.git20261120.6cd33b7
+pkgrel=1
+_epoch=1   # Arch's mesa epoch, used in the provides so versioned dependencies like mesa>=1:... resolve
+pkgdesc="Open-source OpenGL / Vulkan drivers, OnePlus Pad 4 (Adreno 840) build of mesa 26.3.1 staging 6cd33b7 + A840 patches"
+url="https://www.mesa3d.org/"
+arch=(aarch64)
+license=("MIT AND BSD-3-Clause AND SGI-B-2.0")
+makedepends=(
+  bison
+  clang
+  cmake
+  elfutils
+  expat
+  flex
+  glibc
+  glslang
+  libclc
+  libdisplay-info
+  libdrm
+  libelf
+  libgcc
+  libglvnd
+  libpng
+  libstdc++
+  libunwind
+  libva
+  libx11
+  libxcb
+  libxdamage
+  libxext
+  libxfixes
+  libxml2
+  libxrandr
+  libxshmfence
+  libxxf86vm
+  llvm
+  llvm-libs
+  lm_sensors
+  meson
+  python-lxml
+  python-mako
+  python-packaging
+  python-ply
+  python-pycparser
+  python-yaml
+  rust
+  rust-bindgen
+  spirv-llvm-translator
+  spirv-tools
+  systemd-libs
+  valgrind
+  vulkan-headers
+  vulkan-icd-loader
+  wayland
+  wayland-protocols
+  xcb-util-keysyms
+  xorgproto
+  zlib
+  zstd
+)
+options=(
+  # upstream considers LTO broken (Arch: !lto)
+  !lto
+)
+source=(
+  "mesa-$_ver.tar.xz"
+  Mesa-MLAA-License-Clarification-Email.txt
+  venus-protocol-v1.1.3.tar.gz
+  9101-mr45525-26-3-backport-tu-a8xx-split-large-indirect-draws.patch
+  9102-mr45369-tu-drop-reference-taken-with-get-vis-stream-patc.patch
+  9103-mr45366-tu-add-back-float16-3d-path-for-multisampled-cop.patch
+  9104-mr45416-tu-freedreno-modify-hull-shader-programming.patch
+  9105-mr45342-tu-mark-signed-4x8-integer-dot-products-as-accel.patch
+  9106-mr45554-freedreno-record-the-batch-s-write-when-a-query.patch
+  9107-mr45506-tu-have-gl-behavior-for-primitive-generated-quer.patch
+  9108-mr45464-ir3-better-copy-prop-for-source-modifiers.patch
+  9109-mr45517-ir3-ra-fix-double-only-register-limit-unit.patch
+  9110-mr45559-vulkan-sort-per-binding-pnext-data-in-vk-create.patch
+  9111-mr45601-tu-ir3-fix-a702-regressions.patch
+  9112-mr43899-turnip-drop-ccu-depth-invalidation-on-occlusion.patch
+  9113-mr45882-freedreno-take-only-in-fence-as-a-hint-for-expli.patch
+  9114-mr45918-tu-lrz-fix-partial-lrz-fast-clear-on-a8xx.patch
+  9115-mr45981-freedreno-ir3-lower-fp32-to-fp16-for-subnormals.patch
+  9116-mr46027-ir3-only-fold-fsat-to-sat-on-cat2-3-float-instru.patch
+  9117-mr45243-tu-inline-uniform-block-fixes.patch
+  9118-mr44365-nir-ir3-fix-32-bit-udiv-when-rcp-rounds-up.patch
+  9119-mr45937-tu-wfi-before-reading-registers-that-were-just-w.patch
+  9120-mr45985-tu-carry-flush-bits-for-suspended-s-r-chains-bet.patch
+  9121-mr45926-tu-wait-for-vm-bind-unmap-completion-before-free.patch
+  9122-mr45904-turnip-preserve-sample-counts-across-gmem-preemp.patch
+  9123-mr45928-ir3-keep-separate-dominance-stacks-in-merge-sets.patch
+  9124-mr46023-ir3-fix-is-ss-sy-producer-and-use-in-legalize.patch
+  9125-mr45958-freedreno-ir3-set-api-wavesize-double-only-for-g.patch
+  9127-mr44712-ir3-lower-copies-don-t-split-partially-blocked-c.patch
+  9128-mr37924-ir3-add-opt-absneg-pass.patch
+  9129-mr43714-tu-don-t-flush-for-sysmem-resolves-if-there-are.patch
+  9130-mr43272-tu-synchronize-access-between-no-rast-order-and.patch
+  9131-mr46456-tu-a8xx-reset-lrz-control-after-flush.patch
+  9132-mr46139-tu-a8xx-use-subpass-fence-before-reading-resolve.patch
+  9133-mr46146-turnip-emit-gpu-patched-vis-stream-packets-into.patch
+  9134-mr46147-turnip-fix-the-fdm-aspect-guard-and-bound-the-fd.patch
+  9135-mr46194-tu-update-input-attachment-idx-when-msrtss-inter.patch
+  9136-mr46592-tu-mark-dynamic-descriptor-sizes-of-empty-shader.patch
+  9137-mr46182-ir3-array-to-ssa-don-t-resolve-readers-to-delete.patch
+  9138-mr46556-ir3-keep-the-preamble-early-on-gpus-with-early-p.patch
+  9139-mr46398-ir3-sched-allow-a0-x-a1-x-writes-to-be-scheduled.patch
+  9140-mr46589-freedreno-a8xx-use-the-a8xx-compute-workgroup-ti.patch
+  9141-armada0016-freedreno-a8xx-wait-for-zpass-done-sample-count.patch
+  9142-armada0017-freedreno-a8xx-emit-an-rb-done-ts-event-after-ea.patch
+)
+noextract=(venus-protocol-v1.1.3.tar.gz)
+sha256sums=('6a98503efacc0e15e85e6e0af4e1049efeb7f03cd56dc66c8a750c97a5e35c23'
+            '68e7be52203a4457ea97d9c4744661a07fc3d78edb44a86b43349fb66f09147a'
+            'c5a362ca28e0a35042db1baeadaf9183500b216841e49d72714b80bae50b4445'
+            '48daccbae7c064c88ab5077ad5c547afbe2c9cffd7b17365b98daac2a17eea57'
+            '55396c3f52e1041ff87c624c01850a3fc32692205b6d25d7fe367b7e056121ec'
+            '90e504c5e51c24910ad73d3c3fdf24aa67872fba95d59a2c5a73149425bb57b9'
+            '8903ef7eb6a853656b329569d9ae84f73e7874c67c0692b0dd678a93dfd748b3'
+            '929d15abde06c36d5371eb565c1092e52995f51b1e895174681b15b24a24c299'
+            '2887b33298c97fbeae7f583a4427743a6843c028383f09786f69935921d81299'
+            '88c76111c4ddbe93de37d9195f7513104bcd7b5b7f03272e1ca0ebacf71c5eb6'
+            'bad24e52d44f06b74e8f3b25721f6bc61bc776ac86c85a9ad44ca7ff79c9d0e3'
+            'bf929df23770df4d51cfd35057461b670763a3b825acceb22f5514a53c8f7df0'
+            'a1ab99241ae4cf6d4d9619fc4ca80bf4890f5f7cbe2f4bc272fa20fd1c405976'
+            'b44b47a1de77022fd576b2d2a5706f7370ea2fa20017b3cd1ce321b47399820f'
+            '0ce9f78ba97b13d69d127098bc1bc28526a1736e3f15be11c4280e28ecc6cfde'
+            'b81ffe0360d42d1cebbb0968d2a919eb36d76464a2f4879dc0a5b8ad60a32350'
+            '74a4828ecb038a05bcfc60d8a0d94a2d8fa153e42af99f557b9116b6caecbf4e'
+            '6b9a14e3afd4c08a647fdafbce7e2180c1c4982a5cc56c4945ea8974544ce399'
+            'c1356d422898ce33244b9844706f6adbdc44107d9904342375957b6c97c9951f'
+            '9577b06309c7f1097fcd767a0f7297771a5aa3cf05b8b17614e49d1225596591'
+            'aa66c0eebdcf7dee81068d2badb38479cab9762f74fa397e26fa6fd069006bf5'
+            'e0c1f706c5ac4f2475277f5d2fb92815a5ba3c01e9843929707d2cd5bd9c593c'
+            '0d081c04fb7edea69fc4c9766515dabf0acb6b6976666b27af8780f248f654e0'
+            'c6f1fcfbf447035e80f2bac5384c13ad4b025ab3b6cf993128f70a92f7f45f32'
+            'c4e10ae54a14f8d5b30a3fca9ec7a40cee833f3bc84f6786d9a234e68ebc98da'
+            '84274a8412a5342b6cf097dc09319dd6befe7c3d1c2c5cbd71efa570914f1bdf'
+            'c5fdf1940bf44d243ec456b751b0809c47c9b85ae60fa3470ef82ebf84eed7a2'
+            'c41af3a704ba31af77da77b6f1b8b4b1920b9aa93b16edbadbc3a96a828930b9'
+            'e31683d8ee9ab12e25045ccfdefbb64473ad793ce8811cdfeca985897d7a6c02'
+            'cf32d58138b5f61f0e1d2e4cfd05a7bb11887a231b50cc9d5b7f9f8a4582c2a9'
+            'cbc8014f8bb6e3cf6e8dca59520d3677b2af3222f2e04ceb9c662eb97829320f'
+            'f1a2371b892da293e06c157ea58a5f7ba6537ee98fd4b7cf398265ae90cd9f2a'
+            'e55753650eb4f35c9da504f308c9cc1a67bd7732b77ca57a561e7001c2f3bf62'
+            'd82b0df3eacbfd4bd096a823372715b4d7fd25cd4a345d29f8fd3300c75844ec'
+            'eee76f974e9911810183b0df6ae30edca5fdcae6b1ddce8d0f03ba23adba2a50'
+            '5d57afeca325aade7e68dba034c27935ecb9f625438f651a6199be02d287cfe0'
+            '2f1a8224661b1ed17b3c29b6ad541bd751cc5a021c189bc5635343c5d68be220'
+            '57d6e457e9f0bdbfe52b4208021cb152dfef407528facd098ee9909909ec9715'
+            'b32090936ceb919eaf79978406d7a12c4b9664e1f4b7fc89a1b61bab5e87709c'
+            '98436716bcd4968994b1b6457c01a75ff40ba7b9b3403c24014d6c342a57b567'
+            'bd1329e38838429b141931d2c3192b461ef2d983c031499ac49acecc2979b3ef'
+            'c50811f84e742720543747279679c2c5b365ec69bc2bc5935cd8fb42675a36c4'
+            '3ea20966a60cf26b648bdccb7a1f3feacd218a8f74580ca8607e668094881c34'
+            '2511e0bb3f7ad800668c43d8b24215c783f8fb0f1c32900b239c5f723fca42ed')
+
+# shared with scripts/blk-mesa-cfgtest-in.sh (configure-only trial)
+_meson_options=(
+  -D b_ndebug=true
+  -D platforms=x11,wayland
+  -D gallium-drivers=freedreno,zink,llvmpipe,softpipe,virgl
+  -D vulkan-drivers=freedreno,swrast,virtio
+  -D freedreno-kmds=msm,virtio
+  -D gallium-va=enabled
+  -D gallium-mediafoundation=disabled
+  -D teflon=false
+  -D gallium-rusticl=$_rusticl
+  -D vulkan-layers=device-select
+  -D gles1=enabled
+  -D gles2=enabled
+  -D opengl=true
+  -D gbm=enabled
+  -D glx=dri
+  -D egl=enabled
+  -D glvnd=enabled
+  -D intel-rt=disabled
+  -D microsoft-clc=disabled
+  -D llvm=enabled
+  -D shared-llvm=enabled
+  -D valgrind=enabled
+  -D build-tests=false
+  -D libunwind=enabled
+  -D lmsensors=enabled
+  -D android-libbacktrace=disabled
+  -D spirv-tools=enabled
+  -D vulkan-loader-rpath=
+  -D vulkan-manifest-per-architecture=false
+)
+
+prepare() {
+  cd mesa-$_ver
+  local p
+  for p in ../91[0-9][0-9]-*.patch; do
+    echo "Applying ${p##*/}"
+    patch -Np1 -i "$p"
+  done
+  cp ../Mesa-MLAA-License-Clarification-Email.txt docs/
+  # venus-protocol for the virtio Vulkan driver (git archive does not bundle it; no wrap download)
+  mkdir -p subprojects/venus-protocol-1.1.3
+  tar -xzf ../venus-protocol-v1.1.3.tar.gz -C subprojects/venus-protocol-1.1.3 --strip-components=1
+  # release string carries the package release (Chromium GPU cache invalidation, as Arch)
+  [ "$(cat VERSION)" = 26.3.1 ]
+  echo "26.3.1-iceland$_epoch.$pkgrel" > VERSION
+}
+
+build() {
+  arch-meson mesa-$_ver build "${_meson_options[@]}"
+  meson compile -C build
+}
+
+_pick() {
+  local p="$1" f d; shift
+  for f; do
+    d="$srcdir/$p/${f#$pkgdir/}"
+    mkdir -p "$(dirname "$d")"
+    mv -v "$f" "$d"
+    rmdir -p --ignore-fail-on-non-empty "$(dirname "$f")"
+  done
+}
+
+package_mesa-iceland() {
+  depends=(
+    expat
+    glibc
+    libdrm
+    libelf
+    libgcc
+    libglvnd
+    libstdc++
+    libunwind
+    libx11
+    libxcb
+    libxext
+    libxfixes
+    libxshmfence
+    libxxf86vm
+    llvm-libs
+    lm_sensors
+    spirv-tools
+    wayland
+    zlib
+    zstd
+  )
+  optdepends=(
+    "vulkan-freedreno-iceland: Vulkan (turnip) for the Adreno 840"
+    "opengl-man-pages: for the OpenGL API man pages"
+  )
+  provides=(
+    "mesa=$_epoch:$pkgver-$pkgrel"
+    "mesa-libgl=$_epoch:$pkgver-$pkgrel"
+    "libva-mesa-driver=$_epoch:$pkgver-$pkgrel"
+    "vulkan-mesa-implicit-layers=$_epoch:$pkgver-$pkgrel"
+    "vulkan-mesa-device-select=$_epoch:$pkgver-$pkgrel"
+    libgl
+    libegl
+    libgles
+    libva-driver
+    opengl-driver
+  )
+  conflicts=(
+    mesa
+    mesa-libgl
+    libva-mesa-driver
+    vulkan-mesa-implicit-layers
+    vulkan-mesa-device-select
+  )
+
+  meson install -C build --destdir "$pkgdir" --no-rebuild
+
+  (
+    local libdir=usr/lib
+    cd "$pkgdir"
+
+    if [[ $_rusticl == true ]]; then
+      _pick opencl $libdir/libRusticlOpenCL*
+      _pick opencl etc/OpenCL/vendors/rusticl.icd
+    fi
+
+    _pick vkfdreno $libdir/libvulkan_freedreno.so
+    _pick vkfdreno usr/share/vulkan/icd.d/freedreno_icd.json
+
+    _pick vkswrast $libdir/libvulkan_lvp.so
+    _pick vkswrast usr/share/vulkan/icd.d/lvp_icd.json
+
+    _pick vkvirtio $libdir/libvulkan_virtio.so
+    _pick vkvirtio usr/share/vulkan/icd.d/virtio_icd.json
+
+    rm -rf usr/share/doc
+
+    # indirect rendering
+    ln -sr $libdir/libGLX_{mesa,indirect}.so.0
+  )
+
+  install -Dm644 mesa-$_ver/docs/license.rst -t "$pkgdir/usr/share/licenses/$pkgname"
+}
+
+_vkdepends=(
+  expat
+  glibc
+  libdisplay-info
+  libdrm
+  libgcc
+  libstdc++
+  libx11
+  libxcb
+  libxshmfence
+  systemd-libs
+  vulkan-icd-loader
+  wayland
+  xcb-util-keysyms
+  zlib
+  zstd
+)
+
+package_vulkan-freedreno-iceland() {
+  pkgdesc="Open-source Vulkan driver for Adreno GPUs (turnip), OnePlus Pad 4 build"
+  depends=("${_vkdepends[@]}" spirv-tools "mesa-iceland=$pkgver-$pkgrel")
+  optdepends=("vulkan-mesa-layers: additional vulkan layers")
+  provides=("vulkan-freedreno=$_epoch:$pkgver-$pkgrel" vulkan-driver)
+  conflicts=(vulkan-freedreno)
+  mv vkfdreno/* "$pkgdir"
+  install -Dm644 mesa-$_ver/docs/license.rst -t "$pkgdir/usr/share/licenses/$pkgname"
+}
+
+package_vulkan-swrast-iceland() {
+  pkgdesc="Open-source Vulkan driver for CPUs (lavapipe), OnePlus Pad 4 mesa build"
+  depends=("${_vkdepends[@]}" llvm-libs spirv-tools "mesa-iceland=$pkgver-$pkgrel")
+  optdepends=("vulkan-mesa-layers: additional vulkan layers")
+  provides=("vulkan-swrast=$_epoch:$pkgver-$pkgrel" vulkan-driver)
+  conflicts=(vulkan-swrast vulkan-mesa)
+  mv vkswrast/* "$pkgdir"
+  install -Dm644 mesa-$_ver/docs/license.rst -t "$pkgdir/usr/share/licenses/$pkgname"
+}
+
+package_vulkan-virtio-iceland() {
+  pkgdesc="Open-source Vulkan driver for Virtio-GPU (Venus), OnePlus Pad 4 mesa build"
+  depends=("${_vkdepends[@]}" "mesa-iceland=$pkgver-$pkgrel")
+  optdepends=("vulkan-mesa-layers: additional vulkan layers")
+  provides=("vulkan-virtio=$_epoch:$pkgver-$pkgrel" vulkan-driver)
+  conflicts=(vulkan-virtio)
+  mv vkvirtio/* "$pkgdir"
+  install -Dm644 mesa-$_ver/docs/license.rst -t "$pkgdir/usr/share/licenses/$pkgname"
+}
+
+package_opencl-mesa-iceland() {
+  pkgdesc="Open-source OpenCL drivers (rusticl), OnePlus Pad 4 mesa build"
+  # Arch x86 has a separate clang-libs; Arch Linux ARM ships libclang-cpp in "clang" itself (1st build: the
+  # clang-libs dependency was unresolvable at install, 23 Nov)
+  depends=(
+    clang
+    expat
+    glibc
+    libdrm
+    libelf
+    libgcc
+    libstdc++
+    llvm-libs
+    spirv-llvm-translator
+    spirv-tools
+    zlib
+    zstd
+    libclc
+    "mesa-iceland=$pkgver-$pkgrel"
+  )
+  optdepends=("opencl-headers: headers necessary for OpenCL development")
+  provides=("opencl-mesa=$_epoch:$pkgver-$pkgrel" opencl-driver)
+  conflicts=(opencl-mesa opencl-clover-mesa opencl-rusticl-mesa)
+  mv opencl/* "$pkgdir"
+  install -Dm644 mesa-$_ver/docs/license.rst -t "$pkgdir/usr/share/licenses/$pkgname"
+}

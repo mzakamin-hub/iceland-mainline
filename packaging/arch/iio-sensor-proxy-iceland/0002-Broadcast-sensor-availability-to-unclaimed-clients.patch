@@ -1,0 +1,155 @@
+From e3c81ba7ebe0a62242076df61e94b73c01ca25a4 Mon Sep 17 00:00:00 2001
+From: Michael McAllister <me@michaelmcallister.org>
+Date: Mon, 26 Oct 2026 20:58:35 +0000
+Subject: [PATCH 2/9] Broadcast sensor availability to unclaimed clients
+
+On my Moto G10, Phosh can start before the accelerometer is ready. It
+sees `HasAccelerometer=false` and waits for an update before claiming
+the sensor, but that update never reaches it. This change sends
+availability updates to all clients so they can see when a sensor
+appears or disappears, while keeping readings limited to clients that
+have claimed the sensor.
+
+The new regression test fails on unmodified upstream and passes with the
+fix. All 23 tests pass with SSC support disabled.
+---
+ src/iio-sensor-proxy.c    | 30 +++++++++++++++++++++-------
+ tests/integration-test.py | 42 +++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 65 insertions(+), 7 deletions(-)
+
+diff --git a/src/iio-sensor-proxy.c b/src/iio-sensor-proxy.c
+index fa5c709..541bb0d 100644
+--- a/src/iio-sensor-proxy.c
++++ b/src/iio-sensor-proxy.c
+@@ -240,8 +240,6 @@ send_dbus_event_for_client (SensorData     *data,
+ 	GVariantBuilder props_builder;
+ 	GVariant *props_changed = NULL;
+ 
+-	g_return_if_fail (destination_bus_name != NULL);
+-
+ 	g_variant_builder_init (&props_builder, G_VARIANT_TYPE ("a{sv}"));
+ 
+ 	if (mask & PROP_HAS_ACCELEROMETER) {
+@@ -252,10 +250,10 @@ send_dbus_event_for_client (SensorData     *data,
+ 				       g_variant_new_boolean (has_accel));
+ 
+ 		/* Send the orientation when the device appears */
+-		if (has_accel) {
++		if (has_accel && destination_bus_name) {
+ 			mask |= PROP_ACCELEROMETER_ORIENTATION;
+ 			mask |= PROP_ACCELEROMETER_TILT;
+-                } else {
++                } else if (!has_accel) {
+ 			data->previous_orientation = ORIENTATION_UNDEFINED;
+ 			data->previous_tilt = TILT_UNDEFINED;
+ 		}
+@@ -279,7 +277,7 @@ send_dbus_event_for_client (SensorData     *data,
+ 				       g_variant_new_boolean (has_als));
+ 
+ 		/* Send the light level when the device appears */
+-		if (has_als)
++		if (has_als && destination_bus_name)
+ 			mask |= PROP_LIGHT_LEVEL;
+ 	}
+ 
+@@ -298,7 +296,7 @@ send_dbus_event_for_client (SensorData     *data,
+ 				       g_variant_new_boolean (has_compass));
+ 
+ 		/* Send the heading when the device appears */
+-		if (has_compass)
++		if (has_compass && destination_bus_name)
+ 			mask |= PROP_COMPASS_HEADING;
+ 	}
+ 
+@@ -315,7 +313,7 @@ send_dbus_event_for_client (SensorData     *data,
+ 				       g_variant_new_boolean (has_proximity));
+ 
+ 		/* Send proximity information when the device appears */
+-		if (has_proximity)
++		if (has_proximity && destination_bus_name)
+ 			mask |= PROP_PROXIMITY_NEAR;
+ 	}
+ 
+@@ -344,11 +342,29 @@ send_dbus_event (SensorData     *data,
+ 	guint i;
+ 	GHashTableIter iter;
+ 	gpointer key, value;
++	PropertiesMask availability_mask = PROP_HAS_ACCELEROMETER |
++		PROP_HAS_AMBIENT_LIGHT | PROP_HAS_PROXIMITY | PROP_HAS_COMPASS;
++	PropertiesMask changed_availability = mask & availability_mask;
+ 
+ 	g_assert (mask != 0);
+ 	g_assert (data->connection);
+ 	g_assert ((mask & PROP_ALL) == 0 || (mask & PROP_ALL_COMPASS) == 0);
+ 
++	/* Broadcast availability so clients can decide whether to claim a sensor.
++	 * Readings are only sent to clients which have claimed the sensor. */
++	if (changed_availability) {
++		send_dbus_event_for_client (data, NULL, changed_availability);
++		for (i = 0; i < NUM_SENSOR_TYPES; i++) {
++			PropertiesMask sensor_mask = mask_for_sensor_type (i);
++
++			if ((sensor_mask & changed_availability) && driver_type_exists (data, i))
++				mask |= sensor_mask;
++		}
++		mask &= ~availability_mask;
++	}
++	if (!mask)
++		return;
++
+ 	/* Make a list of the events each client for each sensor
+ 	 * is interested in */
+ 	ht = g_hash_table_new (g_str_hash, g_str_equal);
+diff --git a/tests/integration-test.py b/tests/integration-test.py
+index 23bf623..6c815a7 100755
+--- a/tests/integration-test.py
++++ b/tests/integration-test.py
+@@ -370,6 +370,48 @@ class Tests(dbusmock.DBusTestCase):
+         self.assertEqual(self.get_dbus_property('HasAccelerometer'), False)
+         self.stop_daemon()
+ 
++    def test_unclaimed_sensor_availability(self):
++        '''Sensor availability reaches clients which have not claimed it.'''
++        # Keep the daemon running before the accelerometer appears.
++        self.testbed.add_device('platform', 'hwmon-als', None,
++            ['light', '(128,128)'], ['IIO_SENSOR_PROXY_TYPE', 'hwmon-als'])
++        self.start_daemon()
++        self.assertFalse(self.proxy.get_cached_property('HasAccelerometer').unpack())
++        changes = []
++        self.proxy.connect('g-properties-changed',
++                           lambda proxy, changed, invalidated: changes.append(changed.unpack()))
++
++        accel = self.testbed.add_device('iio', 'iio-accel', None,
++            ['in_accel_x_raw', '0', 'in_accel_y_raw', '-25.6',
++             'in_accel_z_raw', '0', 'in_accel_scale', '10',
++             'sampling_frequency', '5.2', 'name', 'IIO Test Accelerometer'],
++            ['NAME', '"IIO Accelerometer"', 'IIO_SENSOR_PROXY_TYPE', 'iio-poll-accel'])
++        self.testbed.uevent(accel, 'add')
++        self.assertEventually(lambda: self.proxy.get_cached_property('HasAccelerometer').unpack())
++        self.assertTrue(any(c.get('HasAccelerometer') is True for c in changes))
++
++        # A separate client can receive readings without broadcasting them.
++        connection = Gio.DBusConnection.new_for_address_sync(
++            self.test_bus.get_bus_address(),
++            Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT |
++            Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION, None, None)
++        self.addCleanup(connection.close_sync, None)
++        claimant = Gio.DBusProxy.new_sync(
++            connection, Gio.DBusProxyFlags.DO_NOT_AUTO_START, None, SP,
++            SP_PATH, SP, None)
++        claimant.ClaimAccelerometer()
++        self.assertEventually(lambda: claimant.get_cached_property('AccelerometerOrientation').unpack() == 'normal')
++        self.testbed.set_attribute(accel, 'in_accel_x_raw', '-25.6')
++        self.testbed.set_attribute(accel, 'in_accel_y_raw', '0')
++        self.assertEventually(lambda: claimant.get_cached_property('AccelerometerOrientation').unpack() == 'right-up')
++
++        self.testbed.uevent(accel, 'remove')
++        self.assertEventually(lambda: not self.proxy.get_cached_property('HasAccelerometer').unpack())
++        self.assertEventually(lambda: not claimant.get_cached_property('HasAccelerometer').unpack())
++        self.assertTrue(any(c.get('HasAccelerometer') is False for c in changes))
++        self.assertFalse(any('AccelerometerOrientation' in c or 'AccelerometerTilt' in c
++                             for c in changes))
++
+     def test_iio_poll_accel(self):
+         '''iio poll accel'''
+         accel = self.testbed.add_device('iio', 'iio-accel', None,

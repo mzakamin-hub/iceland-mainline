@@ -1,0 +1,9 @@
+[Trigger]
+Type = Path
+Operation = Remove
+Target = usr/lib/modules/*/vmlinuz
+[Action]
+Description = OnePlus Pad 4: kernel-install remove...
+When = PreTransaction
+Exec = /usr/share/libalpm/scripts/iceland-kernel-install remove
+NeedsTargets

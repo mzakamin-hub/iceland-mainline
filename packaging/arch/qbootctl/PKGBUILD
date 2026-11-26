@@ -1,0 +1,16 @@
+# qbootctl 0.2.2 for Arch: iceland-slot-mark runs only `qbootctl -m` (mark the CURRENT slot successful) after a good
+# boot, as on Fedora. Never -s / set_active (project rule: no slot switch).
+pkgname=qbootctl
+_commit=39a6e6d
+pkgver=0.2.2
+pkgrel=1
+pkgdesc='Qualcomm A/B boot slot control (iceland uses only -m)'
+arch=(aarch64)
+url='https://github.com/linux-msm/qbootctl'
+license=('GPL-3.0-or-later')
+depends=(glibc zlib)
+makedepends=(meson ninja git)
+source=("git+https://github.com/linux-msm/qbootctl.git#commit=$_commit")
+sha256sums=('SKIP')
+build() { arch-meson qbootctl build; meson compile -C build; }
+package() { meson install -C build --destdir "$pkgdir"; }

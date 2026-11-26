@@ -1,0 +1,116 @@
+From 2f44a9d71f9eb1051df918197f86a1ecad29eb22 Mon Sep 17 00:00:00 2001
+From: Birk Skyum <birk.skyum@pm.me>
+Date: Sun, 18 Oct 2026 16:11:41 +0200
+Subject: [PATCH 1/2] tu: Mark signed 4x8 integer dot products as accelerated
+
+The signed and saturating signed 4x8 packed dot product properties
+were hard-coded false, with TODOs suggesting that emulation might
+be fast enough to count as accelerated. Remove the TODOs and keep
+the emulated path false intentionally.
+
+Report both as accelerated only when dp4acc and compliant dp4acc
+are available. This matches ir3's has_sdot_4x8 check for emitting
+the native signed dot instruction. Otherwise, ir3 lowers signed
+dot to several multiplies and adds, which does not count as
+accelerated. Unsigned and mixed dot products continue to follow
+dp2acc. llama.cpp's Vulkan backend only enables its integer dot
+kernels when signed dot product is reported as accelerated.
+
+This enables the signed properties on a7xx gen3 and a8xx, including
+the X2-85 and X2-90. They remain false on the X1-85, X1-45 and the
+rest of a7xx gen2, as well as all of a6xx. No hardware with
+compliant dp4acc was tested, so no performance gain or matmul
+test results are claimed.
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/45342>
+(cherry picked from commit f0bc8697b537f853563e5e489f0ffd29434a6978)
+---
+ src/freedreno/vulkan/tu_device.cc | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/src/freedreno/vulkan/tu_device.cc b/src/freedreno/vulkan/tu_device.cc
+index c6825818877..c4dfae59e2d 100644
+--- a/src/freedreno/vulkan/tu_device.cc
++++ b/src/freedreno/vulkan/tu_device.cc
+@@ -1136,8 +1136,9 @@ tu_get_physical_device_properties_1_3(struct tu_physical_device *pdevice,
+    p->integerDotProduct8BitMixedSignednessAccelerated = false;
+    p->integerDotProduct4x8BitPackedUnsignedAccelerated =
+       pdevice->info->props.has_dp2acc;
+-   /* TODO: we should be able to emulate 4x8BitPackedSigned fast enough */
+-   p->integerDotProduct4x8BitPackedSignedAccelerated = false;
++   p->integerDotProduct4x8BitPackedSignedAccelerated =
++      pdevice->info->props.has_dp4acc &&
++      pdevice->info->props.has_compliant_dp4acc;
+    p->integerDotProduct4x8BitPackedMixedSignednessAccelerated =
+       pdevice->info->props.has_dp2acc;
+    p->integerDotProduct16BitUnsignedAccelerated = false;
+@@ -1154,8 +1155,9 @@ tu_get_physical_device_properties_1_3(struct tu_physical_device *pdevice,
+    p->integerDotProductAccumulatingSaturating8BitMixedSignednessAccelerated = false;
+    p->integerDotProductAccumulatingSaturating4x8BitPackedUnsignedAccelerated =
+       pdevice->info->props.has_dp2acc;
+-   /* TODO: we should be able to emulate Saturating4x8BitPackedSigned fast enough */
+-   p->integerDotProductAccumulatingSaturating4x8BitPackedSignedAccelerated = false;
++   p->integerDotProductAccumulatingSaturating4x8BitPackedSignedAccelerated =
++      pdevice->info->props.has_dp4acc &&
++      pdevice->info->props.has_compliant_dp4acc;
+    p->integerDotProductAccumulatingSaturating4x8BitPackedMixedSignednessAccelerated =
+       pdevice->info->props.has_dp2acc;
+    p->integerDotProductAccumulatingSaturating16BitUnsignedAccelerated = false;
+
+From 565f471ffae97b5ce656ef134e77059ce66a533f Mon Sep 17 00:00:00 2001
+From: Birk Skyum <birk.skyum@pm.me>
+Date: Mon, 19 Oct 2026 16:20:32 +0200
+Subject: [PATCH 2/2] tu: Report unsigned and mixed 4x8 dot acceleration with
+ dp4acc
+
+Use has_dp2acc || has_dp4acc for the unsigned and mixed 4x8 packed
+dot product properties, including their saturating variants. This
+matches ir3's has_udot_4x8 and has_sudot_4x8 checks.
+
+This enables the properties on a8xx, where dp2acc is absent but
+dp4acc provides native support.
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/45342>
+(cherry picked from commit e14789a70e3bef398f2f15a19a1fdf39a630b276)
+---
+ src/freedreno/vulkan/tu_device.cc | 12 ++++++++----
+ 1 file changed, 8 insertions(+), 4 deletions(-)
+
+diff --git a/src/freedreno/vulkan/tu_device.cc b/src/freedreno/vulkan/tu_device.cc
+index c4dfae59e2d..4c9f9e583a1 100644
+--- a/src/freedreno/vulkan/tu_device.cc
++++ b/src/freedreno/vulkan/tu_device.cc
+@@ -1135,12 +1135,14 @@ tu_get_physical_device_properties_1_3(struct tu_physical_device *pdevice,
+    p->integerDotProduct8BitSignedAccelerated = false;
+    p->integerDotProduct8BitMixedSignednessAccelerated = false;
+    p->integerDotProduct4x8BitPackedUnsignedAccelerated =
+-      pdevice->info->props.has_dp2acc;
++      pdevice->info->props.has_dp2acc ||
++      pdevice->info->props.has_dp4acc;
+    p->integerDotProduct4x8BitPackedSignedAccelerated =
+       pdevice->info->props.has_dp4acc &&
+       pdevice->info->props.has_compliant_dp4acc;
+    p->integerDotProduct4x8BitPackedMixedSignednessAccelerated =
+-      pdevice->info->props.has_dp2acc;
++      pdevice->info->props.has_dp2acc ||
++      pdevice->info->props.has_dp4acc;
+    p->integerDotProduct16BitUnsignedAccelerated = false;
+    p->integerDotProduct16BitSignedAccelerated = false;
+    p->integerDotProduct16BitMixedSignednessAccelerated = false;
+@@ -1154,12 +1156,14 @@ tu_get_physical_device_properties_1_3(struct tu_physical_device *pdevice,
+    p->integerDotProductAccumulatingSaturating8BitSignedAccelerated = false;
+    p->integerDotProductAccumulatingSaturating8BitMixedSignednessAccelerated = false;
+    p->integerDotProductAccumulatingSaturating4x8BitPackedUnsignedAccelerated =
+-      pdevice->info->props.has_dp2acc;
++      pdevice->info->props.has_dp2acc ||
++      pdevice->info->props.has_dp4acc;
+    p->integerDotProductAccumulatingSaturating4x8BitPackedSignedAccelerated =
+       pdevice->info->props.has_dp4acc &&
+       pdevice->info->props.has_compliant_dp4acc;
+    p->integerDotProductAccumulatingSaturating4x8BitPackedMixedSignednessAccelerated =
+-      pdevice->info->props.has_dp2acc;
++      pdevice->info->props.has_dp2acc ||
++      pdevice->info->props.has_dp4acc;
+    p->integerDotProductAccumulatingSaturating16BitUnsignedAccelerated = false;
+    p->integerDotProductAccumulatingSaturating16BitSignedAccelerated = false;
+    p->integerDotProductAccumulatingSaturating16BitMixedSignednessAccelerated = false;

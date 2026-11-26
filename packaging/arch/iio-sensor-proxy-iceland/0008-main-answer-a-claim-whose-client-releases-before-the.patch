@@ -1,0 +1,72 @@
+From fbc87659b3cbb636eec81a2b351ff8f59bfe4f3d Mon Sep 17 00:00:00 2001
+From: Iceland packaging <packaging@iceland.invalid>
+Date: Sat, 21 Nov 2026 20:30:09 +0200
+Subject: [PATCH 8/9] main: answer a claim whose client releases before the
+ first reading
+
+The first claim of a sensor is answered only at the sensor's first
+reading. When that client releases the sensor (or leaves the bus) before
+the reading - a quick claim / release pair, or a Release dispatched while
+the SSC open still runs - the last release stops the sensor, and the
+reading the claim waits for may never come: the claim stayed unanswered
+until the client's D-Bus timeout, and the invocation stayed in the list.
+
+When a client releases a sensor, its claims of that sensor that still
+wait for the first reading are answered now (with success: the claim was
+taken, and has ended).
+
+Idea from SuperTurtleDev's iceland-mainline-userspace (77f19af7,
+iio-sensor-proxy overlay patch 0003: released pending claims completed);
+re-implemented here.
+---
+ src/iio-sensor-proxy.c | 30 ++++++++++++++++++++++++++++++
+ 1 file changed, 30 insertions(+)
+
+diff --git a/src/iio-sensor-proxy.c b/src/iio-sensor-proxy.c
+index a2b2b58..ec5f9bb 100644
+--- a/src/iio-sensor-proxy.c
++++ b/src/iio-sensor-proxy.c
+@@ -614,6 +614,35 @@ any_sensors_left (SensorData *data)
+ 	return exists;
+ }
+ 
++/*
++ * A claim is answered at the sensor's first reading. When its client releases the sensor (or leaves
++ * the bus) before that reading, the answer is given now: the last release stops the sensor, and the
++ * reading the claim waits for may never come.
++ */
++static void
++complete_claims_of (SensorData *data,
++		    const char *sender,
++		    DriverType  driver_type)
++{
++	GPtrArray *delayed = data->sensor_startup_dbus_invocations_delayed[driver_type];
++	guint i = 0;
++
++	if (delayed == NULL)
++		return;
++	while (i < delayed->len) {
++		GDBusMethodInvocation *invocation = g_ptr_array_index (delayed, i);
++
++		if (g_strcmp0 (g_dbus_method_invocation_get_sender (invocation), sender) != 0) {
++			i++;
++			continue;
++		}
++		g_ptr_array_remove_index (delayed, i);
++		g_debug ("'%s' released the %s before its first reading, answering its claim",
++			 sender, driver_type_to_str (driver_type));
++		g_dbus_method_invocation_return_value (invocation, NULL);
++	}
++}
++
+ static void
+ client_release (SensorData            *data,
+ 		const char            *sender,
+@@ -631,6 +660,7 @@ client_release (SensorData            *data,
+ 	}
+ 
+ 	g_hash_table_remove (ht, sender);
++	complete_claims_of (data, sender, driver_type);
+ 
+ 	if (driver_type_exists (data, driver_type) &&
+ 	    g_hash_table_size (ht) == 0) {

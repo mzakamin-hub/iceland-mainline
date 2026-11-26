@@ -1,0 +1,5 @@
+# Sources of libcamera-iceland that are NOT in this repository (release tarballs): file, size, sha256. The PKGBUILD's
+# source=() / sha256sums=() pin them; put the files next to the PKGBUILD before makepkg.
+libcamera-v0.7.2.tar.bz2	1606438	6f35dd479dd634a1ec50852fa9716c9da81a6c07af93bbf2990f7bbd829f0dfd
+# Origin: the GitLab archive of tag v0.7.2 of https://gitlab.freedesktop.org/camera/libcamera
+# (GitLab archives are not byte-stable: compare the unpacked tree and update sha256sums=() for your copy).

@@ -1,0 +1,166 @@
+OnePlus Pad 4 (Adreno 840) Mesa package: Mesa MR !46194
+Title:  tu: Update input attachment idx when MSRTSS internal is used
+Author: Karmjit Mahil
+URL:    https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/46194
+Head:   1556c4c5db76683f5730c5fe33e66abbf8fdf5d5 (MR state opened, target main, checked 21 Nov 2026)
+Review: reviewed: rb Emma Anholt 19 Nov
+Apply:  applies on staging/26.3 6cd33b7f68ee after the patches before it, without conflict or backport
+
+From ec882cb45032c3237e794e210a1093438255eab7 Mon Sep 17 00:00:00 2001
+From: Karmjit Mahil <karmjit.mahil@igalia.com>
+Date: Wed, 11 Nov 2026 15:44:15 +0000
+Subject: [PATCH 1/2] tu: Update input attachment idx when MSRTSS internal is
+ used
+
+The color/depth/stencil attachment indices were updated to the internal
+attachment used by MSRTSS, but the input attachment indices weren't.
+`tu_CmdSetRenderingInputAttachmentIndicesKHR()` handled this correctly, so
+if the function was called then everything would be fine, which is why
+CTS isn't catching this, but if the indecies are left to their defaults,
+this issue would show up.
+
+Fixes: f6c7f16322de ("tu: Implement VK_EXT_multisampled_render_to_single_sampled")
+Signed-off-by: Karmjit Mahil <karmjit.mahil@igalia.com>
+---
+ src/freedreno/vulkan/tu_pass.cc | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/src/freedreno/vulkan/tu_pass.cc b/src/freedreno/vulkan/tu_pass.cc
+index 318b171cacd..8076bf4cb7d 100644
+--- a/src/freedreno/vulkan/tu_pass.cc
++++ b/src/freedreno/vulkan/tu_pass.cc
+@@ -1849,6 +1849,7 @@ tu_setup_dynamic_render_pass(struct tu_cmd_buffer *cmd_buffer,
+                                VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                                VK_ATTACHMENT_STORE_OP_DONT_CARE);
+             subpass->color_attachments[i].attachment = att_idx;
++            subpass->input_attachments[i + TU_DYN_INPUT_ATT_OFFSET].attachment = att_idx;
+             att->will_be_resolved =
+                att_info->storeOp == VK_ATTACHMENT_STORE_OP_STORE;
+          }
+@@ -1885,6 +1886,7 @@ tu_setup_dynamic_render_pass(struct tu_cmd_buffer *cmd_buffer,
+                att->resolve_views = 0;
+                att->user_att = subpass->depth_stencil_attachment.attachment;
+                subpass->depth_stencil_attachment.attachment = att_idx;
++               subpass->input_attachments[0].attachment = att_idx;
+                att->will_be_resolved =
+                   (info->pDepthAttachment &&
+                    info->pDepthAttachment->imageView &&
+
+From f79ff2b276cd2e12901e07ab730aadb41bbe62d9 Mon Sep 17 00:00:00 2001
+From: Karmjit Mahil <karmjit.mahil@igalia.com>
+Date: Wed, 11 Nov 2026 15:44:20 +0000
+Subject: [PATCH 2/2] tu: Use TU_DYN_INPUT_ATT_OFFSET consistently
+
+Generated-by: LLM
+Signed-off-by: Karmjit Mahil <karmjit.mahil@igalia.com>
+---
+ src/freedreno/vulkan/tu_cmd_buffer.cc | 3 +--
+ src/freedreno/vulkan/tu_lrz.cc        | 2 +-
+ src/freedreno/vulkan/tu_pass.cc       | 7 +++----
+ src/freedreno/vulkan/tu_pipeline.cc   | 4 ++--
+ src/freedreno/vulkan/tu_shader.cc     | 8 ++++----
+ 5 files changed, 11 insertions(+), 13 deletions(-)
+
+diff --git a/src/freedreno/vulkan/tu_cmd_buffer.cc b/src/freedreno/vulkan/tu_cmd_buffer.cc
+index 9c1bdba774a..2834eb41434 100644
+--- a/src/freedreno/vulkan/tu_cmd_buffer.cc
++++ b/src/freedreno/vulkan/tu_cmd_buffer.cc
+@@ -8352,8 +8352,7 @@ tu_fs_reads_dynamic_ds_input_attachment(struct tu_cmd_buffer *cmd,
+    uint8_t depth_att = cmd->vk.dynamic_graphics_state.ial.depth_att;
+    if (depth_att == MESA_VK_ATTACHMENT_UNUSED)
+       return false;
+-   unsigned depth_idx =
+-      (depth_att == MESA_VK_ATTACHMENT_NO_INDEX) ? 0 : depth_att + 1;
++   unsigned depth_idx = (depth_att == MESA_VK_ATTACHMENT_NO_INDEX) ? 0 : depth_att + TU_DYN_INPUT_ATT_OFFSET;
+    return fs->fs.dynamic_input_attachments_used & (1u << depth_idx);
+ }
+ 
+diff --git a/src/freedreno/vulkan/tu_lrz.cc b/src/freedreno/vulkan/tu_lrz.cc
+index 084fc5fa2f4..7cfa760a326 100644
+--- a/src/freedreno/vulkan/tu_lrz.cc
++++ b/src/freedreno/vulkan/tu_lrz.cc
+@@ -1211,7 +1211,7 @@ tu_has_potential_stencil_feedback_loop(struct tu_cmd_buffer *cmd, const struct t
+    if (stencil_att == MESA_VK_ATTACHMENT_UNUSED)
+       return false;
+ 
+-   unsigned stencil_idx = stencil_att == MESA_VK_ATTACHMENT_NO_INDEX ? 0 : stencil_att + 1;
++   unsigned stencil_idx = stencil_att == MESA_VK_ATTACHMENT_NO_INDEX ? 0 : stencil_att + TU_DYN_INPUT_ATT_OFFSET;
+    return fs->fs.dynamic_input_attachments_used & (1u << stencil_idx);
+ }
+ 
+diff --git a/src/freedreno/vulkan/tu_pass.cc b/src/freedreno/vulkan/tu_pass.cc
+index 8076bf4cb7d..613ccf51eac 100644
+--- a/src/freedreno/vulkan/tu_pass.cc
++++ b/src/freedreno/vulkan/tu_pass.cc
+@@ -1522,7 +1522,7 @@ tu_setup_dynamic_render_pass(struct tu_cmd_buffer *cmd_buffer,
+ 
+       if (att_info->imageView == VK_NULL_HANDLE) {
+          subpass->color_attachments[i].attachment = VK_ATTACHMENT_UNUSED;
+-         subpass->input_attachments[i + 1].attachment = VK_ATTACHMENT_UNUSED;
++         subpass->input_attachments[i + TU_DYN_INPUT_ATT_OFFSET].attachment = VK_ATTACHMENT_UNUSED;
+          if (subpass->resolve_attachments)
+             subpass->resolve_attachments[i].attachment = VK_ATTACHMENT_UNUSED;
+          if (pass->subpass_count > 1) {
+@@ -1566,13 +1566,12 @@ tu_setup_dynamic_render_pass(struct tu_cmd_buffer *cmd_buffer,
+          attachment_set_ops(device, att, att_info->loadOp,
+                             VK_ATTACHMENT_LOAD_OP_NONE, att_info->storeOp,
+                             VK_ATTACHMENT_STORE_OP_NONE);
+-         subpass->input_attachments[i + 1].patch_input_gmem = true;
++         subpass->input_attachments[i + TU_DYN_INPUT_ATT_OFFSET].patch_input_gmem = true;
+          subpass->unresolve_attachments[i].attachment = VK_ATTACHMENT_UNUSED;
+          subpass->samples = static_cast<VkSampleCountFlagBits>(view->image->layout->nr_samples);
+       }
+       subpass->color_attachments[i].attachment = att_idx;
+-      subpass->input_attachments[i + 1].attachment = att_idx;
+-
++      subpass->input_attachments[i + TU_DYN_INPUT_ATT_OFFSET].attachment = att_idx;
+ 
+       if (vk_format_is_srgb(view->vk.format))
+          subpass->srgb_cntl |= 1 << i;
+diff --git a/src/freedreno/vulkan/tu_pipeline.cc b/src/freedreno/vulkan/tu_pipeline.cc
+index 5b5dbab8edc..9fd88d2a729 100644
+--- a/src/freedreno/vulkan/tu_pipeline.cc
++++ b/src/freedreno/vulkan/tu_pipeline.cc
+@@ -1844,14 +1844,14 @@ tu_pipeline_builder_compile_shaders(struct tu_pipeline_builder *builder,
+          if (ial->depth_att == MESA_VK_ATTACHMENT_NO_INDEX)
+             attachments_referenced |= 1;
+          else
+-            attachments_referenced |= 1u << (ial->depth_att + 1);
++            attachments_referenced |= 1u << (ial->depth_att + TU_DYN_INPUT_ATT_OFFSET);
+       }
+ 
+       if (ial->stencil_att != MESA_VK_ATTACHMENT_UNUSED) {
+          if (ial->stencil_att == MESA_VK_ATTACHMENT_NO_INDEX)
+             attachments_referenced |= 1;
+          else
+-            attachments_referenced |= 1u << (ial->stencil_att + 1);
++            attachments_referenced |= 1u << (ial->stencil_att + TU_DYN_INPUT_ATT_OFFSET);
+       }
+ 
+       keys[MESA_SHADER_FRAGMENT].read_only_input_attachments =
+diff --git a/src/freedreno/vulkan/tu_shader.cc b/src/freedreno/vulkan/tu_shader.cc
+index a021af452d4..9ad75ff08cc 100644
+--- a/src/freedreno/vulkan/tu_shader.cc
++++ b/src/freedreno/vulkan/tu_shader.cc
+@@ -1058,9 +1058,9 @@ lower_input_attachment(nir_builder *b, nir_tex_instr *tex,
+                        bool dynamic_renderpass)
+ {
+    if (dynamic_renderpass &&
+-       ((tex->input_attachment_depth || tex->input_attachment_stencil) ?
+-        (read_only_input_attachments & 0x1) :
+-        (read_only_input_attachments & (1u << (tex->texture_index + 1)))))
++       ((tex->input_attachment_depth || tex->input_attachment_stencil)
++           ? (read_only_input_attachments & 0x1)
++           : (read_only_input_attachments & (1u << (tex->texture_index + TU_DYN_INPUT_ATT_OFFSET)))))
+       return false;
+ 
+    if (TU_DEBUG(DYNAMIC))
+@@ -1079,7 +1079,7 @@ lower_input_attachment(nir_builder *b, nir_tex_instr *tex,
+       assert(dynamic_renderpass);
+       idx = 1;
+    } else if (dynamic_renderpass) {
+-      idx = (tex->texture_index + 1) * 2;
++      idx = (tex->texture_index + TU_DYN_INPUT_ATT_OFFSET) * 2;
+       /* D24S8 workaround: stencil of D24S8 will be sampled as uint */
+       if (nir_alu_type_get_base_type(tex->dest_type) != nir_type_float)
+          idx += 1;

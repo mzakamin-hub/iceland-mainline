@@ -1,0 +1,23 @@
+# hexagonrpc 0.5.0^19.git598b591 (iceland2) for Arch: FastRPC daemon for the Hexagon DSPs (sensors PD), our patches
+pkgname=hexagonrpc
+_commit=598b591ae9da6a6cfe2ca5ea78998019ca6395ea
+pkgver=0.5.0.r19.g598b591
+pkgrel=1
+pkgdesc='FastRPC daemon for the Qualcomm Hexagon DSPs (iceland patches)'
+arch=(aarch64)
+url='https://github.com/linux-msm/hexagonrpc'
+license=('GPL-3.0-or-later')
+depends=(glibc)
+makedepends=(meson ninja git)
+source=("git+https://github.com/linux-msm/hexagonrpc.git#commit=$_commit" 0001-hexagonrpcd-serve-odm-etc-sensor-from-root-odm-senso.patch 0002-hexagonrpcd-answer-unsupported-calls-and-keep-serving.patch  hexagonrpc.sysusers 60-hexagonrpc.rules)
+sha256sums=('SKIP' 'a5cc7cfeb5691b7df2e797181f621cb9402a671b53db72b2149555380fda8321' '5aaf61b5be416554689ff94ec035035b6dd3208661e5e841e525de375065bc9c' '62428db64510f70c2c54fd6f5e978e0768758e50c88ad9846c75f2952708a3ff' '462b6fc81027394e647bd5a7a9ae1958a1f3560617f97cf5dcb5fee96fb94622' )
+prepare() { cd hexagonrpc; for p in "$srcdir"/*.patch; do patch -Np1 -i "$p"; done; }
+build() { arch-meson hexagonrpc build; meson compile -C build; }
+check() { meson test -C build --print-errorlogs; }
+package() {
+  meson install -C build --destdir "$pkgdir"
+  if [ -d "$pkgdir/usr/lib/systemd/system" ]; then :; fi
+  rm -f "$pkgdir/usr/lib/libhexagonrpc.so"
+  install -Dm0644 hexagonrpc.sysusers "$pkgdir/usr/lib/sysusers.d/hexagonrpc.conf"
+  install -Dm0644 60-hexagonrpc.rules "$pkgdir/usr/lib/udev/rules.d/60-hexagonrpc.rules"
+}

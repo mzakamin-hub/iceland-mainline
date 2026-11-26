@@ -1,0 +1,144 @@
+From 184fa856969f8c7465c69e80f9b9b6891ee66814 Mon Sep 17 00:00:00 2001
+From: Iceland packaging <packaging@iceland.invalid>
+Date: Sat, 21 Nov 2026 20:30:09 +0200
+Subject: [PATCH 9/9] main: stop all callbacks before closing the drivers at
+ shutdown
+
+At SIGTERM (on the Pad 4 at every suspend, the sleep drop-in stops the
+daemon) free_sensor_data() closed the drivers one by one and freed each
+sensor type's client table right after its driver. Closing an SSC sensor
+runs the main context, so a client that left the bus, a Claim, a udev
+event or the HasAccelerometer timeout could be dispatched from inside a
+later driver's close and find an earlier type's tables freed.
+
+Now the shutdown first stops everything that calls back: the bus name is
+released, the D-Bus objects are unregistered, the udev signal is
+disconnected, the client name watches and the HasAccelerometer timeouts
+are removed, and the claims still waiting for a first reading are
+answered with an error. Method calls, client watches and udev events that
+are still dispatched return at once. Only then are the drivers closed,
+and the shared tables are freed after the last close.
+
+Idea from yzddmr6's onepluspad-2pro mainline (c67a4a81: quiesce callbacks
+before closing the SSC drivers); re-implemented here.
+---
+ src/iio-sensor-proxy.c | 53 ++++++++++++++++++++++++++++++++++++++----
+ 1 file changed, 48 insertions(+), 5 deletions(-)
+
+diff --git a/src/iio-sensor-proxy.c b/src/iio-sensor-proxy.c
+index ec5f9bb..47d07aa 100644
+--- a/src/iio-sensor-proxy.c
++++ b/src/iio-sensor-proxy.c
+@@ -40,6 +40,8 @@ typedef struct {
+ 	GDBusNodeInfo *introspection_data;
+ 	GDBusConnection *connection;
+ 	guint name_id;
++	guint object_ids[2]; /* the two registered D-Bus objects */
++	gboolean shutting_down;
+ 	int ret;
+ 
+ 	PolkitAuthority *auth;
+@@ -678,7 +680,7 @@ client_vanished_cb (GDBusConnection *connection,
+ 	guint i;
+ 	char *sender;
+ 
+-	if (name == NULL)
++	if (data->shutting_down || name == NULL)
+ 		return;
+ 
+ 	sender = g_strdup (name);
+@@ -739,6 +741,12 @@ handle_generic_method_call (SensorData            *data,
+ 	GHashTable *ht;
+ 	guint watch_id;
+ 
++	if (data->shutting_down) {
++		g_dbus_method_invocation_return_error (invocation, G_DBUS_ERROR, G_DBUS_ERROR_FAILED,
++						       "The sensor service is stopping");
++		return;
++	}
++
+ 	g_debug ("Handling driver refcounting method '%s' for %s device",
+ 		 method_name, driver_type_to_str (driver_type));
+ 
+@@ -955,7 +963,7 @@ bus_acquired_handler (GDBusConnection *connection,
+ {
+ 	SensorData *data = user_data;
+ 
+-	g_dbus_connection_register_object (connection,
++	data->object_ids[0] = g_dbus_connection_register_object (connection,
+ 					   SENSOR_PROXY_DBUS_PATH,
+ 					   data->introspection_data->interfaces[0],
+ 					   &interface_vtable,
+@@ -963,7 +971,7 @@ bus_acquired_handler (GDBusConnection *connection,
+ 					   NULL,
+ 					   NULL);
+ 
+-	g_dbus_connection_register_object (connection,
++	data->object_ids[1] = g_dbus_connection_register_object (connection,
+ 					   SENSOR_PROXY_COMPASS_DBUS_PATH,
+ 					   data->introspection_data->interfaces[1],
+ 					   &compass_interface_vtable,
+@@ -1235,19 +1243,51 @@ free_sensor_data (SensorData *data)
+ 	if (data == NULL)
+ 		return;
+ 
++	/* Closing an SSC sensor runs the main context (libssc's *_sync() calls), and with it D-Bus
++	 * calls, client watches, udev events and timeouts. Stop all of those first, then close the
++	 * drivers, and free the shared tables only after the last close: a callback from inside a
++	 * later driver's close must not find an earlier sensor's tables freed. */
++	data->shutting_down = TRUE;
+ 	if (data->name_id != 0) {
+ 		g_bus_unown_name (data->name_id);
+ 		data->name_id = 0;
+ 	}
++	if (data->client != NULL)
++		g_signal_handlers_disconnect_by_data (data->client, data);
++	for (i = 0; i < G_N_ELEMENTS (data->object_ids); i++) {
++		if (data->object_ids[i] != 0)
++			g_dbus_connection_unregister_object (data->connection, data->object_ids[i]);
++		data->object_ids[i] = 0;
++	}
++	accel_shown_clear (data);
+ 
+ 	for (i = 0; i < NUM_SENSOR_TYPES; i++) {
+-		if (driver_type_exists (data, i))
++		GPtrArray *delayed = data->sensor_startup_dbus_invocations_delayed[i];
++
++		/* unwatches the client names */
++		if (data->clients[i] != NULL)
++			g_hash_table_remove_all (data->clients[i]);
++		while (delayed != NULL && delayed->len > 0) {
++			GDBusMethodInvocation *invocation = g_ptr_array_steal_index (delayed, delayed->len - 1);
++
++			g_dbus_method_invocation_return_error (invocation, G_DBUS_ERROR, G_DBUS_ERROR_FAILED,
++							       "The sensor service is stopping");
++		}
++		data->sensor_startup_dbus_event_delayed[i] = FALSE;
++	}
++
++	for (i = 0; i < NUM_SENSOR_TYPES; i++) {
++		if (DEVICE_FOR_TYPE(i) != NULL)
+ 			driver_close (DEVICE_FOR_TYPE(i));
++		DEVICE_FOR_TYPE(i) = NULL;
++		DRIVER_FOR_TYPE(i) = NULL;
++	}
++
++	for (i = 0; i < NUM_SENSOR_TYPES; i++) {
+ 		g_clear_object (&UDEV_DEVICE_FOR_TYPE(i));
+ 		g_clear_pointer (&data->clients[i], g_hash_table_unref);
+ 		g_clear_pointer (&data->sensor_startup_dbus_invocations_delayed[i], g_ptr_array_unref);
+ 	}
+-	accel_shown_clear (data);
+ 
+ 	g_clear_object (&data->auth);
+ 	g_clear_pointer (&data->introspection_data, g_dbus_node_info_unref);
+@@ -1265,6 +1305,9 @@ sensor_changes (GUdevClient *client,
+ {
+ 	guint i;
+ 
++	if (data->shutting_down)
++		return;
++
+ 	g_debug ("Sensor changes: action = %s, device = %s",
+ 		 action, g_udev_device_get_sysfs_path (device));
+ 

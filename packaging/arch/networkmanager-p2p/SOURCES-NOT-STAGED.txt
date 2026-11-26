@@ -1,0 +1,4 @@
+# Sources of networkmanager-p2p that are NOT in this repository (release tarballs): file, size, sha256. The PKGBUILD's
+# source=() / sha256sums=() pin them; put the files next to the PKGBUILD before makepkg.
+NetworkManager-1.58.1.tar.xz	6513988	262864cfd198123d3e5dbe91937441b97ee9059d6d712e1a5bfbb1c54668d14d
+# Origin: the NetworkManager 1.58.1 release tarball (https://download.gnome.org/sources/NetworkManager/1.58/).

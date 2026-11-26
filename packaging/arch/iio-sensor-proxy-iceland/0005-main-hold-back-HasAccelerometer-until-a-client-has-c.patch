@@ -1,0 +1,411 @@
+From 065fa6ad8d40fc71ba9055ecc432ee83f8390872 Mon Sep 17 00:00:00 2001
+From: Iceland packaging <packaging@iceland.invalid>
+Date: Sat, 21 Nov 2026 20:30:09 +0200
+Subject: [PATCH 5/9] main: hold back HasAccelerometer until a client has
+ claimed or waited
+
+Local patch 0002 of 3.9-13, rebased onto upstream MR !415 (sensors set up
+before the D-Bus service) and MR !418 (sensor availability broadcast to
+clients that have not claimed).
+
+mutter 50 never claims the accelerometer when it starts while the daemon
+already has one and the seat is in touch mode (every boot of a tablet):
+the first has-accelerometer notification makes the panel orientation
+managed, update_panel_orientation_managed() uninhibits the orientation
+tracking although nothing inhibited it, the count goes to -1 and
+sync_accelerometer_claimed() only claims at exactly 0. When it reads
+HasAccelerometer false it claims blind and learns of the sensor from the
+signal sent to claimers. So a client sees HasAccelerometer only once it
+has claimed, or ACCEL_SHOW_DELAY_MS (2 s) after it first read it (a mutter
+restarted under a running session, KWin and Phosh wait for the property
+before they claim).
+
+With !418 the Has* properties are broadcast. A broadcast HasAccelerometer
+would reach a starting mutter before its claim, so while it is held back
+it stays out of the broadcast: the claimers get it with their readings, as
+before, and every client that has looked gets each later change of it as
+a signal addressed to it (only the property, no readings). This is the
+news !418 gives to clients that do not claim, so a late or re-appearing
+SSC accelerometer still reaches KWin. The other Has* properties are
+broadcast as upstream.
+
+ACCEL_HOLD_BACK=0 in the daemon's environment turns the hold-back off:
+HasAccelerometer is then answered and broadcast exactly as upstream with
+!418 (for desktops without the mutter bug, e.g. Plasma).
+
+The upstream integration tests run with ACCEL_HOLD_BACK=0; two new tests
+run with the hold-back: a client that looks is told after the delay
+without readings while a claimer sees the sensor with its claim, and a
+client that looked hears of an accelerometer that appears and goes later.
+
+This is a workaround for the OnePlus Pad 4 package until mutter is fixed;
+it is not meant for upstream.
+---
+ src/iio-sensor-proxy.c    | 205 +++++++++++++++++++++++++++++++++++++-
+ tests/integration-test.py |  75 ++++++++++++++
+ 2 files changed, 276 insertions(+), 4 deletions(-)
+
+diff --git a/src/iio-sensor-proxy.c b/src/iio-sensor-proxy.c
+index 541bb0d..a2b2b58 100644
+--- a/src/iio-sensor-proxy.c
++++ b/src/iio-sensor-proxy.c
+@@ -48,6 +48,10 @@ typedef struct {
+ 	SensorDevice      *devices[NUM_SENSOR_TYPES];
+ 	GUdevDevice       *udev_devices[NUM_SENSOR_TYPES];
+ 	GHashTable        *clients[NUM_SENSOR_TYPES]; /* key = D-Bus name, value = watch ID */
++	/* key = D-Bus name of a client that read HasAccelerometer; value = timeout ID while the delay runs,
++	 * ACCEL_SHOW_WAITING after it when there is no accelerometer yet, 0 once the client was shown */
++	GHashTable        *accel_shown;
++	gboolean           accel_hold_back; /* FALSE with ACCEL_HOLD_BACK=0 in the environment */
+ 
+ 	GPtrArray         *sensor_startup_dbus_invocations_delayed[NUM_SENSOR_TYPES];
+ 	gboolean           sensor_startup_dbus_event_delayed[NUM_SENSOR_TYPES];
+@@ -334,6 +338,183 @@ send_dbus_event_for_client (SensorData     *data,
+ 				       props_changed, NULL);
+ }
+ 
++/*
++ * HasAccelerometer is held back from a client until it has claimed the accelerometer, or until
++ * ACCEL_SHOW_DELAY_MS after it first read the property.
++ *
++ * mutter 50 never claims an accelerometer that it can see when it starts (a tablet after a boot, the
++ * seat in touch mode): the notification makes the panel orientation managed, which uninhibits the
++ * orientation tracking before anything inhibited it, and the claim is only made at a count of
++ * exactly 0. When it reads "false" it claims blind and learns of the sensor from the signal that
++ * the claim sends. A mutter that has been through that once (this daemon restarted under a running
++ * session), KWin and Phosh do the opposite: they wait for HasAccelerometer before they claim, so a
++ * client that looked and did not claim is told after the delay - or, when it looked while there was
++ * no accelerometer, once the accelerometer is there.
++ *
++ * So HasAccelerometer cannot be broadcast like the other Has* properties while it is held back
++ * (that would reach a starting mutter before its claim): a client that has looked gets every later
++ * change of it as a signal addressed to it instead (accel_show_changed()), which gives the clients
++ * that do not claim the same news as the broadcast. ACCEL_HOLD_BACK=0 in the daemon's environment
++ * turns this off: HasAccelerometer is then answered and broadcast as upstream does.
++ */
++#define ACCEL_SHOW_DELAY_MS 2000
++#define ACCEL_SHOWN_MAX 256
++#define ACCEL_SHOW_WAITING G_MAXUINT
++
++typedef struct {
++	SensorData *data;
++	char *name;
++} AccelShow;
++
++/* only HasAccelerometer, to one client (no readings: the client has not claimed) */
++static void
++send_has_accelerometer_to (SensorData *data,
++			   const char *name)
++{
++	GVariantBuilder props_builder;
++
++	g_variant_builder_init (&props_builder, G_VARIANT_TYPE ("a{sv}"));
++	g_variant_builder_add (&props_builder, "{sv}", "HasAccelerometer",
++			       g_variant_new_boolean (driver_type_exists (data, DRIVER_TYPE_ACCEL)));
++	g_dbus_connection_emit_signal (data->connection,
++				       name,
++				       SENSOR_PROXY_DBUS_PATH,
++				       "org.freedesktop.DBus.Properties",
++				       "PropertiesChanged",
++				       g_variant_new ("(s@a{sv}@as)", SENSOR_PROXY_IFACE_NAME,
++						      g_variant_builder_end (&props_builder),
++						      g_variant_new_strv (NULL, 0)),
++				       NULL);
++}
++
++static void
++accel_show_free (gpointer user_data)
++{
++	AccelShow *show = user_data;
++
++	g_free (show->name);
++	g_free (show);
++}
++
++static gboolean
++accel_shown_drop (gpointer key, gpointer value, gpointer user_data)
++{
++	return GPOINTER_TO_UINT (value) == 0;
++}
++
++static GHashTable *
++accel_shown_table (SensorData *data)
++{
++	if (data->accel_shown == NULL)
++		data->accel_shown = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
++	return data->accel_shown;
++}
++
++/* at the claim: the claimer sees the accelerometer (and its last orientation) from now on */
++static void
++accel_show_now (SensorData *data,
++		const char *name)
++{
++	guint id;
++
++	id = GPOINTER_TO_UINT (g_hash_table_lookup (accel_shown_table (data), name));
++	if (id != 0 && id != ACCEL_SHOW_WAITING)
++		g_source_remove (id);
++	g_hash_table_insert (data->accel_shown, g_strdup (name), GUINT_TO_POINTER (0));
++	if (driver_type_exists (data, DRIVER_TYPE_ACCEL))
++		send_dbus_event_for_client (data, name, PROP_HAS_ACCELEROMETER);
++}
++
++/* the delay is over for a client that looked and did not claim */
++static gboolean
++accel_show_cb (gpointer user_data)
++{
++	AccelShow *show = user_data;
++
++	if (!driver_type_exists (show->data, DRIVER_TYPE_ACCEL)) {
++		g_hash_table_insert (show->data->accel_shown, g_strdup (show->name),
++				     GUINT_TO_POINTER (ACCEL_SHOW_WAITING));
++		return G_SOURCE_REMOVE;
++	}
++	g_hash_table_insert (show->data->accel_shown, g_strdup (show->name), GUINT_TO_POINTER (0));
++	g_debug ("Showing the accelerometer to '%s', which looked and did not claim", show->name);
++	send_has_accelerometer_to (show->data, show->name);
++	return G_SOURCE_REMOVE;
++}
++
++/* HasAccelerometer changed: tell the clients that looked and do not claim (the claimers get it
++ * with their readings); a client that looked while there was none learns of it now */
++static void
++accel_show_changed (SensorData *data)
++{
++	GHashTableIter iter;
++	gpointer key, value;
++	gboolean has_accel;
++
++	if (data->accel_shown == NULL)
++		return;
++	has_accel = driver_type_exists (data, DRIVER_TYPE_ACCEL);
++	g_hash_table_iter_init (&iter, data->accel_shown);
++	while (g_hash_table_iter_next (&iter, &key, &value)) {
++		const char *name = key;
++
++		if (GPOINTER_TO_UINT (value) == ACCEL_SHOW_WAITING) {
++			if (!has_accel)
++				continue;
++			g_hash_table_iter_replace (&iter, GUINT_TO_POINTER (0));
++			g_debug ("Showing the accelerometer to '%s', which looked before it was found", name);
++		} else if (GPOINTER_TO_UINT (value) != 0 ||
++			   g_hash_table_contains (data->clients[DRIVER_TYPE_ACCEL], name)) {
++			/* the delay still runs, or a claimer */
++			continue;
++		}
++		send_has_accelerometer_to (data, name);
++	}
++}
++
++static gboolean
++accel_shown_to (SensorData *data,
++		const char *name)
++{
++	gpointer value;
++	AccelShow *show;
++	guint id;
++
++	if (!data->accel_hold_back || name == NULL ||
++	    g_hash_table_contains (data->clients[DRIVER_TYPE_ACCEL], name))
++		return driver_type_exists (data, DRIVER_TYPE_ACCEL);
++	if (g_hash_table_lookup_extended (accel_shown_table (data), name, NULL, &value))
++		return GPOINTER_TO_UINT (value) == 0 && driver_type_exists (data, DRIVER_TYPE_ACCEL);
++
++	/* the first look */
++	g_debug ("'%s' looks for the accelerometer before claiming it (%s)", name,
++		 driver_type_exists (data, DRIVER_TYPE_ACCEL) ? "held back" : "not found yet");
++	if (g_hash_table_size (data->accel_shown) >= ACCEL_SHOWN_MAX)
++		g_hash_table_foreach_remove (data->accel_shown, accel_shown_drop, NULL);
++	show = g_new0 (AccelShow, 1);
++	show->data = data;
++	show->name = g_strdup (name);
++	id = g_timeout_add_full (G_PRIORITY_DEFAULT, ACCEL_SHOW_DELAY_MS, accel_show_cb, show, accel_show_free);
++	g_hash_table_insert (data->accel_shown, g_strdup (name), GUINT_TO_POINTER (id));
++	return FALSE;
++}
++
++static void
++accel_shown_clear (SensorData *data)
++{
++	GHashTableIter iter;
++	gpointer value;
++
++	if (data->accel_shown == NULL)
++		return;
++	g_hash_table_iter_init (&iter, data->accel_shown);
++	while (g_hash_table_iter_next (&iter, NULL, &value)) {
++		if (GPOINTER_TO_UINT (value) != 0 && GPOINTER_TO_UINT (value) != ACCEL_SHOW_WAITING)
++			g_source_remove (GPOINTER_TO_UINT (value));
++	}
++	g_clear_pointer (&data->accel_shown, g_hash_table_unref);
++}
++
+ static void
+ send_dbus_event (SensorData     *data,
+ 		 PropertiesMask  mask)
+@@ -345,22 +526,31 @@ send_dbus_event (SensorData     *data,
+ 	PropertiesMask availability_mask = PROP_HAS_ACCELEROMETER |
+ 		PROP_HAS_AMBIENT_LIGHT | PROP_HAS_PROXIMITY | PROP_HAS_COMPASS;
+ 	PropertiesMask changed_availability = mask & availability_mask;
++	PropertiesMask broadcast;
+ 
+ 	g_assert (mask != 0);
+ 	g_assert (data->connection);
+ 	g_assert ((mask & PROP_ALL) == 0 || (mask & PROP_ALL_COMPASS) == 0);
+ 
+ 	/* Broadcast availability so clients can decide whether to claim a sensor.
+-	 * Readings are only sent to clients which have claimed the sensor. */
++	 * Readings are only sent to clients which have claimed the sensor.
++	 * A held back HasAccelerometer is not broadcast: the claimers get it below,
++	 * the clients that looked from accel_show_changed(). */
+ 	if (changed_availability) {
+-		send_dbus_event_for_client (data, NULL, changed_availability);
++		broadcast = changed_availability;
++		if (data->accel_hold_back)
++			broadcast &= ~PROP_HAS_ACCELEROMETER;
++		if (broadcast)
++			send_dbus_event_for_client (data, NULL, broadcast);
++		if (data->accel_hold_back && (changed_availability & PROP_HAS_ACCELEROMETER))
++			accel_show_changed (data);
+ 		for (i = 0; i < NUM_SENSOR_TYPES; i++) {
+ 			PropertiesMask sensor_mask = mask_for_sensor_type (i);
+ 
+ 			if ((sensor_mask & changed_availability) && driver_type_exists (data, i))
+ 				mask |= sensor_mask;
+ 		}
+-		mask &= ~availability_mask;
++		mask &= ~broadcast;
+ 	}
+ 	if (!mask)
+ 		return;
+@@ -541,6 +731,9 @@ handle_generic_method_call (SensorData            *data,
+ 							   NULL);
+ 		g_hash_table_insert (ht, g_strdup (sender), GUINT_TO_POINTER (watch_id));
+ 
++		if (driver_type == DRIVER_TYPE_ACCEL && data->accel_hold_back)
++			accel_show_now (data, sender);
++
+ 		if (driver_type_exists (data, driver_type)) {
+ 			SensorDevice *sensor_device = DEVICE_FOR_TYPE(driver_type);
+ 
+@@ -629,7 +822,7 @@ handle_get_property (GDBusConnection *connection,
+ 	g_assert (data->connection);
+ 
+ 	if (g_strcmp0 (property_name, "HasAccelerometer") == 0)
+-		return g_variant_new_boolean (driver_type_exists (data, DRIVER_TYPE_ACCEL));
++		return g_variant_new_boolean (accel_shown_to (data, sender));
+ 	if (g_strcmp0 (property_name, "AccelerometerOrientation") == 0)
+ 		return g_variant_new_string (orientation_to_string (data->previous_orientation));
+ 	if (g_strcmp0 (property_name, "AccelerometerTilt") == 0)
+@@ -1024,6 +1217,7 @@ free_sensor_data (SensorData *data)
+ 		g_clear_pointer (&data->clients[i], g_hash_table_unref);
+ 		g_clear_pointer (&data->sensor_startup_dbus_invocations_delayed[i], g_ptr_array_unref);
+ 	}
++	accel_shown_clear (data);
+ 
+ 	g_clear_object (&data->auth);
+ 	g_clear_pointer (&data->introspection_data, g_dbus_node_info_unref);
+@@ -1181,6 +1375,9 @@ int main (int argc, char **argv)
+ 	data->previous_orientation = ORIENTATION_UNDEFINED;
+ 	data->previous_tilt = TILT_UNDEFINED;
+ 	data->uses_lux = TRUE;
++	data->accel_hold_back = g_strcmp0 (g_getenv ("ACCEL_HOLD_BACK"), "0") != 0;
++	if (!data->accel_hold_back)
++		g_debug ("HasAccelerometer is not held back (ACCEL_HOLD_BACK=0)");
+ 	data->loop = g_main_loop_new (NULL, TRUE);
+ 
+ 	for (guint i = 0; i < NUM_SENSOR_TYPES; i++) {
+diff --git a/tests/integration-test.py b/tests/integration-test.py
+index 6c815a7..c3b3374 100755
+--- a/tests/integration-test.py
++++ b/tests/integration-test.py
+@@ -156,6 +156,8 @@ class Tests(dbusmock.DBusTestCase):
+         '''
+         if not env:
+             env = os.environ.copy()
++        # the upstream tests expect HasAccelerometer at once; the hold-back has its own tests
++        env.setdefault('ACCEL_HOLD_BACK', '0')
+         env['G_DEBUG'] = 'fatal-criticals'
+         env['G_MESSAGES_DEBUG'] = 'all'
+         env['UMOCKDEV_DEBUG'] = 'all'
+@@ -412,6 +414,79 @@ class Tests(dbusmock.DBusTestCase):
+         self.assertFalse(any('AccelerometerOrientation' in c or 'AccelerometerTilt' in c
+                              for c in changes))
+ 
++    def new_client(self):
++        '''A D-Bus proxy on a connection of its own (another client of the daemon).'''
++        connection = Gio.DBusConnection.new_for_address_sync(
++            self.test_bus.get_bus_address(),
++            Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT |
++            Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION, None, None)
++        self.addCleanup(connection.close_sync, None)
++        return Gio.DBusProxy.new_sync(
++            connection, Gio.DBusProxyFlags.DO_NOT_AUTO_START, None, SP,
++            SP_PATH, SP, None)
++
++    def add_poll_accel(self):
++        return self.testbed.add_device('iio', 'iio-accel', None,
++            ['in_accel_x_raw', '0', 'in_accel_y_raw', '-25.6',
++             'in_accel_z_raw', '0', 'in_accel_scale', '10',
++             'sampling_frequency', '5.2', 'name', 'IIO Test Accelerometer'],
++            ['NAME', '"IIO Accelerometer"', 'IIO_SENSOR_PROXY_TYPE', 'iio-poll-accel'])
++
++    def test_accel_hold_back(self):
++        '''HasAccelerometer held back until the client claims, or 2 s after it looked'''
++        self.add_poll_accel()
++        env = os.environ.copy()
++        env['ACCEL_HOLD_BACK'] = '1'
++        self.start_daemon(env=env)
++
++        # a client that looks and does not claim is told after the delay, without readings
++        looker = self.new_client()
++        changes = []
++        looker.connect('g-properties-changed',
++                       lambda proxy, changed, invalidated: changes.append(changed.unpack()))
++        self.assertFalse(looker.get_cached_property('HasAccelerometer').unpack())
++        self.assertEventually(lambda: looker.get_cached_property('HasAccelerometer').unpack())
++        self.assertTrue(any(c.get('HasAccelerometer') is True for c in changes))
++        self.assertFalse(any('AccelerometerOrientation' in c or 'AccelerometerTilt' in c
++                             for c in changes))
++
++        # a client that claims sees it with the claim, before the delay is over
++        claimer = self.new_client()
++        self.assertFalse(claimer.get_cached_property('HasAccelerometer').unpack())
++        claimer.ClaimAccelerometer()
++        self.assertEventually(lambda: claimer.get_cached_property('HasAccelerometer').unpack(),
++                              timeout=10)
++        self.assertEventually(lambda: claimer.get_cached_property('AccelerometerOrientation').unpack() == 'normal')
++        claimer.ReleaseAccelerometer()
++
++    def test_accel_hold_back_late_sensor(self):
++        '''With the hold-back, an unclaimed client that looked hears of a late accelerometer'''
++        self.testbed.add_device('platform', 'hwmon-als', None,
++            ['light', '(128,128)'], ['IIO_SENSOR_PROXY_TYPE', 'hwmon-als'])
++        env = os.environ.copy()
++        env['ACCEL_HOLD_BACK'] = '1'
++        self.start_daemon(env=env)
++
++        looker = self.new_client()
++        changes = []
++        looker.connect('g-properties-changed',
++                       lambda proxy, changed, invalidated: changes.append(changed.unpack()))
++        self.assertFalse(looker.get_cached_property('HasAccelerometer').unpack())
++        # the delay runs out while there is no accelerometer
++        time.sleep(2.5)
++        GLib.MainContext.default().iteration(False)
++        self.assertFalse(looker.get_cached_property('HasAccelerometer').unpack())
++
++        accel = self.add_poll_accel()
++        self.testbed.uevent(accel, 'add')
++        self.assertEventually(lambda: looker.get_cached_property('HasAccelerometer').unpack())
++        self.testbed.uevent(accel, 'remove')
++        self.assertEventually(lambda: not looker.get_cached_property('HasAccelerometer').unpack())
++        self.assertFalse(any('AccelerometerOrientation' in c or 'AccelerometerTilt' in c
++                             for c in changes))
++        # the light sensor's availability is still broadcast as upstream
++        self.assertTrue(looker.get_cached_property('HasAmbientLight').unpack())
++
+     def test_iio_poll_accel(self):
+         '''iio poll accel'''
+         accel = self.testbed.add_device('iio', 'iio-accel', None,

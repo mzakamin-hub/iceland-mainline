@@ -1,0 +1,8 @@
+# Sources of mesa-iceland that are NOT in this repository (release tarballs): file, size, sha256. The PKGBUILD's
+# source=() / sha256sums=() pin them; put the files next to the PKGBUILD before makepkg.
+mesa-26.3.1-git20261120.6cd33b7.tar.xz	88241940	6a98503efacc0e15e85e6e0af4e1049efeb7f03cd56dc66c8a750c97a5e35c23
+venus-protocol-v1.1.3.tar.gz	563775	c5a362ca28e0a35042db1baeadaf9183500b216841e49d72714b80bae50b4445
+# Origin: the mesa tarball is `git archive` of Mesa commit 6cd33b7f68ee04c5270215591b2d29535af291bd
+# (https://gitlab.freedesktop.org/mesa/mesa); venus-protocol v1.1.3 is the tag archive of
+# https://gitlab.freedesktop.org/virgl/venus-protocol. An archive you make yourself can differ byte for byte
+# (compression): check its tree against the commit and update sha256sums=() for your copy.

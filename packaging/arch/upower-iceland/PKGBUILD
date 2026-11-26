@@ -1,0 +1,19 @@
+# upower 1.91.5 iceland2 for Arch: watches every lid switch (the cover detector's uinput SW_LID next to gpio-keys) and
+# the time-to-full threshold patch. Built like Arch's upower (meson), idevice off (no iPhone support needed here).
+pkgname=upower-iceland
+pkgver=1.91.5
+pkgrel=2
+pkgdesc='Power management abstraction daemon (OnePlus Pad 4: multi-lid, ttf threshold)'
+arch=(aarch64)
+url='https://upower.freedesktop.org'
+license=('GPL-2.0-or-later')
+depends=(glib2 libgudev polkit systemd)
+makedepends=(meson ninja gobject-introspection gettext glib2-devel)  # glib2-devel: gdbus-codegen
+provides=("upower=$pkgver" libupower-glib.so)
+conflicts=(upower)
+backup=(etc/UPower/UPower.conf)
+source=("https://gitlab.freedesktop.org/upower/upower/-/archive/v$pkgver/upower-v$pkgver.tar.bz2" upower-iceland-ttf-threshold.patch upower-iceland-multi-lid.patch)
+sha256sums=('c465a1c7fc05d00ac2bc7321c19b9b7e479410d8392bd7eb3e714275729629fd' '123ce0209616a3d3e9a0f948e2bfc9aa74601b1d7fec2476c8d0aab1ed890325' '8feb8b2971db64a08ee49b31ba90fa139e1cd6047fe71fd6d281a832d9750fa9' )
+prepare() { cd upower-v$pkgver; patch -Np1 -i ../upower-iceland-ttf-threshold.patch; patch -Np1 -i ../upower-iceland-multi-lid.patch; }
+build() { arch-meson upower-v$pkgver build -Didevice=disabled -Dman=false -Dgtk-doc=false -Dintrospection=enabled; meson compile -C build; }
+package() { meson install -C build --destdir "$pkgdir"; rm -rf "$pkgdir/usr/lib/upower" "$pkgdir/usr/libexec/upower"; }
