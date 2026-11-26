@@ -419,3 +419,15 @@ All public under the GitHub user `mzakamin-hub`.
 | [android_device_oneplus_iceland](https://github.com/mzakamin-hub/android_device_oneplus_iceland), [proprietary_vendor_oneplus_iceland](https://github.com/mzakamin-hub/proprietary_vendor_oneplus_iceland) | the LineageOS device and vendor trees (the Android side) |
 
 The history of the project is in [CHANGELOG.md](CHANGELOG.md) and in the git history.
+
+## Credits
+
+This port builds on the work of many people: the upstream Linux, U-Boot and Mesa developers; the other Kaanapali ports
+it took code from, above all [infiniti-mainline](https://github.com/infiniti-mainline/linux) (Victor Fuentes, OnePlus
+15), [map220v/sm8850-mainline](https://github.com/map220v/sm8850-mainline) (the first Pad 4 port),
+[SuperTurtleDev](https://github.com/SuperTurtleDev/iceland-mainline-kernel) and
+[tb323fu-linux](https://github.com/joonhoekim/tb323fu-linux) (Joonhoe Kim); dappermint's
+[SuperVOOC driver](https://github.com/dappermint/iceland-supervooc); Armada, portareOS and the SM8750 tablet ports;
+DroidLoom, DroidVM, Arch Linux ARM and KDE. Imported commits and patches keep their authors. The project's own work is
+by mzak with Claude (Anthropic) as an AI coding assistant. The full list, with what was used from each source, is in
+[CREDITS.md](CREDITS.md).
