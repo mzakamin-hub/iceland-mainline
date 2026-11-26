@@ -40,11 +40,6 @@ Not here: the firmware package (repository
 ([iceland-gvm](https://github.com/mzakamin-hub/iceland-gvm), [iceland-vms](https://github.com/mzakamin-hub/iceland-vms))
 and DroidLoom (its upstream pacman repository). The `linux-iceland` PKGBUILD is not published yet.
 
-Desktop look (KDE Plasma): `mactahoe-kde-theme`, `mactahoe-icon-theme` (also builds `mactahoe-cursor-theme`),
-`mactahoe-gtk-theme`, `kwin-effect-rounded-corners` (all built from their upstream git repositories at pinned
-commits) and `iceland-wallpaper-goldengate` (a CC0 photo from Wikimedia Commons, fetched at build time and
-sha256-pinned; credits in its ATTRIBUTION file).
-
 Build them in an Arch Linux ARM aarch64 environment (a container under qemu-user on a PC works) with `makepkg`, sign
 the packages and the repository database with your own key (`makepkg --sign`, `repo-add -s`), and serve them as a
 local pacman repository; the top-level README's guide has the steps.
