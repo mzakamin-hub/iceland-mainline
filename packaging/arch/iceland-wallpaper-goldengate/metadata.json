@@ -1,0 +1,14 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "Jan Senderek"
+            }
+        ],
+        "Description": "Golden Gate Bridge at night (CC0, via Wikimedia Commons)",
+        "Id": "GoldenGate",
+        "License": "CC0-1.0",
+        "Name": "Golden Gate",
+        "Website": "https://commons.wikimedia.org/wiki/File:Golden_Gate_Bridge_(Unsplash).jpg"
+    }
+}

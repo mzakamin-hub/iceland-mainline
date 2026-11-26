@@ -1,0 +1,39 @@
+# Golden Gate Bridge at night - Plasma wallpaper package for the iceland tablet (OnePlus Pad 4, 3392x2400).
+# Photo: Jan Senderek, 4 Mar 2015, CC0 1.0 (public domain dedication), via Wikimedia Commons
+#   https://commons.wikimedia.org/wiki/File:Golden_Gate_Bridge_(Unsplash).jpg  (orig. https://unsplash.com/photos/_v5kxvrRFo4)
+#   original 5840x3892, Commons sha1 7adc58163bb5fe7079d00bf36b926819fd83d8df
+# Variants: 3392x2400 (panel landscape), 2400x3392 (portrait, both towers kept), 3840x2560 (3:2 full frame),
+# 3840x2160 (16:9, external displays). Plasma picks the variant nearest the screen size/aspect.
+pkgname=iceland-wallpaper-goldengate
+pkgver=2015.03.04
+pkgrel=1
+pkgdesc='Golden Gate Bridge at night wallpaper (CC0, Jan Senderek) sized for the OnePlus Pad 4'
+arch=('any')
+url='https://commons.wikimedia.org/wiki/File:Golden_Gate_Bridge_(Unsplash).jpg'
+license=('CC0-1.0')
+makedepends=('imagemagick')
+source=('Golden_Gate_Bridge_(Unsplash).jpg::https://upload.wikimedia.org/wikipedia/commons/e/e0/Golden_Gate_Bridge_(Unsplash).jpg' 'metadata.json' 'ATTRIBUTION')
+sha256sums=('553880f6bbb4f6027978b53fe8bb9cbefb496b6841d4db2f3846c43701e8d193'
+            'SKIP'
+            'SKIP')
+
+build() {
+  local o='Golden_Gate_Bridge_(Unsplash).jpg' q=(-strip -quality 92 -sampling-factor 4:2:0 -interlace JPEG)
+  mkdir -p images
+  # 3392x2400 (aspect 1.4133): 5501x3892 centre crop
+  magick "$o" -crop 5501x3892+169+0 +repage -resize '3392x2400!' "${q[@]}" images/3392x2400.jpg
+  # portrait 2400x3392: 2754x3892 window from x=1150 (north tower, deck, south tower, reflection)
+  magick "$o" -crop 2754x3892+1150+0 +repage -resize '2400x3392!' "${q[@]}" images/2400x3392.jpg
+  magick "$o" -resize '3840x2560!' "${q[@]}" images/3840x2560.jpg
+  # 16:9: 5840x3285, cut evenly top/bottom
+  magick "$o" -crop 5840x3285+0+303 +repage -resize '3840x2160!' "${q[@]}" images/3840x2160.jpg
+  magick images/3392x2400.jpg -resize 400x283 -quality 85 screenshot.jpg
+}
+
+package() {
+  local d="$pkgdir/usr/share/wallpapers/GoldenGate"
+  install -Dm644 metadata.json "$d/metadata.json"
+  install -Dm644 screenshot.jpg "$d/contents/screenshot.jpg"
+  install -Dm644 -t "$d/contents/images" images/*.jpg
+  install -Dm644 ATTRIBUTION "$pkgdir/usr/share/licenses/$pkgname/ATTRIBUTION"
+}

@@ -1,0 +1,4 @@
+# Sources of iceland-wallpaper-goldengate that are NOT in this repository (archives / images / build products): file, size, sha256.
+# The PKGBUILD's source=() / sha256sums=() pin them.
+Golden_Gate_Bridge_(Unsplash).jpg	5780063	553880f6bbb4f6027978b53fe8bb9cbefb496b6841d4db2f3846c43701e8d193
+# The photo (CC0, see ATTRIBUTION) is fetched by makepkg from Wikimedia Commons; the PKGBUILD pins its sha256.

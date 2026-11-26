@@ -1,0 +1,45 @@
+# iceland project build of vinceliuice/MacTahoe-icon-theme (based on AUR mactahoe-icon-theme, but straight from
+# GitHub - no download mirror - and split into icons + cursors). Tag 2026-09-10, pinned by commit.
+# Icons: MacTahoe (blue, default) and MacTahoe-red (folder colour nearest the International Orange accent),
+# each with -light and -dark. Cursors: upstream's prebuilt MacTahoe-cursors / MacTahoe-dark-cursors (18..72 px).
+pkgbase=mactahoe-icon-theme
+pkgname=(mactahoe-icon-theme mactahoe-cursor-theme)
+_tag=2026-09-10
+_commit=839848b9a8a38a92a6936e30c4abe35cc6f2546d
+pkgver=2026.09.10
+pkgrel=1
+pkgdesc='MacTahoe (macOS 26 Tahoe) icon and cursor themes'
+arch=('any')
+url='https://github.com/vinceliuice/MacTahoe-icon-theme'
+license=('GPL-3.0-or-later')
+makedepends=('git')
+options=('!strip' '!debug')
+source=("MacTahoe-icon-theme::git+https://github.com/vinceliuice/MacTahoe-icon-theme.git#commit=${_commit}")
+sha256sums=('SKIP')
+
+prepare() {
+  cd MacTahoe-icon-theme
+  # the icon cache is built by the gtk-update-icon-cache pacman hook on the target
+  sed -i '/gtk-update-icon-cache/d' install.sh
+  # cursors are packaged separately
+  sed -i 's/install_theme && install_cursor_theme/install_theme/' install.sh
+}
+
+package_mactahoe-icon-theme() {
+  pkgdesc='MacTahoe (macOS 26 Tahoe) icon theme (blue default + red folder variants, light/dark)'
+  depends=('hicolor-icon-theme')
+  cd MacTahoe-icon-theme
+  install -d "$pkgdir/usr/share/icons"
+  ./install.sh -d "$pkgdir/usr/share/icons" -t default red
+  install -Dm644 COPYING "$pkgdir/usr/share/licenses/$pkgname/COPYING"
+}
+
+package_mactahoe-cursor-theme() {
+  pkgdesc='MacTahoe (macOS 26 Tahoe) cursor themes (light and dark)'
+  license=('GPL-3.0-only')
+  cd MacTahoe-icon-theme/cursors
+  install -d "$pkgdir/usr/share/icons/MacTahoe-cursors" "$pkgdir/usr/share/icons/MacTahoe-dark-cursors"
+  cp -r dist/* "$pkgdir/usr/share/icons/MacTahoe-cursors/"
+  cp -r dist-dark/* "$pkgdir/usr/share/icons/MacTahoe-dark-cursors/"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

@@ -14,3 +14,7 @@ KDE Plasma 6.8 on Wayland and Plasma Login Manager with these packages.
   repository: `SOURCES-NOT-STAGED.txt` lists them with size and sha256, `MAKE-TARS.txt` says how to make them.
 - The firmware package lives in the iceland-firmware repository, not here. The kernel, Mesa and sensor-stack
   PKGBUILDs are not published yet.
+- Desktop look (KDE Plasma): `mactahoe-kde-theme`, `mactahoe-icon-theme` (also builds `mactahoe-cursor-theme`),
+  `mactahoe-gtk-theme`, `kwin-effect-rounded-corners` (all built from their upstream git repositories at pinned
+  commits) and `iceland-wallpaper-goldengate` (a CC0 photo from Wikimedia Commons, fetched at build time and
+  sha256-pinned; credits in its ATTRIBUTION file).
