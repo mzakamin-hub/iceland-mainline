@@ -7,7 +7,7 @@
 # A working row without an entry here is listed with its internal note, cleaned of run ids; build.py warns about it.
 # Keep the entries in sync when a matrix-*.py script adds, renames or re-words a working row.
 
-PUBLIC_STATUS = ("Fedora 45 is installed on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel); the project's tablet runs KDE Plasma 6, the install image sets up GNOME 50. Current versions: kernel 7.4.0-rc1-iceland-00743 (q91n, the patch queue on Linux v7.4-rc1; iceland-linux branch iceland-7.4-rc1, release q91n), iceland-device 0.28-51, iceland-firmware 11.A.38-6, U-Boot install build v7. The project's packages are signed with RPM-GPG-KEY-iceland.")
+PUBLIC_STATUS = ("Fedora 45 installs on the tablet and boots on its own (ABL -> U-Boot -> GRUB -> kernel); the install image sets up GNOME 50. Since 26 Nov 2026 the project's tablet runs Arch Linux ARM with KDE Plasma 6.8 on Wayland (Plasma Login Manager). Current versions: kernel 7.4.0-rc1-iceland-00743 (q91n, the patch queue on Linux v7.4-rc1; iceland-linux branch iceland-7.4-rc1, release q91n), iceland-device 0.28-51, iceland-firmware 11.A.38-6, U-Boot install build v7. The project's packages are signed with RPM-GPG-KEY-iceland.")
 
 PUBLIC = {
 # Boot & platform
@@ -299,10 +299,10 @@ PUBLIC = {
 "Virtual machines (Gunyah)": (
     "Virtual machines (Gunyah)",
     "Protected virtual machines on Qualcomm's Gunyah hypervisor with crosvm, managed by the Virtual Machines app (iceland-gvm 0.3-59 and iceland-vms 0.2-25): Linux guests from cloud images with NAT networking, shared folders, a serial console, autologin into the desktop and a clean shutdown; 3D in the guest (OpenGL through virgl, Vulkan through venus) with GPU-composited desktops in the VM window; a software display as the fallback; Windows 11 ARM guests and an optional QEMU backend (next rows). ISO installs are not supported yet."),
-"KDE Plasma 6 desktop": 
-    "KDE Plasma 6 on Wayland: auto-rotate, automatic brightness, the charge limit in Plasma's power settings, suspend, Night Light and Discover (Fedora upgrades offered, installs through PackageKit), with KWallet as the secrets provider.",
-"Android apps (DroidLoom)": 
-    "Android apps through DroidLoom (release 30, Android 17 in a container, with Google Play services): each app in its own window with a title bar and Close, a left-edge swipe for Back, shared folders, an AndroidVM menu folder and the AndroidVM helper for apps, folders, display density, GPU mode, backups, logs and updates.",
+"KDE Plasma 6 desktop":
+    "KDE Plasma 6 on Wayland, on Fedora and on Arch Linux ARM (Plasma 6.8 with Plasma Login Manager and plasma-keyboard as the on-screen keyboard): auto-rotate, automatic brightness, the charge limit in Plasma's power settings, suspend, Night Light and Discover, with KWallet as the secrets provider.",
+"Android apps (DroidLoom)":
+    "Android apps through DroidLoom (release 30, Android 17 in a container, with Google Play services): each app in its own window with a title bar and Close, a left-edge swipe for Back, shared folders, an AndroidVM menu folder and the AndroidVM helper for apps, folders, display density, GPU mode, backups, logs and updates. It also runs under KWin on Arch Linux ARM with KDE Plasma 6.8 (app windows, clipboard, notifications, network).",
 # 26 Oct 2026 (matrix r175)
 "Windows 11 ARM guest VM (gvm tool)": (
     "Windows 11 ARM guest VM",
@@ -333,4 +333,7 @@ PUBLIC = {
 "Tablet as touchpad and keyboard (DexHid)": (
     "Tablet as touchpad and keyboard (DexHid)",
     "DexHid turns the tablet into a touchpad and keyboard for a USB-C monitor, or into a USB keyboard and mouse for another computer, or leaves it a normal second screen, with one switch in its app window. Layouts: full PC keyboard, tablet keyboard, split or touchpad only, movable and resizable; taps, scrolling and gestures through the desktop's own touchpad handling. It idles at about 0.02 wakeups per second."),
+# 26 Nov 2026 (matrix r191)
+"Arch Linux ARM installed on the tablet":
+    "Arch Linux ARM with KDE Plasma 6.8 runs installed on the tablet: the project's device, power-profile, kernel, Mesa and sensor packages come from a signed pacman repository, and the tablet boots it through U-Boot and GRUB.",
 }
