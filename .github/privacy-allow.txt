@@ -15,9 +15,6 @@ value 172.16.42.1
 value 172.16.42.1/24
 value 172.16.42.2
 #
-# GNOME Shell extension UUID (not an address).
-value background-logo@fedorahosted.org
-#
 # Bluetooth address placeholders that iceland-provision refuses (generic, the same in every unit's firmware / DT):
 # the device tree's local-bd-address placeholder and the WCN NVM default, both byte orders.
 value 25:00:00:00:5A:AD
@@ -31,7 +28,3 @@ value AD:5A:01:00:55:78
 #
 # The documentation example address (format examples in comments and help texts).
 value aa:bb:cc:dd:ee:ff
-#
-# Upstream AppStream metadata of Fedora-derived packages carries the upstream projects' contact addresses.
-skip email packaging/libcamera/qcam.metainfo.xml
-skip email packaging/gstreamer1-plugins-good/gstreamer-good.appdata.xml

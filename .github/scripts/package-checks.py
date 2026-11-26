@@ -5,8 +5,8 @@
   python3 .github/scripts/package-checks.py
 
 1. every tracked shell script parses (bash -n / sh -n by its shebang), every Python file compiles, every JSON file loads
-2. packaging/iceland-device: every SourceN of the spec exists in files/ (or is one of the tarballs build-rpm.sh makes),
-   every file in files/ is a source of the spec
+2. packaging/arch/*/PKGBUILD: every local (non-URL) entry of source=() exists next to the PKGBUILD or is listed in
+   its SOURCES-NOT-STAGED.txt, and source=() and sha256sums=() have the same length
 3. if a package has a tests/ directory: each tests/test_*.py runs with the arguments of its "Usage:" line
    (no Usage line: "files <package>.spec")
 Exit status 0 when every check passes.
@@ -57,24 +57,36 @@ for f in files:
             fail(f, f"json: {e}")
 print(f"syntax: {n_sh} shell scripts, {n_py} Python files, {n_js} JSON files")
 
-# 2. iceland-device spec sources <-> files/
-pkg = "packaging/iceland-device"
-spec = os.path.join(pkg, "iceland-device.spec")
-made = re.compile(r"^(audioreach-topology-[0-9a-f]+\.tar\.gz|iceland-audio\.tar\.gz|iceland-tuned\.tar\.gz)$")
-if os.path.exists(spec):
-    srcs = {}
-    for n, line in enumerate(open(spec, encoding="utf-8"), 1):
-        m = re.match(r"^Source\d+:\s*(\S+)", line)
-        if m:
-            srcs[os.path.basename(m.group(1))] = n
-    have = {os.path.relpath(f, os.path.join(pkg, "files")) for f in files if f.startswith(pkg + "/files/")}
-    top = {h for h in have if "/" not in h}
-    for s, n in srcs.items():
-        if s not in top and not made.match(s):
-            fail(spec, f"Source {s} is not in {pkg}/files", n)
-    for h in sorted(top - set(srcs)):
-        fail(f"{pkg}/files/{h}", "file is not a Source of iceland-device.spec")
-    print(f"iceland-device.spec: {len(srcs)} sources, {len(top)} files in files/")
+# 2. Arch PKGBUILDs: local sources present (or listed as not staged), source / sha256sums lengths equal
+def bash_array(pkgbuild, name):
+    """The values of a PKGBUILD array, from bash itself (variables expanded, nothing else run)."""
+    script = ('set -e; cd "$(dirname "$1")"; srcdir=/nonexistent; pkgdir=/nonexistent; CARCH=aarch64; '
+              'source "$1" >/dev/null 2>&1 || true; eval "arr=(\"\\${%s[@]}\")"; '
+              'printf "%%s\\0" "${arr[@]}"' % name)
+    r = subprocess.run(["bash", "-c", script, "pkgbuild", os.path.abspath(pkgbuild)], capture_output=True)
+    return [x.decode() for x in r.stdout.split(b"\0") if x]
+
+
+n_pkg = 0
+for pb in sorted(f for f in files if re.match(r"packaging/arch/[^/]+/PKGBUILD$", f)):
+    n_pkg += 1
+    d = os.path.dirname(pb)
+    srcs, sums = bash_array(pb, "source"), bash_array(pb, "sha256sums")
+    if sums and len(srcs) != len(sums):
+        fail(pb, f"source=() has {len(srcs)} entries, sha256sums=() {len(sums)}")
+    staged = set()
+    ns = os.path.join(d, "SOURCES-NOT-STAGED.txt")
+    if os.path.exists(ns):
+        staged = {line.split("\t")[0] for line in open(ns, encoding="utf-8") if line.strip() and not line.startswith("#")}
+    for s in srcs:
+        name, _, url = s.partition("::")
+        if not url:
+            url, name = name, os.path.basename(name)
+        if re.match(r"^[a-z+]+://", url):
+            continue
+        if not os.path.exists(os.path.join(d, name)) and name not in staged:
+            fail(pb, f"local source {name} is neither in {d} nor in its SOURCES-NOT-STAGED.txt")
+print(f"PKGBUILDs: {n_pkg} checked")
 
 # 3. package tests, when the package carries them
 for t in sorted(f for f in files if re.match(r"packaging/[^/]+/tests/test_[^/]+\.py$", f)):

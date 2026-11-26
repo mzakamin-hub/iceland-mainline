@@ -2,9 +2,9 @@
 # Static checks on every push and pull request:
 #   features     docs/features/build.py: docs/FEATURES.md and feature-matrix.html are up to date, every working row
 #                has its public text (public-notes.py)
-#   package      shell / Python / JSON syntax of every file, iceland-device.spec sources <-> files/, package tests
+#   package      shell / Python / JSON syntax of every file, packaging/arch PKGBUILD sources, package tests
 #   shellcheck   advisory (never fails the run)
-#   powershell   tools/**/*.ps1 parse with pwsh, the installer's manifest template is valid JSON
+#   powershell   every *.ps1 parses with pwsh, tools/*.json is valid JSON
 name: checks
 
 on:
