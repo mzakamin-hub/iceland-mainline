@@ -5,7 +5,7 @@ KDE Plasma 6.8 on Wayland and Plasma Login Manager with these packages.
 
 - `iceland-device/`: one PKGBUILD, three packages. `iceland-device` holds the device settings (battery guard,
   thermal policy, sound profile, sensors, boot and kernel command line, power-key and bypass handling, nftables,
-  the DroidLoom launcher and its pacman guard hook); `iceland-device-kde` the KDE Plasma integration (PowerDevil and
+  the DroidLoom launcher); `iceland-device-kde` the KDE Plasma integration (PowerDevil and
   KWallet defaults, KWin with plasma-keyboard as the input method, the Plasma Login Manager settings and its greeter
   network block, the bypass-charging plasmoid, the Discover hook); `iceland-device-hypr` the Hyprland integration
   (not used on the project's tablet).

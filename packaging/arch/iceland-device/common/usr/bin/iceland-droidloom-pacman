@@ -1,6 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: GPL-2.0-or-later
-# iceland-droidloom-pacman (iceland-device (0.28.53-20: moved from iceland-device-hypr, not tied to Hyprland / Omarchy)): the guard of DroidLoom's own unsigned repository [droidloom]
+# iceland-droidloom-pacman (0.28.53-21: an OPTIONAL manual check, nothing enforces its use; iceland-device (0.28.53-20: moved from iceland-device-hypr, not tied to Hyprland / Omarchy)): the guard of DroidLoom's own unsigned repository [droidloom]
 # (OPEN-DECISIONS D6: owner (a), upstream unsigned repo, accepted 23 Nov 2026; the repo stays enabled for updates).
 #   iceland-droidloom-pacman plan       resolve a full "pacman -Syu" against a PRIVATE copy of the databases (the
 #                                       system's are not touched) and print what would come from where + the verdict
@@ -19,13 +19,7 @@ D=/usr/share/iceland/droidloom
 ALLOW=$(grep -v '^#' $D/droidloom-allow.list | tr -s ' \n' ' ')
 die() { echo "iceland-droidloom-pacman: STOP: $*" >&2; exit 1; }
 [ "$(id -u)" = 0 ] || die "run as root (sudo)"
-W=$(mktemp -d /run/iceland-droidloom.XXXXXX)
-# 0.28.53-20: the pacman hook 04-iceland-droidloom-guard.hook refuses any install / upgrade of droidloom-* unless this
-# run is the caller: a root-only marker file /run/iceland/droidloom-pacman.allow ("PID EPOCH" of this process), valid
-# 10 min, removed when this program ends. A file, not an environment variable: Pamac's and PackageKit's daemons run
-# the hooks without the caller's environment.
-ALLOWF=/run/iceland/droidloom-pacman.allow
-trap 'rm -rf "$W"; [ "$(cut -d" " -f1 "$ALLOWF" 2>/dev/null)" = "$$" ] && rm -f "$ALLOWF"' EXIT
+W=$(mktemp -d /run/iceland-droidloom.XXXXXX); trap 'rm -rf "$W"' EXIT
 if pacman-conf --repo-list | grep -qx droidloom; then cp /etc/pacman.conf "$W/pacman.conf"
 else cat /etc/pacman.conf $D/droidloom-repo.conf > "$W/pacman.conf"; fi
 awk '/^\[/ {s = ($0 == "[droidloom]")} s && /^(Server|CacheServer)[ \t]*=/ && $0 !~ /=[ \t]*https:\/\// {bad = 1} END {exit !bad}' "$W/pacman.conf" \
@@ -52,8 +46,6 @@ echo "== verdict: OK ([droidloom] supplies only the allowed names)"
 case ${1:-plan} in
 plan) exit 0 ;;
 install)
-  install -d -m 0755 /run/iceland
-  ( umask 077; printf '%s %s\n' "$$" "$(date +%s)" > "$ALLOWF.$$" ) && mv -f "$ALLOWF.$$" "$ALLOWF"
   # shellcheck disable=SC2086
   pacman --config "$W/pacman.conf" -Syu --needed $ALLOW ;;
 *) die "usage: iceland-droidloom-pacman plan|install" ;;

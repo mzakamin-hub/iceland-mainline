@@ -97,10 +97,6 @@ pkgver=0.28.53
 #   locker obeys logind Unlock as well).
 #   iceland-droidloom.desktop gains Desktop Actions (Android Settings / Status / Stop / Start with the Session):
 #   the Plasma form of the Omarchy menu's Android section.
-#   DroidLoom transaction guard (owner 26 Nov, mitigation (b)): 04-iceland-droidloom-guard.hook +
-#   iceland-droidloom-hook abort any install / upgrade of droidloom-* (pacman, Pamac, PackageKit) unless
-#   iceland-droidloom-pacman install started it (root-only marker /run/iceland/droidloom-pacman.allow, 10 min,
-#   live PID); removals are not guarded.
 #   NOT moved: the bt-agent drop-in (bt-agent.service is Omarchy's own user unit), the greeter's no-network table
 #   (names the sddm user: -kde generates its own by uid), the bypass renew units (Hyprland condition; the plasmoid
 #   renews itself).
@@ -113,7 +109,11 @@ pkgver=0.28.53
 #   plus, Arch-only: Plasma Login Manager's drop-in /etc/plasmalogin.conf.d/30-iceland.conf (owner 26 Nov: PLM
 #   instead of SDDM; the package never enables the service), /etc/xdg/kwinrc (plasma-keyboard) and
 #   iceland-greeter-nonet (+ hook): the login screens' no-network table by uid for the accounts that exist.
-pkgrel=20
+# pkgrel 21 (owner 26 Nov 2026): the DroidLoom transaction guard of -20 is removed again (04-iceland-droidloom-guard.hook,
+# iceland-droidloom-hook and the /run/iceland/droidloom-pacman.allow marker of iceland-droidloom-pacman); the tool stays
+# as an optional manual check (plan / install with the [droidloom] allow-list check). -hypr is rebuilt only because it
+# is a split package of this PKGBUILD (it is no longer installed on the tablet).
+pkgrel=21
 pkgdesc='OnePlus Pad 4 (iceland) device settings for Arch Linux ARM / Omarchy (port of iceland-device 0.28-53)'
 arch=(any)
 url='https://github.com/mzakamin-hub/iceland-mainline'
