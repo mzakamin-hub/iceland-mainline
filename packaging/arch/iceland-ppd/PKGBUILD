@@ -19,7 +19,12 @@ pkgver=1.0
 # (Omarchy's build provides that name too, so -4 can be installed while Omarchy is still there); NOTE: Arch's 0.30
 # has no cpufreq driver for this SoC's scmi / qcom-cpufreq-hw, so it offers power-saver + balanced only (no
 # performance: iceland-performance is then reachable only with a later driver).
-pkgrel=4
+# pkgrel 5 (ppdperf, 26 Nov 2026): Performance back on Arch's power-profiles-daemon without a fork: the drop-in
+# power-profiles-daemon.service.d/50-iceland-profiles.conf enables the daemon's own "fake" platform driver (all three
+# profiles declared, no writes; see the file). The values stay iceland-ppd-hook's (performance -> iceland-performance,
+# unchanged stock-limited profile) and iceland-thermal's caps. Install / upgrade / remove restart the daemon, then
+# the hook.
+pkgrel=5
 pkgdesc='OnePlus Pad 4: the iceland power profiles (ported tuned profiles) under power-profiles-daemon'
 arch=(any)
 url='https://github.com/mzakamin-hub/iceland-mainline'
@@ -27,14 +32,15 @@ license=('GPL-2.0-or-later')
 depends=(power-profiles-daemon python python-gobject upower)
 conflicts=(tuned-ppd)
 install=iceland-ppd.install
-source=(iceland-ppd-hook iceland-ppd-hook.service 60-iceland-ppd.conf iceland-balanced.conf iceland-balanced-battery.conf iceland-performance.conf iceland-powersave.conf)
+source=(iceland-ppd-hook iceland-ppd-hook.service 60-iceland-ppd.conf iceland-balanced.conf iceland-balanced-battery.conf iceland-performance.conf iceland-powersave.conf 50-iceland-profiles.conf)
 sha256sums=('5d372026d5f9d2fd55a5cad6216f35090293399548ee046386cf68f2e15aebf8'
             'd854eb31d00b3e3fe176ac130afce88a3ee3d0d5e76990f0c9d13404675b6cf2'
             '8e99258a7c48e63b95a7df314def4a8a7f91f9ee4c1adbefd74e28481cea1808'
             '89bf82069a4747c0a9107ce53583f4752b9365acc171e3bc94095adba2c7ae66'
             'd29b8e61acbd3279f5b383241fa3f818ea7a09145f3c262cee3bbb31b92d3abd'
             'b1909b33ccd4fcd9b555d466affa1d704919148cd906cca371ee2dfbc6865ab6'
-            '140f2b380cdea16d00b4b3ee34fd6f400c3ea953b16dcdc6d21d0ea7931c329c')
+            '140f2b380cdea16d00b4b3ee34fd6f400c3ea953b16dcdc6d21d0ea7931c329c'
+            '4f19acf7ea58f6b36dc2687cbfc3ca1960ec9f1050a9eda0972f7f35707130c1')
 check() {
   cd "$srcdir"
   local r=$srcdir/fakeroot p
@@ -61,12 +67,20 @@ check() {
   t iceland-balanced-battery "3628800 4396800 864000 0 1200000000 2000 schedutil iceland-balanced-battery"
   t iceland-performance      "3628800 4608000 1747200 1 1200000000 45 schedutil iceland-performance"
   [ "$(cat $r/sys/devices/platform/soc@0/1d84000.ufs/auto_hibern8)" = 150000 ]
+  # pkgrel 5: the drop-in sets exactly the fake-driver switch and nothing else
+  [ "$(grep -v '^#' 50-iceland-profiles.conf | grep -v '^$' | tr '\n' ' ')" = "[Service] Environment=POWER_PROFILE_DAEMON_FAKE_DRIVER=1 " ] \
+    || { echo "check: 50-iceland-profiles.conf content"; return 1; }
+  # performance never exceeds stock: big-cluster max 4608000 kHz (stock), small 3628800 kHz, GPU max 1.2 GHz
+  grep -qx '/sys/devices/system/cpu/cpufreq/policy6/scaling_max_freq=4608000' iceland-performance.conf
+  grep -qx '/sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq=3628800' iceland-performance.conf
+  grep -qx '/sys/class/devfreq/3d00000.gpu/max_freq=1200000000' iceland-performance.conf
 }
 package() {
   cd "$srcdir"
   install -Dm0755 iceland-ppd-hook "$pkgdir/usr/libexec/iceland/iceland-ppd-hook"
   install -Dm0644 iceland-ppd-hook.service "$pkgdir/usr/lib/systemd/system/iceland-ppd-hook.service"
   install -Dm0644 60-iceland-ppd.conf "$pkgdir/usr/lib/systemd/system/iceland-thermal.service.d/60-iceland-ppd.conf"
+  install -Dm0644 50-iceland-profiles.conf "$pkgdir/usr/lib/systemd/system/power-profiles-daemon.service.d/50-iceland-profiles.conf"
   local p
   for p in iceland-balanced iceland-balanced-battery iceland-performance iceland-powersave; do
     install -Dm0644 $p.conf "$pkgdir/usr/share/iceland/power-profiles/$p/tuned.conf"

@@ -14,6 +14,8 @@ post_install() {
   _unmask_floor
   if _running; then
     systemctl daemon-reload >/dev/null 2>&1 || :
+    # pkgrel 5: the daemon reads the 50-iceland-profiles.conf drop-in (all three profiles) only at its start
+    systemctl try-restart power-profiles-daemon.service >/dev/null 2>&1 || :
     systemctl try-restart iceland-thermal.service >/dev/null 2>&1 || :
     systemctl start iceland-ppd-hook.service >/dev/null 2>&1 || :
   fi
@@ -25,9 +27,18 @@ post_upgrade() {
   _unmask_floor
   if _running; then
     systemctl daemon-reload >/dev/null 2>&1 || :
+    # pkgrel 5: restart the daemon first (new drop-in: performance offered), then the hook follows the new daemon
+    systemctl try-restart power-profiles-daemon.service >/dev/null 2>&1 || :
     systemctl try-restart iceland-ppd-hook.service iceland-thermal.service >/dev/null 2>&1 || :
   fi
 }
 pre_remove() {
   systemctl disable --now iceland-ppd-hook.service >/dev/null 2>&1 || :
+}
+post_remove() {
+  # pkgrel 5: the drop-in is gone: the daemon falls back to Arch's placeholder (power-saver + balanced)
+  if _running; then
+    systemctl daemon-reload >/dev/null 2>&1 || :
+    systemctl try-restart power-profiles-daemon.service >/dev/null 2>&1 || :
+  fi
 }
