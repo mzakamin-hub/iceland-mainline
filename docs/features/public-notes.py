@@ -7,7 +7,7 @@
 # A working row without an entry here is listed with its internal note, cleaned of run ids; build.py warns about it.
 # Keep the entries in sync when a matrix-*.py script adds, renames or re-words a working row.
 
-PUBLIC_STATUS = ("The project's tablet runs Arch Linux ARM with KDE Plasma 6.8 on Wayland (Plasma Login Manager), booted ABL -> U-Boot (boot_b) -> GRUB -> kernel. Newest kernel release: kernel 7.4.0-rc1-iceland-00743 (q91n, the patch queue on Linux v7.4-rc1; iceland-linux tag q91n); the tablet runs a newer 7.4.0-rc4 build of the same queue that is not released yet. Packages on the tablet: iceland-device 0.28.53-22 with iceland-device-kde, iceland-ppd 1.0-5, iceland-firmware 11.A.38.6, U-Boot install build v7.")
+PUBLIC_STATUS = ("The project's tablet runs Arch Linux ARM with KDE Plasma 6.8 on Wayland (Plasma Login Manager), booted ABL -> U-Boot (boot_b) -> GRUB -> kernel. Current kernel: kernel 7.4.0-rc4-iceland-00827 (q92d, the patch queue on Linux v7.4-rc4; iceland-linux branch iceland-7.4-rc4, release q92d with the signed Arch package linux-iceland-q92d). Packages on the tablet: iceland-device 0.28.53-22 with iceland-device-kde, iceland-ppd 1.0-5, iceland-firmware 11.A.38.6, U-Boot install build v7.")
 
 PUBLIC = {
 # Boot & platform
@@ -18,7 +18,7 @@ PUBLIC = {
     "Boots the Linux disk image from its own partition (named “fedora”) when there is one, else from userdata.",
 "Linux 7.4 base (linux-next) through EFI": (
     "Linux (7.4 base)",
-    "Linux with the Pad 4 patch queue on Linux v7.4 boots through U-Boot's EFI, shim and GRUB. The newest release is kernel q91n (7.4.0-rc1-iceland-00743, iceland-linux tag q91n); the tablet runs a newer 7.4.0-rc4 build of the same queue that is not released yet. Since q91c: GPU recovery without deadlock, Night Light, faster sleep on cover close, Bluetooth / Wi-Fi robustness fixes and the USB connector temperature; q91n adds 25 security fixes from mainline and Qualcomm remoteproc / smem bounds checks."),
+    "Linux with the Pad 4 patch queue on Linux v7.4 boots through U-Boot's EFI, shim and GRUB. The current kernel is q92d (7.4.0-rc4-iceland-00827, iceland-linux branch iceland-7.4-rc4, release q92d with the Arch package linux-iceland-q92d). Since q91c: GPU recovery without deadlock, Night Light, faster sleep on cover close, Bluetooth / Wi-Fi robustness fixes and the USB connector temperature; q91n adds 25 security fixes from mainline and Qualcomm remoteproc / smem bounds checks."),
 "Internal storage (UFS 4)": 
     "UFS 4 with 4 KiB blocks in MCQ mode (9 hardware queues per LUN), about 2.3 GB/s direct read. The installed root is a btrfs subvolume (zstd compression) on the Linux disk image; with iceland-device's device-mapper option (iceland.carrier.map=dm) TRIM reaches the flash (fstrim, btrfs discard=async). The LUNs use the none I/O scheduler.",
 "Hardware watchdog":

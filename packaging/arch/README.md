@@ -38,7 +38,9 @@ Not here: the firmware package (repository
 [iceland-firmware](https://github.com/mzakamin-hub/iceland-firmware)), the kernel (repository
 [iceland-linux](https://github.com/mzakamin-hub/iceland-linux)), the VM packages
 ([iceland-gvm](https://github.com/mzakamin-hub/iceland-gvm), [iceland-vms](https://github.com/mzakamin-hub/iceland-vms))
-and DroidLoom (its upstream pacman repository). The `linux-iceland` PKGBUILD is not published yet.
+and DroidLoom (its upstream pacman repository). The kernel's PKGBUILD is `packaging/arch/linux-iceland` in
+iceland-linux (branch `iceland-7.4-rc4`); the signed `linux-iceland-q92d` package is in its
+[q92d release](https://github.com/mzakamin-hub/iceland-linux/releases/tag/q92d).
 
 Build them in an Arch Linux ARM aarch64 environment (a container under qemu-user on a PC works) with `makepkg`, sign
 the packages and the repository database with your own key (`makepkg --sign`, `repo-add -s`), and serve them as a

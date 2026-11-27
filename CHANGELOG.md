@@ -4,6 +4,13 @@ Mainline Linux for the OnePlus Pad 4 (`iceland`). Newest first. Only released or
 entries before 26 Nov 2026 (the Fedora releases from 29 Sep to 14 Nov 2026) are in the git history of this file and
 on the releases page.
 
+## 2026-11-27 - kernel q92d released with its Arch package
+
+- Kernel q92d (`7.4.0-rc4-iceland-00827`, iceland-linux branch `iceland-7.4-rc4`, tag `q92d`): the kernel the tablet
+  runs, released with the signed Arch package `linux-iceland-q92d`, the project's public key, the device tree
+  variants and the source ([release](https://github.com/mzakamin-hub/iceland-linux/releases/tag/q92d)); its PKGBUILD is `packaging/arch/linux-iceland` in iceland-linux.
+- Charging: the USB-PD 9 V mode was dropped; SuperVOOC (dappermint's driver) is being integrated, not released yet.
+
 ## 2026-11-26 - Arch Linux ARM + KDE Plasma 6.8; repository cleanup
 
 - The project's tablet runs Arch Linux ARM with KDE Plasma 6.8 on Wayland, Plasma Login Manager and plasma-keyboard,
@@ -18,5 +25,4 @@ on the releases page.
   CI, the Fedora install guides, the dual-boot guide and tools, the Windows installer, the out-of-tree Gunyah
   modules (the kernel has the drivers), the October status pages and guide set, the finished diagnostics.
 - Feature matrix r193: the public list follows Arch Linux ARM + KDE Plasma (105 working features).
-- Kernel: the newest release is q91n (`7.4.0-rc1-iceland-00743`, iceland-linux tag `q91n`); the tablet runs a newer
-  7.4.0-rc4 build of the queue that is not released yet.
+- Kernel: q91n (`7.4.0-rc1-iceland-00743`) was the newest release on this date.
